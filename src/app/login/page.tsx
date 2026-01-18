@@ -5,25 +5,25 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { Button } from '@/components/ui';
 import { AlertTriangle, Shield } from 'lucide-react';
 
 export default function LoginPage() {
-  const { firebaseUser, isOnboarded, loading, signInWithGoogle } = useAuth();
+  const { supabaseUser, isOnboarded, loading, signInWithGoogle } = useSupabaseAuth();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
 
   useEffect(() => {
-    if (!loading && firebaseUser) {
+    if (!loading && supabaseUser) {
       if (isOnboarded) {
         router.push('/dashboard');
       } else {
         router.push('/onboarding');
       }
     }
-  }, [firebaseUser, isOnboarded, loading, router]);
+  }, [supabaseUser, isOnboarded, loading, router]);
 
   const handleGoogleLogin = async () => {
     setError(null);

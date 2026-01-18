@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { getIncident, getBranch } from '@/lib/firestore';
 import { formatDateJP } from '@/lib/utils';
 import { getSortedScoreBreakdown } from '@/lib/scoring';
@@ -39,7 +39,7 @@ export default function IncidentDetailPage() {
 function IncidentDetailContent() {
   const params = useParams();
   const router = useRouter();
-  const { user, isAdmin } = useAuth();
+  const { profile, isAdmin } = useAuth();
   const [incident, setIncident] = useState<Incident | null>(null);
   const [branch, setBranch] = useState<Branch | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,7 +57,7 @@ function IncidentDetailContent() {
         }
 
         // 自分の投稿か、管理者でなければアクセス不可
-        if (incidentData.userId !== user?.id && !isAdmin) {
+        if (incidentData.userId !== profile?.id && !isAdmin) {
           setError('この投稿を閲覧する権限がありません');
           return;
         }
@@ -74,10 +74,10 @@ function IncidentDetailContent() {
       }
     };
 
-    if (user) {
+    if (profile) {
       fetchData();
     }
-  }, [incidentId, user, isAdmin]);
+  }, [incidentId, profile, isAdmin]);
 
   if (loading) {
     return (

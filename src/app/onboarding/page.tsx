@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { getBranches } from '@/lib/firestore';
 import { Branch, JOB_TYPES, JobType } from '@/types';
 import { Button, Input, Select } from '@/components/ui';
@@ -13,7 +13,7 @@ import { Loading } from '@/components/Loading';
 import { UserCircle } from 'lucide-react';
 
 export default function OnboardingPage() {
-  const { firebaseUser, user, loading, isOnboarded, updateUser } = useAuth();
+  const { supabaseUser, profile, loading, isOnboarded, updateProfile } = useAuth();
   const router = useRouter();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loadingBranches, setLoadingBranches] = useState(true);
@@ -27,22 +27,22 @@ export default function OnboardingPage() {
   });
 
   useEffect(() => {
-    if (!loading && !firebaseUser) {
+    if (!loading && !supabaseUser) {
       router.push('/login');
     }
     if (!loading && isOnboarded) {
       router.push('/dashboard');
     }
-  }, [firebaseUser, loading, isOnboarded, router]);
+  }, [supabaseUser, loading, isOnboarded, router]);
 
   useEffect(() => {
-    if (firebaseUser) {
+    if (supabaseUser) {
       setFormData((prev) => ({
         ...prev,
-        name: firebaseUser.displayName || '',
+        name: supabaseUser.user_metadata?.full_name || supabaseUser.email || '',
       }));
     }
-  }, [firebaseUser]);
+  }, [supabaseUser]);
 
   useEffect(() => {
     const fetchBranches = async () => {
@@ -79,14 +79,14 @@ export default function OnboardingPage() {
 
     setSubmitting(true);
     try {
-      await updateUser({
-        name: formData.name.trim(),
-        branchId: formData.branchId,
-        jobType: formData.jobType as JobType,
+      await updateProfile({
+        display_name: formData.name.trim(),
+        facility_id: formData.branchId,
+        organization_id: '00000000-0000-0000-0000-000000000001', // テスト用組織
       });
       router.push('/dashboard');
     } catch (error) {
-      console.error('Failed to update user:', error);
+      console.error('Failed to update profile:', error);
       setErrors({ submit: '登録に失敗しました。もう一度お試しください' });
     } finally {
       setSubmitting(false);
@@ -97,7 +97,7 @@ export default function OnboardingPage() {
     return <Loading fullScreen text="読み込み中..." />;
   }
 
-  if (!firebaseUser) {
+  if (!supabaseUser) {
     return null;
   }
 

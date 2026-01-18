@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import {
   getMonthlyUserStats,
@@ -25,7 +25,7 @@ export default function RankingsPage() {
 }
 
 function RankingsContent() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(getMonthKey());
   const [activeTab, setActiveTab] = useState<'user' | 'branch'>('user');
@@ -166,7 +166,7 @@ function RankingsContent() {
                     {userStats.map((stat, index) => {
                       const rank = getRank(userStats, index);
                       const emoji = getRankEmoji(rank);
-                      const isCurrentUser = stat.userId === user?.id;
+                      const isCurrentUser = stat.userId === profile?.id;
 
                       return (
                         <div

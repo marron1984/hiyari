@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { storage, DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { createIncident, getBranches, checkFraud, getSettings } from '@/lib/firestore';
 import { calculateScore } from '@/lib/scoring';
@@ -37,7 +37,7 @@ export default function SubmitPage() {
 }
 
 function SubmitContent() {
-  const { user, isAdmin } = useAuth();
+  const { profile, isAdmin } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,14 +86,13 @@ function SubmitContent() {
   }, []);
 
   useEffect(() => {
-    if (user && !formData.branchId) {
+    if (profile && !formData.branchId) {
       setFormData((prev) => ({
         ...prev,
-        branchId: user.branchId,
-        jobType: user.jobType,
+        branchId: profile.facility_id || '',
       }));
     }
-  }, [user, formData.branchId]);
+  }, [profile, formData.branchId]);
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -178,14 +177,14 @@ function SubmitContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate() || !user) return;
+    if (!validate() || !profile) return;
 
     setSubmitting(true);
     setErrors({});
 
     try {
       // 不正チェック
-      const fraudCheck = await checkFraud(user.id, formData.body);
+      const fraudCheck = await checkFraud(profile.id, formData.body);
 
       // 画像アップロード
       const imageUrls: string[] = [];
@@ -193,7 +192,7 @@ function SubmitContent() {
         for (const image of images) {
           const imageRef = ref(
             storage,
-            `incidents/${user.id}/${Date.now()}_${image.name}`
+            `incidents/${profile.id}/${Date.now()}_${image.name}`
           );
           await uploadBytes(imageRef, image);
           const url = await getDownloadURL(imageRef);
@@ -224,8 +223,8 @@ function SubmitContent() {
       const incidentId = await createIncident({
         tenantId: DEFAULT_TENANT_ID,
         branchId: formData.branchId,
-        userId: user.id,
-        userName: user.name,
+        userId: profile.id,
+        userName: profile.display_name || '',
         date: formData.date,
         timeSlot: formData.timeSlot as TimeSlot,
         jobType: formData.jobType as JobType,

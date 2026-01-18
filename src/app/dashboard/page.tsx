@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import {
   getIncidentsByUser,
@@ -44,7 +44,7 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [myIncidents, setMyIncidents] = useState<Incident[]>([]);
   const [myStats, setMyStats] = useState<MonthlyUserStats | null>(null);
@@ -56,11 +56,11 @@ function DashboardContent() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user) return;
+      if (!profile) return;
 
       try {
         const [incidentsData, branchesData, allUserStats] = await Promise.all([
-          getIncidentsByUser(user.id, 100),
+          getIncidentsByUser(profile?.id, 100),
           getBranches(),
           getMonthlyUserStats(DEFAULT_TENANT_ID, currentMonthKey),
         ]);
@@ -69,7 +69,7 @@ function DashboardContent() {
         setBranches(branchesData);
 
         // 自分の今月の統計
-        const myStatsData = allUserStats.find((s) => s.userId === user.id);
+        const myStatsData = allUserStats.find((s) => s.userId === profile?.id);
         if (myStatsData) {
           const branch = branchesData.find((b) => b.id === myStatsData.branchId);
           setMyStats({ ...myStatsData, branchName: branch?.name });
@@ -96,7 +96,7 @@ function DashboardContent() {
         const pastMonths = getPastMonthKeys(6).reverse();
         const monthlyPromises = pastMonths.map(async (monthKey) => {
           const stats = await getMonthlyUserStats(DEFAULT_TENANT_ID, monthKey);
-          const userStat = stats.find((s) => s.userId === user.id);
+          const userStat = stats.find((s) => s.userId === profile?.id);
           return {
             month: formatMonthKey(monthKey),
             count: userStat?.count || 0,
@@ -113,7 +113,7 @@ function DashboardContent() {
     };
 
     fetchData();
-  }, [user, currentMonthKey]);
+  }, [profile, currentMonthKey]);
 
   // 今月のインシデントを抽出
   const thisMonthIncidents = myIncidents.filter((i) => {
@@ -369,7 +369,7 @@ function DashboardContent() {
                     <div
                       key={userStat.userId}
                       className={`flex items-center p-3 rounded-lg ${
-                        userStat.userId === user?.id ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
+                        userStat.userId === profile?.id ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
                       }`}
                     >
                       <div className="w-8 text-center">
@@ -386,7 +386,7 @@ function DashboardContent() {
                       <div className="flex-1 ml-3">
                         <p className="font-medium text-gray-900">
                           {userStat.userName || '名前未設定'}
-                          {userStat.userId === user?.id && (
+                          {userStat.userId === profile?.id && (
                             <Badge variant="info" className="ml-2">
                               あなた
                             </Badge>

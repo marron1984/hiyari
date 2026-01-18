@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { getSettings, updateSettings, initializeSettings } from '@/lib/firestore';
 import { AuthGuard } from '@/components/AuthGuard';

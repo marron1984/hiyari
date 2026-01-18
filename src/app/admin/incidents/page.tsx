@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { getIncidentsByTenant, getBranches } from '@/lib/firestore';
 import { generateCSV, downloadFile, formatDateJP } from '@/lib/utils';
@@ -32,7 +32,7 @@ export default function AdminIncidentsPage() {
 }
 
 function AdminIncidentsContent() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
