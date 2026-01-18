@@ -1,8 +1,8 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { SupabaseAuthProvider } from '@/contexts/SupabaseAuthContext';
 
 export function Providers({ children }: { children: ReactNode }) {
-  return <AuthProvider>{children}</AuthProvider>;
+  return <SupabaseAuthProvider>{children}</SupabaseAuthProvider>;
 }

@@ -2,16 +2,17 @@
 
 import { useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
 import { Loading } from './Loading';
 
 interface AuthGuardProps {
   children: ReactNode;
   requireAdmin?: boolean;
+  requireManager?: boolean;
 }
 
-export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
-  const { firebaseUser, user, loading, isOnboarded, isAdmin } = useAuth();
+export function AuthGuard({ children, requireAdmin = false, requireManager = false }: AuthGuardProps) {
+  const { supabaseUser, profile, loading, isOnboarded, isAdmin, isManagerOrAbove } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -19,7 +20,7 @@ export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
     if (loading) return;
 
     // 未ログインの場合はログインページへ
-    if (!firebaseUser) {
+    if (!supabaseUser) {
       router.push('/login');
       return;
     }
@@ -35,13 +36,19 @@ export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
       router.push('/dashboard');
       return;
     }
-  }, [firebaseUser, user, loading, isOnboarded, isAdmin, requireAdmin, router, pathname]);
+
+    // マネージャー以上の権限が必要な場合
+    if (requireManager && !isManagerOrAbove) {
+      router.push('/dashboard');
+      return;
+    }
+  }, [supabaseUser, profile, loading, isOnboarded, isAdmin, isManagerOrAbove, requireAdmin, requireManager, router, pathname]);
 
   if (loading) {
     return <Loading fullScreen text="認証情報を確認中..." />;
   }
 
-  if (!firebaseUser) {
+  if (!supabaseUser) {
     return null;
   }
 
@@ -50,6 +57,10 @@ export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
   }
 
   if (requireAdmin && !isAdmin) {
+    return null;
+  }
+
+  if (requireManager && !isManagerOrAbove) {
     return null;
   }
 

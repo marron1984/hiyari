@@ -43,7 +43,21 @@ export function getTodayString(): string {
  * 日本語の日付表示
  */
 export function formatDateJP(dateString: string): string {
+  if (!dateString) return '';
+
+  // ISO8601形式（タイムスタンプ）の場合
+  if (dateString.includes('T') || dateString.includes(' ')) {
+    const date = new Date(dateString);
+    const jst = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+    const year = jst.getFullYear();
+    const month = jst.getMonth() + 1;
+    const day = jst.getDate();
+    return `${year}年${month}月${day}日`;
+  }
+
+  // YYYY-MM-DD形式の場合
   const [year, month, day] = dateString.split('-');
+  if (!year || !month || !day) return dateString;
   return `${year}年${parseInt(month)}月${parseInt(day)}日`;
 }
 

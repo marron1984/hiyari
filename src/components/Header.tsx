@@ -3,27 +3,44 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { useAuth } from '@/contexts/SupabaseAuthContext';
+import {
+  Menu,
+  X,
+  Home,
+  FileText,
+  BarChart3,
+  Trophy,
+  Settings,
+  LogOut,
+  ChevronDown,
+  Lightbulb,
+  ClipboardCheck,
+  Star,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Header() {
-  const { user, isAdmin, signOut } = useAuth();
+  const { profile, isAdmin, isManagerOrAbove, signOut } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  if (!user) return null;
+  if (!profile) return null;
 
   const navItems = [
     { href: '/dashboard', label: 'ダッシュボード', icon: Home },
-    { href: '/submit', label: '投稿', icon: FileText },
+    { href: '/submit', label: 'ヒヤリ投稿', icon: FileText },
+    { href: '/ideas', label: 'アイデア', icon: Lightbulb },
+    { href: '/approvals', label: '稟議', icon: ClipboardCheck },
+    { href: '/points', label: 'ポイント', icon: Star },
     { href: '/rankings', label: 'ランキング', icon: Trophy },
   ];
 
   const adminItems = [
-    { href: '/admin/incidents', label: '投稿管理', icon: BarChart3 },
-    { href: '/admin/settings', label: '設定', icon: Settings },
+    ...(isManagerOrAbove ? [{ href: '/admin/dashboard', label: '管理', icon: BarChart3 }] : []),
+    ...(isAdmin ? [{ href: '/admin/incidents', label: '投稿管理', icon: FileText }] : []),
+    ...(isAdmin ? [{ href: '/admin/settings', label: '設定', icon: Settings }] : []),
   ];
 
   const handleSignOut = async () => {
@@ -90,25 +107,17 @@ export function Header() {
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-50"
               >
-                {user.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt={user.name}
-                    className="w-6 h-6 rounded-full"
-                  />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">
-                    {user.name.charAt(0)}
-                  </div>
-                )}
-                <span className="max-w-24 truncate">{user.name}</span>
+                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">
+                  {profile.display_name?.charAt(0) || '?'}
+                </div>
+                <span className="max-w-24 truncate">{profile.display_name}</span>
                 <ChevronDown className="w-4 h-4" />
               </button>
               {userMenuOpen && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50">
                   <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
-                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                    <p className="text-sm font-medium text-gray-900 truncate">{profile.display_name}</p>
+                    <p className="text-xs text-gray-500 truncate">{profile.email}</p>
                   </div>
                   <button
                     onClick={handleSignOut}
@@ -185,16 +194,12 @@ export function Header() {
             <div className="border-t border-gray-100 my-2" />
             <div className="px-3 py-2">
               <div className="flex items-center space-x-2 mb-2">
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt={user.name} className="w-8 h-8 rounded-full" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm">
-                    {user.name.charAt(0)}
-                  </div>
-                )}
+                <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-sm">
+                  {profile.display_name?.charAt(0) || '?'}
+                </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{user.name}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
+                  <p className="text-sm font-medium text-gray-900">{profile.display_name}</p>
+                  <p className="text-xs text-gray-500">{profile.email}</p>
                 </div>
               </div>
               <button
