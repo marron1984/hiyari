@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ヘルパー関数
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return getUserRole() in ['admin', 'system_admin'];
+    }
+
+    // ユーザーコレクション
+    match /users/{userId} {
+      // 認証済みユーザーは自分のドキュメントを読み書きできる
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // 事業所コレクション
+    match /branches/{branchId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // 管理者のみ作成・更新・削除可能
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+    // インシデントコレクション
+    match /incidents/{incidentId} {
+      // 認証済みユーザーは自分の投稿を読める
+      // 管理者はすべての投稿を読める
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+
+      // 認証済みユーザーは投稿を作成できる（自分のuserIdのみ）
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+
+      // 管理者のみ更新・削除可能
+      allow update, delete: if isAuthenticated() && isAdmin();
+    }
+
+    // 設定コレクション
+    match /settings/{tenantId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // 管理者のみ書き込み可能
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+    // 月次統計コレクション
+    match /monthlyStats/{tenantId}/{monthKey}/{subcollection}/{docId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // 認証済みユーザーは書き込み可能（投稿時の集計更新用）
+      allow write: if isAuthenticated();
+    }
+
+    // 月次統計のルートドキュメント
+    match /monthlyStats/{tenantId}/{monthKey} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+  }
+}
