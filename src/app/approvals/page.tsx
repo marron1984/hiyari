@@ -31,7 +31,7 @@ type ViewMode = 'mine' | 'pending' | 'all';
 
 function ApprovalsPageContent() {
   const router = useRouter();
-  const { profile, organization, facility, isManagerOrAbove, isHqOrAbove } = useSupabaseAuth();
+  const { profile, organization, facility, isManagerOrAbove, isHqOrAbove, isServiceChiefOrAbove, isFacilityManagerOrAbove, isAreaManagerOrAbove } = useSupabaseAuth();
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
@@ -59,11 +59,24 @@ function ApprovalsPageContent() {
       if (viewMode === 'mine') {
         appliedFilter.applicant_id = profile.id;
       } else if (viewMode === 'pending') {
-        if (profile.role === 'manager') {
-          appliedFilter.facility_id = facility.id;
-          appliedFilter.status = 'level1_pending';
-        } else if (isHqOrAbove) {
-          appliedFilter.status = 'level2_pending';
+        // 5段階承認フロー：各ロールが承認可能なステータスでフィルター
+        // getPendingCountByRoleと同様のロジック
+        switch (profile.role) {
+          case 'service_chief':
+            appliedFilter.facility_id = facility.id;
+            appliedFilter.status = 'level1_pending';
+            break;
+          case 'facility_manager':
+            appliedFilter.facility_id = facility.id;
+            // level1_pending または level2_pending（承認可能なもの）
+            break;
+          case 'area_manager':
+            // level1〜3_pending
+            break;
+          case 'hq':
+          case 'admin':
+            // 全レベル承認可能
+            break;
         }
       }
 
@@ -85,7 +98,7 @@ function ApprovalsPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [organization, profile, facility, filter, searchText, page, viewMode, isManagerOrAbove, isHqOrAbove]);
+  }, [organization, profile, facility, filter, searchText, page, viewMode, isManagerOrAbove]);
 
   useEffect(() => {
     fetchApprovals();

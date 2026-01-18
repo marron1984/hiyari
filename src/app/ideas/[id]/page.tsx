@@ -302,7 +302,7 @@ function IdeaDetailContent() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>添付ファイル</CardTitle>
           {canEdit && (
-            <label className="cursor-pointer">
+            <label className="cursor-pointer inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
               <input
                 type="file"
                 multiple
@@ -310,12 +310,8 @@ function IdeaDetailContent() {
                 onChange={handleFileUpload}
                 disabled={uploading}
               />
-              <Button variant="outline" size="sm" disabled={uploading} asChild>
-                <span>
-                  <Paperclip className="w-4 h-4 mr-2" />
-                  {uploading ? 'アップロード中...' : 'ファイル追加'}
-                </span>
-              </Button>
+              <Paperclip className="w-4 h-4 mr-2" />
+              {uploading ? 'アップロード中...' : 'ファイル追加'}
             </label>
           )}
         </CardHeader>

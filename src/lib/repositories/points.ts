@@ -181,16 +181,19 @@ async function getMonthlyUserRankingFallback(
 
   for (const item of data || []) {
     const userId = item.user_id;
-    const profile = item.profiles;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const profile = item.profiles as any;
 
     if (facilityId && profile?.facility_id !== facilityId) continue;
 
     if (!userMap.has(userId)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const facilities = profile?.facilities as any;
       userMap.set(userId, {
         user_id: userId,
         user_name: profile?.display_name || '',
         facility_id: profile?.facility_id || '',
-        facility_name: profile?.facilities?.name || '',
+        facility_name: facilities?.name || '',
         month: startDate.substring(0, 7),
         total_points: 0,
         incident_count: 0,
@@ -279,7 +282,9 @@ export async function getMonthlyFacilityRanking(
   const activeUsersSet = new Map<string, Set<string>>();
 
   for (const item of pointData || []) {
-    const facilityId = item.profiles?.facility_id;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const profile = item.profiles as any;
+    const facilityId = profile?.facility_id;
     if (!facilityId || !facilityMap.has(facilityId)) continue;
 
     const stats = facilityMap.get(facilityId)!;
@@ -292,7 +297,7 @@ export async function getMonthlyFacilityRanking(
     if (!activeUsersSet.has(facilityId)) {
       activeUsersSet.set(facilityId, new Set());
     }
-    activeUsersSet.get(facilityId)!.add(item.profiles!.id);
+    activeUsersSet.get(facilityId)!.add(profile!.id);
   }
 
   // アクティブユーザー数を反映

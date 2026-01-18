@@ -30,6 +30,8 @@ import {
   rejectApproval,
   resubmitApproval,
   uploadApprovalAttachment,
+  canApprove as canApproveCheck,
+  getApprovalFlowInfo,
 } from '@/lib/repositories/approvals';
 import {
   Approval,
@@ -49,7 +51,7 @@ function ApprovalDetailContent() {
   const router = useRouter();
   const params = useParams();
   const approvalId = params.id as string;
-  const { profile, organization, isManagerOrAbove, isHqOrAbove, isAdmin } = useSupabaseAuth();
+  const { profile, organization, isManagerOrAbove, isAdmin } = useSupabaseAuth();
 
   const [approval, setApproval] = useState<Approval | null>(null);
   const [actions, setActions] = useState<ApprovalAction[]>([]);
@@ -91,18 +93,9 @@ function ApprovalDetailContent() {
     // 自分の申請は承認不可
     if (approval.applicant_id === profile.id) return false;
 
-    // level1_pending: managerが承認可能
-    if (approval.status === 'level1_pending' && profile.role === 'manager') {
-      return true;
-    }
-
-    // level2_pending: hq/adminが承認可能
-    if (approval.status === 'level2_pending' && isHqOrAbove) {
-      return true;
-    }
-
-    return false;
-  }, [approval, profile, isHqOrAbove]);
+    // 5段階承認フロー: ロールとステータスに基づいて承認可能か判定
+    return canApproveCheck(profile.role, approval.status as ApprovalStatus);
+  }, [approval, profile]);
 
   const canResubmit = useCallback(() => {
     if (!approval || !profile) return false;
@@ -348,7 +341,7 @@ function ApprovalDetailContent() {
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>添付ファイル</CardTitle>
           {approval.applicant_id === profile?.id && (
-            <label className="cursor-pointer">
+            <label className="cursor-pointer inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
               <input
                 type="file"
                 multiple
@@ -356,12 +349,8 @@ function ApprovalDetailContent() {
                 onChange={handleFileUpload}
                 disabled={uploading}
               />
-              <Button variant="outline" size="sm" disabled={uploading} asChild>
-                <span>
-                  <Paperclip className="w-4 h-4 mr-2" />
-                  {uploading ? 'アップロード中...' : 'ファイル追加'}
-                </span>
-              </Button>
+              <Paperclip className="w-4 h-4 mr-2" />
+              {uploading ? 'アップロード中...' : 'ファイル追加'}
             </label>
           )}
         </CardHeader>

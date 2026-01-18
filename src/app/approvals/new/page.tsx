@@ -256,19 +256,15 @@ function NewApprovalPageContent() {
               )}
 
               {/* アップロードボタン */}
-              <label className="cursor-pointer inline-block">
+              <label className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                 <input
                   type="file"
                   multiple
                   className="hidden"
                   onChange={handleFileAdd}
                 />
-                <Button type="button" variant="outline" asChild>
-                  <span>
-                    <Paperclip className="w-4 h-4 mr-2" />
-                    ファイルを追加
-                  </span>
-                </Button>
+                <Paperclip className="w-4 h-4 mr-2" />
+                ファイルを追加
               </label>
               <p className="text-xs text-gray-500">
                 見積書、カタログ、参考資料などを添付できます（1ファイル10MBまで）
@@ -277,16 +273,20 @@ function NewApprovalPageContent() {
           </CardContent>
         </Card>
 
-        {/* 承認フロー説明 */}
+        {/* 承認フロー説明（5段階） */}
         <Card className="mb-6 bg-gray-50">
           <CardContent className="py-4">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">承認フロー</h4>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">承認フロー（5段階）</h4>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-600">
               <span className="px-2 py-1 bg-white rounded border">申請</span>
               <span>→</span>
-              <span className="px-2 py-1 bg-white rounded border">一次承認（拠点責任者）</span>
+              <span className="px-2 py-1 bg-white rounded border">サ責</span>
               <span>→</span>
-              <span className="px-2 py-1 bg-white rounded border">二次承認（本部）</span>
+              <span className="px-2 py-1 bg-white rounded border">拠点責任者</span>
+              <span>→</span>
+              <span className="px-2 py-1 bg-white rounded border">事業マネージャー</span>
+              <span>→</span>
+              <span className="px-2 py-1 bg-white rounded border">本部長</span>
               <span>→</span>
               <span className="px-2 py-1 bg-green-100 text-green-700 rounded border border-green-200">
                 承認完了

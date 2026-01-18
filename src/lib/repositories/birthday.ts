@@ -102,13 +102,15 @@ export async function getBirthdayAlerts(
     for (const client of clients || []) {
       const daysUntil = calculateDaysUntilBirthday(client.birthday, today);
       if (daysUntil >= 0 && daysUntil <= daysAhead) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const facilities = client.facilities as any;
         alerts.push({
           id: client.id,
           name: client.name,
           birthday: client.birthday,
           type: 'client',
           facility_id: client.facility_id,
-          facility_name: client.facilities?.name,
+          facility_name: facilities?.name,
           days_until: daysUntil,
         });
       }
@@ -135,13 +137,15 @@ export async function getBirthdayAlerts(
     for (const profile of profiles || []) {
       const daysUntil = calculateDaysUntilBirthday(profile.birthday, today);
       if (daysUntil >= 0 && daysUntil <= daysAhead) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const facilities = profile.facilities as any;
         alerts.push({
           id: profile.id,
           name: profile.display_name,
           birthday: profile.birthday,
           type: 'profile',
           facility_id: profile.facility_id,
-          facility_name: profile.facilities?.name,
+          facility_name: facilities?.name,
           days_until: daysUntil,
         });
       }
