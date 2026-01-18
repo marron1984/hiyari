@@ -11,7 +11,34 @@ import {
   ApprovalActionType,
   ApprovalFormData,
   UserRole,
+  ApproverRole,
 } from '@/types/database';
+
+// 承認フローの定義（5段階）
+// スタッフ → サ責 → 拠点責任者 → 事業マネージャー → 本部長兼副社長
+const APPROVAL_FLOW: { status: ApprovalStatus; nextStatus: ApprovalStatus; role: ApproverRole }[] = [
+  { status: 'level1_pending', nextStatus: 'level2_pending', role: 'service_chief' },
+  { status: 'level2_pending', nextStatus: 'level3_pending', role: 'facility_manager' },
+  { status: 'level3_pending', nextStatus: 'level4_pending', role: 'area_manager' },
+  { status: 'level4_pending', nextStatus: 'approved', role: 'hq' },
+];
+
+// ロールから承認可能なステータスを取得
+function getApprovableStatuses(role: UserRole): ApprovalStatus[] {
+  switch (role) {
+    case 'service_chief':
+      return ['level1_pending'];
+    case 'facility_manager':
+      return ['level1_pending', 'level2_pending'];
+    case 'area_manager':
+      return ['level1_pending', 'level2_pending', 'level3_pending'];
+    case 'hq':
+    case 'admin':
+      return ['level1_pending', 'level2_pending', 'level3_pending', 'level4_pending'];
+    default:
+      return [];
+  }
+}
 
 export interface ApprovalFilter {
   status?: ApprovalStatus;
@@ -143,7 +170,7 @@ export async function createApproval(
       category: formData.category,
       desired_due_date: formData.desired_due_date || null,
       status: 'level1_pending',
-      current_approver_role: 'manager',
+      current_approver_role: 'service_chief', // サ責が一次承認
     })
     .select()
     .single();
@@ -193,20 +220,29 @@ export async function approveApproval(
   const approval = await getApproval(id);
   if (!approval) throw new Error('Approval not found');
 
-  let newStatus: ApprovalStatus;
-  let newApproverRole: UserRole | null = null;
+  // ユーザーがこのステータスを承認できるか確認
+  const approvableStatuses = getApprovableStatuses(actorRole);
+  if (!approvableStatuses.includes(approval.status as ApprovalStatus)) {
+    throw new Error(`権限がありません: ${approval.status}`);
+  }
 
-  // 現在のステータスに応じて次のステータスを決定
-  if (approval.status === 'level1_pending') {
-    // 一次承認完了 → 二次承認待ち
-    newStatus = 'level2_pending';
-    newApproverRole = 'hq';
-  } else if (approval.status === 'level2_pending') {
-    // 二次承認完了 → 承認済み
-    newStatus = 'approved';
-    newApproverRole = null;
+  // 現在のステータスから次のステータスを取得
+  const currentFlow = APPROVAL_FLOW.find(f => f.status === approval.status);
+  if (!currentFlow) {
+    throw new Error(`Cannot approve from status: ${approval.status}`);
+  }
 
-    // 承認完了時に追加ポイント付与
+  const newStatus = currentFlow.nextStatus;
+  let newApproverRole: ApproverRole | null = null;
+
+  // 次のステータスがapproved以外の場合、次の承認者ロールを設定
+  if (newStatus !== 'approved') {
+    const nextFlow = APPROVAL_FLOW.find(f => f.status === newStatus);
+    newApproverRole = nextFlow?.role || null;
+  }
+
+  // 承認完了時（approved）に追加ポイント付与
+  if (newStatus === 'approved') {
     await supabase.from('point_ledger').insert({
       organization_id: approval.organization_id,
       user_id: approval.applicant_id,
@@ -215,8 +251,6 @@ export async function approveApproval(
       points: 5,
       reason: '稟議承認完了',
     });
-  } else {
-    throw new Error(`Cannot approve from status: ${approval.status}`);
   }
 
   // 稟議を更新
@@ -320,7 +354,7 @@ export async function resubmitApproval(
     .update({
       ...updates,
       status: newStatus,
-      current_approver_role: 'manager',
+      current_approver_role: 'service_chief', // サ責が一次承認
     })
     .eq('id', id);
 
@@ -450,14 +484,27 @@ export async function getPendingCountByRole(
     .select('*', { count: 'exact', head: true })
     .eq('organization_id', organizationId);
 
-  if (role === 'manager') {
-    // managerは自拠点のlevel1_pendingのみ
-    query = query.eq('facility_id', facilityId).eq('status', 'level1_pending');
-  } else if (role === 'hq' || role === 'admin') {
-    // hq/adminはlevel2_pending
-    query = query.eq('status', 'level2_pending');
-  } else {
-    return 0;
+  // 各ロールが承認可能なステータスをフィルタリング
+  switch (role) {
+    case 'service_chief':
+      // サ責は自拠点のlevel1_pendingのみ
+      query = query.eq('facility_id', facilityId).eq('status', 'level1_pending');
+      break;
+    case 'facility_manager':
+      // 拠点責任者は自拠点のlevel1_pending, level2_pending
+      query = query.eq('facility_id', facilityId).in('status', ['level1_pending', 'level2_pending']);
+      break;
+    case 'area_manager':
+      // 事業マネージャーはlevel1_pending, level2_pending, level3_pending
+      query = query.in('status', ['level1_pending', 'level2_pending', 'level3_pending']);
+      break;
+    case 'hq':
+    case 'admin':
+      // 本部長/管理者は全レベル
+      query = query.in('status', ['level1_pending', 'level2_pending', 'level3_pending', 'level4_pending']);
+      break;
+    default:
+      return 0;
   }
 
   const { count, error } = await query;
@@ -468,4 +515,37 @@ export async function getPendingCountByRole(
   }
 
   return count || 0;
+}
+
+// ユーザーが承認可能かどうかを判定
+export function canApprove(role: UserRole, status: ApprovalStatus): boolean {
+  const approvableStatuses = getApprovableStatuses(role);
+  return approvableStatuses.includes(status);
+}
+
+// 承認フロー情報を取得
+export function getApprovalFlowInfo(status: ApprovalStatus): {
+  currentLevel: number;
+  totalLevels: number;
+  currentApprover: string;
+  nextApprover: string | null;
+} {
+  const levels: { [key: string]: { level: number; name: string; next: string | null } } = {
+    'level1_pending': { level: 1, name: 'サ責', next: '拠点責任者' },
+    'level2_pending': { level: 2, name: '拠点責任者', next: '事業マネージャー' },
+    'level3_pending': { level: 3, name: '事業マネージャー', next: '本部長' },
+    'level4_pending': { level: 4, name: '本部長', next: null },
+  };
+
+  const info = levels[status];
+  if (!info) {
+    return { currentLevel: 0, totalLevels: 4, currentApprover: '', nextApprover: null };
+  }
+
+  return {
+    currentLevel: info.level,
+    totalLevels: 4,
+    currentApprover: info.name,
+    nextApprover: info.next,
+  };
 }

@@ -57,7 +57,7 @@ RETURNS BOOLEAN AS $$
     )
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
--- hq以上かどうか（hq または admin）
+-- hq以上かどうか（hq または admin）- 本部長兼副社長以上
 CREATE OR REPLACE FUNCTION is_hq_or_above()
 RETURNS BOOLEAN AS $$
     SELECT EXISTS (
@@ -66,12 +66,39 @@ RETURNS BOOLEAN AS $$
     )
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
--- manager以上かどうか（manager, hq, admin）
+-- area_manager以上かどうか（事業マネージャー以上）
+CREATE OR REPLACE FUNCTION is_area_manager_or_above()
+RETURNS BOOLEAN AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM profiles
+        WHERE id = auth.uid() AND role IN ('area_manager', 'hq', 'admin')
+    )
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- facility_manager以上かどうか（拠点責任者以上）
+CREATE OR REPLACE FUNCTION is_facility_manager_or_above()
+RETURNS BOOLEAN AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM profiles
+        WHERE id = auth.uid() AND role IN ('facility_manager', 'area_manager', 'hq', 'admin')
+    )
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- service_chief以上かどうか（サ責以上）
+CREATE OR REPLACE FUNCTION is_service_chief_or_above()
+RETURNS BOOLEAN AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM profiles
+        WHERE id = auth.uid() AND role IN ('service_chief', 'facility_manager', 'area_manager', 'hq', 'admin')
+    )
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- 旧互換: manager以上 = facility_manager以上として扱う
 CREATE OR REPLACE FUNCTION is_manager_or_above()
 RETURNS BOOLEAN AS $$
     SELECT EXISTS (
         SELECT 1 FROM profiles
-        WHERE id = auth.uid() AND role IN ('manager', 'hq', 'admin')
+        WHERE id = auth.uid() AND role IN ('service_chief', 'facility_manager', 'area_manager', 'hq', 'admin')
     )
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 

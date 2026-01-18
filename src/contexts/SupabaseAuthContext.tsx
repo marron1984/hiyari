@@ -19,7 +19,10 @@ interface AuthContextType {
   isOnboarded: boolean;
   isAdmin: boolean;
   isHqOrAbove: boolean;
-  isManagerOrAbove: boolean;
+  isAreaManagerOrAbove: boolean;
+  isFacilityManagerOrAbove: boolean;
+  isServiceChiefOrAbove: boolean;
+  isManagerOrAbove: boolean; // 互換性維持（service_chief以上）
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -181,11 +184,16 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // 権限チェック
+  // 権限チェック（5段階ロール階層）
+  // staff < service_chief < facility_manager < area_manager < hq < admin
   const isOnboarded = !!profile && !!profile.facility_id && !!profile.organization_id;
   const isAdmin = profile?.role === 'admin';
-  const isHqOrAbove = profile?.role === 'hq' || profile?.role === 'admin';
-  const isManagerOrAbove = profile?.role === 'manager' || profile?.role === 'hq' || profile?.role === 'admin';
+  const isHqOrAbove = ['hq', 'admin'].includes(profile?.role || '');
+  const isAreaManagerOrAbove = ['area_manager', 'hq', 'admin'].includes(profile?.role || '');
+  const isFacilityManagerOrAbove = ['facility_manager', 'area_manager', 'hq', 'admin'].includes(profile?.role || '');
+  const isServiceChiefOrAbove = ['service_chief', 'facility_manager', 'area_manager', 'hq', 'admin'].includes(profile?.role || '');
+  // 互換性維持: isManagerOrAbove = service_chief以上
+  const isManagerOrAbove = isServiceChiefOrAbove;
 
   return (
     <AuthContext.Provider
@@ -203,6 +211,9 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         isOnboarded,
         isAdmin,
         isHqOrAbove,
+        isAreaManagerOrAbove,
+        isFacilityManagerOrAbove,
+        isServiceChiefOrAbove,
         isManagerOrAbove,
       }}
     >

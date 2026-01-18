@@ -2,15 +2,21 @@
 // ええかいご 管理コンソール - Supabase Database Types
 // ============================================================
 
-// ユーザーロール
-export type UserRole = 'staff' | 'manager' | 'hq' | 'admin';
+// ユーザーロール（5段階階層）
+// staff < service_chief < facility_manager < area_manager < hq < admin
+export type UserRole = 'staff' | 'service_chief' | 'facility_manager' | 'area_manager' | 'hq' | 'admin';
 
 export const USER_ROLES: { value: UserRole; label: string; description: string }[] = [
-  { value: 'staff', label: '一般職員', description: '自拠点のデータ参照・作成' },
-  { value: 'manager', label: '拠点責任者', description: '自拠点の一次承認' },
-  { value: 'hq', label: '本部', description: '全拠点参照・二次承認' },
+  { value: 'staff', label: 'スタッフ', description: '一般職員・申請者' },
+  { value: 'service_chief', label: 'サ責', description: 'サービス提供責任者・一次承認' },
+  { value: 'facility_manager', label: '拠点責任者', description: '二次承認' },
+  { value: 'area_manager', label: '事業マネージャー', description: '三次承認' },
+  { value: 'hq', label: '本部長兼副社長', description: '最終承認・全拠点参照' },
   { value: 'admin', label: '管理者', description: '全権限' },
 ];
+
+// 承認フローで使用するロール
+export type ApproverRole = 'service_chief' | 'facility_manager' | 'area_manager' | 'hq' | 'admin';
 
 // 組織
 export interface Organization {
@@ -35,6 +41,7 @@ export interface Profile {
   role: UserRole;
   organization_id: string | null;
   facility_id: string | null;
+  area_id: string | null; // 事業マネージャー用：担当エリアID
   birthday: string | null;
   employment_type: string | null;
   is_active: boolean;
@@ -164,19 +171,31 @@ export const APPROVAL_CATEGORIES: ApprovalCategory[] = [
 
 export type ApprovalStatus =
   | 'submitted'
-  | 'level1_pending'
-  | 'level2_pending'
+  | 'level1_pending'  // サ責承認待ち
+  | 'level2_pending'  // 拠点責任者承認待ち
+  | 'level3_pending'  // 事業マネージャー承認待ち
+  | 'level4_pending'  // 本部長承認待ち
   | 'approved'
   | 'rejected'
   | 'returned';
 
 export const APPROVAL_STATUSES: { value: ApprovalStatus; label: string; color: string }[] = [
   { value: 'submitted', label: '申請中', color: 'default' },
-  { value: 'level1_pending', label: '一次承認待ち', color: 'warning' },
-  { value: 'level2_pending', label: '二次承認待ち', color: 'warning' },
+  { value: 'level1_pending', label: 'サ責承認待ち', color: 'warning' },
+  { value: 'level2_pending', label: '拠点責任者承認待ち', color: 'warning' },
+  { value: 'level3_pending', label: '事業マネージャー承認待ち', color: 'warning' },
+  { value: 'level4_pending', label: '本部長承認待ち', color: 'warning' },
   { value: 'approved', label: '承認済み', color: 'success' },
   { value: 'rejected', label: '却下', color: 'danger' },
   { value: 'returned', label: '差戻し', color: 'info' },
+];
+
+// 承認レベルとロールのマッピング
+export const APPROVAL_LEVEL_ROLES: { status: ApprovalStatus; role: ApproverRole }[] = [
+  { status: 'level1_pending', role: 'service_chief' },
+  { status: 'level2_pending', role: 'facility_manager' },
+  { status: 'level3_pending', role: 'area_manager' },
+  { status: 'level4_pending', role: 'hq' },
 ];
 
 export type ApprovalActionType = 'submit' | 'approve' | 'return' | 'reject';
@@ -192,7 +211,7 @@ export interface Approval {
   category: string;
   desired_due_date: string | null;
   status: ApprovalStatus;
-  current_approver_role: UserRole | null;
+  current_approver_role: ApproverRole | null;
   points_awarded: number;
   created_at: string;
   updated_at: string;

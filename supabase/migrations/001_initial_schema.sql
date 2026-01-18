@@ -31,13 +31,22 @@ CREATE INDEX idx_facilities_organization ON facilities(organization_id);
 COMMENT ON TABLE facilities IS '事業所マスタ';
 
 -- ユーザープロファイルテーブル
+-- 役職階層: staff < service_chief < facility_manager < area_manager < hq < admin
 CREATE TABLE profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     display_name TEXT NOT NULL,
     email TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'staff' CHECK (role IN ('staff', 'manager', 'hq', 'admin')),
+    role TEXT NOT NULL DEFAULT 'staff' CHECK (role IN (
+        'staff',           -- スタッフ（一般職員）
+        'service_chief',   -- サ責（サービス提供責任者）- 一次承認
+        'facility_manager',-- 拠点責任者 - 二次承認
+        'area_manager',    -- 事業マネージャー - 三次承認
+        'hq',              -- 本部長兼副社長 - 最終承認
+        'admin'            -- 管理者（全権限）
+    )),
     organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
     facility_id UUID REFERENCES facilities(id) ON DELETE SET NULL,
+    area_id UUID,  -- 事業マネージャー用：担当エリアID（将来拡張用）
     birthday DATE,
     employment_type TEXT,
     is_active BOOLEAN DEFAULT TRUE,
@@ -169,6 +178,9 @@ COMMENT ON TABLE idea_attachments IS '改善アイデア添付ファイル';
 -- 簡易稟議システム
 -- ============================================================
 
+-- 稟議の承認フロー:
+-- submitted → level1_pending(サ責) → level2_pending(拠点責任者)
+--          → level3_pending(事業マネージャー) → level4_pending(本部長) → approved
 CREATE TABLE approvals (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -180,14 +192,22 @@ CREATE TABLE approvals (
     category TEXT NOT NULL,
     desired_due_date DATE,
     status TEXT NOT NULL DEFAULT 'submitted' CHECK (status IN (
-        'submitted',
-        'level1_pending',
-        'level2_pending',
-        'approved',
-        'rejected',
-        'returned'
+        'submitted',        -- 申請中
+        'level1_pending',   -- サ責承認待ち
+        'level2_pending',   -- 拠点責任者承認待ち
+        'level3_pending',   -- 事業マネージャー承認待ち
+        'level4_pending',   -- 本部長承認待ち
+        'approved',         -- 承認完了
+        'rejected',         -- 却下
+        'returned'          -- 差戻し
     )),
-    current_approver_role TEXT CHECK (current_approver_role IN ('manager', 'hq', 'admin')),
+    current_approver_role TEXT CHECK (current_approver_role IN (
+        'service_chief',    -- サ責
+        'facility_manager', -- 拠点責任者
+        'area_manager',     -- 事業マネージャー
+        'hq',               -- 本部長
+        'admin'             -- 管理者
+    )),
     points_awarded INTEGER DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
