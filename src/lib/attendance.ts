@@ -630,6 +630,132 @@ async function updateTimeEntryOvertime(
   }
 }
 
+// ======== 管理者による打刻修正 ========
+
+/**
+ * 打刻記録を修正（管理者専用・監査ログ必須）
+ */
+export async function editTimeEntry(
+  entryId: string,
+  updates: {
+    clockIn?: Date;
+    clockOut?: Date;
+    breakStart?: Date;
+    breakEnd?: Date;
+    actualBreakMinutes?: number;
+  },
+  editedBy: string,
+  editedByName: string,
+  editReason: string,
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<TimeEntry> {
+  const firestore = ensureDb();
+
+  // 既存の打刻記録を取得
+  const existing = await getTimeEntry(entryId);
+  if (!existing) {
+    throw new Error('打刻記録が見つかりません');
+  }
+
+  // 更新データを構築
+  const updateData: Record<string, unknown> = {
+    isEdited: true,
+    editedBy,
+    editedByName,
+    editedAt: Timestamp.now(),
+    editReason,
+    updatedAt: Timestamp.now(),
+  };
+
+  // 変更前の値を記録
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
+
+  if (updates.clockIn !== undefined) {
+    before.clockIn = existing.clockIn?.toISOString();
+    after.clockIn = updates.clockIn.toISOString();
+    updateData.clockIn = Timestamp.fromDate(updates.clockIn);
+  }
+
+  if (updates.clockOut !== undefined) {
+    before.clockOut = existing.clockOut?.toISOString();
+    after.clockOut = updates.clockOut.toISOString();
+    updateData.clockOut = Timestamp.fromDate(updates.clockOut);
+  }
+
+  if (updates.breakStart !== undefined) {
+    before.breakStart = existing.breakStart?.toISOString();
+    after.breakStart = updates.breakStart.toISOString();
+    updateData.breakStart = Timestamp.fromDate(updates.breakStart);
+  }
+
+  if (updates.breakEnd !== undefined) {
+    before.breakEnd = existing.breakEnd?.toISOString();
+    after.breakEnd = updates.breakEnd.toISOString();
+    updateData.breakEnd = Timestamp.fromDate(updates.breakEnd);
+  }
+
+  if (updates.actualBreakMinutes !== undefined) {
+    before.actualBreakMinutes = existing.actualBreakMinutes;
+    after.actualBreakMinutes = updates.actualBreakMinutes;
+    updateData.actualBreakMinutes = updates.actualBreakMinutes;
+  }
+
+  // 再計算
+  const updatedEntry = {
+    ...existing,
+    clockIn: updates.clockIn ?? existing.clockIn,
+    clockOut: updates.clockOut ?? existing.clockOut,
+    breakStart: updates.breakStart ?? existing.breakStart,
+    breakEnd: updates.breakEnd ?? existing.breakEnd,
+    actualBreakMinutes: updates.actualBreakMinutes ?? existing.actualBreakMinutes,
+  };
+
+  if (updatedEntry.clockIn && updatedEntry.clockOut) {
+    const shift = await getTodayShift(existing.userId, tenantId);
+    const summary = calculateTimeEntrySummary(
+      updatedEntry as TimeEntry,
+      shift || undefined
+    );
+    updateData.totalWorkMinutes = summary.totalWorkMinutes;
+    updateData.lateNightMinutes = summary.lateNightMinutes;
+    updateData.status = 'completed';
+    after.totalWorkMinutes = summary.totalWorkMinutes;
+    after.lateNightMinutes = summary.lateNightMinutes;
+  }
+
+  // 更新実行
+  const docRef = doc(firestore, 'timeEntries', entryId);
+  await updateDoc(docRef, updateData);
+
+  // 監査ログ作成（必須）
+  await createAuditLog({
+    tenantId,
+    targetType: 'time_entry',
+    targetId: entryId,
+    action: 'update',
+    before,
+    after,
+    editedBy,
+    editedByName,
+    reason: editReason,
+  });
+
+  return {
+    ...existing,
+    ...updates,
+    totalWorkMinutes: updateData.totalWorkMinutes as number | undefined,
+    lateNightMinutes: updateData.lateNightMinutes as number | undefined,
+    status: (updateData.status as ClockStatus) || existing.status,
+    isEdited: true,
+    editedBy,
+    editedByName,
+    editedAt: new Date(),
+    editReason,
+    updatedAt: new Date(),
+  };
+}
+
 // ======== 監査ログ ========
 
 /**
@@ -643,6 +769,67 @@ export async function createAuditLog(
   await addDoc(collection(firestore, 'attendanceAuditLogs'), {
     ...data,
     createdAt: Timestamp.now(),
+  });
+}
+
+/**
+ * 監査ログ一覧を取得
+ */
+export async function getAuditLogs(
+  tenantId: string,
+  options?: {
+    targetType?: 'time_entry' | 'work_shift' | 'overtime_request';
+    targetId?: string;
+    startDate?: string;
+    endDate?: string;
+    limitCount?: number;
+  }
+): Promise<AttendanceAuditLog[]> {
+  const firestore = ensureDb();
+
+  let q = query(
+    collection(firestore, 'attendanceAuditLogs'),
+    where('tenantId', '==', tenantId),
+    orderBy('createdAt', 'desc'),
+    limit(options?.limitCount || 100)
+  );
+
+  if (options?.targetType) {
+    q = query(
+      collection(firestore, 'attendanceAuditLogs'),
+      where('tenantId', '==', tenantId),
+      where('targetType', '==', options.targetType),
+      orderBy('createdAt', 'desc'),
+      limit(options?.limitCount || 100)
+    );
+  }
+
+  if (options?.targetId) {
+    q = query(
+      collection(firestore, 'attendanceAuditLogs'),
+      where('tenantId', '==', tenantId),
+      where('targetId', '==', options.targetId),
+      orderBy('createdAt', 'desc'),
+      limit(options?.limitCount || 100)
+    );
+  }
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      tenantId: data.tenantId as string,
+      targetType: data.targetType as AttendanceAuditLog['targetType'],
+      targetId: data.targetId as string,
+      action: data.action as AttendanceAuditLog['action'],
+      before: data.before as Record<string, unknown> | undefined,
+      after: data.after as Record<string, unknown> | undefined,
+      editedBy: data.editedBy as string,
+      editedByName: data.editedByName as string,
+      reason: data.reason as string | undefined,
+      createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : new Date(),
+    };
   });
 }
 
