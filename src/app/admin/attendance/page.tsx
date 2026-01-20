@@ -182,9 +182,14 @@ export default function AdminAttendancePage() {
         <main className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-xl font-bold">勤怠管理</h1>
-            <Button variant="secondary" onClick={() => router.push('/admin/attendance/import')}>
-              シフト取込
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => router.push('/admin/attendance/realtime')}>
+                出勤状況
+              </Button>
+              <Button variant="secondary" onClick={() => router.push('/admin/attendance/import')}>
+                シフト取込
+              </Button>
+            </div>
           </div>
 
           {/* フィルター */}
