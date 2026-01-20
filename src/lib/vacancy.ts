@@ -119,13 +119,13 @@ export async function updateVacancyStatus(params: {
     const vacancyDoc = await transaction.get(vacancyRef);
     const now = Timestamp.now();
 
-    // 変更前の値
+    // 変更前の値（Firestoreはundefined不可なのでnullに）
     const before = vacancyDoc.exists()
       ? {
           vacantCount: vacancyDoc.data().vacantCount ?? 0,
-          note: vacancyDoc.data().note,
+          note: vacancyDoc.data().note ?? null,
         }
-      : { vacantCount: 0, note: undefined };
+      : { vacantCount: 0, note: null };
 
     // 楽観ロックチェック
     if (lastKnownUpdatedAt && vacancyDoc.exists()) {
@@ -135,8 +135,8 @@ export async function updateVacancyStatus(params: {
       }
     }
 
-    // 変更後の値
-    const after = { vacantCount, note };
+    // 変更後の値（Firestoreはundefined不可なのでnullに）
+    const after = { vacantCount, note: note ?? null };
 
     // 空室状態を更新
     const newData = {
