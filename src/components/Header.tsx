@@ -69,7 +69,7 @@ export function Header() {
           {/* Logo */}
           <div className="flex items-center">
             <Link href="/dashboard" className="text-base font-bold text-zinc-900">
-              HiyariHub
+              ええHUB
             </Link>
           </div>
 

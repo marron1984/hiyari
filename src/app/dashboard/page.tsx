@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import {
   getIncidentsByUser,
+  getIncidentsByTenant,
   getMonthlyUserStats,
   getBranches,
 } from '@/lib/firestore';
@@ -26,6 +27,8 @@ import {
   FileText,
   Star,
   ArrowRight,
+  Gift,
+  Users,
 } from 'lucide-react';
 
 const COLORS = [
@@ -47,6 +50,7 @@ function DashboardContent() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [myIncidents, setMyIncidents] = useState<Incident[]>([]);
+  const [allIncidents, setAllIncidents] = useState<Incident[]>([]);
   const [myStats, setMyStats] = useState<MonthlyUserStats | null>(null);
   const [topUsers, setTopUsers] = useState<MonthlyUserStats[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -59,13 +63,15 @@ function DashboardContent() {
       if (!user) return;
 
       try {
-        const [incidentsData, branchesData, allUserStats] = await Promise.all([
+        const [incidentsData, allIncidentsData, branchesData, allUserStats] = await Promise.all([
           getIncidentsByUser(user.id, 100),
+          getIncidentsByTenant(DEFAULT_TENANT_ID, 50),
           getBranches(),
           getMonthlyUserStats(DEFAULT_TENANT_ID, currentMonthKey),
         ]);
 
         setMyIncidents(incidentsData);
+        setAllIncidents(allIncidentsData);
         setBranches(branchesData);
 
         // 自分の今月の統計
@@ -351,6 +357,43 @@ function DashboardContent() {
             </Card>
           </div>
 
+          {/* テストランボーナス告知 */}
+          <Card className="mb-6 bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-amber-100 rounded-xl">
+                  <Gift className="w-8 h-8 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-amber-900 mb-2">
+                    1月末テストラン開催中！
+                  </h3>
+                  <p className="text-sm text-amber-800 mb-4">
+                    たくさん投稿してポイントを稼ごう！上位入賞でボーナスゲット！
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white/80 rounded-xl p-3 text-center border border-amber-200">
+                      <div className="text-2xl mb-1">🥇</div>
+                      <p className="text-xs text-gray-600">1位</p>
+                      <p className="font-bold text-amber-700">5,000円</p>
+                      <p className="text-xs text-amber-600">+ポイント分</p>
+                    </div>
+                    <div className="bg-white/80 rounded-xl p-3 text-center border border-amber-200">
+                      <div className="text-2xl mb-1">🥈</div>
+                      <p className="text-xs text-gray-600">2位</p>
+                      <p className="font-bold text-amber-700">3,000円</p>
+                    </div>
+                    <div className="bg-white/80 rounded-xl p-3 text-center border border-amber-200">
+                      <div className="text-2xl mb-1">🥉</div>
+                      <p className="text-xs text-gray-600">3位</p>
+                      <p className="font-bold text-amber-700">1,000円</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* ランキング（上位10） */}
           <Card className="mb-6">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -410,18 +453,18 @@ function DashboardContent() {
             </CardContent>
           </Card>
 
-          {/* 最近の投稿 */}
+          {/* みんなのヒヤリハット */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
-                <FileText className="w-5 h-5 text-gray-500 mr-2" />
-                最近の投稿
+                <Users className="w-5 h-5 text-gray-500 mr-2" />
+                みんなのヒヤリハット
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {myIncidents.length > 0 ? (
+              {allIncidents.length > 0 ? (
                 <div className="space-y-3">
-                  {myIncidents.slice(0, 5).map((incident) => (
+                  {allIncidents.slice(0, 10).map((incident) => (
                     <Link
                       key={incident.id}
                       href={`/incident/${incident.id}`}
@@ -436,15 +479,15 @@ function DashboardContent() {
                               重大度 {incident.severity}
                             </Badge>
                             <Badge variant="info">{incident.category}</Badge>
-                            {incident.fraudFlag && (
-                              <Badge variant="warning">要確認</Badge>
+                            {incident.userId === user?.id && (
+                              <Badge variant="success">自分</Badge>
                             )}
                           </div>
-                          <p className="text-sm text-gray-700 line-clamp-1">
+                          <p className="text-sm text-gray-700 line-clamp-2">
                             {incident.body}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
-                            {incident.date} {incident.timeSlot}
+                            {incident.userName || '名前未設定'} · {incident.date} {incident.timeSlot}
                           </p>
                         </div>
                         <div className="ml-4 text-right">
@@ -455,11 +498,6 @@ function DashboardContent() {
                       </div>
                     </Link>
                   ))}
-                  {myIncidents.length > 5 && (
-                    <p className="text-center text-sm text-gray-500">
-                      他 {myIncidents.length - 5} 件の投稿
-                    </p>
-                  )}
                 </div>
               ) : (
                 <div className="text-center py-8">

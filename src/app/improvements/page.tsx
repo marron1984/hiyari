@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { Header } from '@/components/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -68,8 +69,9 @@ export default function ImprovementsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50">
-      <div className="max-w-2xl mx-auto px-4 py-6 safe-top safe-bottom">
-        {/* Header */}
+      <Header />
+      <div className="max-w-2xl mx-auto px-4 py-6 safe-bottom">
+        {/* Page Title */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold text-zinc-900">改善アイデア</h1>
           <Link href="/improvements/new">
