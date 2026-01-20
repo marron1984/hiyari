@@ -351,16 +351,15 @@ export async function getRingisByUser(
   limitCount: number = 50
 ): Promise<Ringi[]> {
   const firestore = getDb();
+  // シンプルなクエリ（インデックス不要）
   const q = query(
     collection(firestore, 'ringis'),
-    where('tenantId', '==', tenantId),
     where('authorId', '==', userId),
-    orderBy('createdAt', 'desc'),
     limit(limitCount)
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => {
+  const results = snapshot.docs.map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -372,6 +371,9 @@ export async function getRingisByUser(
       rejectedAt: data.rejectedAt?.toDate(),
     } as Ringi;
   });
+
+  // クライアント側でソート
+  return results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 /**
@@ -384,71 +386,12 @@ export async function getPendingRingis(
 ): Promise<Ringi[]> {
   const firestore = getDb();
 
-  let q;
-  if (branchId) {
-    // leaderは自事業所のみ
-    q = query(
-      collection(firestore, 'ringis'),
-      where('tenantId', '==', tenantId),
-      where('branchId', '==', branchId),
-      where('status', '==', 'submitted'),
-      orderBy('submittedAt', 'asc'),
-      limit(limitCount)
-    );
-  } else {
-    // adminは全件
-    q = query(
-      collection(firestore, 'ringis'),
-      where('tenantId', '==', tenantId),
-      where('status', '==', 'submitted'),
-      orderBy('submittedAt', 'asc'),
-      limit(limitCount)
-    );
-  }
-
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
-      submittedAt: data.submittedAt?.toDate(),
-      approvedAt: data.approvedAt?.toDate(),
-      rejectedAt: data.rejectedAt?.toDate(),
-    } as Ringi;
-  });
-}
-
-/**
- * 全稟議一覧を取得（管理者用）
- */
-export async function getAllRingis(
-  tenantId: string = DEFAULT_TENANT_ID,
-  branchId?: string,
-  status?: RingiStatus,
-  limitCount: number = 100
-): Promise<Ringi[]> {
-  const firestore = getDb();
-
-  let q = query(
+  // シンプルなクエリ（インデックス不要）
+  const q = query(
     collection(firestore, 'ringis'),
-    where('tenantId', '==', tenantId),
-    orderBy('createdAt', 'desc'),
+    where('status', '==', 'submitted'),
     limit(limitCount)
   );
-
-  // フィルタ条件を追加
-  if (branchId) {
-    q = query(
-      collection(firestore, 'ringis'),
-      where('tenantId', '==', tenantId),
-      where('branchId', '==', branchId),
-      orderBy('createdAt', 'desc'),
-      limit(limitCount)
-    );
-  }
 
   const snapshot = await getDocs(q);
   let results = snapshot.docs.map((doc) => {
@@ -464,12 +407,60 @@ export async function getAllRingis(
     } as Ringi;
   });
 
-  // クライアント側でstatusフィルタ
+  // クライアント側でフィルタ・ソート
+  if (branchId) {
+    results = results.filter((r) => r.branchId === branchId);
+  }
+  return results.sort((a, b) => {
+    const aTime = a.submittedAt?.getTime() || 0;
+    const bTime = b.submittedAt?.getTime() || 0;
+    return aTime - bTime; // 古い順
+  });
+}
+
+/**
+ * 全稟議一覧を取得（管理者用）
+ */
+export async function getAllRingis(
+  tenantId: string = DEFAULT_TENANT_ID,
+  branchId?: string,
+  status?: RingiStatus,
+  limitCount: number = 100
+): Promise<Ringi[]> {
+  const firestore = getDb();
+
+  // シンプルなクエリ（インデックス不要）
+  const q = query(
+    collection(firestore, 'ringis'),
+    limit(limitCount * 2) // フィルタ後も十分な件数が残るように
+  );
+
+  const snapshot = await getDocs(q);
+  let results = snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate(),
+      submittedAt: data.submittedAt?.toDate(),
+      approvedAt: data.approvedAt?.toDate(),
+      rejectedAt: data.rejectedAt?.toDate(),
+    } as Ringi;
+  });
+
+  // クライアント側でフィルタ
+  if (branchId) {
+    results = results.filter((r) => r.branchId === branchId);
+  }
   if (status) {
     results = results.filter((r) => r.status === status);
   }
 
-  return results;
+  // ソートして件数制限
+  return results
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, limitCount);
 }
 
 // ======== 監査ログ ========
