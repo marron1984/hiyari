@@ -24,7 +24,7 @@ export function Header() {
 
   const adminItems = [
     { href: '/admin/incidents', label: '投稿管理', icon: BarChart3 },
-    { href: '/admin/attendance', label: '勤怠管理', icon: Clock },
+    { href: '/admin/attendance/dashboard', label: '勤怠管理', icon: Clock },
     { href: '/admin/employees', label: '従業員', icon: Users },
     { href: '/admin/settings', label: '設定', icon: Settings },
   ];
