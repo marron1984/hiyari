@@ -217,3 +217,6 @@ export interface RankingPeriod {
   month: number;
   key: string; // yyyyMM
 }
+
+// 勤怠関連の型をre-export
+export * from './attendance';

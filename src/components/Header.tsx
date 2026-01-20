@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, ChevronDown, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Header() {
@@ -18,11 +18,13 @@ export function Header() {
   const navItems = [
     { href: '/dashboard', label: 'ダッシュボード', icon: Home },
     { href: '/submit', label: '投稿', icon: FileText },
+    { href: '/attendance', label: '勤怠', icon: Clock },
     { href: '/rankings', label: 'ランキング', icon: Trophy },
   ];
 
   const adminItems = [
     { href: '/admin/incidents', label: '投稿管理', icon: BarChart3 },
+    { href: '/admin/attendance', label: '勤怠管理', icon: Clock },
     { href: '/admin/settings', label: '設定', icon: Settings },
   ];
 
