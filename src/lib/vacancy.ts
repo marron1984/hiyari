@@ -211,14 +211,13 @@ export async function getVacancyEvents(
 // ======== 初期データ ========
 
 /**
- * 施設シードデータ（BRANCHES_SEEDと連携）
+ * 施設シードデータ（空室管理対象の介護施設のみ）
+ * ※パール、シャンクレールは事務所のため除外
  */
 export const FACILITIES_SEED = [
   { id: 'pacific', name: 'パシフィック', area: '介護', capacity: 20 },
   { id: 'renaissance', name: 'ルネッサンス', area: '介護', capacity: 50 },
   { id: 'serene', name: 'セレーネ', area: '介護', capacity: 30 },
-  { id: 'pearl', name: 'パール', area: '住まい', capacity: 15 },
-  { id: 'champsclaire', name: 'シャンクレール', area: '住まい', capacity: 40 },
 ];
 
 /**
