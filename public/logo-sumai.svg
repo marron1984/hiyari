@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140">
+  <!-- Hands -->
+  <path d="M20 70 Q10 90 15 110 Q20 125 35 130 Q45 132 50 125 L55 100" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+  <path d="M100 70 Q110 90 105 110 Q100 125 85 130 Q75 132 70 125 L65 100" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Arc above -->
+  <path d="M30 55 Q60 25 90 55" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- House -->
+  <path d="M60 35 L40 52 L40 75 L80 75 L80 52 Z" fill="#e53935" stroke="#e53935" stroke-width="2"/>
+  <rect x="55" y="60" width="10" height="15" fill="white"/>
+
+  <!-- Leaf -->
+  <ellipse cx="68" cy="32" rx="6" ry="10" fill="#4CAF50" transform="rotate(30 68 32)"/>
+  <ellipse cx="72" cy="32" rx="6" ry="10" fill="#4CAF50" transform="rotate(-30 72 32)"/>
+
+  <!-- Text -->
+  <text x="60" y="115" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold">ええすまい</text>
+  <text x="60" y="132" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#666">AA-SUMAI</text>
+</svg>

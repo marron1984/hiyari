@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140">
+  <!-- Hands -->
+  <path d="M20 70 Q10 90 15 110 Q20 125 35 130 Q45 132 50 125 L55 100" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+  <path d="M100 70 Q110 90 105 110 Q100 125 85 130 Q75 132 70 125 L65 100" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Arc above -->
+  <path d="M30 55 Q60 25 90 55" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Heart -->
+  <path d="M60 50 C60 42 52 35 44 35 C32 35 32 50 32 50 C32 65 60 85 60 85 C60 85 88 65 88 50 C88 50 88 35 76 35 C68 35 60 42 60 50" fill="#e53935"/>
+
+  <!-- Text -->
+  <text x="60" y="115" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold">ええHUB</text>
+  <text x="60" y="132" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#666">AA-HUB</text>
+</svg>
