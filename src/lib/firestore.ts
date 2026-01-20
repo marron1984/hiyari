@@ -100,10 +100,15 @@ export async function createIncident(data: Omit<Incident, 'id' | 'createdAt'>): 
   const firestore = ensureDb();
   const batch = writeBatch(firestore);
 
+  // undefinedの値を除外
+  const cleanData = Object.fromEntries(
+    Object.entries(data).filter(([, v]) => v !== undefined)
+  );
+
   // インシデントを作成
   const incidentRef = doc(collection(firestore, 'incidents'));
   batch.set(incidentRef, {
-    ...data,
+    ...cleanData,
     createdAt: Timestamp.now(),
   });
 
@@ -201,18 +206,21 @@ export async function getIncidentsByUser(
   limitCount: number = 50
 ): Promise<Incident[]> {
   const firestore = ensureDb();
+  // シンプルなクエリ（インデックス不要）
   const q = query(
     collection(firestore, 'incidents'),
     where('userId', '==', userId),
-    orderBy('createdAt', 'desc'),
     limit(limitCount)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({
+  const results = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
     createdAt: doc.data().createdAt?.toDate() || new Date(),
   })) as Incident[];
+
+  // クライアント側でソート
+  return results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 export async function getIncidentsByTenant(
@@ -220,18 +228,21 @@ export async function getIncidentsByTenant(
   limitCount: number = 100
 ): Promise<Incident[]> {
   const firestore = ensureDb();
+  // シンプルなクエリ（インデックス不要）
   const q = query(
     collection(firestore, 'incidents'),
     where('tenantId', '==', tenantId),
-    orderBy('createdAt', 'desc'),
     limit(limitCount)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({
+  const results = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
     createdAt: doc.data().createdAt?.toDate() || new Date(),
   })) as Incident[];
+
+  // クライアント側でソート
+  return results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
 export async function getIncidentsByMonth(
@@ -240,19 +251,23 @@ export async function getIncidentsByMonth(
   endDate: string
 ): Promise<Incident[]> {
   const firestore = ensureDb();
+  // シンプルなクエリ（インデックス不要）
   const q = query(
     collection(firestore, 'incidents'),
     where('tenantId', '==', tenantId),
-    where('date', '>=', startDate),
-    where('date', '<=', endDate),
-    orderBy('date', 'desc')
+    limit(500)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({
+  const results = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
     createdAt: doc.data().createdAt?.toDate() || new Date(),
   })) as Incident[];
+
+  // クライアント側でフィルタ・ソート
+  return results
+    .filter((i) => i.date >= startDate && i.date <= endDate)
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 // ======== 月次統計 ========
