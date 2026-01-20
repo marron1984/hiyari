@@ -13,7 +13,7 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { BRANCHES_SEED } from '@/data/employees';
+import { BRANCHES_SEED, EMPLOYEES_SEED } from '@/data/employees';
 import { formatTimeJST, getTodayJST } from '@/lib/attendance-calc';
 import { ClockStatus } from '@/types/attendance';
 import { RefreshCw, MapPin, Clock, Coffee, UserCheck, UserX } from 'lucide-react';
@@ -65,28 +65,41 @@ export default function AttendanceDashboardPage() {
     try {
       const today = getTodayJST();
 
-      // 従業員一覧を取得
+      // 従業員一覧を取得（単一フィルターに簡素化してインデックス不要に）
       const employeesQuery = query(
         collection(db, 'employees'),
-        where('tenantId', '==', DEFAULT_TENANT_ID),
-        where('isActive', '==', true)
+        where('tenantId', '==', DEFAULT_TENANT_ID)
       );
       const employeesSnapshot = await getDocs(employeesQuery);
       const employees = new Map<string, { name: string; branchId: string; qualification?: string; notes?: string }>();
+
+      // クライアント側でisActiveフィルタ
       employeesSnapshot.docs.forEach((doc) => {
         const data = doc.data();
+        if (data.isActive !== true) return; // クライアント側フィルタ
         employees.set(data.employeeCode, {
           name: data.name,
-          branchId: data.branchId,
+          branchId: data.branchId || data.defaultBranchId,
           qualification: data.qualification,
           notes: data.notes,
         });
       });
 
-      // 今日の打刻記録を取得
+      // Firestoreに従業員データがない場合、シードデータをフォールバックとして使用
+      if (employees.size === 0) {
+        EMPLOYEES_SEED.forEach((emp) => {
+          employees.set(emp.employeeCode, {
+            name: emp.name,
+            branchId: emp.defaultBranchId,
+            qualification: emp.qualification,
+            notes: emp.notes,
+          });
+        });
+      }
+
+      // 今日の打刻記録を取得（単一フィルターに簡素化）
       const timeEntriesQuery = query(
         collection(db, 'timeEntries'),
-        where('tenantId', '==', DEFAULT_TENANT_ID),
         where('workDate', '==', today)
       );
       const timeEntriesSnapshot = await getDocs(timeEntriesQuery);
@@ -95,14 +108,18 @@ export default function AttendanceDashboardPage() {
         clockIn?: Date;
         clockOut?: Date;
         breakStart?: Date;
+        branchId?: string;
       }>();
+      // クライアント側でtenantIdフィルタ
       timeEntriesSnapshot.docs.forEach((doc) => {
         const data = doc.data();
+        if (data.tenantId !== DEFAULT_TENANT_ID) return; // クライアント側フィルタ
         timeEntries.set(data.employeeCode, {
           status: data.status as ClockStatus,
           clockIn: data.clockIn?.toDate(),
           clockOut: data.clockOut?.toDate(),
           breakStart: data.breakStart?.toDate(),
+          branchId: data.branchId,
         });
       });
 
@@ -115,12 +132,14 @@ export default function AttendanceDashboardPage() {
       const staffList: StaffStatus[] = [];
       employees.forEach((emp, employeeCode) => {
         const entry = timeEntries.get(employeeCode);
+        // 勤務中は打刻の拠点を優先（勤務場所変更に対応）
+        const currentBranchId = entry?.branchId || emp.branchId;
         staffList.push({
           id: employeeCode,
           name: emp.name,
           employeeCode,
-          branchId: emp.branchId,
-          branchName: branchMap.get(emp.branchId) || emp.branchId,
+          branchId: currentBranchId,
+          branchName: branchMap.get(currentBranchId) || currentBranchId,
           status: entry?.status || 'not_started',
           clockIn: entry?.clockIn,
           clockOut: entry?.clockOut,
