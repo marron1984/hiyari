@@ -16,6 +16,8 @@ import {
 } from '@/lib/attendance';
 import { formatTimeJST, formatMinutesToHHMM } from '@/lib/attendance-calc';
 import { TodayAttendanceState, ClockStatus } from '@/types/attendance';
+import { BRANCHES_SEED } from '@/data/employees';
+import { MapPin } from 'lucide-react';
 
 // 状態表示ラベル
 const STATUS_LABELS: Record<ClockStatus, { label: string; color: string }> = {
@@ -34,6 +36,7 @@ export default function AttendancePage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(user?.branchId || BRANCHES_SEED[0]?.id || '');
 
   // 現在時刻の更新
   useEffect(() => {
@@ -64,6 +67,10 @@ export default function AttendancePage() {
   // 打刻アクション
   const handleClockIn = async () => {
     if (!user) return;
+    if (!selectedBranchId) {
+      setError('勤務先の拠点を選択してください');
+      return;
+    }
     setActionLoading(true);
     setError(null);
 
@@ -71,7 +78,7 @@ export default function AttendancePage() {
       await clockIn(
         user.id,
         user.email, // 仮のemployeeCode（本来は別途管理）
-        user.branchId,
+        selectedBranchId, // 選択した拠点
         user.tenantId
       );
       await fetchState();
@@ -164,6 +171,19 @@ export default function AttendancePage() {
                 </span>
               </div>
 
+              {/* 勤務先拠点 */}
+              {state?.branchName && state.status !== 'not_started' && (
+                <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                    <MapPin className="w-4 h-4" />
+                    勤務先拠点
+                  </div>
+                  <div className="font-bold text-blue-700 text-lg">
+                    {state.branchName}
+                  </div>
+                </div>
+              )}
+
               {/* シフト情報 */}
               {state?.shift && (
                 <div className="bg-gray-50 rounded-lg p-4 mb-4">
@@ -232,15 +252,37 @@ export default function AttendancePage() {
 
           {/* 打刻ボタン */}
           <div className="space-y-3">
-            {/* 出勤ボタン */}
+            {/* 出勤前：拠点選択 */}
             {state?.status === 'not_started' && (
-              <Button
-                onClick={handleClockIn}
-                disabled={actionLoading}
-                className="w-full py-4 text-lg bg-green-600 hover:bg-green-700"
-              >
-                {actionLoading ? '処理中...' : '出勤'}
-              </Button>
+              <>
+                <Card className="mb-2">
+                  <div className="p-4">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <MapPin className="w-4 h-4" />
+                      勤務先拠点を選択
+                    </label>
+                    <select
+                      value={selectedBranchId}
+                      onChange={(e) => setSelectedBranchId(e.target.value)}
+                      className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">-- 選択してください --</option>
+                      {BRANCHES_SEED.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </Card>
+                <Button
+                  onClick={handleClockIn}
+                  disabled={actionLoading || !selectedBranchId}
+                  className="w-full py-4 text-lg bg-green-600 hover:bg-green-700 disabled:bg-gray-400"
+                >
+                  {actionLoading ? '処理中...' : '出勤'}
+                </Button>
+              </>
             )}
 
             {/* 休憩開始ボタン */}

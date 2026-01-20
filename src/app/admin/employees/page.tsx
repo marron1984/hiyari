@@ -6,7 +6,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
 import { Button, Card } from '@/components/ui';
 import { Loading } from '@/components/Loading';
-import { BRANCHES_SEED, EMPLOYEES_SEED, EmployeeSeed } from '@/data/employees';
+import { BRANCHES_SEED, DIVISIONS_SEED, EMPLOYEES_SEED, EmployeeSeed } from '@/data/employees';
 import { db, DEFAULT_TENANT_ID } from '@/lib/firebase';
 import {
   collection,
@@ -77,7 +77,16 @@ export default function EmployeesPage() {
     try {
       const batch = writeBatch(db);
 
-      // 事業所を登録
+      // 事業部を登録
+      for (const division of DIVISIONS_SEED) {
+        const divisionRef = doc(db, 'divisions', division.id);
+        batch.set(divisionRef, {
+          ...division,
+          createdAt: Timestamp.now(),
+        });
+      }
+
+      // 拠点を登録
       for (const branch of BRANCHES_SEED) {
         const branchRef = doc(db, 'branches', branch.id);
         batch.set(branchRef, {
@@ -92,7 +101,9 @@ export default function EmployeesPage() {
         batch.set(empRef, {
           name: emp.name,
           employeeCode: emp.employeeCode,
-          branchId: emp.branchId,
+          divisionId: emp.divisionId,           // 所属事業部
+          defaultBranchId: emp.defaultBranchId, // デフォルト拠点
+          branchId: emp.defaultBranchId,        // 後方互換性のため
           qualification: emp.qualification,
           employmentType: emp.employmentType,
           notes: emp.notes,
@@ -107,7 +118,7 @@ export default function EmployeesPage() {
 
       setMessage({
         type: 'success',
-        text: `${BRANCHES_SEED.length}件の事業所と${EMPLOYEES_SEED.length}件の従業員を登録しました`,
+        text: `${DIVISIONS_SEED.length}件の事業部、${BRANCHES_SEED.length}件の拠点、${EMPLOYEES_SEED.length}件の従業員を登録しました`,
       });
       await fetchEmployees();
     } catch (err) {
@@ -277,11 +288,11 @@ export default function EmployeesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {BRANCHES_SEED.map((branch) => {
                     const branchEmployees = EMPLOYEES_SEED.filter(
-                      (e) => e.branchId === branch.id
+                      (e) => e.defaultBranchId === branch.id
                     );
                     return (
                       <div key={branch.id} className="bg-gray-50 rounded-lg p-4">
-                        <div className="font-medium mb-2">{branch.name}</div>
+                        <div className="font-medium mb-2">{branch.name}（拠点）</div>
                         <div className="text-sm text-gray-500">
                           {branchEmployees.length}名
                         </div>

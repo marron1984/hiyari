@@ -232,10 +232,10 @@ export async function getAttendanceAlerts(
   // シードデータからも従業員を追加（Firestoreにデータがない場合のフォールバック）
   if (employees.size === 0) {
     EMPLOYEES_SEED.forEach((emp) => {
-      if (!branchId || emp.branchId === branchId) {
+      if (!branchId || emp.defaultBranchId === branchId) {
         employees.set(emp.employeeCode, {
           name: emp.name,
-          branchId: emp.branchId,
+          branchId: emp.defaultBranchId,
         });
       }
     });
@@ -460,10 +460,10 @@ export async function getBranchSummaries(
   // Firestoreにデータがない場合、シードデータからフォールバック
   if (branchEmployees.size === 0) {
     EMPLOYEES_SEED.forEach((emp) => {
-      if (!branchEmployees.has(emp.branchId)) {
-        branchEmployees.set(emp.branchId, new Set());
+      if (!branchEmployees.has(emp.defaultBranchId)) {
+        branchEmployees.set(emp.defaultBranchId, new Set());
       }
-      branchEmployees.get(emp.branchId)!.add(emp.employeeCode);
+      branchEmployees.get(emp.defaultBranchId)!.add(emp.employeeCode);
     });
   }
 

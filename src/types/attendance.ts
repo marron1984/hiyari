@@ -160,6 +160,8 @@ export interface TodayAttendanceState {
   breakEnd?: Date;
   totalWorkMinutes?: number;
   shift?: WorkShift;
+  branchId?: string;      // 勤務先拠点ID
+  branchName?: string;    // 勤務先拠点名
 }
 
 // ======== 月次サマリー ========

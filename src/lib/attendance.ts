@@ -16,6 +16,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { BRANCHES_SEED } from '@/data/employees';
 import {
   TimeEntry,
   WorkShift,
@@ -282,6 +283,9 @@ export async function getTodayAttendanceState(
     };
   }
 
+  // 拠点名を取得
+  const branch = BRANCHES_SEED.find(b => b.id === entry.branchId);
+
   return {
     status: entry.status,
     clockIn: entry.clockIn,
@@ -290,6 +294,8 @@ export async function getTodayAttendanceState(
     breakEnd: entry.breakEnd,
     totalWorkMinutes: entry.totalWorkMinutes,
     shift: shift || undefined,
+    branchId: entry.branchId,
+    branchName: branch?.name || entry.branchId,
   };
 }
 
