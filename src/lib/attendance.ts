@@ -57,19 +57,23 @@ export async function getTodayTimeEntry(
   const firestore = ensureDb();
   const today = getTodayJST();
 
+  // 単一フィルターに簡素化してインデックス不要に
   const q = query(
     collection(firestore, 'timeEntries'),
-    where('userId', '==', userId),
-    where('tenantId', '==', tenantId),
-    where('workDate', '==', today),
-    limit(1)
+    where('workDate', '==', today)
   );
 
   const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
 
-  const doc = snapshot.docs[0];
-  return convertTimeEntryDoc(doc);
+  // クライアント側でuserIdとtenantIdフィルタ
+  const matchingDoc = snapshot.docs.find(doc => {
+    const data = doc.data();
+    return data.userId === userId && data.tenantId === tenantId;
+  });
+
+  if (!matchingDoc) return null;
+
+  return convertTimeEntryDoc(matchingDoc);
 }
 
 /**
@@ -412,18 +416,23 @@ export async function getTodayShift(
   const firestore = ensureDb();
   const today = getTodayJST();
 
+  // 単一フィルターに簡素化してインデックス不要に
   const q = query(
     collection(firestore, 'workShifts'),
-    where('userId', '==', userId),
-    where('tenantId', '==', tenantId),
-    where('workDate', '==', today),
-    limit(1)
+    where('workDate', '==', today)
   );
 
   const snapshot = await getDocs(q);
-  if (snapshot.empty) return null;
 
-  return convertShiftDoc(snapshot.docs[0]);
+  // クライアント側でuserIdとtenantIdフィルタ
+  const matchingDoc = snapshot.docs.find(doc => {
+    const data = doc.data();
+    return data.userId === userId && data.tenantId === tenantId;
+  });
+
+  if (!matchingDoc) return null;
+
+  return convertShiftDoc(matchingDoc);
 }
 
 /**
