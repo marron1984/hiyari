@@ -71,11 +71,11 @@ export function Header() {
           <div className="flex items-center">
             <Link href="/dashboard" className="flex items-center gap-2">
               <Image
-                src="/logo-kaigo.svg"
+                src="/logo-icon.svg"
                 alt="ええHUB"
-                width={36}
-                height={42}
-                className="h-9 w-auto"
+                width={32}
+                height={32}
+                className="h-8 w-8"
               />
               <span className="text-base font-bold text-zinc-900 hidden sm:inline">ええHUB</span>
             </Link>
