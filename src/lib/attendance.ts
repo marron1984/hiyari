@@ -267,6 +267,49 @@ export async function breakEnd(
 }
 
 /**
+ * 勤務先拠点を変更
+ */
+export async function changeBranch(
+  userId: string,
+  newBranchId: string,
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<TimeEntry> {
+  const firestore = ensureDb();
+  const now = new Date();
+
+  const existing = await getTodayTimeEntry(userId, tenantId);
+  if (!existing || !existing.clockIn) {
+    throw new Error('出勤打刻がありません');
+  }
+  if (existing.clockOut) {
+    throw new Error('既に退勤済みです');
+  }
+
+  const oldBranchId = existing.branchId;
+  const updateData = {
+    branchId: newBranchId,
+    updatedAt: Timestamp.now(),
+  };
+
+  const docRef = doc(firestore, 'timeEntries', existing.id);
+  await updateDoc(docRef, updateData);
+
+  // 監査ログ
+  await createAuditLog({
+    tenantId,
+    targetType: 'time_entry',
+    targetId: existing.id,
+    action: 'update',
+    before: { branchId: oldBranchId },
+    after: { branchId: newBranchId },
+    editedBy: userId,
+    editedByName: '',
+  });
+
+  return { ...existing, branchId: newBranchId, updatedAt: now };
+}
+
+/**
  * 今日の勤怠状態を取得
  */
 export async function getTodayAttendanceState(

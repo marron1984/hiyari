@@ -13,11 +13,12 @@ import {
   clockOut,
   breakStart,
   breakEnd,
+  changeBranch,
 } from '@/lib/attendance';
 import { formatTimeJST, formatMinutesToHHMM } from '@/lib/attendance-calc';
 import { TodayAttendanceState, ClockStatus } from '@/types/attendance';
 import { BRANCHES_SEED } from '@/data/employees';
-import { MapPin } from 'lucide-react';
+import { MapPin, Edit2 } from 'lucide-react';
 
 // 状態表示ラベル
 const STATUS_LABELS: Record<ClockStatus, { label: string; color: string }> = {
@@ -36,7 +37,9 @@ export default function AttendancePage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(user?.branchId || BRANCHES_SEED[0]?.id || '');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(BRANCHES_SEED[0]?.id || '');
+  const [isEditingBranch, setIsEditingBranch] = useState(false);
+  const [editBranchId, setEditBranchId] = useState<string>('');
 
   // 現在時刻の更新
   useEffect(() => {
@@ -134,6 +137,27 @@ export default function AttendancePage() {
     }
   };
 
+  const handleChangeBranch = async () => {
+    if (!user || !editBranchId) return;
+    setActionLoading(true);
+    setError(null);
+
+    try {
+      await changeBranch(user.id, editBranchId, user.tenantId);
+      await fetchState();
+      setIsEditingBranch(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '拠点変更に失敗しました');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const startEditingBranch = () => {
+    setEditBranchId(state?.branchId || '');
+    setIsEditingBranch(true);
+  };
+
   if (loading) {
     return <Loading />;
   }
@@ -172,13 +196,69 @@ export default function AttendancePage() {
               </div>
 
               {/* 勤務先拠点 */}
-              {state?.branchName && state.status !== 'not_started' && (
+              {state?.status !== 'not_started' && state?.status !== 'completed' && (
                 <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <MapPin className="w-4 h-4" />
+                      勤務先拠点
+                    </div>
+                    {!isEditingBranch && (
+                      <button
+                        onClick={startEditingBranch}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                        title="拠点を変更"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  {isEditingBranch ? (
+                    <div className="space-y-2">
+                      <select
+                        value={editBranchId}
+                        onChange={(e) => setEditBranchId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        {BRANCHES_SEED.map((branch) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleChangeBranch}
+                          disabled={actionLoading || !editBranchId}
+                          className="flex-1 py-2 text-sm bg-blue-600 hover:bg-blue-700"
+                        >
+                          {actionLoading ? '変更中...' : '変更'}
+                        </Button>
+                        <Button
+                          onClick={() => setIsEditingBranch(false)}
+                          variant="secondary"
+                          className="flex-1 py-2 text-sm"
+                        >
+                          キャンセル
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="font-bold text-blue-700 text-lg">
+                      {state?.branchName || '未設定'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 退勤済みの場合は表示のみ */}
+              {state?.status === 'completed' && state?.branchName && (
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
                   <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
                     <MapPin className="w-4 h-4" />
                     勤務先拠点
                   </div>
-                  <div className="font-bold text-blue-700 text-lg">
+                  <div className="font-medium text-gray-700">
                     {state.branchName}
                   </div>
                 </div>
