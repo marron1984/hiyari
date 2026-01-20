@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList } from 'lucide-react';
+import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { cn } from '@/lib/utils';
 
@@ -35,13 +35,15 @@ export function Header() {
     { href: '/submit', label: '報告', icon: FileText },
     { href: '/attendance', label: '打刻', icon: Clock },
     { href: '/ringi', label: '稟議', icon: ClipboardList },
+    { href: '/improvements', label: '改善', icon: Lightbulb },
     { href: '/rankings', label: 'ランク', icon: Trophy },
   ];
 
   const adminItems = [
     { href: '/admin/incidents', label: '報告管理', icon: BarChart3 },
     { href: '/admin/attendance/dashboard', label: '勤怠', icon: Clock },
-    { href: '/admin/ringi', label: '稟議承認', icon: ClipboardList },
+    { href: '/admin/ringi', label: '稟議', icon: ClipboardList },
+    { href: '/admin/improvements', label: '改善', icon: Lightbulb },
     { href: '/admin/employees', label: '従業員', icon: Users },
     { href: '/admin/settings', label: '設定', icon: Settings },
   ];
