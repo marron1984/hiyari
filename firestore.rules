@@ -72,5 +72,35 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated();
     }
+
+    // 施設コレクション
+    match /facilities/{facilityId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // 管理者のみ書き込み可能
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+    // 空室状態コレクション
+    match /vacancyStatus/{facilityId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // リーダー以上のみ書き込み可能（updatedByは自分のuidであること）
+      allow write: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin']
+        && request.resource.data.updatedBy == request.auth.uid;
+    }
+
+    // 空室変更ログコレクション（監査ログ、append-only）
+    match /vacancyEvents/{eventId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // リーダー以上のみ作成可能（changedByは自分のuidであること）
+      // 更新・削除は不可
+      allow create: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin']
+        && request.resource.data.changedBy == request.auth.uid;
+      allow update, delete: if false;
+    }
   }
 }

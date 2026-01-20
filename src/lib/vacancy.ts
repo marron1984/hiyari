@@ -1,0 +1,245 @@
+// ======== 空室管理 Firestoreヘルパー ========
+
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  addDoc,
+  query,
+  where,
+  Timestamp,
+  runTransaction,
+} from 'firebase/firestore';
+import { db, DEFAULT_TENANT_ID } from './firebase';
+import { Facility, VacancyStatus, VacancyEvent, FacilityWithVacancy } from '@/types/vacancy';
+
+// ======== 施設 ========
+
+/**
+ * 施設一覧を取得
+ */
+export async function getFacilities(tenantId: string = DEFAULT_TENANT_ID): Promise<Facility[]> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  const q = query(
+    collection(db, 'facilities'),
+    where('tenantId', '==', tenantId)
+  );
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs
+    .map((d) => ({
+      id: d.id,
+      ...d.data(),
+      createdAt: d.data().createdAt?.toDate() || new Date(),
+      updatedAt: d.data().updatedAt?.toDate(),
+    } as Facility))
+    .filter((f) => f.isActive !== false)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+}
+
+/**
+ * 施設を作成（初期セットアップ用）
+ */
+export async function createFacility(
+  data: Omit<Facility, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<string> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  const docRef = await addDoc(collection(db, 'facilities'), {
+    ...data,
+    createdAt: Timestamp.now(),
+  });
+  return docRef.id;
+}
+
+// ======== 空室状態 ========
+
+/**
+ * 全施設の空室状態を取得
+ */
+export async function getAllVacancyStatus(): Promise<Map<string, VacancyStatus>> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  const snapshot = await getDocs(collection(db, 'vacancyStatus'));
+  const map = new Map<string, VacancyStatus>();
+
+  snapshot.docs.forEach((d) => {
+    const data = d.data();
+    map.set(d.id, {
+      facilityId: d.id,
+      vacantCount: data.vacantCount ?? 0,
+      note: data.note,
+      updatedAt: data.updatedAt?.toDate() || new Date(),
+      updatedBy: data.updatedBy || '',
+      updatedByName: data.updatedByName || '',
+    });
+  });
+
+  return map;
+}
+
+/**
+ * 施設一覧 + 空室状態を結合して取得
+ */
+export async function getFacilitiesWithVacancy(
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<FacilityWithVacancy[]> {
+  const [facilities, vacancyMap] = await Promise.all([
+    getFacilities(tenantId),
+    getAllVacancyStatus(),
+  ]);
+
+  return facilities.map((facility) => ({
+    facility,
+    vacancy: vacancyMap.get(facility.id) || null,
+  }));
+}
+
+/**
+ * 空室状態を更新（楽観ロック付き、監査ログ自動作成）
+ */
+export async function updateVacancyStatus(params: {
+  facilityId: string;
+  vacantCount: number;
+  note?: string;
+  updatedBy: string;
+  updatedByName: string;
+  lastKnownUpdatedAt?: Date;
+}): Promise<VacancyStatus> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  const { facilityId, vacantCount, note, updatedBy, updatedByName, lastKnownUpdatedAt } = params;
+
+  const vacancyRef = doc(db, 'vacancyStatus', facilityId);
+
+  return await runTransaction(db, async (transaction) => {
+    const vacancyDoc = await transaction.get(vacancyRef);
+    const now = Timestamp.now();
+
+    // 変更前の値
+    const before = vacancyDoc.exists()
+      ? {
+          vacantCount: vacancyDoc.data().vacantCount ?? 0,
+          note: vacancyDoc.data().note,
+        }
+      : { vacantCount: 0, note: undefined };
+
+    // 楽観ロックチェック
+    if (lastKnownUpdatedAt && vacancyDoc.exists()) {
+      const existingUpdatedAt = vacancyDoc.data().updatedAt?.toDate();
+      if (existingUpdatedAt && existingUpdatedAt.getTime() !== lastKnownUpdatedAt.getTime()) {
+        throw new Error('データが他のユーザーに更新されています。ページを更新してください。');
+      }
+    }
+
+    // 変更後の値
+    const after = { vacantCount, note };
+
+    // 空室状態を更新
+    const newData = {
+      facilityId,
+      vacantCount,
+      note: note || null,
+      updatedAt: now,
+      updatedBy,
+      updatedByName,
+    };
+    transaction.set(vacancyRef, newData);
+
+    // 監査ログを作成（vacancyEventsコレクション）
+    const eventRef = doc(collection(db, 'vacancyEvents'));
+    transaction.set(eventRef, {
+      facilityId,
+      before,
+      after,
+      changedBy: updatedBy,
+      changedByName: updatedByName,
+      changedAt: now,
+    });
+
+    return {
+      facilityId,
+      vacantCount,
+      note,
+      updatedAt: now.toDate(),
+      updatedBy,
+      updatedByName,
+    };
+  });
+}
+
+/**
+ * 空室変更ログを取得
+ */
+export async function getVacancyEvents(
+  facilityId?: string,
+  limitCount: number = 50
+): Promise<VacancyEvent[]> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  let q = query(collection(db, 'vacancyEvents'));
+
+  if (facilityId) {
+    q = query(
+      collection(db, 'vacancyEvents'),
+      where('facilityId', '==', facilityId)
+    );
+  }
+
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs
+    .map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        facilityId: data.facilityId,
+        before: data.before,
+        after: data.after,
+        changedBy: data.changedBy,
+        changedByName: data.changedByName,
+        changedAt: data.changedAt?.toDate() || new Date(),
+      };
+    })
+    .sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime())
+    .slice(0, limitCount);
+}
+
+// ======== 初期データ ========
+
+/**
+ * 施設シードデータ（BRANCHES_SEEDと連携）
+ */
+export const FACILITIES_SEED = [
+  { id: 'pacific', name: 'パシフィック', area: '介護', capacity: 20 },
+  { id: 'renaissance', name: 'ルネッサンス', area: '介護', capacity: 50 },
+  { id: 'serene', name: 'セレーネ', area: '介護', capacity: 30 },
+  { id: 'pearl', name: 'パール', area: '住まい', capacity: 15 },
+  { id: 'champsclaire', name: 'シャンクレール', area: '住まい', capacity: 40 },
+];
+
+/**
+ * 施設が存在しない場合に初期データを作成
+ */
+export async function seedFacilitiesIfEmpty(tenantId: string = DEFAULT_TENANT_ID): Promise<void> {
+  if (!db) return;
+
+  const existing = await getFacilities(tenantId);
+  if (existing.length > 0) return;
+
+  // シードデータを作成
+  for (const seed of FACILITIES_SEED) {
+    const docRef = doc(db, 'facilities', seed.id);
+    await setDoc(docRef, {
+      name: seed.name,
+      area: seed.area,
+      capacity: seed.capacity,
+      isActive: true,
+      tenantId,
+      createdAt: Timestamp.now(),
+    });
+  }
+}

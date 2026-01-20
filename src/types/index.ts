@@ -241,3 +241,6 @@ export * from './improvement';
 
 // ポイント関連の型をre-export
 export * from './points';
+
+// 空室管理関連の型をre-export
+export * from './vacancy';
