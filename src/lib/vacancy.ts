@@ -110,12 +110,13 @@ export async function updateVacancyStatus(params: {
   lastKnownUpdatedAt?: Date;
 }): Promise<VacancyStatus> {
   if (!db) throw new Error('Firestore not initialized');
+  const firestore = db; // TypeScript用にnon-null確定
 
   const { facilityId, vacantCount, note, updatedBy, updatedByName, lastKnownUpdatedAt } = params;
 
-  const vacancyRef = doc(db, 'vacancyStatus', facilityId);
+  const vacancyRef = doc(firestore, 'vacancyStatus', facilityId);
 
-  return await runTransaction(db, async (transaction) => {
+  return await runTransaction(firestore, async (transaction) => {
     const vacancyDoc = await transaction.get(vacancyRef);
     const now = Timestamp.now();
 
@@ -150,7 +151,7 @@ export async function updateVacancyStatus(params: {
     transaction.set(vacancyRef, newData);
 
     // 監査ログを作成（vacancyEventsコレクション）
-    const eventRef = doc(collection(db, 'vacancyEvents'));
+    const eventRef = doc(collection(firestore, 'vacancyEvents'));
     transaction.set(eventRef, {
       facilityId,
       before,
