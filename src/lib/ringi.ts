@@ -476,8 +476,12 @@ export async function getAllRingis(
 
 async function addAuditLog(data: Omit<RingiAuditLog, 'id' | 'createdAt'>): Promise<void> {
   const firestore = getDb();
+  // undefinedの値を除外
+  const cleanData = Object.fromEntries(
+    Object.entries(data).filter(([, v]) => v !== undefined)
+  );
   await addDoc(collection(firestore, 'ringiAuditLogs'), {
-    ...data,
+    ...cleanData,
     createdAt: Timestamp.now(),
   });
 }
