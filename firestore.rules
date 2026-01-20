@@ -130,5 +130,20 @@ service cloud.firestore {
       allow delete: if isAuthenticated()
         && resource.data.authorId == request.auth.uid;
     }
+
+    // デイリーインサイトコレクション
+    match /dailyInsights/{insightId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // リーダー以上のみ作成可能
+      allow create: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin']
+        && request.resource.data.createdBy == request.auth.uid;
+      // リーダー以上のみ更新可能
+      allow update: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin'];
+      // 管理者のみ削除可能
+      allow delete: if isAuthenticated() && isAdmin();
+    }
   }
 }

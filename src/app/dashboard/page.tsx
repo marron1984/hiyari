@@ -10,6 +10,9 @@ import {
   getMonthlyUserStats,
   getBranches,
 } from '@/lib/firestore';
+import { getFacilitiesWithVacancy } from '@/lib/vacancy';
+import { getActiveInsights, archiveInsight } from '@/lib/insight';
+import { FacilityWithVacancy, DailyInsight, INSIGHT_PRIORITY_CONFIG } from '@/types';
 import { getMonthKey, formatMonthKey, getPastMonthKeys, getDayOfWeek, getTimeSlotIndex } from '@/lib/utils';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
@@ -29,6 +32,10 @@ import {
   ArrowRight,
   Gift,
   Users,
+  Building2,
+  AlertTriangle,
+  Megaphone,
+  X,
 } from 'lucide-react';
 
 const COLORS = [
@@ -55,6 +62,8 @@ function DashboardContent() {
   const [topUsers, setTopUsers] = useState<MonthlyUserStats[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [monthlyData, setMonthlyData] = useState<{ month: string; count: number; points: number }[]>([]);
+  const [facilities, setFacilities] = useState<FacilityWithVacancy[]>([]);
+  const [insights, setInsights] = useState<DailyInsight[]>([]);
 
   const currentMonthKey = getMonthKey();
 
@@ -63,12 +72,17 @@ function DashboardContent() {
       if (!user) return;
 
       try {
-        const [incidentsData, allIncidentsData, branchesData, allUserStats] = await Promise.all([
+        const [incidentsData, allIncidentsData, branchesData, allUserStats, facilitiesData, insightsData] = await Promise.all([
           getIncidentsByUser(user.id, 100),
           getIncidentsByTenant(DEFAULT_TENANT_ID, 50),
           getBranches(),
           getMonthlyUserStats(DEFAULT_TENANT_ID, currentMonthKey),
+          getFacilitiesWithVacancy(user.tenantId),
+          getActiveInsights(user.tenantId),
         ]);
+
+        setFacilities(facilitiesData);
+        setInsights(insightsData);
 
         setMyIncidents(incidentsData);
         setAllIncidents(allIncidentsData);
@@ -154,6 +168,40 @@ function DashboardContent() {
 
   const maxHeatValue = Math.max(...heatmapData.flat(), 1);
 
+  // 空室関連の集計
+  const totalCapacity = facilities.reduce((sum, f) => sum + (f.facility.capacity || 0), 0);
+  const totalVacant = facilities.reduce((sum, f) => sum + (f.vacancy?.vacantCount ?? 0), 0);
+  const totalOccupied = totalCapacity - totalVacant;
+  const totalOccupancyRate = totalCapacity > 0 ? Math.round((totalOccupied / totalCapacity) * 100) : 0;
+
+  // 稼働率に応じた色
+  const getOccupancyColor = (rate: number) => {
+    if (rate >= 95) return { bg: 'bg-green-50', text: 'text-green-700', bar: 'bg-green-500' };
+    if (rate >= 85) return { bg: 'bg-blue-50', text: 'text-blue-700', bar: 'bg-blue-500' };
+    if (rate >= 70) return { bg: 'bg-yellow-50', text: 'text-yellow-700', bar: 'bg-yellow-500' };
+    return { bg: 'bg-red-50', text: 'text-red-700', bar: 'bg-red-500' };
+  };
+
+  // 低稼働施設
+  const lowOccupancyFacilities = facilities.filter(f => {
+    const capacity = f.facility.capacity || 0;
+    const vacant = f.vacancy?.vacantCount ?? 0;
+    if (capacity === 0) return false;
+    const rate = Math.round(((capacity - vacant) / capacity) * 100);
+    return rate < 70;
+  });
+
+  // インサイトを閉じる
+  const handleDismissInsight = async (insightId: string) => {
+    if (!user) return;
+    try {
+      await archiveInsight(insightId, user.id, user.role);
+      setInsights(prev => prev.filter(i => i.id !== insightId));
+    } catch (err) {
+      console.error('Failed to dismiss insight:', err);
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -215,6 +263,120 @@ function DashboardContent() {
               </div>
             </CardContent>
           </Card>
+
+          {/* 連携提案（デイリーインサイト） */}
+          {insights.length > 0 && (
+            <div className="mb-6 space-y-3">
+              {insights.slice(0, 3).map((insight) => {
+                const priorityConfig = INSIGHT_PRIORITY_CONFIG[insight.priority];
+                return (
+                  <Card
+                    key={insight.id}
+                    className={`p-4 ${priorityConfig.bg} border-l-4 ${
+                      insight.priority === 'high' ? 'border-l-red-500' :
+                      insight.priority === 'medium' ? 'border-l-blue-500' : 'border-l-gray-400'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Megaphone className={`w-5 h-5 ${priorityConfig.color} shrink-0 mt-0.5`} />
+                      <div className="flex-1">
+                        <p className={`font-bold ${priorityConfig.color}`}>{insight.title}</p>
+                        <p className="text-sm text-gray-700 mt-1">{insight.message}</p>
+                        <p className="text-xs text-gray-500 mt-2">
+                          {insight.createdByName} · {insight.createdAt.toLocaleDateString('ja-JP')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDismissInsight(insight.id)}
+                        className="p-1 hover:bg-white/50 rounded"
+                        title="閉じる"
+                      >
+                        <X className="w-4 h-4 text-gray-400" />
+                      </button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 空室・稼働状況サマリー */}
+          {facilities.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center">
+                  <Building2 className="w-5 h-5 text-gray-500 mr-2" />
+                  空室・稼働状況
+                </CardTitle>
+                <Link href="/dashboard/vacancy" className="text-sm text-blue-600 hover:underline flex items-center">
+                  詳細 <ArrowRight className="w-4 h-4 ml-1" />
+                </Link>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className={`text-center p-4 rounded-lg ${getOccupancyColor(totalOccupancyRate).bg}`}>
+                    <p className={`text-3xl font-bold ${getOccupancyColor(totalOccupancyRate).text}`}>
+                      {totalOccupancyRate}%
+                    </p>
+                    <p className="text-sm text-gray-600">全体稼働率</p>
+                    <div className="w-full h-2 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                      <div
+                        className={`h-full ${getOccupancyColor(totalOccupancyRate).bar} transition-all`}
+                        style={{ width: `${totalOccupancyRate}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <p className="text-3xl font-bold text-blue-600">{totalVacant}</p>
+                    <p className="text-sm text-gray-600">空室合計</p>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <p className="text-3xl font-bold text-gray-700">{totalOccupied}</p>
+                    <p className="text-sm text-gray-600">入居数</p>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <p className="text-3xl font-bold text-gray-700">{totalCapacity}</p>
+                    <p className="text-sm text-gray-600">総定員</p>
+                  </div>
+                </div>
+
+                {/* 施設別ミニリスト */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {facilities.map((f) => {
+                    const capacity = f.facility.capacity || 0;
+                    const vacant = f.vacancy?.vacantCount ?? 0;
+                    const rate = capacity > 0 ? Math.round(((capacity - vacant) / capacity) * 100) : 0;
+                    const color = getOccupancyColor(rate);
+                    return (
+                      <div
+                        key={f.facility.id}
+                        className={`p-3 rounded-lg ${color.bg} flex items-center justify-between`}
+                      >
+                        <span className="font-medium text-sm">{f.facility.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`font-bold ${color.text}`}>{rate}%</span>
+                          <span className="text-xs text-gray-500">空{vacant}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 低稼働アラート */}
+                {lowOccupancyFacilities.length > 0 && (
+                  <div className="mt-4 p-3 bg-red-50 rounded-lg flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <div className="text-sm">
+                      <span className="font-medium text-red-800">稼働率70%未満: </span>
+                      <span className="text-red-700">
+                        {lowOccupancyFacilities.map(f => f.facility.name).join('、')}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* グラフエリア */}
           <div className="grid md:grid-cols-2 gap-6 mb-6">

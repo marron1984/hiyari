@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2 } from 'lucide-react';
+import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { cn } from '@/lib/utils';
 
@@ -51,6 +51,7 @@ export function Header() {
     { href: '/admin/attendance/dashboard', label: '勤怠管理', icon: Clock },
     { href: '/admin/ringi', label: '稟議承認', icon: ClipboardList },
     { href: '/admin/improvements', label: '改善管理', icon: Lightbulb },
+    { href: '/admin/insights', label: '連携提案', icon: Megaphone },
     { href: '/admin/points', label: 'ポイント', icon: Star },
     { href: '/admin/users', label: '権限管理', icon: Shield },
     { href: '/admin/employees', label: '従業員', icon: Users },
