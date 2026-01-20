@@ -12,6 +12,11 @@ import { auth, db, googleProvider, DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { User, UserRole, JobType } from '@/types';
 import { canApprove as checkCanApprove, canAccessAdmin, hasMinRole } from '@/lib/auth';
 
+// 初期システム管理者のメールアドレス
+const INITIAL_SYSTEM_ADMINS = [
+  'yoshida@aska-g.com',
+];
+
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   user: User | null;
@@ -44,15 +49,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (firebaseUser && db) {
         // Firestoreからユーザー情報を取得
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const userDoc = await getDoc(userRef);
         if (userDoc.exists()) {
           const userData = userDoc.data();
+          let role = userData.role as UserRole || 'user';
+
+          // 初期管理者の自動昇格チェック
+          if (
+            role === 'user' &&
+            firebaseUser.email &&
+            INITIAL_SYSTEM_ADMINS.includes(firebaseUser.email)
+          ) {
+            role = 'system_admin';
+            // Firestoreも更新
+            await setDoc(userRef, { role: 'system_admin' }, { merge: true });
+          }
+
           setUser({
             id: firebaseUser.uid,
             name: userData.name || firebaseUser.displayName || '',
             email: firebaseUser.email || '',
             photoURL: userData.photoURL || firebaseUser.photoURL || undefined,
-            role: userData.role as UserRole || 'user',
+            role,
             branchId: userData.branchId || '',
             jobType: userData.jobType as JobType || '介護職',
             tenantId: userData.tenantId || DEFAULT_TENANT_ID,
@@ -105,14 +124,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (userDoc.exists()) {
       // 既存ユーザーの更新
-      await setDoc(userRef, { ...data, updatedAt: new Date() }, { merge: true });
+      const updateData: Record<string, unknown> = { ...data, updatedAt: new Date() };
+
+      // 初期管理者の自動昇格（一度だけ）
+      const existingData = userDoc.data();
+      if (
+        existingData.role === 'user' &&
+        firebaseUser.email &&
+        INITIAL_SYSTEM_ADMINS.includes(firebaseUser.email)
+      ) {
+        updateData.role = 'system_admin';
+      }
+
+      await setDoc(userRef, updateData, { merge: true });
     } else {
       // 新規ユーザーの作成
+      // 初期管理者のメールアドレスはsystem_adminに設定
+      const isInitialAdmin = firebaseUser.email && INITIAL_SYSTEM_ADMINS.includes(firebaseUser.email);
+
       const newUser: Omit<User, 'id'> = {
         name: data.name || firebaseUser.displayName || '',
         email: firebaseUser.email || '',
         photoURL: firebaseUser.photoURL || undefined,
-        role: 'user',
+        role: isInitialAdmin ? 'system_admin' : 'user',
         branchId: data.branchId || '',
         jobType: data.jobType || '介護職',
         tenantId: DEFAULT_TENANT_ID,
