@@ -485,15 +485,15 @@ export async function getRingiAuditLogs(
   limitCount: number = 50
 ): Promise<RingiAuditLog[]> {
   const firestore = getDb();
+  // シンプルなクエリ（インデックス不要）
   const q = query(
     collection(firestore, 'ringiAuditLogs'),
     where('ringiId', '==', ringiId),
-    orderBy('createdAt', 'desc'),
     limit(limitCount)
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => {
+  const results = snapshot.docs.map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -501,4 +501,7 @@ export async function getRingiAuditLogs(
       createdAt: data.createdAt?.toDate() || new Date(),
     } as RingiAuditLog;
   });
+
+  // クライアント側でソート（新しい順）
+  return results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
