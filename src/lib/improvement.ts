@@ -108,34 +108,14 @@ export async function getImprovements(
   const firestore = getDb();
   const limitCount = options?.limitCount || 100;
 
-  let q = query(
+  // 単一フィルターに簡素化してインデックス不要に
+  const q = query(
     collection(firestore, 'improvements'),
-    where('tenantId', '==', tenantId),
-    orderBy('createdAt', 'desc'),
-    limit(limitCount)
+    where('tenantId', '==', tenantId)
   );
 
-  if (options?.branchId) {
-    q = query(
-      collection(firestore, 'improvements'),
-      where('tenantId', '==', tenantId),
-      where('branchId', '==', options.branchId),
-      orderBy('createdAt', 'desc'),
-      limit(limitCount)
-    );
-  }
-
-  if (options?.authorId) {
-    q = query(
-      collection(firestore, 'improvements'),
-      where('tenantId', '==', tenantId),
-      where('authorId', '==', options.authorId),
-      orderBy('createdAt', 'desc'),
-      limit(limitCount)
-    );
-  }
-
   const snapshot = await getDocs(q);
+
   let results = snapshot.docs.map((doc) => {
     const data = doc.data();
     return {
@@ -148,11 +128,21 @@ export async function getImprovements(
     } as Improvement;
   });
 
+  // クライアント側でフィルタリング
+  if (options?.branchId) {
+    results = results.filter((r) => r.branchId === options.branchId);
+  }
+  if (options?.authorId) {
+    results = results.filter((r) => r.authorId === options.authorId);
+  }
   if (options?.status) {
     results = results.filter((r) => r.status === options.status);
   }
 
-  return results;
+  // 日付降順でソート
+  results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  return results.slice(0, limitCount);
 }
 
 /**
@@ -316,14 +306,14 @@ export async function addComment(
  */
 export async function getComments(improvementId: string): Promise<ImprovementComment[]> {
   const firestore = getDb();
+  // 単一フィルターに簡素化してインデックス不要に
   const q = query(
     collection(firestore, 'improvementComments'),
-    where('improvementId', '==', improvementId),
-    orderBy('createdAt', 'asc')
+    where('improvementId', '==', improvementId)
   );
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => {
+  const results = snapshot.docs.map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -331,6 +321,11 @@ export async function getComments(improvementId: string): Promise<ImprovementCom
       createdAt: data.createdAt?.toDate() || new Date(),
     } as ImprovementComment;
   });
+
+  // クライアント側で日付昇順ソート
+  results.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+
+  return results;
 }
 
 /**

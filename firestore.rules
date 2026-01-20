@@ -102,5 +102,33 @@ service cloud.firestore {
         && request.resource.data.changedBy == request.auth.uid;
       allow update, delete: if false;
     }
+
+    // 改善アイデアコレクション
+    match /improvements/{improvementId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // 認証済みユーザーは作成可能（自分のauthorIdのみ）
+      allow create: if isAuthenticated()
+        && request.resource.data.authorId == request.auth.uid;
+      // 更新: 本人 or リーダー以上（いいね、ステータス変更等）
+      allow update: if isAuthenticated()
+        && (resource.data.authorId == request.auth.uid
+            || getUserRole() in ['leader', 'admin', 'system_admin']);
+      // 削除: 本人（submitted状態のみ）or 管理者
+      allow delete: if isAuthenticated()
+        && (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+
+    // 改善アイデアコメントコレクション
+    match /improvementComments/{commentId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // 認証済みユーザーは作成可能
+      allow create: if isAuthenticated()
+        && request.resource.data.authorId == request.auth.uid;
+      // 削除: 本人のみ
+      allow delete: if isAuthenticated()
+        && resource.data.authorId == request.auth.uid;
+    }
   }
 }
