@@ -4,12 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users } from 'lucide-react';
+import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { cn } from '@/lib/utils';
 
 export function Header() {
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isLeaderOrAbove, signOut } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -34,12 +34,14 @@ export function Header() {
     { href: '/dashboard', label: 'ホーム', icon: Home },
     { href: '/submit', label: '報告', icon: FileText },
     { href: '/attendance', label: '打刻', icon: Clock },
+    { href: '/ringi', label: '稟議', icon: ClipboardList },
     { href: '/rankings', label: 'ランク', icon: Trophy },
   ];
 
   const adminItems = [
     { href: '/admin/incidents', label: '報告管理', icon: BarChart3 },
     { href: '/admin/attendance/dashboard', label: '勤怠', icon: Clock },
+    { href: '/admin/ringi', label: '稟議承認', icon: ClipboardList },
     { href: '/admin/employees', label: '従業員', icon: Users },
     { href: '/admin/settings', label: '設定', icon: Settings },
   ];
@@ -81,7 +83,7 @@ export function Header() {
                 </Link>
               );
             })}
-            {isAdmin && (
+            {isLeaderOrAbove && (
               <>
                 <div className="w-px h-5 bg-zinc-200 mx-1" />
                 {adminItems.map((item) => {
@@ -188,7 +190,7 @@ export function Header() {
               );
             })}
 
-            {isAdmin && (
+            {isLeaderOrAbove && (
               <>
                 <div className="border-t border-zinc-100 my-3" />
                 <p className="px-4 py-1 text-xs font-medium text-zinc-400 uppercase tracking-wider">管理</p>

@@ -10,6 +10,7 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider, DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { User, UserRole, JobType } from '@/types';
+import { canApprove as checkCanApprove, canAccessAdmin, hasMinRole } from '@/lib/auth';
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;
@@ -19,7 +20,9 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   updateUser: (data: Partial<User>) => Promise<void>;
   isOnboarded: boolean;
-  isAdmin: boolean;
+  isAdmin: boolean;           // admin以上
+  isLeaderOrAbove: boolean;   // leader以上（管理画面アクセス可能）
+  canApprove: (targetBranchId: string) => boolean;  // 承認権限チェック
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -137,7 +140,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isOnboarded = !!user && !!user.branchId;
-  const isAdmin = user?.role === 'admin' || user?.role === 'system_admin';
+  const isAdmin = hasMinRole(user?.role, 'admin');
+  const isLeaderOrAbove = canAccessAdmin(user?.role);
+
+  // 承認権限チェック（対象事業所を指定）
+  const canApprove = (targetBranchId: string): boolean => {
+    return checkCanApprove(user?.role, user?.branchId, targetBranchId);
+  };
 
   return (
     <AuthContext.Provider
@@ -150,6 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updateUser,
         isOnboarded,
         isAdmin,
+        isLeaderOrAbove,
+        canApprove,
       }}
     >
       {children}

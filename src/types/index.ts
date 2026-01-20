@@ -1,5 +1,17 @@
 // ユーザーロール
-export type UserRole = 'user' | 'admin' | 'system_admin';
+// user: 一般スタッフ
+// leader: リーダー（自事業所の承認権限）
+// admin: 管理者（全事業所の承認権限）
+// system_admin: システム管理者（テナント設定権限）
+export type UserRole = 'user' | 'leader' | 'admin' | 'system_admin';
+
+// ロール階層（数値が大きいほど権限が高い）
+export const ROLE_LEVELS: Record<UserRole, number> = {
+  user: 0,
+  leader: 1,
+  admin: 2,
+  system_admin: 3,
+};
 
 // 職種
 export type JobType =
@@ -220,3 +232,6 @@ export interface RankingPeriod {
 
 // 勤怠関連の型をre-export
 export * from './attendance';
+
+// 稟議関連の型をre-export
+export * from './ringi';
