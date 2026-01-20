@@ -238,3 +238,6 @@ export * from './ringi';
 
 // 改善アイデア関連の型をre-export
 export * from './improvement';
+
+// ポイント関連の型をre-export
+export * from './points';
