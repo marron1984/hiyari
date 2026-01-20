@@ -83,6 +83,7 @@ export interface TimeEntry {
   // 編集追跡
   isEdited: boolean;
   editedBy?: string;
+  editedByName?: string;
   editedAt?: Date;
   editReason?: string;
   createdAt: Date;
