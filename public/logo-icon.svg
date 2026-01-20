@@ -1,11 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">
-  <!-- Hands -->
-  <path d="M12 45 Q5 60 8 72 Q12 82 22 85 Q30 87 34 82 L38 65" fill="none" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M68 45 Q75 60 72 72 Q68 82 58 85 Q50 87 46 82 L42 65" fill="none" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round"/>
-
-  <!-- Arc above -->
-  <path d="M18 38 Q40 15 62 38" fill="none" stroke="#1a1a1a" stroke-width="2.5" stroke-linecap="round"/>
-
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
   <!-- Heart -->
-  <path d="M40 32 C40 26 34 21 28 21 C19 21 19 32 19 32 C19 43 40 58 40 58 C40 58 61 43 61 32 C61 32 61 21 52 21 C46 21 40 26 40 32" fill="#e53935"/>
+  <path d="M20 35 C8 24 4 18 4 13 C4 8 8 4 13 4 C16 4 19 6 20 9 C21 6 24 4 27 4 C32 4 36 8 36 13 C36 18 32 24 20 35Z" fill="#e53935"/>
+  <!-- Hands -->
+  <path d="M8 22 Q4 28 6 34 Q8 38 12 38" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
+  <path d="M32 22 Q36 28 34 34 Q32 38 28 38" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round"/>
 </svg>

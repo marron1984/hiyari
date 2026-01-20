@@ -72,12 +72,12 @@ export function Header() {
             <Link href="/dashboard" className="flex items-center gap-2">
               <Image
                 src="/logo-icon.svg"
-                alt="ええHUB"
+                alt="AA-HUB"
                 width={32}
                 height={32}
                 className="h-8 w-8"
               />
-              <span className="text-base font-bold text-zinc-900 hidden sm:inline">ええHUB</span>
+              <span className="text-base font-bold text-zinc-900">AA-HUB</span>
             </Link>
           </div>
 
