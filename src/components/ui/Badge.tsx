@@ -5,24 +5,31 @@ import { cn } from '@/lib/utils';
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
   variant?: 'default' | 'success' | 'warning' | 'danger' | 'info';
+  size?: 'sm' | 'md';
 }
 
 export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
-  ({ className, variant = 'default', ...props }, ref) => {
+  ({ className, variant = 'default', size = 'sm', ...props }, ref) => {
     const variants = {
-      default: 'bg-gray-100 text-gray-700',
-      success: 'bg-green-100 text-green-700',
-      warning: 'bg-yellow-100 text-yellow-700',
-      danger: 'bg-red-100 text-red-700',
-      info: 'bg-blue-100 text-blue-700',
+      default: 'bg-zinc-100 text-zinc-600',
+      success: 'bg-emerald-50 text-emerald-600',
+      warning: 'bg-amber-50 text-amber-600',
+      danger: 'bg-red-50 text-red-600',
+      info: 'bg-blue-50 text-blue-600',
+    };
+
+    const sizes = {
+      sm: 'px-2 py-0.5 text-xs',
+      md: 'px-2.5 py-1 text-sm',
     };
 
     return (
       <span
         ref={ref}
         className={cn(
-          'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
+          'inline-flex items-center font-medium rounded-full',
           variants[variant],
+          sizes[size],
           className
         )}
         {...props}
