@@ -10,7 +10,7 @@ import {
 import { db, DEFAULT_TENANT_ID } from './firebase';
 import { getTodayJST } from './attendance-calc';
 import { ClockStatus } from '@/types/attendance';
-import { EMPLOYEES_SEED } from '@/data/employees';
+import { EMPLOYEES_SEED, BRANCHES_SEED } from '@/data/employees';
 
 // ======== 型定義 ========
 
@@ -66,29 +66,38 @@ export async function getTodaySummary(
 
   const today = getTodayJST();
 
-  // 従業員総数
-  const employeesQuery = query(
-    collection(db, 'employees'),
-    where('tenantId', '==', tenantId),
-    where('isActive', '==', true)
-  );
-  const employeesSnapshot = await getDocs(employeesQuery);
-  const totalEmployees = employeesSnapshot.size || EMPLOYEES_SEED.length;
+  // 従業員総数（クエリを簡素化してインデックス不要に）
+  let totalEmployees = EMPLOYEES_SEED.length; // デフォルトはシードデータの数
+  try {
+    const employeesQuery = query(
+      collection(db, 'employees'),
+      where('tenantId', '==', tenantId)
+    );
+    const employeesSnapshot = await getDocs(employeesQuery);
+    // クライアント側でisActiveをフィルタ
+    const activeEmployees = employeesSnapshot.docs.filter(doc => doc.data().isActive === true);
+    if (activeEmployees.length > 0) {
+      totalEmployees = activeEmployees.length;
+    }
+  } catch (error) {
+    console.error('Failed to fetch employees, using seed data:', error);
+  }
 
-  // 今日の打刻記録
+  // 今日の打刻記録（単一フィルターに簡素化）
   const entriesQuery = query(
     collection(db, 'timeEntries'),
-    where('tenantId', '==', tenantId),
     where('workDate', '==', today)
   );
   const entriesSnapshot = await getDocs(entriesQuery);
+  // クライアント側でtenantIdフィルタ
+  const todayEntries = entriesSnapshot.docs.filter(doc => doc.data().tenantId === tenantId);
 
   let working = 0;
   let onBreak = 0;
   let completed = 0;
   let late = 0;
 
-  entriesSnapshot.docs.forEach((doc) => {
+  todayEntries.forEach((doc) => {
     const data = doc.data();
     const status = data.status as ClockStatus;
 
@@ -132,13 +141,11 @@ export async function getMonthlySummary(
   const lastDay = new Date(year, month, 0).getDate();
   const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
 
-  // 打刻記録
-  let entriesQuery = query(
+  // 打刻記録（クエリを簡素化、範囲クエリのみ）
+  const entriesQuery = query(
     collection(db, 'timeEntries'),
-    where('tenantId', '==', tenantId),
     where('workDate', '>=', startDate),
-    where('workDate', '<=', endDate),
-    where('status', '==', 'completed')
+    where('workDate', '<=', endDate)
   );
 
   const entriesSnapshot = await getDocs(entriesQuery);
@@ -151,7 +158,9 @@ export async function getMonthlySummary(
   entriesSnapshot.docs.forEach((doc) => {
     const data = doc.data();
 
-    // 事業所フィルター
+    // クライアント側でtenantId、status、branchIdフィルタ
+    if (data.tenantId !== tenantId) return;
+    if (data.status !== 'completed') return;
     if (branchId && data.branchId !== branchId) return;
 
     totalWorkMinutes += data.totalWorkMinutes || 0;
@@ -160,19 +169,19 @@ export async function getMonthlySummary(
     workDays.add(`${data.employeeCode}_${data.workDate}`);
   });
 
-  // 承認済み残業
+  // 承認済み残業（クエリを簡素化）
   const overtimeQuery = query(
     collection(db, 'overtimeRequests'),
-    where('tenantId', '==', tenantId),
-    where('status', '==', 'approved'),
-    where('workDate', '>=', startDate),
-    where('workDate', '<=', endDate)
+    where('status', '==', 'approved')
   );
   const overtimeSnapshot = await getDocs(overtimeQuery);
 
   let totalOvertimeMinutes = 0;
   overtimeSnapshot.docs.forEach((doc) => {
     const data = doc.data();
+    // クライアント側でtenantId、日付範囲、branchIdフィルタ
+    if (data.tenantId !== tenantId) return;
+    if (data.workDate < startDate || data.workDate > endDate) return;
     if (branchId && data.branchId !== branchId) return;
     totalOvertimeMinutes += data.requestedMinutes || 0;
   });
@@ -201,15 +210,17 @@ export async function getAttendanceAlerts(
   const today = getTodayJST();
 
   // 1. 未打刻アラート（従業員で今日打刻がない人）
+  // クエリを簡素化してインデックス不要に
   const employeesQuery = query(
     collection(db, 'employees'),
-    where('tenantId', '==', tenantId),
-    where('isActive', '==', true)
+    where('tenantId', '==', tenantId)
   );
   const employeesSnapshot = await getDocs(employeesQuery);
   const employees = new Map<string, { name: string; branchId: string }>();
   employeesSnapshot.docs.forEach((doc) => {
     const data = doc.data();
+    // クライアント側でisActiveとbranchIdフィルタ
+    if (data.isActive !== true) return;
     if (!branchId || data.branchId === branchId) {
       employees.set(data.employeeCode, {
         name: data.name,
@@ -218,15 +229,31 @@ export async function getAttendanceAlerts(
     }
   });
 
+  // シードデータからも従業員を追加（Firestoreにデータがない場合のフォールバック）
+  if (employees.size === 0) {
+    EMPLOYEES_SEED.forEach((emp) => {
+      if (!branchId || emp.branchId === branchId) {
+        employees.set(emp.employeeCode, {
+          name: emp.name,
+          branchId: emp.branchId,
+        });
+      }
+    });
+  }
+
+  // 単一フィルターに簡素化
   const entriesQuery = query(
     collection(db, 'timeEntries'),
-    where('tenantId', '==', tenantId),
     where('workDate', '==', today)
   );
   const entriesSnapshot = await getDocs(entriesQuery);
   const clockedInCodes = new Set<string>();
   entriesSnapshot.docs.forEach((doc) => {
-    clockedInCodes.add(doc.data().employeeCode);
+    const data = doc.data();
+    // クライアント側でtenantIdフィルタ
+    if (data.tenantId === tenantId) {
+      clockedInCodes.add(data.employeeCode);
+    }
   });
 
   // 10時以降で未打刻はアラート
@@ -269,16 +296,17 @@ export async function getAttendanceAlerts(
     }
   });
 
-  // 3. 残業申請待ちアラート
+  // 3. 残業申請待ちアラート（単一フィルターに簡素化）
   const overtimeQuery = query(
     collection(db, 'overtimeRequests'),
-    where('tenantId', '==', tenantId),
     where('status', '==', 'pending')
   );
   const overtimeSnapshot = await getDocs(overtimeQuery);
 
   overtimeSnapshot.docs.forEach((doc) => {
     const data = doc.data();
+    // クライアント側でtenantIdとbranchIdフィルタ
+    if (data.tenantId !== tenantId) return;
     if (branchId && data.branchId !== branchId) return;
 
     alerts.push({
@@ -318,12 +346,11 @@ export async function getDailyWorkData(
   const lastDay = new Date(year, month, 0).getDate();
   const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
 
+  // 打刻記録（クエリを簡素化、範囲クエリのみ）
   const entriesQuery = query(
     collection(db, 'timeEntries'),
-    where('tenantId', '==', tenantId),
     where('workDate', '>=', startDate),
-    where('workDate', '<=', endDate),
-    where('status', '==', 'completed')
+    where('workDate', '<=', endDate)
   );
 
   const entriesSnapshot = await getDocs(entriesQuery);
@@ -337,6 +364,9 @@ export async function getDailyWorkData(
 
   entriesSnapshot.docs.forEach((doc) => {
     const data = doc.data();
+    // クライアント側でtenantId、status、branchIdフィルタ
+    if (data.tenantId !== tenantId) return;
+    if (data.status !== 'completed') return;
     if (branchId && data.branchId !== branchId) return;
 
     const date = data.workDate;
@@ -349,19 +379,19 @@ export async function getDailyWorkData(
     });
   });
 
-  // 残業（承認済み）も取得
+  // 残業（承認済み）も取得（クエリを簡素化）
   const overtimeQuery = query(
     collection(db, 'overtimeRequests'),
-    where('tenantId', '==', tenantId),
-    where('status', '==', 'approved'),
-    where('workDate', '>=', startDate),
-    where('workDate', '<=', endDate)
+    where('status', '==', 'approved')
   );
   const overtimeSnapshot = await getDocs(overtimeQuery);
 
   const overtimeMap = new Map<string, number>();
   overtimeSnapshot.docs.forEach((doc) => {
     const data = doc.data();
+    // クライアント側でtenantId、日付範囲、branchIdフィルタ
+    if (data.tenantId !== tenantId) return;
+    if (data.workDate < startDate || data.workDate > endDate) return;
     if (branchId && data.branchId !== branchId) return;
 
     const existing = overtimeMap.get(data.workDate) || 0;
@@ -405,11 +435,10 @@ export async function getBranchSummaries(
 
   const today = getTodayJST();
 
-  // 従業員を事業所ごとに集計
+  // 従業員を事業所ごとに集計（クエリを簡素化）
   const employeesQuery = query(
     collection(db, 'employees'),
-    where('tenantId', '==', tenantId),
-    where('isActive', '==', true)
+    where('tenantId', '==', tenantId)
   );
   const employeesSnapshot = await getDocs(employeesQuery);
 
@@ -418,6 +447,8 @@ export async function getBranchSummaries(
 
   employeesSnapshot.docs.forEach((doc) => {
     const data = doc.data();
+    // クライアント側でisActiveフィルタ
+    if (data.isActive !== true) return;
     const branchId = data.branchId;
 
     if (!branchEmployees.has(branchId)) {
@@ -426,6 +457,16 @@ export async function getBranchSummaries(
     branchEmployees.get(branchId)!.add(data.employeeCode);
   });
 
+  // Firestoreにデータがない場合、シードデータからフォールバック
+  if (branchEmployees.size === 0) {
+    EMPLOYEES_SEED.forEach((emp) => {
+      if (!branchEmployees.has(emp.branchId)) {
+        branchEmployees.set(emp.branchId, new Set());
+      }
+      branchEmployees.get(emp.branchId)!.add(emp.employeeCode);
+    });
+  }
+
   // 事業所名を取得
   const branchesQuery = query(collection(db, 'branches'), where('tenantId', '==', tenantId));
   const branchesSnapshot = await getDocs(branchesQuery);
@@ -433,10 +474,16 @@ export async function getBranchSummaries(
     branchNames.set(doc.id, doc.data().name);
   });
 
-  // 今日の打刻を取得
+  // シードデータから事業所名もフォールバック
+  if (branchNames.size === 0) {
+    BRANCHES_SEED.forEach((branch) => {
+      branchNames.set(branch.id, branch.name);
+    });
+  }
+
+  // 今日の打刻を取得（単一フィルターに簡素化）
   const entriesQuery = query(
     collection(db, 'timeEntries'),
-    where('tenantId', '==', tenantId),
     where('workDate', '==', today)
   );
   const entriesSnapshot = await getDocs(entriesQuery);
@@ -451,6 +498,9 @@ export async function getBranchSummaries(
 
   entriesSnapshot.docs.forEach((doc) => {
     const data = doc.data();
+    // クライアント側でtenantIdフィルタ
+    if (data.tenantId !== tenantId) return;
+
     const branchId = data.branchId;
 
     if (!branchStats.has(branchId)) {
