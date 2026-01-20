@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, ChevronDown, Clock } from 'lucide-react';
+import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, ChevronDown, Clock, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function Header() {
@@ -25,6 +25,7 @@ export function Header() {
   const adminItems = [
     { href: '/admin/incidents', label: '投稿管理', icon: BarChart3 },
     { href: '/admin/attendance', label: '勤怠管理', icon: Clock },
+    { href: '/admin/employees', label: '従業員', icon: Users },
     { href: '/admin/settings', label: '設定', icon: Settings },
   ];
 
