@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield } from 'lucide-react';
+import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { cn } from '@/lib/utils';
 
@@ -13,7 +13,9 @@ export function Header() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const adminMenuRef = useRef<HTMLDivElement>(null);
 
   // 外側クリックでメニューを閉じる
   useEffect(() => {
@@ -21,12 +23,15 @@ export function Header() {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
       }
+      if (adminMenuRef.current && !adminMenuRef.current.contains(e.target as Node)) {
+        setAdminMenuOpen(false);
+      }
     }
-    if (userMenuOpen) {
+    if (userMenuOpen || adminMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [userMenuOpen]);
+  }, [userMenuOpen, adminMenuOpen]);
 
   if (!user) return null;
 
@@ -41,11 +46,11 @@ export function Header() {
 
   const adminItems = [
     { href: '/admin/incidents', label: '報告管理', icon: BarChart3 },
-    { href: '/admin/attendance/dashboard', label: '勤怠', icon: Clock },
-    { href: '/admin/ringi', label: '稟議', icon: ClipboardList },
-    { href: '/admin/improvements', label: '改善', icon: Lightbulb },
+    { href: '/admin/attendance/dashboard', label: '勤怠管理', icon: Clock },
+    { href: '/admin/ringi', label: '稟議承認', icon: ClipboardList },
+    { href: '/admin/improvements', label: '改善管理', icon: Lightbulb },
     { href: '/admin/points', label: 'ポイント', icon: Star },
-    { href: '/admin/users', label: '権限', icon: Shield },
+    { href: '/admin/users', label: '権限管理', icon: Shield },
     { href: '/admin/employees', label: '従業員', icon: Users },
     { href: '/admin/settings', label: '設定', icon: Settings },
   ];
@@ -54,6 +59,8 @@ export function Header() {
     await signOut();
     setUserMenuOpen(false);
   };
+
+  const isAdminActive = pathname.startsWith('/admin');
 
   return (
     <header className="bg-white/80 backdrop-blur-lg border-b border-zinc-100 sticky top-0 z-50">
@@ -87,29 +94,50 @@ export function Header() {
                 </Link>
               );
             })}
+
+            {/* Admin Dropdown */}
             {isLeaderOrAbove && (
-              <>
-                <div className="w-px h-5 bg-zinc-200 mx-1" />
-                {adminItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname.startsWith(item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        'flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors',
-                        isActive
-                          ? 'bg-zinc-900 text-white'
-                          : 'text-zinc-600 hover:bg-zinc-100'
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span>{item.label}</span>
-                    </Link>
-                  );
-                })}
-              </>
+              <div className="relative" ref={adminMenuRef}>
+                <button
+                  onClick={() => setAdminMenuOpen(!adminMenuOpen)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ml-1',
+                    isAdminActive
+                      ? 'bg-zinc-900 text-white'
+                      : 'text-zinc-600 hover:bg-zinc-100'
+                  )}
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>管理</span>
+                  <ChevronDown className={cn('w-3 h-3 transition-transform', adminMenuOpen && 'rotate-180')} />
+                </button>
+                {adminMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-zinc-100 overflow-hidden z-50 animate-slide-down">
+                    <div className="p-2">
+                      {adminItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname.startsWith(item.href);
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setAdminMenuOpen(false)}
+                            className={cn(
+                              'flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors',
+                              isActive
+                                ? 'bg-zinc-100 text-zinc-900 font-medium'
+                                : 'text-zinc-600 hover:bg-zinc-50'
+                            )}
+                          >
+                            <Icon className="w-4 h-4" />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </nav>
 
