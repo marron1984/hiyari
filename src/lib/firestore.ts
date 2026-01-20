@@ -128,15 +128,9 @@ async function updateMonthlyStats(
 ): Promise<void> {
   const tenantId = incident.tenantId;
 
-  // ユーザー統計
-  const userStatsRef = doc(
-    firestore,
-    'monthlyStats',
-    tenantId,
-    monthKey,
-    'users',
-    incident.userId
-  );
+  // ユーザー統計（フラットな構造: monthlyUserStats/{tenantId}_{monthKey}_{userId}）
+  const userStatsId = `${tenantId}_${monthKey}_${incident.userId}`;
+  const userStatsRef = doc(firestore, 'monthlyUserStats', userStatsId);
   const userStatsDoc = await getDoc(userStatsRef);
 
   if (userStatsDoc.exists()) {
@@ -148,6 +142,8 @@ async function updateMonthlyStats(
     });
   } else {
     batch.set(userStatsRef, {
+      tenantId,
+      monthKey,
       userId: incident.userId,
       userName: incident.userName || '',
       branchId: incident.branchId,
@@ -158,15 +154,9 @@ async function updateMonthlyStats(
     });
   }
 
-  // 事業所統計
-  const branchStatsRef = doc(
-    firestore,
-    'monthlyStats',
-    tenantId,
-    monthKey,
-    'branches',
-    incident.branchId
-  );
+  // 事業所統計（フラットな構造: monthlyBranchStats/{tenantId}_{monthKey}_{branchId}）
+  const branchStatsId = `${tenantId}_${monthKey}_${incident.branchId}`;
+  const branchStatsRef = doc(firestore, 'monthlyBranchStats', branchStatsId);
   const branchStatsDoc = await getDoc(branchStatsRef);
 
   if (branchStatsDoc.exists()) {
@@ -179,6 +169,8 @@ async function updateMonthlyStats(
     // 事業所の人数を取得
     const branch = await getBranch(incident.branchId);
     batch.set(branchStatsRef, {
+      tenantId,
+      monthKey,
       branchId: incident.branchId,
       branchName: branch?.name || '',
       points: incident.scoreTotal,
@@ -277,10 +269,15 @@ export async function getMonthlyUserStats(
   monthKey: string
 ): Promise<MonthlyUserStats[]> {
   const firestore = ensureDb();
-  const q = query(collection(firestore, 'monthlyStats', tenantId, monthKey, 'users'));
+  // フラットな構造: monthlyUserStats コレクションから tenantId と monthKey でフィルタ
+  const q = query(
+    collection(firestore, 'monthlyUserStats'),
+    where('tenantId', '==', tenantId),
+    where('monthKey', '==', monthKey)
+  );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => {
-    const data = doc.data();
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
     return {
       userId: data.userId,
       userName: data.userName,
@@ -300,10 +297,15 @@ export async function getMonthlyBranchStats(
   monthKey: string
 ): Promise<MonthlyBranchStats[]> {
   const firestore = ensureDb();
-  const q = query(collection(firestore, 'monthlyStats', tenantId, monthKey, 'branches'));
+  // フラットな構造: monthlyBranchStats コレクションから tenantId と monthKey でフィルタ
+  const q = query(
+    collection(firestore, 'monthlyBranchStats'),
+    where('tenantId', '==', tenantId),
+    where('monthKey', '==', monthKey)
+  );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => {
-    const data = doc.data();
+  return snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
     return {
       branchId: data.branchId,
       branchName: data.branchName,
@@ -324,23 +326,18 @@ export async function checkFraud(
   tenantId: string = DEFAULT_TENANT_ID
 ): Promise<{ isFraud: boolean; reason?: string }> {
   const firestore = ensureDb();
-  // 過去24時間の同一ユーザーの投稿を取得
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-
+  // 過去24時間の同一ユーザーの投稿を取得（シンプルなクエリ）
   const q = query(
     collection(firestore, 'incidents'),
     where('userId', '==', userId),
-    where('tenantId', '==', tenantId),
-    orderBy('createdAt', 'desc'),
-    limit(10)
+    limit(20)
   );
 
   const snapshot = await getDocs(q);
-  const recentIncidents = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
+  const recentIncidents = snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
   })) as Incident[];
 
   // 同一本文のチェック（簡易ハッシュ: 本文の前50文字 + 長さ）
