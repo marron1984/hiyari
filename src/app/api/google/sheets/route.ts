@@ -123,14 +123,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { sheetId, range = 'A:Z', dryRun = false } = body;
+    const { sheetId, range = 'A:Z', dryRun = false, yearFilter = 2026 } = body;
 
     if (!sheetId) {
       return NextResponse.json({ error: 'sheetIdが必要です' }, { status: 400 });
     }
 
-    // インポート実行
-    const result = await importProspectsFromSheet(sheetId, range, dryRun);
+    // インポート実行（年フィルター付き）
+    const result = await importProspectsFromSheet(sheetId, range, dryRun, yearFilter);
 
     // 履歴を保存（dryRunでない場合）
     if (!dryRun && result.success) {

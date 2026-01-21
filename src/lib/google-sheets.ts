@@ -366,18 +366,41 @@ function generateProspectKey(prospect: Partial<Prospect>): string {
 }
 
 /**
+ * 年を取得（日付文字列から）
+ */
+function getYearFromDateString(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+
+  // YYYY/M/D or YYYY-M-D 形式
+  const match1 = value.match(/^(\d{4})[\/\-]/);
+  if (match1) return parseInt(match1[1], 10);
+
+  // M/D/YYYY 形式
+  const match2 = value.match(/\/(\d{4})$/);
+  if (match2) return parseInt(match2[1], 10);
+
+  return undefined;
+}
+
+/**
  * スプレッドシートからProspectsをインポート
+ * @param sheetId スプレッドシートID
+ * @param range 範囲
+ * @param dryRun ドライラン（テスト）モード
+ * @param yearFilter 年フィルター（指定した年以降のデータのみインポート）
  */
 export async function importProspectsFromSheet(
   sheetId: string = PROSPECT_SHEET_ID,
   range: string = 'A:Z',
-  dryRun: boolean = false
+  dryRun: boolean = false,
+  yearFilter: number = 2026 // デフォルトで2026年以降のみ
 ): Promise<{
   success: boolean;
   totalRows: number;
   imported: number;
   skipped: number;
   duplicates: number;
+  archived: number;
   errors: string[];
 }> {
   const result = {
@@ -386,6 +409,7 @@ export async function importProspectsFromSheet(
     imported: 0,
     skipped: 0,
     duplicates: 0,
+    archived: 0, // 2025年以前のデータ
     errors: [] as string[],
   };
 
@@ -432,11 +456,37 @@ export async function importProspectsFromSheet(
       try {
         const prospect = rowToProspect(row, mapping, i);
 
-        // 顧客名がない場合はスキップ
-        if (!prospect.customerName) {
+        // 年フィルター: 問い合わせ日または受信日から年を取得
+        const inquiryYear = getYearFromDateString(prospect.inquiryDate);
+        const receivedYear = prospect.receivedAt?.getFullYear();
+        const dataYear = inquiryYear || receivedYear;
+
+        // 古いデータ（yearFilter未満）はアーカイブとしてスキップ
+        if (dataYear && dataYear < yearFilter) {
+          result.archived++;
+          continue;
+        }
+
+        // 顧客名がない場合、代替情報を使用
+        let displayName = prospect.customerName;
+        if (!displayName) {
+          // 社内No.から名前を生成
+          if (prospect.internalNo && !prospect.internalNo.startsWith('IMPORT-')) {
+            displayName = `案件${prospect.internalNo}`;
+          } else if (prospect.salesRepName) {
+            // 営業担当者名から
+            displayName = `${prospect.salesRepName}案件`;
+          }
+        }
+
+        // それでも識別できない場合はスキップ
+        if (!displayName) {
           result.skipped++;
           continue;
         }
+
+        // 顧客名を更新
+        prospect.customerName = displayName;
 
         // 重複チェック
         const prospectKey = generateProspectKey(prospect);
