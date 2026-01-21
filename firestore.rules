@@ -145,5 +145,62 @@ service cloud.firestore {
       // 管理者のみ削除可能
       allow delete: if isAuthenticated() && isAdmin();
     }
+
+    // ========================================
+    // 入居希望者管理モジュール
+    // ========================================
+
+    // 入居希望者コレクション
+    match /prospects/{prospectId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // リーダー以上のみ作成可能
+      allow create: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin'];
+      // リーダー以上のみ更新可能
+      allow update: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin'];
+      // 管理者のみ削除可能
+      allow delete: if isAuthenticated() && isAdmin();
+    }
+
+    // 部屋コレクション
+    match /rooms/{roomId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // リーダー以上のみ書き込み可能
+      allow write: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin'];
+    }
+
+    // 入居状況コレクション
+    match /occupancy/{occupancyId} {
+      // 認証済みユーザーは読み取り可能
+      allow read: if isAuthenticated();
+      // リーダー以上のみ書き込み可能
+      allow write: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin'];
+    }
+
+    // 監査ログコレクション（append-only）
+    match /auditLogs/{logId} {
+      // リーダー以上のみ読み取り可能
+      allow read: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin'];
+      // 認証済みユーザーは作成可能（更新・削除不可）
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // 通知ログコレクション
+    match /notificationLogs/{logId} {
+      // リーダー以上のみ読み取り可能
+      allow read: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin'];
+      // 認証済みユーザーは作成可能
+      allow create: if isAuthenticated();
+      // 更新・削除不可
+      allow update, delete: if false;
+    }
   }
 }

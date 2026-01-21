@@ -376,3 +376,17 @@ export async function getUser(userId: string): Promise<User | null> {
     createdAt: docSnap.data().createdAt?.toDate() || new Date(),
   } as User;
 }
+
+export async function getUsers(tenantId: string = DEFAULT_TENANT_ID): Promise<User[]> {
+  const firestore = ensureDb();
+  const q = query(
+    collection(firestore, 'users'),
+    where('tenantId', '==', tenantId)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: d.data().createdAt?.toDate() || new Date(),
+  } as User)).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+}

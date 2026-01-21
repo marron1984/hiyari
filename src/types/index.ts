@@ -247,3 +247,6 @@ export * from './vacancy';
 
 // インサイト関連の型をre-export
 export * from './insight';
+
+// 入居希望者管理関連の型をre-export
+export * from './prospect';
