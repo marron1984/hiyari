@@ -25,6 +25,7 @@ import {
   Sparkles,
   Gavel,
   ClipboardCheck,
+  Activity,
 } from 'lucide-react';
 
 export default function AiVpPage() {
@@ -236,17 +237,19 @@ function AiVpContent() {
                     </div>
                   </div>
                 </Link>
-                <div className="p-4 border rounded-lg bg-gray-50 opacity-60">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-200 rounded-lg">
-                      <FileText className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-400">音声文字起こし</h3>
-                      <p className="text-sm text-gray-400">近日公開</p>
+                <Link href="/admin/ai-vp/condition" className="block">
+                  <div className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-emerald-100 rounded-lg">
+                        <Activity className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium">コンディション</h3>
+                        <p className="text-sm text-gray-500">スタッフ健康管理</p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Link>
               </div>
             </CardContent>
           </Card>

@@ -5,9 +5,10 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus } from 'lucide-react';
+import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { cn } from '@/lib/utils';
+import { isAiVpOwner } from '@/lib/auth';
 
 export function Header() {
   const { user, isLeaderOrAbove, signOut } = useAuth();
@@ -150,6 +151,22 @@ export function Header() {
                 )}
               </div>
             )}
+
+            {/* AI副社長 (吉田専用) */}
+            {isAiVpOwner(user?.email) && (
+              <Link
+                href="/admin/ai-vp"
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ml-1',
+                  pathname.startsWith('/admin/ai-vp')
+                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
+                    : 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 hover:from-purple-200 hover:to-indigo-200'
+                )}
+              >
+                <Brain className="w-4 h-4" />
+                <span>AI副社長</span>
+              </Link>
+            )}
           </nav>
 
           {/* Right section */}
@@ -257,6 +274,26 @@ export function Header() {
                     </Link>
                   );
                 })}
+              </>
+            )}
+
+            {/* AI副社長 (吉田専用) - Mobile */}
+            {isAiVpOwner(user?.email) && (
+              <>
+                <div className="border-t border-zinc-100 my-3" />
+                <Link
+                  href="/admin/ai-vp"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors',
+                    pathname.startsWith('/admin/ai-vp')
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
+                      : 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700'
+                  )}
+                >
+                  <Brain className="w-5 h-5" />
+                  AI副社長
+                </Link>
               </>
             )}
 
