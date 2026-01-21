@@ -53,7 +53,6 @@ export default function ImportProspectsPage() {
 function ImportProspectsContent() {
   const { user, firebaseUser } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [configured, setConfigured] = useState(false);
   const [recentLogs, setRecentLogs] = useState<ImportLog[]>([]);
   const [sheetId, setSheetId] = useState('1y00PmqtKRCsyrvaH8ydO3QbzVbFXGEVA2dpKOUDJMaY');
   const [preview, setPreview] = useState<PreviewData | null>(null);
@@ -79,7 +78,6 @@ function ImportProspectsContent() {
 
       if (res.ok) {
         const data = await res.json();
-        setConfigured(data.configured);
         setRecentLogs(
           data.recentLogs.map((log: ImportLog & { createdAt: string }) => ({
             ...log,
@@ -219,27 +217,6 @@ function ImportProspectsContent() {
             </div>
           </div>
 
-          {/* API設定状況 */}
-          {!configured && (
-            <Card className="mb-6 border-yellow-200 bg-yellow-50">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-yellow-800">Google Sheets APIが設定されていません</p>
-                    <p className="text-sm text-yellow-700 mt-1">
-                      環境変数に以下を設定してください:
-                    </p>
-                    <ul className="text-sm text-yellow-700 mt-2 list-disc list-inside">
-                      <li>GOOGLE_SHEETS_CLIENT_EMAIL</li>
-                      <li>GOOGLE_SHEETS_PRIVATE_KEY</li>
-                    </ul>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* シートID入力 */}
           <Card className="mb-6">
             <CardHeader>
@@ -261,7 +238,7 @@ function ImportProspectsContent() {
                     <Button
                       variant="secondary"
                       onClick={handlePreview}
-                      disabled={!configured || !sheetId.trim() || loading}
+                      disabled={!sheetId.trim() || loading}
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       プレビュー
@@ -269,6 +246,9 @@ function ImportProspectsContent() {
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                     スプレッドシートURLから取得: docs.google.com/spreadsheets/d/<strong>[このID]</strong>/edit
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    ※ スプレッドシートは「リンクを知っている全員」に共有されている必要があります
                   </p>
                 </div>
 
