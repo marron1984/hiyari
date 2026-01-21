@@ -256,3 +256,6 @@ export * from './ai-vp';
 
 // 共通申請エンジン関連の型をre-export
 export * from './request-engine';
+
+// 入居者管理関連の型をre-export
+export * from './resident';

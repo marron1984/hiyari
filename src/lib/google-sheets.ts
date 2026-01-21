@@ -70,14 +70,16 @@ function parseCSV(csv: string): string[][] {
 
 /**
  * 公開スプレッドシートからCSVとしてデータを取得
+ * @param sheetId スプレッドシートID
+ * @param gid シートのgid（デフォルトは0＝最初のシート）
  */
 export async function getSheetData(
   sheetId: string = PROSPECT_SHEET_ID,
-  _range: string = 'A:Z' // 公開CSVでは範囲指定不可だが互換性のため残す
+  gid: number = 0
 ): Promise<string[][] | null> {
   try {
-    // 公開シートをCSVとしてエクスポート
-    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+    // 公開シートをCSVとしてエクスポート（gidで特定のシートを指定）
+    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
 
     const response = await fetch(exportUrl, {
       headers: {
