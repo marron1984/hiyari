@@ -95,17 +95,25 @@ export async function saveConditionScore(
 ): Promise<ConditionScore> {
   const score = calculateConditionScore(metrics);
 
-  // 前回のスコアを取得
+  // 前回のスコアを取得（インデックス不要のクエリに変更）
   const previousSnapshot = await getAdminDb()
     .collection('conditionScores')
     .where('userId', '==', userId)
-    .orderBy('calculatedAt', 'desc')
-    .limit(1)
+    .limit(10)
     .get();
 
-  const previousScore = previousSnapshot.empty
-    ? score
-    : previousSnapshot.docs[0].data().score || score;
+  // クライアントサイドでソート
+  const previousDocs = previousSnapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .sort((a: any, b: any) => {
+      const aTime = a.calculatedAt?.toDate?.()?.getTime() || 0;
+      const bTime = b.calculatedAt?.toDate?.()?.getTime() || 0;
+      return bTime - aTime;
+    });
+
+  const previousScore = previousDocs.length > 0
+    ? previousDocs[0].score || score
+    : score;
 
   const alertLevel = determineAlertLevel(score);
   const trend = determineTrend(score, previousScore);
@@ -154,14 +162,14 @@ export async function saveConditionScore(
  * アラートが必要なスタッフ一覧を取得
  */
 export async function getAlertedStaff(limitCount: number = 20): Promise<ConditionScore[]> {
+  // インデックス不要のクエリに変更
   const snapshot = await getAdminDb()
     .collection('conditionScores')
     .where('tenantId', '==', DEFAULT_TENANT_ID)
-    .orderBy('calculatedAt', 'desc')
-    .limit(100)
+    .limit(200)
     .get();
 
-  // クライアントサイドでフィルタリング（alertLevelはin句で使えない場合があるため）
+  // クライアントサイドでソートとフィルタリング
   return snapshot.docs
     .map(doc => {
       const data = doc.data();
@@ -184,6 +192,7 @@ export async function getAlertedStaff(limitCount: number = 20): Promise<Conditio
         periodEnd: data.periodEnd?.toDate() || new Date(),
       } as ConditionScore;
     })
+    .sort((a, b) => b.calculatedAt.getTime() - a.calculatedAt.getTime())
     .filter(s => ['watch', 'warning', 'critical'].includes(s.alertLevel))
     .slice(0, limitCount);
 }
@@ -193,17 +202,25 @@ export async function getAlertedStaff(limitCount: number = 20): Promise<Conditio
  */
 export async function getLatestConditionScores(limitCount: number = 50): Promise<ConditionScore[]> {
   // 各ユーザーの最新スコアを取得するため、まず全員分を取得してユーザーごとに最新を選択
+  // インデックス不要のクエリに変更
   const snapshot = await getAdminDb()
     .collection('conditionScores')
     .where('tenantId', '==', DEFAULT_TENANT_ID)
-    .orderBy('calculatedAt', 'desc')
-    .limit(200)
+    .limit(500)
     .get();
 
   const userScores = new Map<string, ConditionScore>();
 
-  snapshot.docs.forEach(doc => {
-    const data = doc.data();
+  // まずcalculatedAt順にソート
+  const sortedDocs = snapshot.docs
+    .map(doc => ({ doc, data: doc.data() }))
+    .sort((a, b) => {
+      const aTime = a.data.calculatedAt?.toDate?.()?.getTime() || 0;
+      const bTime = b.data.calculatedAt?.toDate?.()?.getTime() || 0;
+      return bTime - aTime; // 降順
+    });
+
+  sortedDocs.forEach(({ doc, data }) => {
     if (!userScores.has(data.userId)) {
       userScores.set(data.userId, {
         id: doc.id,
