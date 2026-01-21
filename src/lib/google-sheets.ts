@@ -1,66 +1,105 @@
 // ======== Google Sheets 連携ライブラリ ========
 // 入居希望者データのインポート・同期
 
-import { google } from 'googleapis';
 import { getAdminDb } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Prospect, ProspectStatus, CareLevel, Gender } from '@/types/prospect';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
-// Google Sheets API設定
-const GOOGLE_SHEETS_CLIENT_EMAIL = process.env.GOOGLE_SHEETS_CLIENT_EMAIL;
-const GOOGLE_SHEETS_PRIVATE_KEY = process.env.GOOGLE_SHEETS_PRIVATE_KEY?.replace(/\\n/g, '\n');
-
 // 対象スプレッドシートID
 const PROSPECT_SHEET_ID = process.env.PROSPECT_SHEET_ID || '1y00PmqtKRCsyrvaH8ydO3QbzVbFXGEVA2dpKOUDJMaY';
 
 /**
- * Google Sheets APIが設定されているかチェック
+ * 公開スプレッドシートは常に利用可能
  */
 export function isGoogleSheetsConfigured(): boolean {
-  return !!(GOOGLE_SHEETS_CLIENT_EMAIL && GOOGLE_SHEETS_PRIVATE_KEY);
+  return true; // 公開シートはAPI認証不要
 }
 
 /**
- * Google Sheets APIクライアントを取得
+ * CSVをパースする
  */
-function getSheetsClient() {
-  if (!isGoogleSheetsConfigured()) {
-    console.warn('Google Sheets credentials not configured');
-    return null;
+function parseCSV(csv: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < csv.length; i++) {
+    const char = csv[i];
+    const nextChar = csv[i + 1];
+
+    if (inQuotes) {
+      if (char === '"' && nextChar === '"') {
+        // エスケープされた引用符
+        currentCell += '"';
+        i++;
+      } else if (char === '"') {
+        // 引用符終了
+        inQuotes = false;
+      } else {
+        currentCell += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+      } else if (char === ',') {
+        currentRow.push(currentCell);
+        currentCell = '';
+      } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
+        currentRow.push(currentCell);
+        rows.push(currentRow);
+        currentRow = [];
+        currentCell = '';
+        if (char === '\r') i++; // Skip \n after \r
+      } else if (char !== '\r') {
+        currentCell += char;
+      }
+    }
   }
 
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: GOOGLE_SHEETS_CLIENT_EMAIL,
-      private_key: GOOGLE_SHEETS_PRIVATE_KEY,
-    },
-    scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-  });
+  // 最後のセルと行を追加
+  if (currentCell || currentRow.length > 0) {
+    currentRow.push(currentCell);
+    rows.push(currentRow);
+  }
 
-  return google.sheets({ version: 'v4', auth });
+  return rows;
 }
 
 /**
- * スプレッドシートのデータを取得
+ * 公開スプレッドシートからCSVとしてデータを取得
  */
 export async function getSheetData(
   sheetId: string = PROSPECT_SHEET_ID,
-  range: string = 'A:Z'
+  _range: string = 'A:Z' // 公開CSVでは範囲指定不可だが互換性のため残す
 ): Promise<string[][] | null> {
-  const sheets = getSheetsClient();
-  if (!sheets) return null;
-
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range,
+    // 公開シートをCSVとしてエクスポート
+    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+
+    const response = await fetch(exportUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0',
+      },
     });
 
-    return response.data.values || [];
+    if (!response.ok) {
+      console.error('Failed to fetch sheet:', response.status, response.statusText);
+      return null;
+    }
+
+    const csvText = await response.text();
+
+    if (!csvText || csvText.includes('<!DOCTYPE html>')) {
+      console.error('Sheet is not publicly accessible or does not exist');
+      return null;
+    }
+
+    return parseCSV(csvText);
   } catch (error) {
-    console.error('Google Sheets read error:', error);
+    console.error('Google Sheets fetch error:', error);
     return null;
   }
 }
