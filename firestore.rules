@@ -19,6 +19,11 @@ service cloud.firestore {
       return getUserRole() in ['admin', 'system_admin'];
     }
 
+    // AI副社長オーナー判定（吉田専用）
+    function isAiVpOwner() {
+      return request.auth.token.email == 'yoshida@aska-g.com';
+    }
+
     // ユーザーコレクション
     match /users/{userId} {
       // 認証済みユーザーは自分のドキュメントを読み書きできる
@@ -201,6 +206,58 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       // 更新・削除不可
       allow update, delete: if false;
+    }
+
+    // ========================================
+    // AI副社長モジュール（吉田専用）
+    // ========================================
+
+    // 取り込みコレクション
+    match /aiVpIngestions/{ingestionId} {
+      // AI副社長オーナーのみアクセス可能
+      allow read: if isAuthenticated() && isAiVpOwner();
+      allow create: if isAuthenticated() && isAiVpOwner();
+      // 更新・削除不可（append-only）
+      allow update, delete: if false;
+    }
+
+    // 抽出コレクション
+    match /aiVpExtractions/{extractionId} {
+      // AI副社長オーナーのみアクセス可能
+      allow read: if isAuthenticated() && isAiVpOwner();
+      allow create: if isAuthenticated() && isAiVpOwner();
+      // オーナーのみ更新可能（編集・確定）
+      allow update: if isAuthenticated() && isAiVpOwner();
+      // 削除不可
+      allow delete: if false;
+    }
+
+    // アクションコレクション
+    match /aiVpActions/{actionId} {
+      // AI副社長オーナーのみアクセス可能
+      allow read: if isAuthenticated() && isAiVpOwner();
+      allow create: if isAuthenticated() && isAiVpOwner();
+      // オーナーのみ更新可能（完了・失敗）
+      allow update: if isAuthenticated() && isAiVpOwner();
+      // 削除不可
+      allow delete: if false;
+    }
+
+    // AI副社長監査ログコレクション（append-only）
+    match /aiVpAuditLogs/{logId} {
+      // AI副社長オーナーのみ読み取り可能
+      allow read: if isAuthenticated() && isAiVpOwner();
+      // AI副社長オーナーのみ作成可能
+      allow create: if isAuthenticated() && isAiVpOwner();
+      // 更新・削除不可
+      allow update, delete: if false;
+    }
+
+    // AI副社長設定コレクション
+    match /aiVpSettings/{tenantId} {
+      // AI副社長オーナーのみアクセス可能
+      allow read: if isAuthenticated() && isAiVpOwner();
+      allow write: if isAuthenticated() && isAiVpOwner();
     }
   }
 }

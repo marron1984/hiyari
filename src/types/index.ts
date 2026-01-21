@@ -250,3 +250,6 @@ export * from './insight';
 
 // 入居希望者管理関連の型をre-export
 export * from './prospect';
+
+// AI副社長関連の型をre-export
+export * from './ai-vp';

@@ -81,3 +81,27 @@ export const ASSIGNABLE_ROLES: { value: UserRole; label: string }[] = [
   { value: 'leader', label: 'リーダー' },
   { value: 'admin', label: '管理者' },
 ];
+
+// ======== AI副社長 専用権限 ========
+
+/**
+ * AI副社長オーナーのメールアドレス
+ */
+export const AI_VP_OWNER_EMAIL = 'yoshida@aska-g.com';
+
+/**
+ * AI副社長オーナーかどうかをチェック
+ * URLを知っていても、吉田以外はアクセス不可
+ */
+export function isAiVpOwner(email?: string): boolean {
+  return email === AI_VP_OWNER_EMAIL;
+}
+
+/**
+ * AI副社長の監査者（閲覧のみ可能）かどうかをチェック
+ * 現時点では吉田のみ。将来的に拡張可能
+ */
+export function isAiVpAuditor(email?: string): boolean {
+  // 現時点ではオーナーのみ
+  return isAiVpOwner(email);
+}
