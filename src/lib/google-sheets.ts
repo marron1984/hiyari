@@ -106,25 +106,41 @@ export async function getSheetData(
 
 /**
  * ステータス文字列を正規化
+ * シートのステータス: 案件終了, 入居済, 初期提案, 面談・内覧日程調整, 入居検討中, 面談内覧日確定, 入居確定
  */
 function normalizeStatus(value: string): ProspectStatus {
   const statusMap: Record<string, ProspectStatus> = {
+    // 新規・初期
     '新規': '新規受付',
     '新規受付': '新規受付',
+    '初期提案': '新規受付',
+    // 折り返し
     '折返し': '折返し待ち',
     '折返し待ち': '折返し待ち',
+    // 面談関連
     '面談設定': '面談設定済',
     '面談設定済': '面談設定済',
+    '面談・内覧日程調整': '面談設定済',
+    '面談内覧日確定': '面談設定済',
+    // 見学関連
     '見学設定': '見学設定済',
     '見学設定済': '見学設定済',
+    // 検討・申込
+    '入居検討中': '申込中',
     '申込': '申込中',
     '申込中': '申込中',
+    // 審査
     '審査': '審査中',
     '審査中': '審査中',
+    // 入居確定
     '入居待ち': '入居待ち',
+    '入居確定': '入居決定',
     '入居決定': '入居決定',
+    '入居済': '入居決定',
+    // 終了・見送り
     '見送り': '見送り',
     'クローズ': 'クローズ',
+    '案件終了': 'クローズ',
   };
 
   return statusMap[value?.trim()] || '新規受付';
@@ -193,27 +209,35 @@ function parseDate(value: string): Date | undefined {
 
 /**
  * スプレッドシートの列マッピング定義
- * 実際のシート構造に合わせて調整が必要
+ * 実際のシート構造:
+ * 社内No. | ステータス | ステータス備考 | 面談日時 | 入居場所 | 入居予定日 | 受信日時 |
+ * 営業会社名 | 営業担当者名 | 顧客名 | 問い合わせ日 | 年齢 | 性別 | 介護度 | 費用 |
+ * ADL状況 | ADL詳細 | 借金有無 | 現在状況 | エント希望 | キーパーソン | その他・備考 | 見学希望日
  */
 interface ColumnMapping {
-  internalNo?: number;          // 社内No
-  status?: number;              // ステータス
-  customerName?: number;        // 顧客名
-  age?: number;                 // 年齢
-  gender?: number;              // 性別
-  careLevel?: number;           // 介護度
-  budget?: number;              // 費用
-  adlSummary?: number;          // ADL
-  debtStatus?: number;          // 借金有無
-  currentSituation?: number;    // 現在状況
-  desiredFacility?: number;     // 希望施設
-  desiredMoveInDate?: number;   // 入居予定日
-  interviewDateTime?: number;   // 面談日時
-  salesCompanyName?: number;    // 営業会社
-  salesRepName?: number;        // 営業担当
-  salesRepContact?: number;     // 連絡先
-  inquiryDate?: number;         // 問い合わせ日
-  otherNotes?: number;          // 備考
+  internalNo?: number;          // 0: 社内No.
+  status?: number;              // 1: ステータス
+  statusNote?: number;          // 2: ステータス備考
+  interviewDateTime?: number;   // 3: 面談日時
+  desiredFacility?: number;     // 4: 入居場所
+  desiredMoveInDate?: number;   // 5: 入居予定日
+  receivedAt?: number;          // 6: 受信日時
+  salesCompanyName?: number;    // 7: 営業会社名
+  salesRepName?: number;        // 8: 営業担当者名
+  customerName?: number;        // 9: 顧客名
+  inquiryDate?: number;         // 10: 問い合わせ日
+  age?: number;                 // 11: 年齢
+  gender?: number;              // 12: 性別
+  careLevel?: number;           // 13: 介護度
+  budget?: number;              // 14: 費用
+  adlSummary?: number;          // 15: ADL状況
+  adlDetail?: number;           // 16: ADL詳細
+  debtStatus?: number;          // 17: 借金有無
+  currentSituation?: number;    // 18: 現在状況
+  entertainmentWish?: number;   // 19: エント希望
+  keyPerson?: number;           // 20: キーパーソン
+  otherNotes?: number;          // 21: その他・備考
+  tourRequestDate?: number;     // 22: 見学希望日
 }
 
 /**
@@ -223,24 +247,29 @@ export function detectColumnMapping(headers: string[]): ColumnMapping {
   const mapping: ColumnMapping = {};
 
   const patterns: { key: keyof ColumnMapping; patterns: string[] }[] = [
-    { key: 'internalNo', patterns: ['社内no', 'no', '番号', 'id'] },
-    { key: 'status', patterns: ['ステータス', '状態', 'status'] },
+    { key: 'internalNo', patterns: ['社内no', 'no.', '番号', 'id'] },
+    { key: 'status', patterns: ['ステータス'] },
+    { key: 'statusNote', patterns: ['ステータス備考', '備考'] },
+    { key: 'interviewDateTime', patterns: ['面談日時', '面談'] },
+    { key: 'desiredFacility', patterns: ['入居場所', '入居', '希望施設'] },
+    { key: 'desiredMoveInDate', patterns: ['入居予定日', '入居予定'] },
+    { key: 'receivedAt', patterns: ['受信日時', '受信'] },
+    { key: 'salesCompanyName', patterns: ['営業会社名', '営業会社', '紹介会社'] },
+    { key: 'salesRepName', patterns: ['営業担当者名', '営業担当', '担当者'] },
     { key: 'customerName', patterns: ['顧客名', '氏名', '名前', 'お客様名'] },
-    { key: 'age', patterns: ['年齢', '年'] },
-    { key: 'gender', patterns: ['性別', '男女'] },
-    { key: 'careLevel', patterns: ['介護度', '要介護', '介護'] },
-    { key: 'budget', patterns: ['費用', '予算', '希望費用'] },
-    { key: 'adlSummary', patterns: ['adl', '日常生活', '生活動作'] },
-    { key: 'debtStatus', patterns: ['借金', '負債'] },
+    { key: 'inquiryDate', patterns: ['問い合わせ日', '問合せ日', '受付日'] },
+    { key: 'age', patterns: ['年齢'] },
+    { key: 'gender', patterns: ['性別'] },
+    { key: 'careLevel', patterns: ['介護度'] },
+    { key: 'budget', patterns: ['費用', '予算'] },
+    { key: 'adlSummary', patterns: ['adl状況', 'adl'] },
+    { key: 'adlDetail', patterns: ['adl詳細'] },
+    { key: 'debtStatus', patterns: ['借金有無', '借金'] },
     { key: 'currentSituation', patterns: ['現在状況', '現況'] },
-    { key: 'desiredFacility', patterns: ['希望施設', '入居希望', '施設名'] },
-    { key: 'desiredMoveInDate', patterns: ['入居予定', '入居希望日'] },
-    { key: 'interviewDateTime', patterns: ['面談', '面談日'] },
-    { key: 'salesCompanyName', patterns: ['営業会社', '紹介会社'] },
-    { key: 'salesRepName', patterns: ['営業担当', '担当者', '営業者'] },
-    { key: 'salesRepContact', patterns: ['連絡先', '電話', 'tel'] },
-    { key: 'inquiryDate', patterns: ['問い合わせ', '問合せ日', '受付日'] },
-    { key: 'otherNotes', patterns: ['備考', 'メモ', 'その他'] },
+    { key: 'entertainmentWish', patterns: ['エント希望', 'エント'] },
+    { key: 'keyPerson', patterns: ['キーパーソン', 'kp'] },
+    { key: 'otherNotes', patterns: ['その他', '備考', 'メモ'] },
+    { key: 'tourRequestDate', patterns: ['見学希望日', '見学'] },
   ];
 
   headers.forEach((header, index) => {
@@ -272,20 +301,28 @@ function rowToProspect(
   };
 
   const ageStr = getValue(mapping.age);
-  const age = ageStr ? parseInt(ageStr, 10) : undefined;
+  // 年齢が "80代" などの場合は数値部分だけ抽出
+  const ageMatch = ageStr?.match(/(\d+)/);
+  const age = ageMatch ? parseInt(ageMatch[1], 10) : undefined;
 
   const inquiryDateStr = getValue(mapping.inquiryDate);
   const inquiryDate = parseDate(inquiryDateStr || '');
 
+  // 受信日時も日付としてパース
+  const receivedAtStr = getValue(mapping.receivedAt);
+  const receivedAt = parseDate(receivedAtStr?.split(' ')[0] || '') || inquiryDate || new Date();
+
   return {
     internalNo: getValue(mapping.internalNo) || `IMPORT-${rowIndex}`,
     status: normalizeStatus(getValue(mapping.status) || ''),
+    statusNote: getValue(mapping.statusNote),
     customerName: getValue(mapping.customerName),
     age: isNaN(age || NaN) ? undefined : age,
     gender: normalizeGender(getValue(mapping.gender) || ''),
     careLevel: normalizeCareLevel(getValue(mapping.careLevel) || ''),
     budget: getValue(mapping.budget),
     adlSummary: getValue(mapping.adlSummary),
+    adlDetail: getValue(mapping.adlDetail),
     debtStatus: getValue(mapping.debtStatus),
     currentSituation: getValue(mapping.currentSituation),
     desiredFacility: getValue(mapping.desiredFacility),
@@ -293,10 +330,12 @@ function rowToProspect(
     interviewDateTime: getValue(mapping.interviewDateTime),
     salesCompanyName: getValue(mapping.salesCompanyName),
     salesRepName: getValue(mapping.salesRepName),
-    salesRepContact: getValue(mapping.salesRepContact),
     inquiryDate: inquiryDateStr,
+    entertainmentWish: getValue(mapping.entertainmentWish),
+    keyPerson: getValue(mapping.keyPerson),
     otherNotes: getValue(mapping.otherNotes),
-    receivedAt: inquiryDate || new Date(),
+    tourRequestDate: getValue(mapping.tourRequestDate),
+    receivedAt,
     source: 'google-sheets-import',
   };
 }
