@@ -11,11 +11,10 @@ const DEFAULT_TENANT_ID = 'defaultTenant';
 const SPREADSHEET_ID = '1y00PmqtKRCsyrvaH8ydO3QbzVbFXGEVA2dpKOUDJMaY';
 
 // シートのgid（URLの gid=XXX 部分）
-// TODO: 実際のgidに置き換え
 const SHEET_GID = {
-  prospects: 0,      // 入居希望者（既存）
-  residents: 0,      // 入居者情報まとめ（要設定）
-  vacancies: 0,      // 空室情報（要設定）
+  prospects: 0,           // 入居希望者（既存）
+  residents: 1180040421,  // 入居者情報まとめ
+  vacancies: 1180040421,  // 空室情報（同じシート内）
 };
 
 // ======== ヘルパー関数 ========
