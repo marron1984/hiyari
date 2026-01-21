@@ -341,6 +341,19 @@ function rowToProspect(
 }
 
 /**
+ * オブジェクトからundefined値を削除
+ */
+function removeUndefined<T extends Record<string, unknown>>(obj: T): Partial<T> {
+  const result: Partial<T> = {};
+  for (const key in obj) {
+    if (obj[key] !== undefined) {
+      result[key] = obj[key];
+    }
+  }
+  return result;
+}
+
+/**
  * 重複キーを生成（顧客名+年齢+営業会社）
  */
 function generateProspectKey(prospect: Partial<Prospect>): string {
@@ -433,11 +446,12 @@ export async function importProspectsFromSheet(
         }
 
         if (!dryRun) {
-          // Firestoreに保存
+          // Firestoreに保存（undefined値を除去）
+          const cleanedProspect = removeUndefined(prospect as Record<string, unknown>);
           const docData = {
             tenantId: DEFAULT_TENANT_ID,
             prospectKey,
-            ...prospect,
+            ...cleanedProspect,
             createdAt: FieldValue.serverTimestamp(),
             receivedAt: prospect.receivedAt || new Date(),
           };
