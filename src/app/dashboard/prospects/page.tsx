@@ -28,6 +28,7 @@ import {
   Calendar,
   Clock,
   TrendingUp,
+  Upload,
 } from 'lucide-react';
 
 export default function ProspectsPage() {
@@ -152,12 +153,20 @@ function ProspectsContent() {
                 <RefreshCw className="w-4 h-4" />
               </Button>
               {canManage && (
-                <Link href="/dashboard/prospects/new">
-                  <Button>
-                    <Plus className="w-4 h-4 mr-1" />
-                    新規登録
-                  </Button>
-                </Link>
+                <>
+                  <Link href="/admin/prospects/import">
+                    <Button variant="secondary">
+                      <Upload className="w-4 h-4 mr-1" />
+                      インポート
+                    </Button>
+                  </Link>
+                  <Link href="/dashboard/prospects/new">
+                    <Button>
+                      <Plus className="w-4 h-4 mr-1" />
+                      新規登録
+                    </Button>
+                  </Link>
+                </>
               )}
             </div>
           </div>
