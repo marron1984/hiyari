@@ -177,6 +177,23 @@ function normalizeGender(value: string): Gender | undefined {
 }
 
 /**
+ * 値が日付形式かどうかをチェック
+ */
+function looksLikeDate(value: string): boolean {
+  if (!value) return false;
+  const trimmed = value.trim();
+
+  // 日付パターン
+  const datePatterns = [
+    /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/,  // 2024/1/15, 2024-01-15
+    /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/,  // 1/15/2024
+    /^\d{1,2}月\d{1,2}日/,                // 1月15日
+  ];
+
+  return datePatterns.some(p => p.test(trimmed));
+}
+
+/**
  * 日付文字列をDateに変換
  */
 function parseDate(value: string): Date | undefined {
@@ -242,21 +259,45 @@ interface ColumnMapping {
 
 /**
  * ヘッダー行から列マッピングを自動検出
+ * 優先度: 完全一致 > 部分一致
  */
 export function detectColumnMapping(headers: string[]): ColumnMapping {
   const mapping: ColumnMapping = {};
 
+  // 完全一致で優先的にマッチするパターン（キー項目）
+  const exactPatterns: { key: keyof ColumnMapping; exact: string[] }[] = [
+    { key: 'customerName', exact: ['顧客名', '氏名', 'お客様名'] },
+    { key: 'internalNo', exact: ['社内no.', '社内no', 'no.'] },
+    { key: 'status', exact: ['ステータス'] },
+    { key: 'inquiryDate', exact: ['問い合わせ日', '問合せ日'] },
+    { key: 'receivedAt', exact: ['受信日時'] },
+  ];
+
+  // まず完全一致でマッチ
+  headers.forEach((header, index) => {
+    const lowerHeader = header.toLowerCase().trim();
+    for (const { key, exact } of exactPatterns) {
+      if (exact.some((p) => lowerHeader === p)) {
+        if (mapping[key] === undefined) {
+          mapping[key] = index;
+        }
+        break;
+      }
+    }
+  });
+
+  // 部分一致でマッチ（完全一致で見つからなかったもののみ）
   const patterns: { key: keyof ColumnMapping; patterns: string[] }[] = [
     { key: 'internalNo', patterns: ['社内no', 'no.', '番号', 'id'] },
     { key: 'status', patterns: ['ステータス'] },
-    { key: 'statusNote', patterns: ['ステータス備考', '備考'] },
-    { key: 'interviewDateTime', patterns: ['面談日時', '面談'] },
-    { key: 'desiredFacility', patterns: ['入居場所', '入居', '希望施設'] },
-    { key: 'desiredMoveInDate', patterns: ['入居予定日', '入居予定'] },
+    { key: 'statusNote', patterns: ['ステータス備考'] },
+    { key: 'interviewDateTime', patterns: ['面談日時'] },
+    { key: 'desiredFacility', patterns: ['入居場所', '希望施設'] },
+    { key: 'desiredMoveInDate', patterns: ['入居予定日'] },
     { key: 'receivedAt', patterns: ['受信日時', '受信'] },
     { key: 'salesCompanyName', patterns: ['営業会社名', '営業会社', '紹介会社'] },
-    { key: 'salesRepName', patterns: ['営業担当者名', '営業担当', '担当者'] },
-    { key: 'customerName', patterns: ['顧客名', '氏名', '名前', 'お客様名'] },
+    { key: 'salesRepName', patterns: ['営業担当者名', '営業担当'] },
+    { key: 'customerName', patterns: ['顧客名', '氏名', 'お客様名'] }, // '名前'を除去（誤検出防止）
     { key: 'inquiryDate', patterns: ['問い合わせ日', '問合せ日', '受付日'] },
     { key: 'age', patterns: ['年齢'] },
     { key: 'gender', patterns: ['性別'] },
@@ -268,17 +309,15 @@ export function detectColumnMapping(headers: string[]): ColumnMapping {
     { key: 'currentSituation', patterns: ['現在状況', '現況'] },
     { key: 'entertainmentWish', patterns: ['エント希望', 'エント'] },
     { key: 'keyPerson', patterns: ['キーパーソン', 'kp'] },
-    { key: 'otherNotes', patterns: ['その他', '備考', 'メモ'] },
-    { key: 'tourRequestDate', patterns: ['見学希望日', '見学'] },
+    { key: 'otherNotes', patterns: ['その他・備考', 'その他', 'メモ'] }, // '備考'単体を除去（誤検出防止）
+    { key: 'tourRequestDate', patterns: ['見学希望日'] },
   ];
 
   headers.forEach((header, index) => {
     const lowerHeader = header.toLowerCase().trim();
     for (const { key, patterns: patternList } of patterns) {
-      if (patternList.some((p) => lowerHeader.includes(p))) {
-        if (mapping[key] === undefined) {
-          mapping[key] = index;
-        }
+      if (mapping[key] === undefined && patternList.some((p) => lowerHeader.includes(p))) {
+        mapping[key] = index;
         break;
       }
     }
@@ -312,11 +351,15 @@ function rowToProspect(
   const receivedAtStr = getValue(mapping.receivedAt);
   const receivedAt = parseDate(receivedAtStr?.split(' ')[0] || '') || inquiryDate || new Date();
 
+  // 顧客名が日付形式の場合は無効とする
+  const rawCustomerName = getValue(mapping.customerName);
+  const customerName = rawCustomerName && !looksLikeDate(rawCustomerName) ? rawCustomerName : undefined;
+
   return {
     internalNo: getValue(mapping.internalNo) || `IMPORT-${rowIndex}`,
     status: normalizeStatus(getValue(mapping.status) || ''),
     statusNote: getValue(mapping.statusNote),
-    customerName: getValue(mapping.customerName),
+    customerName,
     age: isNaN(age || NaN) ? undefined : age,
     gender: normalizeGender(getValue(mapping.gender) || ''),
     careLevel: normalizeCareLevel(getValue(mapping.careLevel) || ''),
