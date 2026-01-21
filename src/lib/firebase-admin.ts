@@ -4,10 +4,12 @@
 import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { getAuth, Auth, DecodedIdToken } from 'firebase-admin/auth';
+import { getStorage, Storage } from 'firebase-admin/storage';
 
 let adminApp: App | null = null;
 let _adminDb: Firestore | null = null;
 let _adminAuth: Auth | null = null;
+let _adminStorage: Storage | null = null;
 
 /**
  * Firebase Admin Appを取得（初期化がまだなら初期化）
@@ -27,15 +29,20 @@ function getAdminApp(): App {
     ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)
     : undefined;
 
+  const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+    `${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.appspot.com`;
+
   if (serviceAccount) {
     adminApp = initializeApp({
       credential: cert(serviceAccount),
       projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket,
     });
   } else {
     // Application Default Credentials（Cloud環境用）
     adminApp = initializeApp({
       projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+      storageBucket,
     });
   }
 
@@ -66,6 +73,19 @@ export function getAdminAuth(): Auth {
   getAdminApp();
   _adminAuth = getAuth();
   return _adminAuth;
+}
+
+/**
+ * Firebase Admin Storageを取得
+ */
+export function getAdminStorage(): Storage {
+  if (_adminStorage) {
+    return _adminStorage;
+  }
+
+  getAdminApp();
+  _adminStorage = getStorage();
+  return _adminStorage;
 }
 
 /**

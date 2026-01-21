@@ -73,6 +73,42 @@ export interface ADLStatus {
   other?: string;        // その他
 }
 
+// ======== 書類管理 ========
+
+// 書類カテゴリ
+export type DocumentCategory =
+  | '診療情報'
+  | '看護サマリー'
+  | '検査結果'
+  | '身分証'
+  | '保険証'
+  | '介護保険証'
+  | 'その他';
+
+export const DOCUMENT_CATEGORIES: DocumentCategory[] = [
+  '診療情報',
+  '看護サマリー',
+  '検査結果',
+  '身分証',
+  '保険証',
+  '介護保険証',
+  'その他',
+];
+
+// 書類ドキュメント
+export interface ProspectDocument {
+  id: string;
+  category: DocumentCategory;
+  fileName: string;
+  fileUrl: string;
+  fileSize: number;        // bytes
+  mimeType: string;
+  uploadedAt: Date;
+  uploadedBy: string;      // uid
+  uploadedByName: string;
+  note?: string;
+}
+
 // 入居希望者（prospectsコレクション）
 export interface Prospect {
   id: string;
@@ -137,6 +173,9 @@ export interface Prospect {
   prospectKey?: string;         // 重複判定キー
   duplicateOf?: string;         // 重複先のID
   duplicateCandidates?: string[]; // 重複候補のID配列
+
+  // 書類管理
+  documents?: ProspectDocument[];  // アップロードされた書類
 
   // メタ
   createdAt: Date;

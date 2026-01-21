@@ -48,6 +48,8 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { getUsers } from '@/lib/firestore';
+import { ProspectDocuments } from '@/components/ProspectDocuments';
+import type { ProspectDocument } from '@/types/prospect';
 
 export default function ProspectDetailPage() {
   return (
@@ -447,6 +449,15 @@ function ProspectDetailContent() {
               )}
             </CardContent>
           </Card>
+
+          {/* 書類管理 */}
+          <div className="mb-6">
+            <ProspectDocuments
+              prospectId={prospect.id}
+              documents={(prospect.documents || []) as ProspectDocument[]}
+              onRefresh={fetchData}
+            />
+          </div>
 
           {/* 空き部屋候補 */}
           {availableRooms.length > 0 && (
