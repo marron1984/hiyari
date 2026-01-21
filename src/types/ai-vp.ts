@@ -44,18 +44,18 @@ export const EXTRACTION_STATUS_LABELS: Record<ExtractionStatus, string> = {
   failed: '失敗',
 };
 
-// ======== 緊急度・重要度 ========
+// ======== 緊急度・重要度（AI抽出用）========
 
-export type UrgencyLevel = 'high' | 'mid' | 'low';
-export type ImportanceLevel = 'high' | 'mid' | 'low';
+export type AiVpUrgencyLevel = 'high' | 'mid' | 'low';
+export type AiVpImportanceLevel = 'high' | 'mid' | 'low';
 
-export const URGENCY_LABELS: Record<UrgencyLevel, string> = {
+export const AI_VP_URGENCY_LABELS: Record<AiVpUrgencyLevel, string> = {
   high: '高',
   mid: '中',
   low: '低',
 };
 
-export const IMPORTANCE_LABELS: Record<ImportanceLevel, string> = {
+export const AI_VP_IMPORTANCE_LABELS: Record<AiVpImportanceLevel, string> = {
   high: '高',
   mid: '中',
   low: '低',
@@ -90,8 +90,8 @@ export interface ExtractedTask {
   ownerName?: string;
   ownerType?: 'staff' | 'manager' | 'unknown';
   dueDate?: string;      // ISO日付
-  urgency: UrgencyLevel;
-  importance: ImportanceLevel;
+  urgency: AiVpUrgencyLevel;
+  importance: AiVpImportanceLevel;
   category: TaskCategory;
   recommendedNextAction?: string;
   relatedEntities?: Array<{
@@ -165,7 +165,7 @@ export interface ProposedKaizen {
 export interface ProposedLineWorksAlert {
   groupId?: string;
   message: string;
-  urgency: UrgencyLevel;
+  urgency: AiVpUrgencyLevel;
 }
 
 export interface ProposedSheetRow {

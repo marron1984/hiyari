@@ -253,3 +253,6 @@ export * from './prospect';
 
 // AI副社長関連の型をre-export
 export * from './ai-vp';
+
+// 共通申請エンジン関連の型をre-export
+export * from './request-engine';

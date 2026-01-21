@@ -259,5 +259,105 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isAiVpOwner();
       allow write: if isAuthenticated() && isAiVpOwner();
     }
+
+    // ========================================
+    // 共通申請エンジン
+    // ========================================
+
+    // 申請コレクション
+    match /requests/{requestId} {
+      // 認証済みユーザーは自分の申請を読める、リーダー以上は全て読める
+      allow read: if isAuthenticated()
+        && (resource.data.applicantId == request.auth.uid
+            || getUserRole() in ['leader', 'admin', 'system_admin']
+            || isAiVpOwner());
+      // 認証済みユーザーは申請を作成できる
+      allow create: if isAuthenticated()
+        && request.resource.data.applicantId == request.auth.uid;
+      // 本人は下書き状態のみ更新可能、リーダー以上は承認アクション可能
+      allow update: if isAuthenticated()
+        && (resource.data.applicantId == request.auth.uid
+            || getUserRole() in ['leader', 'admin', 'system_admin']
+            || isAiVpOwner());
+      // 削除は管理者のみ、かつ下書き状態のみ
+      allow delete: if isAuthenticated() && isAdmin()
+        && resource.data.status == 'draft';
+    }
+
+    // 承認ルートコレクション
+    match /approvalRoutes/{routeId} {
+      // リーダー以上は読み取り可能
+      allow read: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin'];
+      // 管理者のみ書き込み可能
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+    // 承認ログコレクション（append-only）
+    match /approvalLogs/{logId} {
+      // リーダー以上は読み取り可能
+      allow read: if isAuthenticated()
+        && getUserRole() in ['leader', 'admin', 'system_admin'];
+      // 認証済みユーザーは作成可能
+      allow create: if isAuthenticated();
+      // 更新・削除不可
+      allow update, delete: if false;
+    }
+
+    // 承認キーコレクション
+    match /approvalKeys/{keyId} {
+      // 管理者のみアクセス可能
+      allow read: if isAuthenticated() && isAdmin();
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+    // 支払バッチコレクション
+    match /paymentBatches/{batchId} {
+      // 管理者のみアクセス可能
+      allow read: if isAuthenticated()
+        && (isAdmin() || isAiVpOwner());
+      // 管理者のみ作成・更新可能
+      allow create, update: if isAuthenticated()
+        && (isAdmin() || isAiVpOwner());
+      // 削除は不可（confirmed以降）
+      allow delete: if isAuthenticated() && isAdmin()
+        && resource.data.status == 'draft';
+    }
+
+    // 支払明細コレクション
+    match /paymentItems/{itemId} {
+      // 管理者のみアクセス可能
+      allow read: if isAuthenticated()
+        && (isAdmin() || isAiVpOwner());
+      // 管理者のみ書き込み可能
+      allow write: if isAuthenticated()
+        && (isAdmin() || isAiVpOwner());
+    }
+
+    // 振込記録コレクション（append-only）
+    match /transferRecords/{recordId} {
+      // 管理者のみ読み取り可能
+      allow read: if isAuthenticated()
+        && (isAdmin() || isAiVpOwner());
+      // 管理者のみ作成可能
+      allow create: if isAuthenticated()
+        && (isAdmin() || isAiVpOwner());
+      // 更新・削除不可
+      allow update, delete: if false;
+    }
+
+    // コンディションスコアコレクション
+    match /conditionScores/{scoreId} {
+      // AI副社長オーナーのみアクセス可能
+      allow read: if isAuthenticated() && isAiVpOwner();
+      allow write: if isAuthenticated() && isAiVpOwner();
+    }
+
+    // タスク同期記録コレクション
+    match /taskSyncRecords/{recordId} {
+      // AI副社長オーナーのみアクセス可能
+      allow read: if isAuthenticated() && isAiVpOwner();
+      allow write: if isAuthenticated() && isAiVpOwner();
+    }
   }
 }

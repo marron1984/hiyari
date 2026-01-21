@@ -16,8 +16,8 @@ import {
   EXTRACTION_STATUS_LABELS,
   INGESTION_SOURCE_LABELS,
   TASK_CATEGORY_LABELS,
-  URGENCY_LABELS,
-  IMPORTANCE_LABELS,
+  AI_VP_URGENCY_LABELS,
+  AI_VP_IMPORTANCE_LABELS,
 } from '@/types/ai-vp';
 import {
   Brain,
@@ -291,12 +291,12 @@ function ExtractionDetailContent() {
                                 <Badge
                                   variant={task.urgency === 'high' ? 'danger' : 'default'}
                                 >
-                                  緊急度: {URGENCY_LABELS[task.urgency]}
+                                  緊急度: {AI_VP_URGENCY_LABELS[task.urgency]}
                                 </Badge>
                                 <Badge
                                   variant={task.importance === 'high' ? 'warning' : 'default'}
                                 >
-                                  重要度: {IMPORTANCE_LABELS[task.importance]}
+                                  重要度: {AI_VP_IMPORTANCE_LABELS[task.importance]}
                                 </Badge>
                               </div>
                               {task.ownerName && (
@@ -570,7 +570,7 @@ function ExtractionDetailContent() {
                                       : 'default'
                                   }
                                 >
-                                  {URGENCY_LABELS[alert.urgency]}
+                                  {AI_VP_URGENCY_LABELS[alert.urgency]}
                                 </Badge>
                                 <p className="mt-1">{alert.message}</p>
                               </div>
