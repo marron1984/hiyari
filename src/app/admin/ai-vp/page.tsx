@@ -23,6 +23,8 @@ import {
   ArrowRight,
   RefreshCw,
   Sparkles,
+  Gavel,
+  ClipboardCheck,
 } from 'lucide-react';
 
 export default function AiVpPage() {
@@ -119,6 +121,12 @@ function AiVpContent() {
               <Button variant="secondary" onClick={fetchData}>
                 <RefreshCw className="w-4 h-4" />
               </Button>
+              <Link href="/admin/ai-vp/approval">
+                <Button variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-100">
+                  <Gavel className="w-4 h-4 mr-1" />
+                  最終決裁
+                </Button>
+              </Link>
               <Link href="/admin/ai-vp/history">
                 <Button variant="secondary">
                   <History className="w-4 h-4 mr-1" />
@@ -188,7 +196,20 @@ function AiVpContent() {
               <CardTitle className="text-lg">クイックスタート</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Link href="/admin/ai-vp/approval" className="block">
+                  <div className="p-4 border-2 border-green-200 rounded-lg hover:bg-green-50 transition-colors bg-green-50/50">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <Gavel className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-green-700">最終決裁</h3>
+                        <p className="text-sm text-green-600">AIレビュー済みを承認</p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
                 <Link href="/admin/ai-vp/new?source=text" className="block">
                   <div className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-3">
@@ -202,17 +223,19 @@ function AiVpContent() {
                     </div>
                   </div>
                 </Link>
-                <div className="p-4 border rounded-lg bg-gray-50 opacity-60">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-gray-200 rounded-lg">
-                      <FileText className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-gray-400">PDF取り込み</h3>
-                      <p className="text-sm text-gray-400">近日公開</p>
+                <Link href="/requests" className="block">
+                  <div className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <ClipboardCheck className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium">申請管理</h3>
+                        <p className="text-sm text-gray-500">全申請の一覧・レビュー</p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Link>
                 <div className="p-4 border rounded-lg bg-gray-50 opacity-60">
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-gray-200 rounded-lg">
