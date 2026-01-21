@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { isAiVpOwner } from '@/lib/auth';
+import { createApprovalTask, isGoogleTasksConfigured } from '@/lib/google-tasks';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
@@ -237,10 +238,31 @@ export async function POST(request: NextRequest) {
       createdAt: FieldValue.serverTimestamp(),
     });
 
+    // Google Tasks連携（設定されている場合のみ）
+    let taskSyncResult = null;
+    if (isGoogleTasksConfigured()) {
+      try {
+        taskSyncResult = await createApprovalTask(
+          requestId,
+          requestData?.requestNumber || '',
+          requestData?.title || '',
+          requestData?.totalAmount || 0,
+          requestData?.applicantName || ''
+        );
+        if (taskSyncResult) {
+          console.log('Google Task created:', taskSyncResult.googleTaskId);
+        }
+      } catch (taskError) {
+        console.error('Failed to create Google Task (non-blocking):', taskError);
+        // Google Tasks作成失敗はレビュー自体のエラーにはしない
+      }
+    }
+
     return NextResponse.json({
       success: true,
       requestId,
       review: aiVpReview,
+      taskSynced: !!taskSyncResult,
     });
 
   } catch (error) {

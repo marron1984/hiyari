@@ -17,6 +17,9 @@ import {
 } from 'firebase/firestore';
 import { db as firebaseDb } from './firebase';
 
+// Note: Google Tasks連携はサーバーサイドAPIでのみ実行される
+// クライアントからは /api/google/tasks/sync APIを呼び出す
+
 // db が undefined の場合はエラーをスロー
 function getDb(): Firestore {
   if (!firebaseDb) {
@@ -655,6 +658,8 @@ export async function approveRequest(
     isAiVp: actorRole === 'ai_vp',
     comment,
   });
+
+  // Note: Google Tasks連携は呼び出し側で /api/google/tasks/sync を呼ぶ
 }
 
 /**
@@ -687,6 +692,8 @@ export async function rejectRequest(
     isAiVp: false,
     comment,
   });
+
+  // Note: Google Tasks連携は呼び出し側で /api/google/tasks/sync を呼ぶ
 }
 
 /**
