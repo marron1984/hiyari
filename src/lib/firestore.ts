@@ -28,13 +28,55 @@ function ensureDb() {
 
 // ======== ブランチ（事業所） ========
 
+// 半角カタカナを全角カタカナに変換するマップ
+const HANKAKU_TO_ZENKAKU_KANA: Record<string, string> = {
+  'ｱ': 'ア', 'ｲ': 'イ', 'ｳ': 'ウ', 'ｴ': 'エ', 'ｵ': 'オ',
+  'ｶ': 'カ', 'ｷ': 'キ', 'ｸ': 'ク', 'ｹ': 'ケ', 'ｺ': 'コ',
+  'ｻ': 'サ', 'ｼ': 'シ', 'ｽ': 'ス', 'ｾ': 'セ', 'ｿ': 'ソ',
+  'ﾀ': 'タ', 'ﾁ': 'チ', 'ﾂ': 'ツ', 'ﾃ': 'テ', 'ﾄ': 'ト',
+  'ﾅ': 'ナ', 'ﾆ': 'ニ', 'ﾇ': 'ヌ', 'ﾈ': 'ネ', 'ﾉ': 'ノ',
+  'ﾊ': 'ハ', 'ﾋ': 'ヒ', 'ﾌ': 'フ', 'ﾍ': 'ヘ', 'ﾎ': 'ホ',
+  'ﾏ': 'マ', 'ﾐ': 'ミ', 'ﾑ': 'ム', 'ﾒ': 'メ', 'ﾓ': 'モ',
+  'ﾔ': 'ヤ', 'ﾕ': 'ユ', 'ﾖ': 'ヨ',
+  'ﾗ': 'ラ', 'ﾘ': 'リ', 'ﾙ': 'ル', 'ﾚ': 'レ', 'ﾛ': 'ロ',
+  'ﾜ': 'ワ', 'ｦ': 'ヲ', 'ﾝ': 'ン',
+  'ｧ': 'ァ', 'ｨ': 'ィ', 'ｩ': 'ゥ', 'ｪ': 'ェ', 'ｫ': 'ォ',
+  'ｯ': 'ッ', 'ｬ': 'ャ', 'ｭ': 'ュ', 'ｮ': 'ョ',
+  'ﾞ': '゛', 'ﾟ': '゜', 'ｰ': 'ー',
+};
+
+// 半角カタカナ+濁点/半濁点の組み合わせを全角に変換するマップ
+const HANKAKU_DAKUTEN_MAP: Record<string, string> = {
+  'ｶﾞ': 'ガ', 'ｷﾞ': 'ギ', 'ｸﾞ': 'グ', 'ｹﾞ': 'ゲ', 'ｺﾞ': 'ゴ',
+  'ｻﾞ': 'ザ', 'ｼﾞ': 'ジ', 'ｽﾞ': 'ズ', 'ｾﾞ': 'ゼ', 'ｿﾞ': 'ゾ',
+  'ﾀﾞ': 'ダ', 'ﾁﾞ': 'ヂ', 'ﾂﾞ': 'ヅ', 'ﾃﾞ': 'デ', 'ﾄﾞ': 'ド',
+  'ﾊﾞ': 'バ', 'ﾋﾞ': 'ビ', 'ﾌﾞ': 'ブ', 'ﾍﾞ': 'ベ', 'ﾎﾞ': 'ボ',
+  'ﾊﾟ': 'パ', 'ﾋﾟ': 'ピ', 'ﾌﾟ': 'プ', 'ﾍﾟ': 'ペ', 'ﾎﾟ': 'ポ',
+  'ｳﾞ': 'ヴ',
+};
+
 // 文字列を正規化する関数（重複比較用）
 function normalizeForComparison(str: string): string {
-  return str
-    // Unicode正規化（NFC: 合成済み文字に統一）
-    .normalize('NFC')
+  // NFKC正規化: 互換性分解 + 合成
+  // - 半角カタカナ→全角カタカナ
+  // - 全角英数字→半角英数字
+  // - 分離した濁点/半濁点→結合
+  // これにより上記のマップは主にNFKCで処理されない特殊ケース用のバックアップとなる
+  let result = str
+    // Unicode正規化（NFKC: 互換性分解 + 合成）
+    .normalize('NFKC')
     // ゼロ幅文字を除去（ゼロ幅スペース、ゼロ幅非接合子、ゼロ幅接合子、ゼロ幅ノーブレークスペース等）
-    .replace(/[\u200B-\u200F\u2028-\u202F\uFEFF]/g, '')
+    .replace(/[\u200B-\u200F\u2028-\u202F\uFEFF]/g, '');
+
+  // バックアップ: NFKCで処理されなかった半角カタカナ+濁点/半濁点の組み合わせを変換
+  for (const [hankaku, zenkaku] of Object.entries(HANKAKU_DAKUTEN_MAP)) {
+    result = result.split(hankaku).join(zenkaku);
+  }
+
+  // バックアップ: 残りの半角カタカナを全角に変換
+  result = result.replace(/[ｦ-ﾟ]/g, (s) => HANKAKU_TO_ZENKAKU_KANA[s] || s);
+
+  return result
     // 全角英数字を半角に変換
     .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
     // 全角スペース、ノーブレークスペース、その他の空白を半角スペースに統一
@@ -78,14 +120,25 @@ export async function getBranches(tenantId: string = DEFAULT_TENANT_ID): Promise
   // 名前で重複除去（同じ名前の事業所は最初の1つのみ保持）
   // 名前を正規化して比較（全角半角、大文字小文字、空白の違いを吸収）
   const seen = new Set<string>();
-  return branches.filter((branch) => {
+  const duplicates: Array<{ name: string; normalized: string; id: string }> = [];
+
+  const result = branches.filter((branch) => {
     const normalizedName = normalizeForComparison(branch.name);
     if (seen.has(normalizedName)) {
+      duplicates.push({ name: branch.name, normalized: normalizedName, id: branch.id });
       return false;
     }
     seen.add(normalizedName);
     return true;
   });
+
+  // デバッグ: 重複が検出された場合はログ出力
+  if (duplicates.length > 0) {
+    console.log('[getBranches] 重複を除去:', duplicates);
+    console.log('[getBranches] 正規化後の一覧:', Array.from(seen));
+  }
+
+  return result;
 }
 
 export async function getBranch(branchId: string): Promise<Branch | null> {
