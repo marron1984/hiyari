@@ -242,3 +242,60 @@ export async function seedFacilitiesIfEmpty(tenantId: string = DEFAULT_TENANT_ID
     });
   }
 }
+
+// 2026年1月時点の最新空室データ
+const VACANCY_DATA: Record<string, { name: string; capacity: number; vacantCount: number; note: string }> = {
+  pacific: {
+    name: 'パシフィック',
+    capacity: 22,
+    vacantCount: 10,
+    note: '210, 211, 303, 401, 406, 408, 410, 411, 416, 608が空室',
+  },
+  renaissance: {
+    name: 'ルネッサンス',
+    capacity: 9,
+    vacantCount: 2,
+    note: '2E, 6A(社宅予定)が空室',
+  },
+  serene: {
+    name: 'セレーネ',
+    capacity: 9,
+    vacantCount: 4,
+    note: '801, 813, 915, 1012が空室',
+  },
+};
+
+/**
+ * 空室データを最新に一括更新
+ */
+export async function syncVacancyData(tenantId: string = DEFAULT_TENANT_ID): Promise<void> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  for (const [facilityId, data] of Object.entries(VACANCY_DATA)) {
+    // 施設のcapacityを更新
+    const facilityRef = doc(db, 'facilities', facilityId);
+    try {
+      await setDoc(facilityRef, {
+        name: data.name,
+        area: '介護',
+        capacity: data.capacity,
+        isActive: true,
+        tenantId,
+        updatedAt: Timestamp.now(),
+      }, { merge: true });
+    } catch (e) {
+      console.error('Failed to update facility:', facilityId, e);
+    }
+
+    // 空室状態を更新
+    const vacancyRef = doc(db, 'vacancyStatus', facilityId);
+    await setDoc(vacancyRef, {
+      facilityId,
+      vacantCount: data.vacantCount,
+      note: data.note,
+      updatedAt: Timestamp.now(),
+      updatedBy: 'system',
+      updatedByName: 'システム自動更新',
+    });
+  }
+}

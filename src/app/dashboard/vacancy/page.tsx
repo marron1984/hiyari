@@ -10,6 +10,7 @@ import {
   getFacilitiesWithVacancy,
   updateVacancyStatus,
   seedFacilitiesIfEmpty,
+  syncVacancyData,
 } from '@/lib/vacancy';
 import { FacilityWithVacancy } from '@/types/vacancy';
 import { hasMinRole } from '@/lib/auth';
@@ -63,15 +64,11 @@ export default function VacancyPage() {
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch('/api/vacancy/update', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        setSuccess('空室データを最新に更新しました');
-        await fetchData();
-      } else {
-        setError(data.error || '更新に失敗しました');
-      }
+      await syncVacancyData();
+      setSuccess('空室データを最新に更新しました');
+      await fetchData();
     } catch (err) {
+      console.error('Sync error:', err);
       setError('更新に失敗しました');
     } finally {
       setSyncing(false);
