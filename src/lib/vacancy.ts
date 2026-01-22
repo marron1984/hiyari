@@ -298,4 +298,18 @@ export async function syncVacancyData(tenantId: string = DEFAULT_TENANT_ID): Pro
       updatedByName: 'システム自動更新',
     });
   }
+
+  // シャンクレールとパールは事務所のため非表示に設定
+  const inactiveFacilities = ['champsclaire', 'pearl'];
+  for (const facilityId of inactiveFacilities) {
+    const facilityRef = doc(db, 'facilities', facilityId);
+    try {
+      await setDoc(facilityRef, {
+        isActive: false,
+        updatedAt: Timestamp.now(),
+      }, { merge: true });
+    } catch (e) {
+      console.error('Failed to deactivate facility:', facilityId, e);
+    }
+  }
 }
