@@ -4,13 +4,21 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui';
-import { AlertTriangle, Shield } from 'lucide-react';
+import { AlertTriangle, Shield, Copy, ExternalLink, CheckCircle } from 'lucide-react';
+import { detectInAppBrowser, getCurrentUrl, copyToClipboard, BrowserInfo } from '@/lib/browser-detect';
 
 export default function LoginPage() {
   const { firebaseUser, isOnboarded, loading, signInWithGoogle } = useAuth();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [browserInfo, setBrowserInfo] = useState<BrowserInfo | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    // Detect in-app browser on mount
+    setBrowserInfo(detectInAppBrowser());
+  }, []);
 
   useEffect(() => {
     if (!loading && firebaseUser) {
@@ -21,6 +29,15 @@ export default function LoginPage() {
       }
     }
   }, [firebaseUser, isOnboarded, loading, router]);
+
+  const handleCopyUrl = async () => {
+    const url = getCurrentUrl();
+    const success = await copyToClipboard(url);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setError(null);
@@ -74,9 +91,55 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* In-app browser warning */}
+          {browserInfo?.isInAppBrowser && (
+            <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="flex items-start mb-3">
+                <ExternalLink className="w-5 h-5 text-orange-600 mr-2 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-semibold text-orange-800">
+                    外部ブラウザで開いてください
+                  </h3>
+                  <p className="text-sm text-orange-700 mt-1">
+                    {browserInfo.browserName || 'アプリ内ブラウザ'}からはログインできません。
+                    SafariやChromeで開いてください。
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="text-xs text-orange-700">
+                  <p className="font-medium mb-1">開き方：</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-1">
+                    <li>下の「URLをコピー」ボタンをタップ</li>
+                    <li>SafariまたはChromeを開く</li>
+                    <li>アドレスバーに貼り付けてアクセス</li>
+                  </ol>
+                </div>
+                <Button
+                  onClick={handleCopyUrl}
+                  variant="outline"
+                  className="w-full flex items-center justify-center"
+                >
+                  {copied ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                      <span className="text-green-600">コピーしました</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 mr-2" />
+                      URLをコピー
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
           <Button
             onClick={handleGoogleLogin}
             loading={isSigningIn}
+            disabled={browserInfo?.isInAppBrowser}
             className="w-full flex items-center justify-center"
             size="lg"
           >
