@@ -28,6 +28,21 @@ function ensureDb() {
 
 // ======== ブランチ（事業所） ========
 
+// 文字列を正規化する関数（重複比較用）
+function normalizeForComparison(str: string): string {
+  return str
+    // 全角英数字を半角に変換
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+    // 全角スペース、ノーブレークスペース、その他の空白を半角スペースに統一
+    .replace(/[\u3000\u00A0\u2000-\u200B\u202F\u205F]/g, ' ')
+    // 連続する空白を1つに
+    .replace(/\s+/g, ' ')
+    // 前後の空白を除去
+    .trim()
+    // 小文字に統一
+    .toLowerCase();
+}
+
 export async function getBranches(tenantId: string = DEFAULT_TENANT_ID): Promise<Branch[]> {
   const firestore = ensureDb();
   const q = query(collection(firestore, 'branches'), where('tenantId', '==', tenantId));
@@ -39,10 +54,10 @@ export async function getBranches(tenantId: string = DEFAULT_TENANT_ID): Promise
   })) as Branch[];
 
   // 名前で重複除去（同じ名前の事業所は最初の1つのみ保持）
-  // 名前を正規化（トリム、全角・半角スペースの統一）して比較
+  // 名前を正規化して比較（全角半角、大文字小文字、空白の違いを吸収）
   const seen = new Set<string>();
   return branches.filter((branch) => {
-    const normalizedName = branch.name.trim().replace(/\s+/g, ' ');
+    const normalizedName = normalizeForComparison(branch.name);
     if (seen.has(normalizedName)) {
       return false;
     }
