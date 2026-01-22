@@ -459,7 +459,7 @@ export async function importProspectsFromSheet(
   };
 
   try {
-    const data = await getSheetData(sheetId, range);
+    const data = await getSheetData(sheetId);
     if (!data || data.length === 0) {
       result.errors.push('シートからデータを取得できませんでした');
       return result;

@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
           return NextResponse.json({ error: 'Google Sheets APIが設定されていません' }, { status: 400 });
         }
 
-        const data = await getSheetData(sheetId, 'A1:Z20');
+        const data = await getSheetData(sheetId);
         if (!data) {
           return NextResponse.json({ error: 'シートデータの取得に失敗しました' }, { status: 500 });
         }

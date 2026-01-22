@@ -112,7 +112,7 @@ export async function saveConditionScore(
     });
 
   const previousScore = previousDocs.length > 0
-    ? previousDocs[0].score || score
+    ? (previousDocs[0] as { score?: number }).score || score
     : score;
 
   const alertLevel = determineAlertLevel(score);
