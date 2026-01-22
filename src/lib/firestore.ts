@@ -32,11 +32,21 @@ export async function getBranches(tenantId: string = DEFAULT_TENANT_ID): Promise
   const firestore = ensureDb();
   const q = query(collection(firestore, 'branches'), where('tenantId', '==', tenantId));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((doc) => ({
+  const branches = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
     createdAt: doc.data().createdAt?.toDate() || new Date(),
   })) as Branch[];
+
+  // 名前で重複除去（同じ名前の事業所は最初の1つのみ保持）
+  const seen = new Set<string>();
+  return branches.filter((branch) => {
+    if (seen.has(branch.name)) {
+      return false;
+    }
+    seen.add(branch.name);
+    return true;
+  });
 }
 
 export async function getBranch(branchId: string): Promise<Branch | null> {
