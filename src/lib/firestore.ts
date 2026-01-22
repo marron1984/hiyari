@@ -39,12 +39,14 @@ export async function getBranches(tenantId: string = DEFAULT_TENANT_ID): Promise
   })) as Branch[];
 
   // 名前で重複除去（同じ名前の事業所は最初の1つのみ保持）
+  // 名前を正規化（トリム、全角・半角スペースの統一）して比較
   const seen = new Set<string>();
   return branches.filter((branch) => {
-    if (seen.has(branch.name)) {
+    const normalizedName = branch.name.trim().replace(/\s+/g, ' ');
+    if (seen.has(normalizedName)) {
       return false;
     }
-    seen.add(branch.name);
+    seen.add(normalizedName);
     return true;
   });
 }
