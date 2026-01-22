@@ -117,6 +117,16 @@ export async function getBranches(tenantId: string = DEFAULT_TENANT_ID): Promise
     createdAt: doc.data().createdAt?.toDate() || new Date(),
   })) as Branch[];
 
+  // デバッグ: 取得した全事業所をログ出力
+  console.log('[getBranches] 取得した事業所数:', branches.length);
+  console.log('[getBranches] 事業所一覧:', branches.map((b) => ({
+    id: b.id,
+    name: b.name,
+    normalized: normalizeForComparison(b.name),
+    // 文字コードを表示（重複原因の特定用）
+    charCodes: Array.from(b.name).map((c) => c.charCodeAt(0).toString(16)),
+  })));
+
   // 名前で重複除去（同じ名前の事業所は最初の1つのみ保持）
   // 名前を正規化して比較（全角半角、大文字小文字、空白の違いを吸収）
   const seen = new Set<string>();
@@ -135,8 +145,8 @@ export async function getBranches(tenantId: string = DEFAULT_TENANT_ID): Promise
   // デバッグ: 重複が検出された場合はログ出力
   if (duplicates.length > 0) {
     console.log('[getBranches] 重複を除去:', duplicates);
-    console.log('[getBranches] 正規化後の一覧:', Array.from(seen));
   }
+  console.log('[getBranches] 返却する事業所数:', result.length);
 
   return result;
 }
