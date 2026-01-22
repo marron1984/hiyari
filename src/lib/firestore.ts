@@ -39,6 +39,24 @@ function normalizeForComparison(str: string): string {
     .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
     // 全角スペース、ノーブレークスペース、その他の空白を半角スペースに統一
     .replace(/[\u3000\u00A0\u2000-\u200A\u205F\u3000]/g, ' ')
+    // カタカナの小さい文字を大きい文字に変換（ァ→ア、ィ→イ、ゥ→ウ、ェ→エ、ォ→オ、ッ→ツ、ャ→ヤ、ュ→ユ、ョ→ヨ、ヮ→ワ）
+    .replace(/[ァィゥェォッャュョヮ]/g, (s) => {
+      const smallToLarge: Record<string, string> = {
+        'ァ': 'ア', 'ィ': 'イ', 'ゥ': 'ウ', 'ェ': 'エ', 'ォ': 'オ',
+        'ッ': 'ツ', 'ャ': 'ヤ', 'ュ': 'ユ', 'ョ': 'ヨ', 'ヮ': 'ワ',
+      };
+      return smallToLarge[s] || s;
+    })
+    // ひらがなの小さい文字を大きい文字に変換
+    .replace(/[ぁぃぅぇぉっゃゅょゎ]/g, (s) => {
+      const smallToLarge: Record<string, string> = {
+        'ぁ': 'あ', 'ぃ': 'い', 'ぅ': 'う', 'ぇ': 'え', 'ぉ': 'お',
+        'っ': 'つ', 'ゃ': 'や', 'ゅ': 'ゆ', 'ょ': 'よ', 'ゎ': 'わ',
+      };
+      return smallToLarge[s] || s;
+    })
+    // 長音記号を除去（ー）
+    .replace(/ー/g, '')
     // 連続する空白を1つに
     .replace(/\s+/g, ' ')
     // 前後の空白を除去
