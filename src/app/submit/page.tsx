@@ -444,7 +444,7 @@ function SubmitContent() {
                 {/* タグ */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    タグ（任意、最大5つ）
+                    タグ（選択任意、最大5つ）
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {INCIDENT_TAGS.map((tag) => {
