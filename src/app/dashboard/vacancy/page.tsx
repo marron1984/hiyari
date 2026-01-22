@@ -13,7 +13,7 @@ import {
 } from '@/lib/vacancy';
 import { FacilityWithVacancy } from '@/types/vacancy';
 import { hasMinRole } from '@/lib/auth';
-import { Building2, Edit2, Save, X, RefreshCw, Clock, User, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Building2, Edit2, Save, X, RefreshCw, Clock, User, AlertTriangle, TrendingUp, Database } from 'lucide-react';
 
 // 稼働率を計算
 function calcOccupancyRate(capacity: number | undefined, vacantCount: number): number {
@@ -55,6 +55,28 @@ export default function VacancyPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const canEdit = hasMinRole(user?.role, 'leader');
+  const [syncing, setSyncing] = useState(false);
+
+  // 最新データに一括更新
+  const handleSyncData = async () => {
+    setSyncing(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch('/api/vacancy/update', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess('空室データを最新に更新しました');
+        await fetchData();
+      } else {
+        setError(data.error || '更新に失敗しました');
+      }
+    } catch (err) {
+      setError('更新に失敗しました');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -160,17 +182,30 @@ export default function VacancyPage() {
                 </p>
               )}
             </div>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setLoading(true);
-                fetchData();
-              }}
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              更新
-            </Button>
+            <div className="flex gap-2">
+              {canEdit && (
+                <Button
+                  variant="secondary"
+                  onClick={handleSyncData}
+                  disabled={syncing}
+                  className="flex items-center gap-2"
+                >
+                  <Database className="w-4 h-4" />
+                  {syncing ? '更新中...' : '一括更新'}
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setLoading(true);
+                  fetchData();
+                }}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                更新
+              </Button>
+            </div>
           </div>
 
           {/* サマリーカード */}
