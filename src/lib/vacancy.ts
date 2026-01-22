@@ -215,9 +215,9 @@ export async function getVacancyEvents(
  * ※パール、シャンクレールは事務所のため除外
  */
 export const FACILITIES_SEED = [
-  { id: 'pacific', name: 'パシフィック', area: '介護', capacity: 20 },
-  { id: 'renaissance', name: 'ルネッサンス', area: '介護', capacity: 50 },
-  { id: 'serene', name: 'セレーネ', area: '介護', capacity: 30 },
+  { id: 'pacific', name: 'パシフィック', area: '介護', capacity: 22 },
+  { id: 'renaissance', name: 'ルネッサンス', area: '介護', capacity: 9 },
+  { id: 'serene', name: 'セレーネ', area: '介護', capacity: 9 },
 ];
 
 /**
