@@ -25,6 +25,8 @@ import {
   SEVERITY_LABELS,
   ScoringRule,
   DEFAULT_SCORING_RULES,
+  IncidentTag,
+  INCIDENT_TAGS,
 } from '@/types';
 import { Camera, X, AlertTriangle } from 'lucide-react';
 
@@ -63,7 +65,6 @@ function SubmitContent() {
 
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -164,16 +165,16 @@ function SubmitContent() {
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleAddTag = () => {
-    const tag = tagInput.trim();
-    if (tag && formData.tags.length < 5 && !formData.tags.includes(tag)) {
-      setFormData((prev) => ({ ...prev, tags: [...prev.tags, tag] }));
-      setTagInput('');
-    }
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    setFormData((prev) => ({ ...prev, tags: prev.tags.filter((t) => t !== tag) }));
+  const handleToggleTag = (tag: IncidentTag) => {
+    setFormData((prev) => {
+      if (prev.tags.includes(tag)) {
+        return { ...prev, tags: prev.tags.filter((t) => t !== tag) };
+      }
+      if (prev.tags.length >= 5) {
+        return prev;
+      }
+      return { ...prev, tags: [...prev.tags, tag] };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -442,48 +443,36 @@ function SubmitContent() {
 
                 {/* タグ */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     タグ（任意、最大5つ）
                   </label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      placeholder="タグを入力"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddTag();
-                        }
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleAddTag}
-                      disabled={formData.tags.length >= 5}
-                    >
-                      追加
-                    </Button>
-                  </div>
-                  {formData.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {formData.tags.map((tag) => (
-                        <span
+                  <div className="flex flex-wrap gap-2">
+                    {INCIDENT_TAGS.map((tag) => {
+                      const isSelected = formData.tags.includes(tag);
+                      const isDisabled = !isSelected && formData.tags.length >= 5;
+                      return (
+                        <button
                           key={tag}
-                          className="inline-flex items-center px-2 py-1 bg-gray-100 rounded text-sm"
+                          type="button"
+                          onClick={() => handleToggleTag(tag)}
+                          disabled={isDisabled}
+                          className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                            isSelected
+                              ? 'bg-blue-500 text-white'
+                              : isDisabled
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
                         >
                           {tag}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTag(tag)}
-                            className="ml-1 text-gray-400 hover:text-gray-600"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {formData.tags.length > 0 && (
+                    <p className="mt-2 text-sm text-gray-500">
+                      選択中: {formData.tags.length}/5
+                    </p>
                   )}
                 </div>
 
