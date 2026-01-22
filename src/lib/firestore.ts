@@ -31,10 +31,14 @@ function ensureDb() {
 // 文字列を正規化する関数（重複比較用）
 function normalizeForComparison(str: string): string {
   return str
+    // Unicode正規化（NFC: 合成済み文字に統一）
+    .normalize('NFC')
+    // ゼロ幅文字を除去（ゼロ幅スペース、ゼロ幅非接合子、ゼロ幅接合子、ゼロ幅ノーブレークスペース等）
+    .replace(/[\u200B-\u200F\u2028-\u202F\uFEFF]/g, '')
     // 全角英数字を半角に変換
     .replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
     // 全角スペース、ノーブレークスペース、その他の空白を半角スペースに統一
-    .replace(/[\u3000\u00A0\u2000-\u200B\u202F\u205F]/g, ' ')
+    .replace(/[\u3000\u00A0\u2000-\u200A\u205F\u3000]/g, ' ')
     // 連続する空白を1つに
     .replace(/\s+/g, ' ')
     // 前後の空白を除去
