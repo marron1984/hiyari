@@ -312,8 +312,7 @@ function SubmitContent() {
               <CardContent className="space-y-4">
                 <h2 className="font-semibold text-gray-900">基本情報</h2>
 
-                {/* 事業所選択を一時的に無効化（重複データ修正中） */}
-                {false && isAdmin ? (
+                {isAdmin ? (
                   <Select
                     label="事業所"
                     name="branchId"
