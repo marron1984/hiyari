@@ -14,11 +14,12 @@ import {
   breakStart,
   breakEnd,
   changeBranch,
+  selfEditTimeEntry,
 } from '@/lib/attendance';
 import { formatTimeJST, formatMinutesToHHMM } from '@/lib/attendance-calc';
 import { TodayAttendanceState, ClockStatus } from '@/types/attendance';
 import { BRANCHES_SEED } from '@/data/employees';
-import { MapPin, Edit2 } from 'lucide-react';
+import { MapPin, Edit2, Clock, AlertCircle } from 'lucide-react';
 
 // 状態表示ラベル
 const STATUS_LABELS: Record<ClockStatus, { label: string; color: string }> = {
@@ -40,6 +41,14 @@ export default function AttendancePage() {
   const [selectedBranchId, setSelectedBranchId] = useState<string>(BRANCHES_SEED[0]?.id || '');
   const [isEditingBranch, setIsEditingBranch] = useState(false);
   const [editBranchId, setEditBranchId] = useState<string>('');
+
+  // 打刻修正用state
+  const [isEditingTime, setIsEditingTime] = useState(false);
+  const [editClockIn, setEditClockIn] = useState<string>('');
+  const [editClockOut, setEditClockOut] = useState<string>('');
+  const [editBreakStart, setEditBreakStart] = useState<string>('');
+  const [editBreakEnd, setEditBreakEnd] = useState<string>('');
+  const [editReason, setEditReason] = useState<string>('');
 
   // 現在時刻の更新
   useEffect(() => {
@@ -156,6 +165,106 @@ export default function AttendancePage() {
   const startEditingBranch = () => {
     setEditBranchId(state?.branchId || '');
     setIsEditingBranch(true);
+  };
+
+  // 打刻修正を開始
+  const startEditingTime = () => {
+    if (state?.clockIn) {
+      setEditClockIn(formatTimeForInput(state.clockIn));
+    }
+    if (state?.clockOut) {
+      setEditClockOut(formatTimeForInput(state.clockOut));
+    }
+    if (state?.breakStart) {
+      setEditBreakStart(formatTimeForInput(state.breakStart));
+    }
+    if (state?.breakEnd) {
+      setEditBreakEnd(formatTimeForInput(state.breakEnd));
+    }
+    setEditReason('');
+    setIsEditingTime(true);
+  };
+
+  // 時刻をinput用にフォーマット (HH:mm)
+  const formatTimeForInput = (date: Date): string => {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  // HH:mm文字列をDateに変換（今日の日付で）
+  const parseTimeInput = (timeStr: string): Date | undefined => {
+    if (!timeStr) return undefined;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
+
+  // 打刻修正を実行
+  const handleEditTime = async () => {
+    if (!user) return;
+    if (!editReason.trim()) {
+      setError('修正理由を入力してください');
+      return;
+    }
+
+    setActionLoading(true);
+    setError(null);
+
+    try {
+      const updates: {
+        clockIn?: Date;
+        clockOut?: Date;
+        breakStart?: Date;
+        breakEnd?: Date;
+      } = {};
+
+      // 変更があった項目のみ更新
+      if (editClockIn && state?.clockIn) {
+        const newClockIn = parseTimeInput(editClockIn);
+        if (newClockIn && formatTimeForInput(state.clockIn) !== editClockIn) {
+          updates.clockIn = newClockIn;
+        }
+      }
+      if (editClockOut && state?.clockOut) {
+        const newClockOut = parseTimeInput(editClockOut);
+        if (newClockOut && formatTimeForInput(state.clockOut) !== editClockOut) {
+          updates.clockOut = newClockOut;
+        }
+      }
+      if (editBreakStart) {
+        const newBreakStart = parseTimeInput(editBreakStart);
+        if (newBreakStart) {
+          if (!state?.breakStart || formatTimeForInput(state.breakStart) !== editBreakStart) {
+            updates.breakStart = newBreakStart;
+          }
+        }
+      }
+      if (editBreakEnd) {
+        const newBreakEnd = parseTimeInput(editBreakEnd);
+        if (newBreakEnd) {
+          if (!state?.breakEnd || formatTimeForInput(state.breakEnd) !== editBreakEnd) {
+            updates.breakEnd = newBreakEnd;
+          }
+        }
+      }
+
+      if (Object.keys(updates).length === 0) {
+        setError('変更がありません');
+        setActionLoading(false);
+        return;
+      }
+
+      await selfEditTimeEntry(user.id, updates, editReason.trim(), user.tenantId);
+      await fetchState();
+      setIsEditingTime(false);
+      setEditReason('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '打刻修正に失敗しました');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   if (loading) {
@@ -383,6 +492,14 @@ export default function AttendancePage() {
                 >
                   {actionLoading ? '処理中...' : '退勤'}
                 </Button>
+                <Button
+                  onClick={startEditingTime}
+                  variant="secondary"
+                  className="w-full py-3 flex items-center justify-center gap-2 text-sm"
+                >
+                  <Clock className="w-4 h-4" />
+                  出勤時刻を修正
+                </Button>
               </>
             )}
 
@@ -397,13 +514,123 @@ export default function AttendancePage() {
               </Button>
             )}
 
-            {/* 退勤済みメッセージ */}
+            {/* 退勤済みメッセージと修正ボタン */}
             {state?.status === 'completed' && (
-              <div className="text-center py-4 text-gray-600">
-                本日の勤務は終了しました。お疲れさまでした。
+              <div className="space-y-3">
+                <div className="text-center py-4 text-gray-600">
+                  本日の勤務は終了しました。お疲れさまでした。
+                </div>
+                <Button
+                  onClick={startEditingTime}
+                  variant="secondary"
+                  className="w-full py-3 flex items-center justify-center gap-2"
+                >
+                  <Clock className="w-4 h-4" />
+                  打刻を修正する
+                </Button>
               </div>
             )}
           </div>
+
+          {/* 打刻修正モーダル */}
+          {isEditingTime && (
+            <Card className="mb-6 border-2 border-orange-200">
+              <div className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertCircle className="w-5 h-5 text-orange-500" />
+                  <h3 className="text-lg font-semibold text-gray-800">打刻の修正</h3>
+                </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  当日の打刻のみ修正できます。修正理由は必須です。
+                </p>
+
+                <div className="space-y-4">
+                  {/* 出勤時刻 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      出勤時刻
+                    </label>
+                    <input
+                      type="time"
+                      value={editClockIn}
+                      onChange={(e) => setEditClockIn(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+
+                  {/* 退勤時刻 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      退勤時刻
+                    </label>
+                    <input
+                      type="time"
+                      value={editClockOut}
+                      onChange={(e) => setEditClockOut(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+
+                  {/* 休憩開始 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      休憩開始
+                    </label>
+                    <input
+                      type="time"
+                      value={editBreakStart}
+                      onChange={(e) => setEditBreakStart(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+
+                  {/* 休憩終了 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      休憩終了
+                    </label>
+                    <input
+                      type="time"
+                      value={editBreakEnd}
+                      onChange={(e) => setEditBreakEnd(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+
+                  {/* 修正理由 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      修正理由 <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={editReason}
+                      onChange={(e) => setEditReason(e.target.value)}
+                      placeholder="例：打刻忘れのため、実際の退勤時刻に修正"
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-6">
+                  <Button
+                    onClick={handleEditTime}
+                    disabled={actionLoading || !editReason.trim()}
+                    className="flex-1 py-3 bg-orange-600 hover:bg-orange-700"
+                  >
+                    {actionLoading ? '修正中...' : '修正を保存'}
+                  </Button>
+                  <Button
+                    onClick={() => setIsEditingTime(false)}
+                    variant="secondary"
+                    className="flex-1 py-3"
+                  >
+                    キャンセル
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* ナビゲーション */}
           <div className="mt-8 pt-6 border-t">

@@ -688,6 +688,142 @@ async function updateTimeEntryOvertime(
   }
 }
 
+// ======== 従業員による当日打刻修正 ========
+
+/**
+ * 当日の打刻を自己修正（従業員向け・当日限定）
+ */
+export async function selfEditTimeEntry(
+  userId: string,
+  updates: {
+    clockIn?: Date;
+    clockOut?: Date;
+    breakStart?: Date;
+    breakEnd?: Date;
+  },
+  editReason: string,
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<TimeEntry> {
+  const firestore = ensureDb();
+  const today = getTodayJST();
+
+  // 修正理由は必須
+  if (!editReason || editReason.trim().length === 0) {
+    throw new Error('修正理由を入力してください');
+  }
+
+  // 今日の打刻記録を取得
+  const existing = await getTodayTimeEntry(userId, tenantId);
+  if (!existing) {
+    throw new Error('本日の打刻記録がありません');
+  }
+
+  // 当日の打刻のみ修正可能
+  if (existing.workDate !== today) {
+    throw new Error('当日の打刻のみ修正可能です');
+  }
+
+  // 更新データを構築
+  const updateData: Record<string, unknown> = {
+    isEdited: true,
+    editedBy: userId,
+    editedByName: '本人',
+    editedAt: Timestamp.now(),
+    editReason: editReason.trim(),
+    updatedAt: Timestamp.now(),
+  };
+
+  // 変更前の値を記録
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
+
+  if (updates.clockIn !== undefined) {
+    before.clockIn = existing.clockIn?.toISOString();
+    after.clockIn = updates.clockIn.toISOString();
+    updateData.clockIn = Timestamp.fromDate(updates.clockIn);
+  }
+
+  if (updates.clockOut !== undefined) {
+    before.clockOut = existing.clockOut?.toISOString();
+    after.clockOut = updates.clockOut.toISOString();
+    updateData.clockOut = Timestamp.fromDate(updates.clockOut);
+  }
+
+  if (updates.breakStart !== undefined) {
+    before.breakStart = existing.breakStart?.toISOString();
+    after.breakStart = updates.breakStart.toISOString();
+    updateData.breakStart = Timestamp.fromDate(updates.breakStart);
+  }
+
+  if (updates.breakEnd !== undefined) {
+    before.breakEnd = existing.breakEnd?.toISOString();
+    after.breakEnd = updates.breakEnd.toISOString();
+    updateData.breakEnd = Timestamp.fromDate(updates.breakEnd);
+  }
+
+  // 再計算
+  const updatedEntry = {
+    ...existing,
+    clockIn: updates.clockIn ?? existing.clockIn,
+    clockOut: updates.clockOut ?? existing.clockOut,
+    breakStart: updates.breakStart ?? existing.breakStart,
+    breakEnd: updates.breakEnd ?? existing.breakEnd,
+  };
+
+  // 休憩時間を計算
+  let actualBreakMinutes = existing.actualBreakMinutes || 0;
+  if (updatedEntry.breakStart && updatedEntry.breakEnd) {
+    actualBreakMinutes = calculateMinutesBetween(updatedEntry.breakStart, updatedEntry.breakEnd);
+    updateData.actualBreakMinutes = actualBreakMinutes;
+  }
+
+  // 勤務時間を再計算
+  if (updatedEntry.clockIn && updatedEntry.clockOut) {
+    const shift = await getTodayShift(userId, tenantId);
+    const summary = calculateTimeEntrySummary(
+      { ...updatedEntry, actualBreakMinutes } as TimeEntry,
+      shift || undefined
+    );
+    updateData.totalWorkMinutes = summary.totalWorkMinutes;
+    updateData.lateNightMinutes = summary.lateNightMinutes;
+    updateData.status = 'completed';
+    after.totalWorkMinutes = summary.totalWorkMinutes;
+    after.lateNightMinutes = summary.lateNightMinutes;
+  }
+
+  // 更新実行
+  const docRef = doc(firestore, 'timeEntries', existing.id);
+  await updateDoc(docRef, updateData);
+
+  // 監査ログ作成（必須）
+  await createAuditLog({
+    tenantId,
+    targetType: 'time_entry',
+    targetId: existing.id,
+    action: 'update',
+    before,
+    after,
+    editedBy: userId,
+    editedByName: '本人（自己修正）',
+    reason: editReason.trim(),
+  });
+
+  return {
+    ...existing,
+    ...updates,
+    actualBreakMinutes,
+    totalWorkMinutes: updateData.totalWorkMinutes as number | undefined,
+    lateNightMinutes: updateData.lateNightMinutes as number | undefined,
+    status: (updateData.status as ClockStatus) || existing.status,
+    isEdited: true,
+    editedBy: userId,
+    editedByName: '本人',
+    editedAt: new Date(),
+    editReason: editReason.trim(),
+    updatedAt: new Date(),
+  };
+}
+
 // ======== 管理者による打刻修正 ========
 
 /**
