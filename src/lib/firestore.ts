@@ -302,7 +302,55 @@ export async function getIncident(incidentId: string): Promise<Incident | null> 
     id: docSnap.id,
     ...docSnap.data(),
     createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+    updatedAt: docSnap.data().updatedAt?.toDate() || undefined,
   } as Incident;
+}
+
+// インシデント更新（自分の投稿のみ更新可能）
+export async function updateIncident(
+  incidentId: string,
+  userId: string,
+  data: {
+    date?: string;
+    timeSlot?: string;
+    category?: string;
+    severity?: number;
+    body?: string;
+    action?: string;
+    prevention?: string;
+    location?: string;
+    tags?: string[];
+    // スコア再計算用
+    bodyLength?: number;
+    totalLength?: number;
+    scoreTotal?: number;
+    scoreBreakdown?: { key: string; label: string; points: number }[];
+  }
+): Promise<void> {
+  const firestore = ensureDb();
+  const docRef = doc(firestore, 'incidents', incidentId);
+  const docSnap = await getDoc(docRef);
+
+  if (!docSnap.exists()) {
+    throw new Error('投稿が見つかりません');
+  }
+
+  const incident = docSnap.data();
+
+  // 自分の投稿かチェック
+  if (incident.userId !== userId) {
+    throw new Error('この投稿を編集する権限がありません');
+  }
+
+  // undefinedの値を除外
+  const cleanData = Object.fromEntries(
+    Object.entries(data).filter(([, v]) => v !== undefined)
+  );
+
+  await updateDoc(docRef, {
+    ...cleanData,
+    updatedAt: Timestamp.now(),
+  });
 }
 
 export async function getIncidentsByUser(
