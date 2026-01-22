@@ -47,7 +47,40 @@ Firebase Consoleで以下のルールを設定：
 
 **Storage Rules** (`storage.rules` の内容をコピー)
 
-### 4. インストールと起動
+### 4. Firebase Storage CORS設定
+
+画像アップロードを本番環境で動作させるために、Firebase Storage（Google Cloud Storage）のCORS設定が必要です。
+
+```bash
+# Google Cloud SDKをインストール（未インストールの場合）
+# https://cloud.google.com/sdk/docs/install
+
+# 認証
+gcloud auth login
+
+# プロジェクトを設定
+gcloud config set project your-project-id
+
+# CORS設定を適用
+gsutil cors set cors.json gs://your-project-id.firebasestorage.app
+# または
+gsutil cors set cors.json gs://your-project-id.appspot.com
+```
+
+`cors.json` ファイルが用意されているので、必要に応じてドメインを追加してください：
+
+```json
+[
+  {
+    "origin": ["https://your-domain.com", "http://localhost:3000"],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": ["Content-Type", "Content-Length", "Content-MD5", "x-goog-resumable", "x-goog-meta-*"]
+  }
+]
+```
+
+### 5. インストールと起動
 
 ```bash
 npm install
@@ -56,7 +89,7 @@ npm run dev
 
 ブラウザで http://localhost:3000 を開きます。
 
-### 5. Firebase Hostingへのデプロイ
+### 6. Firebase Hostingへのデプロイ
 
 ```bash
 npm install -g firebase-tools
