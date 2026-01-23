@@ -340,7 +340,7 @@ function ChaosDashboardContent() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="text-base">要対応タスク</CardTitle>
-                  <Badge variant="outline">{interventions.length}件</Badge>
+                  <Badge className="bg-gray-100 text-gray-700">{interventions.length}件</Badge>
                 </CardHeader>
                 <CardContent>
                   {interventions.length > 0 ? (
