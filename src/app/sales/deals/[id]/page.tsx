@@ -15,7 +15,7 @@ import {
   updateDealStatus,
   deleteSalesDeal,
 } from '@/lib/sales';
-import { getUsers, getBranches } from '@/lib/firestore';
+import { getBranches } from '@/lib/firestore';
 import {
   SalesDeal,
   SalesAccount,
@@ -25,8 +25,11 @@ import {
   SALES_DEAL_STATUS_ORDER,
   CARE_LEVELS,
   CareLevel,
+  SALES_ASSIGNEES,
+  DEAL_SOURCES,
+  DealSource,
 } from '@/types/sales';
-import { User, Branch } from '@/types';
+import { Branch } from '@/types';
 import {
   ArrowLeft,
   Building2,
@@ -41,6 +44,9 @@ import {
   AlertTriangle,
   X,
   Save,
+  PhoneCall,
+  Plus,
+  History,
 } from 'lucide-react';
 
 export default function SalesDealDetailPage() {
@@ -59,7 +65,6 @@ function SalesDealDetailContent() {
 
   const [deal, setDeal] = useState<SalesDeal | null>(null);
   const [account, setAccount] = useState<SalesAccount | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,15 +79,20 @@ function SalesDealDetailContent() {
   const [newStatus, setNewStatus] = useState<SalesDealStatus | ''>('');
   const [statusNote, setStatusNote] = useState('');
 
+  // フォローアップモーダル
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [followUpNote, setFollowUpNote] = useState('');
+  const [followUpResult, setFollowUpResult] = useState<'継続' | '成約' | '保留' | '失注'>('継続');
+  const [nextFollowUpDate, setNextFollowUpDate] = useState('');
+
   useEffect(() => {
     fetchData();
   }, [dealId]);
 
   const fetchData = async () => {
     try {
-      const [dealData, usersData, branchesData] = await Promise.all([
+      const [dealData, branchesData] = await Promise.all([
         getSalesDeal(dealId),
-        getUsers(),
         getBranches(),
       ]);
 
@@ -92,7 +102,6 @@ function SalesDealDetailContent() {
       }
 
       setDeal(dealData);
-      setUsers(usersData);
       setBranches(branchesData);
 
       // 営業先情報を取得
@@ -175,6 +184,51 @@ function SalesDealDetailContent() {
       targetBranchId: branchId,
       targetBranchName: selectedBranch?.name || '',
     });
+  };
+
+  const handleFollowUp = async () => {
+    if (!deal || !user) return;
+
+    setSaving(true);
+    try {
+      const currentCount = deal.followUpCount || 0;
+      const newCount = currentCount + 1;
+      const today = new Date().toISOString().split('T')[0];
+
+      const newHistory = [
+        ...(deal.followUpHistory || []),
+        {
+          count: newCount,
+          date: today,
+          note: followUpNote || undefined,
+          result: followUpResult,
+        },
+      ];
+
+      await updateSalesDeal(deal.id, {
+        followUpCount: newCount,
+        lastFollowUpDate: today,
+        nextFollowUpDate: nextFollowUpDate || undefined,
+        followUpHistory: newHistory,
+      });
+
+      await fetchData();
+      setShowFollowUpModal(false);
+      setFollowUpNote('');
+      setFollowUpResult('継続');
+      setNextFollowUpDate('');
+    } catch (err) {
+      console.error('Failed to record follow-up:', err);
+      alert('フォローアップの記録に失敗しました');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getFollowUpLabel = (count: number) => {
+    if (count === 0) return '未着手';
+    if (count === 1) return '初回';
+    return `${count}回目`;
   };
 
   if (loading) {
@@ -501,6 +555,97 @@ function SalesDealDetailContent() {
             </CardContent>
           </Card>
 
+          {/* フォローアップ管理 */}
+          <Card className="mb-4 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <CardContent>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-gray-900 flex items-center">
+                  <PhoneCall className="w-4 h-4 mr-2 text-blue-600" />
+                  フォローアップ管理
+                </h2>
+                <Button size="sm" onClick={() => setShowFollowUpModal(true)}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  記録する
+                </Button>
+              </div>
+
+              {/* 現在のステータス */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="bg-white rounded-lg p-3 text-center shadow-sm">
+                  <p className="text-xs text-gray-500 mb-1">アプローチ回数</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {deal.followUpCount || 0}回
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {getFollowUpLabel(deal.followUpCount || 0)}
+                  </p>
+                </div>
+                <div className="bg-white rounded-lg p-3 text-center shadow-sm">
+                  <p className="text-xs text-gray-500 mb-1">最終アプローチ</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {deal.lastFollowUpDate || '未実施'}
+                  </p>
+                </div>
+                <div className="bg-white rounded-lg p-3 text-center shadow-sm">
+                  <p className="text-xs text-gray-500 mb-1">次回予定</p>
+                  <p className={`text-sm font-medium ${
+                    deal.nextFollowUpDate && new Date(deal.nextFollowUpDate) <= new Date()
+                      ? 'text-red-600'
+                      : 'text-gray-900'
+                  }`}>
+                    {deal.nextFollowUpDate || '未設定'}
+                  </p>
+                </div>
+              </div>
+
+              {/* 流入元 */}
+              {deal.source && (
+                <div className="bg-white rounded-lg p-3 mb-4 shadow-sm">
+                  <p className="text-xs text-gray-500 mb-1">流入元</p>
+                  <Badge className={deal.source === 'テレアポ' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}>
+                    {deal.source}
+                  </Badge>
+                </div>
+              )}
+
+              {/* フォローアップ履歴 */}
+              {deal.followUpHistory && deal.followUpHistory.length > 0 && (
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <p className="text-xs text-gray-500 mb-2 flex items-center">
+                    <History className="w-3 h-3 mr-1" />
+                    アプローチ履歴
+                  </p>
+                  <div className="space-y-2">
+                    {deal.followUpHistory
+                      .slice()
+                      .reverse()
+                      .map((entry, index) => (
+                        <div key={index} className="flex items-start gap-2 text-sm border-l-2 border-blue-300 pl-2">
+                          <Badge className={`text-xs ${
+                            entry.result === '成約' ? 'bg-green-100 text-green-700' :
+                            entry.result === '失注' ? 'bg-red-100 text-red-700' :
+                            entry.result === '保留' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-blue-100 text-blue-700'
+                          }`}>
+                            {entry.count}回目
+                          </Badge>
+                          <div className="flex-1">
+                            <span className="text-gray-500 text-xs">{entry.date}</span>
+                            {entry.result && (
+                              <span className="ml-2 text-xs text-gray-600">({entry.result})</span>
+                            )}
+                            {entry.note && (
+                              <p className="text-gray-600 text-xs mt-0.5">{entry.note}</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* メモ */}
           <Card className="mb-4">
             <CardContent>
@@ -556,6 +701,84 @@ function SalesDealDetailContent() {
           </Card>
         </div>
       </main>
+
+      {/* フォローアップ記録モーダル */}
+      {showFollowUpModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="font-semibold text-lg flex items-center">
+                <PhoneCall className="w-5 h-5 mr-2 text-blue-600" />
+                フォローアップ記録
+              </h2>
+              <button
+                onClick={() => setShowFollowUpModal(false)}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div className="text-center p-3 bg-blue-50 rounded-lg">
+                <p className="text-sm text-gray-600">現在のアプローチ回数</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {deal.followUpCount || 0}回
+                </p>
+                <p className="text-sm text-gray-500">
+                  → 次は<span className="font-bold text-blue-700">{(deal.followUpCount || 0) + 1}回目</span>として記録
+                </p>
+              </div>
+
+              <Select
+                label="結果"
+                value={followUpResult}
+                onChange={(e) => setFollowUpResult(e.target.value as '継続' | '成約' | '保留' | '失注')}
+                options={[
+                  { value: '継続', label: '継続（次回フォローアップ予定）' },
+                  { value: '成約', label: '成約' },
+                  { value: '保留', label: '保留' },
+                  { value: '失注', label: '失注' },
+                ]}
+              />
+
+              {followUpResult === '継続' && (
+                <Input
+                  label="次回フォローアップ予定日"
+                  type="date"
+                  value={nextFollowUpDate}
+                  onChange={(e) => setNextFollowUpDate(e.target.value)}
+                />
+              )}
+
+              <Textarea
+                label="メモ（任意）"
+                value={followUpNote}
+                onChange={(e) => setFollowUpNote(e.target.value)}
+                placeholder="アプローチの内容や先方の反応など"
+                rows={3}
+              />
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFollowUpModal(false)}
+                  className="flex-1"
+                >
+                  キャンセル
+                </Button>
+                <Button
+                  onClick={handleFollowUp}
+                  loading={saving}
+                  className="flex-1"
+                >
+                  記録する
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ステータス変更モーダル */}
       {showStatusModal && (

@@ -75,10 +75,35 @@ function SalesDashboardContent() {
 
   const activeDeals = deals.filter((d) => !['請求書到着', '失注'].includes(d.status));
   const completedDeals = deals.filter((d) => d.status === '請求書到着');
+  const lostDeals = deals.filter((d) => d.status === '失注');
   const myDeals = deals.filter((d) => d.assignedToId === user?.id);
+
+  // CV率計算（流入元別）
+  const teleapoDeals = deals.filter((d) => d.source === 'テレアポ');
+  const teleapoCompleted = teleapoDeals.filter((d) => d.status === '請求書到着');
+  const teleapoCvRate = teleapoDeals.length > 0
+    ? Math.round((teleapoCompleted.length / teleapoDeals.length) * 100)
+    : 0;
+
+  const shiryouDeals = deals.filter((d) => d.source === '資料送付');
+  const shiryouCompleted = shiryouDeals.filter((d) => d.status === '請求書到着');
+  const shiryouCvRate = shiryouDeals.length > 0
+    ? Math.round((shiryouCompleted.length / shiryouDeals.length) * 100)
+    : 0;
+
+  // 全体CV率
+  const totalCvRate = deals.length > 0
+    ? Math.round((completedDeals.length / (completedDeals.length + lostDeals.length || 1)) * 100)
+    : 0;
 
   // 停滞案件（7日以上更新なし）
   const now = new Date();
+
+  // フォローアップ必要な案件（次回フォローアップ日が過ぎている or 未設定）
+  const needsFollowUp = activeDeals.filter((deal) => {
+    if (!deal.nextFollowUpDate) return true;
+    return new Date(deal.nextFollowUpDate) <= now;
+  });
   const staleDeals = activeDeals.filter((deal) => {
     const lastActivity = deal.updatedAt || deal.createdAt;
     const daysSince = Math.floor((now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60 * 24));
@@ -179,6 +204,56 @@ function SalesDashboardContent() {
               </CardContent>
             </Card>
           </div>
+
+          {/* CV率（成約率）- 電話の大事さを強調 */}
+          <Card className="mb-6 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <CardContent>
+              <h2 className="font-semibold text-gray-900 mb-4 flex items-center">
+                <Phone className="w-5 h-5 mr-2 text-blue-600" />
+                成約率（CV率）- 流入元別
+              </h2>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-white rounded-xl shadow-sm border-2 border-blue-200">
+                  <div className="flex items-center justify-center mb-2">
+                    <Phone className="w-6 h-6 text-blue-600 mr-2" />
+                    <span className="text-sm font-medium text-gray-700">テレアポ</span>
+                  </div>
+                  <p className="text-3xl font-bold text-blue-600">{teleapoCvRate}%</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {teleapoCompleted.length} / {teleapoDeals.length} 件
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-white rounded-xl shadow-sm">
+                  <div className="flex items-center justify-center mb-2">
+                    <FileText className="w-6 h-6 text-gray-500 mr-2" />
+                    <span className="text-sm font-medium text-gray-700">資料送付</span>
+                  </div>
+                  <p className="text-3xl font-bold text-gray-600">{shiryouCvRate}%</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {shiryouCompleted.length} / {shiryouDeals.length} 件
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-white rounded-xl shadow-sm">
+                  <div className="flex items-center justify-center mb-2">
+                    <TrendingUp className="w-6 h-6 text-green-500 mr-2" />
+                    <span className="text-sm font-medium text-gray-700">全体</span>
+                  </div>
+                  <p className="text-3xl font-bold text-green-600">{totalCvRate}%</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {completedDeals.length} 件成約
+                  </p>
+                </div>
+              </div>
+              {teleapoCvRate > shiryouCvRate && teleapoDeals.length >= 3 && (
+                <div className="mt-4 p-3 bg-blue-100 rounded-lg">
+                  <p className="text-sm text-blue-800 font-medium flex items-center">
+                    <Phone className="w-4 h-4 mr-2" />
+                    テレアポは資料送付より成約率が{teleapoCvRate - shiryouCvRate}%高い！電話でのアプローチを強化しましょう。
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* パイプライン */}
           <Card className="mb-6">

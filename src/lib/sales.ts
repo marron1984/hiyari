@@ -230,7 +230,20 @@ export async function createSalesDeal(
 // 案件更新
 export async function updateSalesDeal(
   dealId: string,
-  data: Partial<SalesDealFormData & { actualMoveInDate?: string; invoiceDate?: string; invoiceAmount?: number }>
+  data: Partial<SalesDealFormData & {
+    actualMoveInDate?: string;
+    invoiceDate?: string;
+    invoiceAmount?: number;
+    followUpCount?: number;
+    lastFollowUpDate?: string;
+    nextFollowUpDate?: string;
+    followUpHistory?: {
+      count: number;
+      date: string;
+      note?: string;
+      result?: '継続' | '成約' | '保留' | '失注';
+    }[];
+  }>
 ): Promise<void> {
   const firestore = ensureDb();
   const docRef = doc(firestore, 'salesDeals', dealId);
