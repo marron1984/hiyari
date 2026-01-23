@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain } from 'lucide-react';
+import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
@@ -43,6 +43,7 @@ export function Header() {
     { href: '/attendance', label: '打刻', icon: Clock },
     { href: '/dashboard/vacancy', label: '空室', icon: Building2 },
     { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus },
+    { href: '/sales', label: '営業', icon: Briefcase },
     { href: '/ringi', label: '稟議', icon: ClipboardList },
     { href: '/improvements', label: '改善', icon: Lightbulb },
     { href: '/rankings', label: 'ランク', icon: Trophy },
