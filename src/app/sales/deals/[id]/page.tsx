@@ -15,7 +15,7 @@ import {
   updateDealStatus,
   deleteSalesDeal,
 } from '@/lib/sales';
-import { getUsers, getBranches } from '@/lib/firestore';
+import { getBranches } from '@/lib/firestore';
 import {
   SalesDeal,
   SalesAccount,
@@ -25,8 +25,9 @@ import {
   SALES_DEAL_STATUS_ORDER,
   CARE_LEVELS,
   CareLevel,
+  SALES_ASSIGNEES,
 } from '@/types/sales';
-import { User, Branch } from '@/types';
+import { Branch } from '@/types';
 import {
   ArrowLeft,
   Building2,
@@ -59,7 +60,6 @@ function SalesDealDetailContent() {
 
   const [deal, setDeal] = useState<SalesDeal | null>(null);
   const [account, setAccount] = useState<SalesAccount | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,9 +80,8 @@ function SalesDealDetailContent() {
 
   const fetchData = async () => {
     try {
-      const [dealData, usersData, branchesData] = await Promise.all([
+      const [dealData, branchesData] = await Promise.all([
         getSalesDeal(dealId),
-        getUsers(),
         getBranches(),
       ]);
 
@@ -92,7 +91,6 @@ function SalesDealDetailContent() {
       }
 
       setDeal(dealData);
-      setUsers(usersData);
       setBranches(branchesData);
 
       // 営業先情報を取得

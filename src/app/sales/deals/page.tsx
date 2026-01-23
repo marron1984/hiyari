@@ -14,7 +14,7 @@ import {
   createSalesDeal,
   updateDealStatus,
 } from '@/lib/sales';
-import { getUsers, getBranches } from '@/lib/firestore';
+import { getBranches } from '@/lib/firestore';
 import {
   SalesDeal,
   SalesDealFormData,
@@ -24,8 +24,9 @@ import {
   SALES_DEAL_STATUS_CONFIG,
   CARE_LEVELS,
   CareLevel,
+  SALES_ASSIGNEES,
 } from '@/types/sales';
-import { User, Branch } from '@/types';
+import { Branch } from '@/types';
 import {
   ArrowLeft,
   Plus,
@@ -54,9 +55,9 @@ function SalesDealsContent() {
 
   const [deals, setDeals] = useState<SalesDeal[]>([]);
   const [accounts, setAccounts] = useState<SalesAccount[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [customAssignee, setCustomAssignee] = useState('');
 
   // フィルター
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,15 +79,13 @@ function SalesDealsContent() {
 
   const fetchData = async () => {
     try {
-      const [dealsData, accountsData, usersData, branchesData] = await Promise.all([
+      const [dealsData, accountsData, branchesData] = await Promise.all([
         getSalesDeals(),
         getSalesAccounts(),
-        getUsers(),
         getBranches(),
       ]);
       setDeals(dealsData);
       setAccounts(accountsData);
-      setUsers(usersData);
       setBranches(branchesData);
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -99,9 +98,10 @@ function SalesDealsContent() {
     setFormData({
       accountId: '',
       status: 'テレアポ',
-      assignedToId: user?.id,
-      assignedToName: user?.name,
+      assignedToId: '',
+      assignedToName: '',
     });
+    setCustomAssignee('');
     setShowModal(true);
   };
 
@@ -122,13 +122,31 @@ function SalesDealsContent() {
     }
   };
 
-  const handleAssigneeChange = (userId: string) => {
-    const selectedUser = users.find((u) => u.id === userId);
-    setFormData({
-      ...formData,
-      assignedToId: userId,
-      assignedToName: selectedUser?.name || '',
-    });
+  const handleAssigneeChange = (value: string) => {
+    if (value === 'その他') {
+      setFormData({
+        ...formData,
+        assignedToId: 'その他',
+        assignedToName: customAssignee,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        assignedToId: value,
+        assignedToName: value,
+      });
+      setCustomAssignee('');
+    }
+  };
+
+  const handleCustomAssigneeChange = (value: string) => {
+    setCustomAssignee(value);
+    if (formData.assignedToId === 'その他') {
+      setFormData({
+        ...formData,
+        assignedToName: value,
+      });
+    }
   };
 
   const handleBranchChange = (branchId: string) => {
@@ -209,7 +227,7 @@ function SalesDealsContent() {
                   onChange={(e) => setFilterAssignee(e.target.value)}
                   options={[
                     { value: '', label: 'すべての担当者' },
-                    ...users.map((u) => ({ value: u.id, label: u.name })),
+                    ...SALES_ASSIGNEES.map((name) => ({ value: name, label: name })),
                   ]}
                   className="w-36"
                 />
@@ -338,9 +356,19 @@ function SalesDealsContent() {
                 onChange={(e) => handleAssigneeChange(e.target.value)}
                 options={[
                   { value: '', label: '未割当' },
-                  ...users.map((u) => ({ value: u.id, label: u.name })),
+                  ...SALES_ASSIGNEES.map((name) => ({ value: name, label: name })),
+                  { value: 'その他', label: 'その他（自由記述）' },
                 ]}
               />
+              {formData.assignedToId === 'その他' && (
+                <Input
+                  label="担当者名（自由記述）"
+                  value={customAssignee}
+                  onChange={(e) => handleCustomAssigneeChange(e.target.value)}
+                  placeholder="担当者名を入力"
+                  className="mt-3"
+                />
+              )}
 
               <div className="border-t pt-4">
                 <h3 className="font-medium text-sm text-gray-700 mb-3">入居者情報（任意）</h3>

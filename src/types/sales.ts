@@ -1,5 +1,17 @@
 // ======== 営業進捗管理システムの型定義 ========
 
+// 営業担当者（固定メンバー）
+export const SALES_ASSIGNEES = [
+  '吉田',
+  '藤原',
+  '生田',
+  '力久',
+  '鳥羽',
+  '福岡',
+] as const;
+
+export type SalesAssignee = typeof SALES_ASSIGNEES[number] | 'その他';
+
 // 営業先タイプ
 export type SalesAccountType = 'MSW' | '仲介会社' | 'ケアマネ' | 'その他';
 
