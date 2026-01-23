@@ -11,7 +11,7 @@ import {
   getBranches,
 } from '@/lib/firestore';
 import { getSalesDeals, getSalesAccounts } from '@/lib/sales';
-import { SalesDeal, SalesAccount, SALES_DEAL_STATUS_CONFIG } from '@/types/sales';
+import { SalesDeal, SalesAccount } from '@/types/sales';
 import { getFacilitiesWithVacancy } from '@/lib/vacancy';
 import { getActiveInsights, archiveInsight } from '@/lib/insight';
 import { FacilityWithVacancy, DailyInsight, INSIGHT_PRIORITY_CONFIG } from '@/types';
@@ -86,8 +86,8 @@ function DashboardContent() {
           getMonthlyUserStats(DEFAULT_TENANT_ID, currentMonthKey),
           getFacilitiesWithVacancy(user.tenantId),
           getActiveInsights(user.tenantId),
-          getSalesDeals(user.tenantId),
-          getSalesAccounts(user.tenantId),
+          getSalesDeals(DEFAULT_TENANT_ID),
+          getSalesAccounts(DEFAULT_TENANT_ID),
         ]);
 
         setFacilities(facilitiesData);
