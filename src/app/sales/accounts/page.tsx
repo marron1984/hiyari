@@ -13,14 +13,13 @@ import {
   updateSalesAccount,
   deleteSalesAccount,
 } from '@/lib/sales';
-import { getUsers } from '@/lib/firestore';
 import {
   SalesAccount,
   SalesAccountFormData,
   SalesAccountType,
   SALES_ACCOUNT_TYPES,
+  SALES_ASSIGNEES,
 } from '@/types/sales';
-import { User } from '@/types';
 import {
   ArrowLeft,
   Building2,
@@ -47,7 +46,6 @@ export default function SalesAccountsPage() {
 function SalesAccountsContent() {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<SalesAccount[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<SalesAccountType | ''>('');
@@ -60,6 +58,7 @@ function SalesAccountsContent() {
     name: '',
     type: 'MSW',
   });
+  const [customAssignee, setCustomAssignee] = useState(''); // その他の場合の自由記述
 
   useEffect(() => {
     fetchData();
@@ -67,12 +66,8 @@ function SalesAccountsContent() {
 
   const fetchData = async () => {
     try {
-      const [accountsData, usersData] = await Promise.all([
-        getSalesAccounts(),
-        getUsers(),
-      ]);
+      const accountsData = await getSalesAccounts();
       setAccounts(accountsData);
-      setUsers(usersData);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
@@ -91,15 +86,19 @@ function SalesAccountsContent() {
       contactPerson: '',
       contactPhone: '',
       contactEmail: '',
-      assignedToId: user?.id,
-      assignedToName: user?.name,
+      assignedToId: '',
+      assignedToName: '',
       notes: '',
     });
+    setCustomAssignee('');
     setShowModal(true);
   };
 
   const openEditModal = (account: SalesAccount) => {
     setEditingAccount(account);
+    const assigneeName = account.assignedToName || '';
+    const isFixedAssignee = SALES_ASSIGNEES.includes(assigneeName as typeof SALES_ASSIGNEES[number]);
+
     setFormData({
       name: account.name,
       type: account.type,
@@ -109,10 +108,11 @@ function SalesAccountsContent() {
       contactPerson: account.contactPerson || '',
       contactPhone: account.contactPhone || '',
       contactEmail: account.contactEmail || '',
-      assignedToId: account.assignedToId || '',
-      assignedToName: account.assignedToName || '',
+      assignedToId: isFixedAssignee ? assigneeName : (assigneeName ? 'その他' : ''),
+      assignedToName: assigneeName,
       notes: account.notes || '',
     });
+    setCustomAssignee(isFixedAssignee ? '' : assigneeName);
     setShowModal(true);
   };
 
@@ -149,13 +149,31 @@ function SalesAccountsContent() {
     }
   };
 
-  const handleAssigneeChange = (userId: string) => {
-    const selectedUser = users.find((u) => u.id === userId);
-    setFormData({
-      ...formData,
-      assignedToId: userId,
-      assignedToName: selectedUser?.name || '',
-    });
+  const handleAssigneeChange = (value: string) => {
+    if (value === 'その他') {
+      setFormData({
+        ...formData,
+        assignedToId: 'その他',
+        assignedToName: customAssignee,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        assignedToId: value,
+        assignedToName: value,
+      });
+      setCustomAssignee('');
+    }
+  };
+
+  const handleCustomAssigneeChange = (value: string) => {
+    setCustomAssignee(value);
+    if (formData.assignedToId === 'その他') {
+      setFormData({
+        ...formData,
+        assignedToName: value,
+      });
+    }
   };
 
   // フィルタリング
@@ -395,9 +413,19 @@ function SalesAccountsContent() {
                   onChange={(e) => handleAssigneeChange(e.target.value)}
                   options={[
                     { value: '', label: '未割当' },
-                    ...users.map((u) => ({ value: u.id, label: u.name })),
+                    ...SALES_ASSIGNEES.map((name) => ({ value: name, label: name })),
+                    { value: 'その他', label: 'その他（自由記述）' },
                   ]}
                 />
+                {formData.assignedToId === 'その他' && (
+                  <Input
+                    label="担当者名（自由記述）"
+                    value={customAssignee}
+                    onChange={(e) => handleCustomAssigneeChange(e.target.value)}
+                    placeholder="担当者名を入力"
+                    className="mt-3"
+                  />
+                )}
               </div>
 
               <div className="flex gap-3 pt-4">
