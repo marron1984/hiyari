@@ -221,6 +221,20 @@ export interface SalesDeal {
   // prospectとの連携（オプション）
   prospectId?: string;             // 連携するprospect ID
 
+  // 流入元（CV率計算用）
+  source?: 'テレアポ' | '資料送付' | 'その他';
+
+  // フォローアップ管理
+  followUpCount?: number;          // フォローアップ回数（1=初回、2=2回目...）
+  lastFollowUpDate?: string;       // 最終フォローアップ日
+  nextFollowUpDate?: string;       // 次回フォローアップ予定日
+  followUpHistory?: {              // フォローアップ履歴
+    count: number;
+    date: string;
+    note?: string;
+    result?: '継続' | '成約' | '保留' | '失注';
+  }[];
+
   // メタ
   createdAt: Date;
   updatedAt?: Date;
@@ -244,7 +258,13 @@ export interface SalesDealFormData {
   targetBranchName?: string;
   expectedMoveInDate?: string;
   notes?: string;
+  source?: 'テレアポ' | '資料送付' | 'その他';
+  nextFollowUpDate?: string;
 }
+
+// 流入元タイプ
+export type DealSource = 'テレアポ' | '資料送付' | 'その他';
+export const DEAL_SOURCES: DealSource[] = ['テレアポ', '資料送付', 'その他'];
 
 // ======== 集計・レポート用 ========
 

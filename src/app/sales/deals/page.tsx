@@ -25,6 +25,8 @@ import {
   CARE_LEVELS,
   CareLevel,
   SALES_ASSIGNEES,
+  DEAL_SOURCES,
+  DealSource,
 } from '@/types/sales';
 import { Branch } from '@/types';
 import {
@@ -348,6 +350,16 @@ function SalesDealsContent() {
                 onChange={(e) => setFormData({ ...formData, status: e.target.value as SalesDealStatus })}
                 options={SALES_DEAL_STATUSES.map((s) => ({ value: s, label: s }))}
                 required
+              />
+
+              <Select
+                label="流入元"
+                value={formData.source || ''}
+                onChange={(e) => setFormData({ ...formData, source: e.target.value as DealSource || undefined })}
+                options={[
+                  { value: '', label: '選択してください' },
+                  ...DEAL_SOURCES.map((s) => ({ value: s, label: s })),
+                ]}
               />
 
               <Select
