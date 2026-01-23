@@ -26,6 +26,7 @@ import {
   Shield,
   FileText,
   Image as ImageIcon,
+  Pencil,
 } from 'lucide-react';
 
 export default function IncidentDetailPage() {
@@ -328,6 +329,16 @@ function IncidentDetailContent() {
             >
               ダッシュボードへ
             </Button>
+            {incident.userId === user?.id && (
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/incident/${incidentId}/edit`)}
+                className="flex-1"
+              >
+                <Pencil className="w-4 h-4 mr-1" />
+                編集
+              </Button>
+            )}
             <Button
               onClick={() => router.push('/submit')}
               className="flex-1"
