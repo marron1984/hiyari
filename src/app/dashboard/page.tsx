@@ -90,6 +90,22 @@ function DashboardContent() {
           getSalesAccounts(DEFAULT_TENANT_ID),
         ]);
 
+        // デバッグログ
+        console.log('Dashboard Data:', {
+          userId: user.id,
+          tenantId: DEFAULT_TENANT_ID,
+          userTenantId: user.tenantId,
+          monthKey: currentMonthKey,
+          myIncidents: incidentsData.length,
+          allIncidents: allIncidentsData.length,
+          branches: branchesData.length,
+          userStats: allUserStats.length,
+          facilities: facilitiesData.length,
+          insights: insightsData.length,
+          deals: dealsData.length,
+          accounts: accountsData.length,
+        });
+
         setFacilities(facilitiesData);
         setInsights(insightsData);
         setSalesDeals(dealsData);
