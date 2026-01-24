@@ -74,13 +74,12 @@ jobs:
       - name: Run unit tests
         run: |
           if [ "${{ steps.detect-pm.outputs.manager }}" = "pnpm" ]; then
-            pnpm test --passWithNoTests || true
+            pnpm test
           elif [ "${{ steps.detect-pm.outputs.manager }}" = "yarn" ]; then
-            yarn test --passWithNoTests || true
+            yarn test
           else
-            npm test -- --passWithNoTests || true
+            npm test
           fi
-        continue-on-error: true
 
       - name: Build
         run: |

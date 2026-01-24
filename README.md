@@ -300,6 +300,35 @@ monthlyStats/{tenantId}/{yyyyMM}/branches/{branchId}
 
 MIT License
 
+## AA CHAOS 経営OS・営業OS
+
+### 概要
+
+AA CHAOSは経営OS（組織コンディション管理）と営業OS（パイプライン・入居確率管理）を統合したシステムです。
+
+### 主要機能
+
+| 機能 | パス | 説明 |
+|------|------|------|
+| 経営OS ダッシュボード | `/dashboard/os` | 組織全体のコンディション可視化 |
+| チェックイン | `/dashboard/os/checkin` | 日次コンディション入力 |
+| チーム一覧 | `/dashboard/os/team` | チームメンバーのコンディション一覧 |
+
+### 権限レベル
+
+| レベル | 閲覧範囲 | 対象ロール |
+|--------|----------|-----------|
+| self | 自分のみ | staff |
+| team | 配下メンバー | leader |
+| all | 全社 | admin, exec |
+
+### 支援目的について
+
+このシステムは「監視」ではなく「支援」を目的としています。
+- アラートは罰則ではなく、支援のトリガー
+- 1on1は評価や指導ではなく、安全装置
+- 表示される情報は個人評価には直結しません
+
 ## 開発者向け情報
 
 ```bash
@@ -311,7 +340,31 @@ npm run build
 
 # リント
 npm run lint
+
+# Unit test
+npm test
+
+# Unit test（カバレッジ付き）
+npm run test:coverage
+
+# E2E test
+npx playwright test
+
+# シードデータ投入
+npm run seed:chaos
 ```
+
+### CI/CD
+
+- **ci.yml**: lint, typecheck, unit test, build を実行
+- **e2e.yml**: Playwright E2Eテストを実行
+
+### テスト構成
+
+| 種類 | ディレクトリ | 説明 |
+|------|-------------|------|
+| Unit | `__tests__/` | スコア計算、バリデーション |
+| E2E | `e2e/` | ページ存在確認、API確認 |
 
 ### ディレクトリ構造
 
