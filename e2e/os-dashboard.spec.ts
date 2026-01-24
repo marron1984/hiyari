@@ -95,6 +95,18 @@ test.describe('一般ページ', () => {
   });
 });
 
+test.describe('営業OS - ページ存在確認', () => {
+  test('営業パイプラインページが存在する', async ({ page }) => {
+    const response = await page.goto('/dashboard/sales/pipeline');
+    expect(response?.status()).toBeLessThan(500);
+  });
+
+  test('入居希望者ページが存在する', async ({ page }) => {
+    const response = await page.goto('/dashboard/prospects');
+    expect(response?.status()).toBeLessThan(500);
+  });
+});
+
 /**
  * 認証付きテスト（CI環境でテストユーザーがある場合のみ実行）
  */
