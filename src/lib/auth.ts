@@ -82,6 +82,64 @@ export const ASSIGNABLE_ROLES: { value: UserRole; label: string }[] = [
   { value: 'admin', label: '管理者' },
 ];
 
+// ======== CHAOS 経営OS 権限 ========
+
+/**
+ * CHAOS exec権限者のメールアドレス（全社データ閲覧可能）
+ */
+export const CHAOS_EXEC_EMAILS = [
+  'yoshida@aska-g.com',
+];
+
+/**
+ * CHAOSデータの閲覧権限レベル
+ */
+export type ChaosViewLevel = 'self' | 'team' | 'all';
+
+/**
+ * CHAOSデータの閲覧権限を判定
+ * - staff: 自分のみ (self)
+ * - leader/manager: 配下のみ (team)
+ * - admin/system_admin または exec指定者: 全社 (all)
+ */
+export function getChaosViewLevel(
+  userRole: UserRole | undefined,
+  userEmail?: string
+): ChaosViewLevel {
+  // exec権限者は全社
+  if (userEmail && CHAOS_EXEC_EMAILS.includes(userEmail)) {
+    return 'all';
+  }
+
+  // admin以上は全社
+  if (hasMinRole(userRole, 'admin')) {
+    return 'all';
+  }
+
+  // leaderは配下
+  if (userRole === 'leader') {
+    return 'team';
+  }
+
+  // それ以外は自分のみ
+  return 'self';
+}
+
+/**
+ * CHAOS全社データを閲覧可能か
+ */
+export function canViewAllChaosData(userRole: UserRole | undefined, userEmail?: string): boolean {
+  return getChaosViewLevel(userRole, userEmail) === 'all';
+}
+
+/**
+ * CHAOSチームデータを閲覧可能か
+ */
+export function canViewTeamChaosData(userRole: UserRole | undefined, userEmail?: string): boolean {
+  const level = getChaosViewLevel(userRole, userEmail);
+  return level === 'team' || level === 'all';
+}
+
 // ======== AI副社長 専用権限 ========
 
 /**

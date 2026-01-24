@@ -11,6 +11,7 @@ import { PreviewBadge } from '@/components/PreviewBadge';
 import { getChaosDashboardMetrics, getInterventions } from '@/lib/chaos';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { Intervention } from '@/types/chaos';
+import { getChaosViewLevel, canViewTeamChaosData, ChaosViewLevel } from '@/lib/auth';
 import {
   ArrowLeft,
   Users,
@@ -53,9 +54,20 @@ function OSTeamContent() {
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [filter, setFilter] = useState<'all' | 'alert'>('all');
 
+  // 権限レベルを取得
+  const viewLevel: ChaosViewLevel = user ? getChaosViewLevel(user.role, user.email) : 'self';
+  const canViewTeam = user ? canViewTeamChaosData(user.role, user.email) : false;
+
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
+
+      // 権限チェック
+      if (!canViewTeamChaosData(user.role, user.email)) {
+        setTeamData([]);
+        setLoading(false);
+        return;
+      }
 
       try {
         const [chaosData, interventionsData] = await Promise.all([
@@ -72,6 +84,7 @@ function OSTeamContent() {
             trend: 'stable' as const,
           })));
         } else {
+          // ダミーデータを権限に応じて表示
           setTeamData(DUMMY_TEAM_DATA);
         }
 
@@ -121,7 +134,9 @@ function OSTeamContent() {
                 チームコンディション
               </h1>
               <p className="text-sm text-gray-500">
-                {isLeaderOrAbove ? '配下メンバーの状態一覧' : '自分の状態のみ表示'}
+                {viewLevel === 'all' ? '全社メンバーの状態一覧' :
+                 viewLevel === 'team' ? '配下メンバーの状態一覧' :
+                 '自分の状態のみ表示'}
               </p>
             </div>
           </div>
@@ -142,7 +157,25 @@ function OSTeamContent() {
             </CardContent>
           </Card>
 
-          {/* サマリー */}
+          {/* 権限がない場合のメッセージ */}
+          {!canViewTeam && (
+            <Card className="mb-6">
+              <CardContent className="p-8 text-center">
+                <Shield className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-600 font-medium">チームデータの閲覧権限がありません</p>
+                <p className="text-sm text-gray-500 mt-2">
+                  チームのコンディションを確認するには、リーダー以上の権限が必要です。
+                </p>
+                <Link href="/dashboard/os/checkin" className="mt-4 inline-block">
+                  <Button size="sm">自分のチェックインへ</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* サマリー（権限がある場合のみ表示） */}
+          {canViewTeam && (
+            <>
           <div className="grid grid-cols-3 gap-4 mb-6">
             <Card className="p-4">
               <div className="flex items-center justify-between">
@@ -312,10 +345,12 @@ function OSTeamContent() {
               </CardContent>
             </Card>
           )}
+          </>
+          )}
 
-          {/* ダミーデータ注意 */}
+          {/* 権限レベル表示 */}
           <p className="text-xs text-gray-400 text-center mt-6">
-            ※ 現在はダミーデータを表示しています。実データはPR2以降で接続されます。
+            閲覧権限: {viewLevel === 'all' ? '全社' : viewLevel === 'team' ? 'チーム' : '自分のみ'}
           </p>
         </div>
       </main>
