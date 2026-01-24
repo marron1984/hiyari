@@ -10,6 +10,8 @@ import {
   getMonthlyUserStats,
   getBranches,
 } from '@/lib/firestore';
+import { getSalesDeals, getSalesAccounts } from '@/lib/sales';
+import { SalesDeal, SalesAccount } from '@/types/sales';
 import { getFacilitiesWithVacancy } from '@/lib/vacancy';
 import { getActiveInsights, archiveInsight } from '@/lib/insight';
 import { FacilityWithVacancy, DailyInsight, INSIGHT_PRIORITY_CONFIG } from '@/types';
@@ -36,6 +38,9 @@ import {
   AlertTriangle,
   Megaphone,
   X,
+  Phone,
+  Briefcase,
+  Target,
 } from 'lucide-react';
 
 const COLORS = [
@@ -64,6 +69,8 @@ function DashboardContent() {
   const [monthlyData, setMonthlyData] = useState<{ month: string; count: number; points: number }[]>([]);
   const [facilities, setFacilities] = useState<FacilityWithVacancy[]>([]);
   const [insights, setInsights] = useState<DailyInsight[]>([]);
+  const [salesDeals, setSalesDeals] = useState<SalesDeal[]>([]);
+  const [salesAccounts, setSalesAccounts] = useState<SalesAccount[]>([]);
 
   const currentMonthKey = getMonthKey();
 
@@ -72,17 +79,37 @@ function DashboardContent() {
       if (!user) return;
 
       try {
-        const [incidentsData, allIncidentsData, branchesData, allUserStats, facilitiesData, insightsData] = await Promise.all([
+        const [incidentsData, allIncidentsData, branchesData, allUserStats, facilitiesData, insightsData, dealsData, accountsData] = await Promise.all([
           getIncidentsByUser(user.id, 100),
           getIncidentsByTenant(DEFAULT_TENANT_ID, 50),
           getBranches(),
           getMonthlyUserStats(DEFAULT_TENANT_ID, currentMonthKey),
           getFacilitiesWithVacancy(user.tenantId),
           getActiveInsights(user.tenantId),
+          getSalesDeals(DEFAULT_TENANT_ID),
+          getSalesAccounts(DEFAULT_TENANT_ID),
         ]);
+
+        // デバッグログ
+        console.log('Dashboard Data:', {
+          userId: user.id,
+          tenantId: DEFAULT_TENANT_ID,
+          userTenantId: user.tenantId,
+          monthKey: currentMonthKey,
+          myIncidents: incidentsData.length,
+          allIncidents: allIncidentsData.length,
+          branches: branchesData.length,
+          userStats: allUserStats.length,
+          facilities: facilitiesData.length,
+          insights: insightsData.length,
+          deals: dealsData.length,
+          accounts: accountsData.length,
+        });
 
         setFacilities(facilitiesData);
         setInsights(insightsData);
+        setSalesDeals(dealsData);
+        setSalesAccounts(accountsData);
 
         setMyIncidents(incidentsData);
         setAllIncidents(allIncidentsData);
@@ -190,6 +217,29 @@ function DashboardContent() {
     const rate = Math.round(((capacity - vacant) / capacity) * 100);
     return rate < 70;
   });
+
+  // 営業サマリー計算
+  const activeDeals = salesDeals.filter((d) => !['請求書到着', '失注'].includes(d.status));
+  const completedDeals = salesDeals.filter((d) => d.status === '請求書到着');
+  const lostDeals = salesDeals.filter((d) => d.status === '失注');
+
+  // CV率計算（流入元別）
+  const teleapoDeals = salesDeals.filter((d) => d.source === 'テレアポ');
+  const teleapoCompleted = teleapoDeals.filter((d) => d.status === '請求書到着');
+  const teleapoCvRate = teleapoDeals.length > 0
+    ? Math.round((teleapoCompleted.length / teleapoDeals.length) * 100)
+    : 0;
+
+  const shiryouDeals = salesDeals.filter((d) => d.source === '資料送付');
+  const shiryouCompleted = shiryouDeals.filter((d) => d.status === '請求書到着');
+  const shiryouCvRate = shiryouDeals.length > 0
+    ? Math.round((shiryouCompleted.length / shiryouDeals.length) * 100)
+    : 0;
+
+  // 全体CV率
+  const totalSalesCvRate = salesDeals.length > 0
+    ? Math.round((completedDeals.length / (completedDeals.length + lostDeals.length || 1)) * 100)
+    : 0;
 
   // インサイトを閉じる
   const handleDismissInsight = async (insightId: string) => {
@@ -377,6 +427,88 @@ function DashboardContent() {
               </CardContent>
             </Card>
           )}
+
+          {/* 営業サマリー */}
+          <Card className="mb-6 border-blue-200">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center">
+                <Briefcase className="w-5 h-5 text-blue-600 mr-2" />
+                営業サマリー
+              </CardTitle>
+              <Link href="/sales" className="text-sm text-blue-600 hover:underline flex items-center">
+                詳細 <ArrowRight className="w-4 h-4 ml-1" />
+              </Link>
+            </CardHeader>
+            <CardContent>
+              {/* 基本数値 */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <p className="text-3xl font-bold text-blue-600">{salesAccounts.length}</p>
+                  <p className="text-sm text-gray-600">営業先</p>
+                </div>
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <p className="text-3xl font-bold text-green-600">{activeDeals.length}</p>
+                  <p className="text-sm text-gray-600">進行中案件</p>
+                </div>
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <p className="text-3xl font-bold text-purple-600">{completedDeals.length}</p>
+                  <p className="text-sm text-gray-600">成約</p>
+                </div>
+                <div className="text-center p-4 bg-gray-50 rounded-lg">
+                  <p className="text-3xl font-bold text-gray-600">{totalSalesCvRate}%</p>
+                  <p className="text-sm text-gray-600">全体CV率</p>
+                </div>
+              </div>
+
+              {/* CV率（流入元別）- 電話の大事さを強調 */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <Target className="w-4 h-4 mr-2 text-blue-600" />
+                  CV率（成約率）- 流入元別
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center p-3 bg-white rounded-lg shadow-sm border-2 border-blue-200">
+                    <div className="flex items-center justify-center mb-1">
+                      <Phone className="w-4 h-4 text-blue-600 mr-1" />
+                      <span className="text-xs font-medium text-gray-700">テレアポ</span>
+                    </div>
+                    <p className="text-2xl font-bold text-blue-600">{teleapoCvRate}%</p>
+                    <p className="text-xs text-gray-500">
+                      {teleapoCompleted.length} / {teleapoDeals.length} 件
+                    </p>
+                  </div>
+                  <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                    <div className="flex items-center justify-center mb-1">
+                      <FileText className="w-4 h-4 text-gray-500 mr-1" />
+                      <span className="text-xs font-medium text-gray-700">資料送付</span>
+                    </div>
+                    <p className="text-2xl font-bold text-gray-600">{shiryouCvRate}%</p>
+                    <p className="text-xs text-gray-500">
+                      {shiryouCompleted.length} / {shiryouDeals.length} 件
+                    </p>
+                  </div>
+                  <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                    <div className="flex items-center justify-center mb-1">
+                      <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
+                      <span className="text-xs font-medium text-gray-700">全体</span>
+                    </div>
+                    <p className="text-2xl font-bold text-green-600">{totalSalesCvRate}%</p>
+                    <p className="text-xs text-gray-500">
+                      {completedDeals.length} 件成約
+                    </p>
+                  </div>
+                </div>
+                {teleapoCvRate > shiryouCvRate && teleapoDeals.length >= 3 && (
+                  <div className="mt-3 p-2 bg-blue-100 rounded-lg">
+                    <p className="text-xs text-blue-800 font-medium flex items-center">
+                      <Phone className="w-3 h-3 mr-1" />
+                      テレアポは資料送付より成約率が{teleapoCvRate - shiryouCvRate}%高い！電話でのアプローチを強化しましょう。
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           {/* グラフエリア */}
           <div className="grid md:grid-cols-2 gap-6 mb-6">
