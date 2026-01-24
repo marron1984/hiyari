@@ -26,6 +26,10 @@ import {
   CheckinFormData,
   DEFAULT_BURNOUT_RISK_CONFIG,
   BurnoutRiskConfig,
+  ScoringConfig,
+  ScoringRun,
+  ScoringReason,
+  ProbabilityRank,
 } from '@/types/chaos';
 
 // ヘルパー: dbが初期化されているかチェック
@@ -471,4 +475,222 @@ export async function getChaosDashboardMetrics(
       alertCount: { yellow: yellowCount, red: redCount },
     },
   };
+}
+
+// ======== スコアリング設定 ========
+
+// スコアリング設定保存
+export async function saveScoringConfig(
+  config: Omit<ScoringConfig, 'id' | 'createdAt'>
+): Promise<string> {
+  const firestore = ensureDb();
+
+  // 既存のアクティブ設定を非アクティブ化
+  if (config.isActive) {
+    const existingActive = await getDocs(
+      query(
+        collection(firestore, 'scoreConfigs'),
+        where('name', '==', config.name),
+        where('isActive', '==', true)
+      )
+    );
+    for (const docSnap of existingActive.docs) {
+      await updateDoc(doc(firestore, 'scoreConfigs', docSnap.id), {
+        isActive: false,
+      });
+    }
+  }
+
+  const docRef = await addDoc(collection(firestore, 'scoreConfigs'), {
+    ...config,
+    createdAt: Timestamp.now(),
+  });
+
+  return docRef.id;
+}
+
+// アクティブなスコアリング設定取得
+export async function getActiveScoringConfig(
+  name: string,
+  scopeType: 'company' | 'property' = 'company',
+  scopeId?: string
+): Promise<ScoringConfig | null> {
+  const firestore = ensureDb();
+
+  // まず物件固有の設定を探す
+  if (scopeId) {
+    const propertyConfig = await getDocs(
+      query(
+        collection(firestore, 'scoreConfigs'),
+        where('name', '==', name),
+        where('scopeType', '==', 'property'),
+        where('scopeId', '==', scopeId),
+        where('isActive', '==', true),
+        limit(1)
+      )
+    );
+    if (!propertyConfig.empty) {
+      const docSnap = propertyConfig.docs[0];
+      return {
+        id: docSnap.id,
+        ...docSnap.data(),
+        createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+      } as ScoringConfig;
+    }
+  }
+
+  // 会社全体の設定を探す
+  const companyConfig = await getDocs(
+    query(
+      collection(firestore, 'scoreConfigs'),
+      where('name', '==', name),
+      where('scopeType', '==', 'company'),
+      where('isActive', '==', true),
+      limit(1)
+    )
+  );
+
+  if (companyConfig.empty) return null;
+
+  const docSnap = companyConfig.docs[0];
+  return {
+    id: docSnap.id,
+    ...docSnap.data(),
+    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+  } as ScoringConfig;
+}
+
+// スコアリング設定一覧取得
+export async function getScoringConfigs(
+  name?: string
+): Promise<ScoringConfig[]> {
+  const firestore = ensureDb();
+
+  let q;
+  if (name) {
+    q = query(
+      collection(firestore, 'scoreConfigs'),
+      where('name', '==', name),
+      orderBy('version', 'desc')
+    );
+  } else {
+    q = query(
+      collection(firestore, 'scoreConfigs'),
+      orderBy('createdAt', 'desc')
+    );
+  }
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+  })) as ScoringConfig[];
+}
+
+// ======== スコアリング実行結果 ========
+
+// スコアリング結果保存
+export async function saveScoringRun(
+  run: Omit<ScoringRun, 'id' | 'createdAt'>
+): Promise<string> {
+  const firestore = ensureDb();
+
+  const docRef = await addDoc(collection(firestore, 'scoringRuns'), {
+    ...run,
+    createdAt: Timestamp.now(),
+  });
+
+  return docRef.id;
+}
+
+// ケースの最新スコアリング結果取得
+export async function getLatestScoringRun(
+  caseId: string
+): Promise<ScoringRun | null> {
+  const firestore = ensureDb();
+
+  const q = query(
+    collection(firestore, 'scoringRuns'),
+    where('caseId', '==', caseId),
+    orderBy('createdAt', 'desc'),
+    limit(1)
+  );
+
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+
+  const docSnap = snapshot.docs[0];
+  return {
+    id: docSnap.id,
+    ...docSnap.data(),
+    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+  } as ScoringRun;
+}
+
+// スコアリング結果一覧取得（ダッシュボード用）
+export async function getScoringRuns(
+  limitCount: number = 50
+): Promise<ScoringRun[]> {
+  const firestore = ensureDb();
+
+  const q = query(
+    collection(firestore, 'scoringRuns'),
+    orderBy('createdAt', 'desc'),
+    limit(limitCount)
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+  })) as ScoringRun[];
+}
+
+// ======== スコア算出関数（export for unit tests） ========
+
+// 疲労スコア計算
+export function calculateFatigueScore(physicalFatigue: number, sleep: number): number {
+  // physicalFatigue: 0-4 (高いほど疲労)
+  // sleep: 0-4 (高いほど睡眠良好)
+  const score = Math.round(((physicalFatigue + (4 - sleep)) / 2) * 25);
+  return Math.min(100, Math.max(0, score));
+}
+
+// メンタル負荷スコア計算
+export function calculateMentalLoadScore(
+  mentalFatigue: number,
+  anxiety: number,
+  decisionLoad: number,
+  consulted: number
+): number {
+  // consulted: 0-4 (高いほど相談できた → 低いほど負荷)
+  const score = Math.round(
+    ((mentalFatigue + anxiety + decisionLoad + (4 - consulted)) / 4) * 25
+  );
+  return Math.min(100, Math.max(0, score));
+}
+
+// バーンアウトリスクスコア計算
+export function calculateBurnoutRiskScore(
+  fatigueScore: number,
+  mentalLoadScore: number
+): number {
+  // 疲労40%、メンタル負荷60%の加重平均
+  const score = Math.round(fatigueScore * 0.4 + mentalLoadScore * 0.6);
+  return Math.min(100, Math.max(0, score));
+}
+
+// 直近7日の移動平均計算
+export function calculateMovingAverage(scores: number[], days: number = 7): number {
+  if (scores.length === 0) return 0;
+  const targetScores = scores.slice(0, days);
+  return Math.round(targetScores.reduce((sum, s) => sum + s, 0) / targetScores.length);
+}
+
+// 悪化率計算
+export function calculateDeteriorationRate(currentScore: number, previousScore: number): number {
+  if (previousScore === 0) return 0;
+  return (currentScore - previousScore) / previousScore;
 }
