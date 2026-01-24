@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity } from 'lucide-react';
+import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity, Bot, Inbox } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
@@ -156,18 +156,32 @@ export function Header() {
 
             {/* AI副社長 (吉田専用) */}
             {isAiVpOwner(user?.email) && (
-              <Link
-                href="/admin/ai-vp"
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ml-1',
-                  pathname.startsWith('/admin/ai-vp')
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
-                    : 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 hover:from-purple-200 hover:to-indigo-200'
-                )}
-              >
-                <Brain className="w-4 h-4" />
-                <span>AI副社長</span>
-              </Link>
+              <>
+                <Link
+                  href="/dashboard/ai/inbox"
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors ml-1',
+                    pathname.startsWith('/dashboard/ai')
+                      ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white'
+                      : 'bg-gradient-to-r from-indigo-100 to-blue-100 text-indigo-700 hover:from-indigo-200 hover:to-blue-200'
+                  )}
+                >
+                  <Bot className="w-4 h-4" />
+                  <span>AI受信箱</span>
+                </Link>
+                <Link
+                  href="/admin/ai-vp"
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors',
+                    pathname.startsWith('/admin/ai-vp')
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
+                      : 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 hover:from-purple-200 hover:to-indigo-200'
+                  )}
+                >
+                  <Brain className="w-4 h-4" />
+                  <span>AI抽出</span>
+                </Link>
+              </>
             )}
           </nav>
 
@@ -283,6 +297,20 @@ export function Header() {
             {isAiVpOwner(user?.email) && (
               <>
                 <div className="border-t border-zinc-100 my-3" />
+                <p className="px-4 py-1 text-xs font-medium text-zinc-400 uppercase tracking-wider">AI副社長</p>
+                <Link
+                  href="/dashboard/ai/inbox"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors',
+                    pathname.startsWith('/dashboard/ai')
+                      ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white'
+                      : 'bg-gradient-to-r from-indigo-100 to-blue-100 text-indigo-700'
+                  )}
+                >
+                  <Bot className="w-5 h-5" />
+                  AI受信箱
+                </Link>
                 <Link
                   href="/admin/ai-vp"
                   onClick={() => setMobileMenuOpen(false)}
@@ -294,7 +322,7 @@ export function Header() {
                   )}
                 >
                   <Brain className="w-5 h-5" />
-                  AI副社長
+                  AI抽出
                 </Link>
               </>
             )}

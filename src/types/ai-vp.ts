@@ -383,6 +383,163 @@ export const ExtractedJsonSchema = z.object({
   }),
 });
 
+// ======== LINE WORKSメッセージ ========
+
+export interface LwMessage {
+  id: string;
+  messageId: string;
+  roomId: string;
+  threadId?: string;
+  senderId: string;
+  senderName: string;
+  senderRole?: 'staff' | 'manager' | 'exec';
+  text: string;
+  attachmentsJson?: string;
+  receivedAt: Date;
+  createdAt: Date;
+}
+
+// ======== LINE WORKSスレッド ========
+
+export type LwContextType = 'prospect' | 'staff' | 'expense' | 'hr' | 'ops' | 'general';
+
+export interface LwThread {
+  id: string;
+  roomId: string;
+  contextType: LwContextType;
+  contextId?: string;
+  lastMessageAt: Date;
+}
+
+// ======== AI返信リスクレベル ========
+
+export type AiReplyRiskLevel = 'L1' | 'L2' | 'L3';
+
+export const AI_REPLY_RISK_LABELS: Record<AiReplyRiskLevel, string> = {
+  L1: '低リスク（自動返信OK）',
+  L2: '中リスク（管理者承認）',
+  L3: '高リスク（吉田承認必須）',
+};
+
+export const AI_REPLY_RISK_COLORS: Record<AiReplyRiskLevel, { bg: string; text: string; border: string }> = {
+  L1: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-200' },
+  L2: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-200' },
+  L3: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200' },
+};
+
+// ======== AI返信カテゴリ ========
+
+export type AiReplyCategory = 'ops' | 'nyukyo' | 'sales' | 'expense' | 'hr' | 'risk' | 'general';
+
+export const AI_REPLY_CATEGORY_LABELS: Record<AiReplyCategory, string> = {
+  ops: '手順・オペレーション',
+  nyukyo: '入居関連',
+  sales: '営業関連',
+  expense: '経費・支払い',
+  hr: '人事・労務',
+  risk: 'リスク・クレーム',
+  general: 'その他',
+};
+
+// ======== AI返信ステータス ========
+
+export type AiReplyStatus = 'draft' | 'pending_approval' | 'approved' | 'sent' | 'rejected' | 'failed';
+
+export const AI_REPLY_STATUS_LABELS: Record<AiReplyStatus, string> = {
+  draft: '下書き',
+  pending_approval: '承認待ち',
+  approved: '承認済み',
+  sent: '送信済み',
+  rejected: '却下',
+  failed: '失敗',
+};
+
+export const AI_REPLY_STATUS_COLORS: Record<AiReplyStatus, { bg: string; text: string }> = {
+  draft: { bg: 'bg-gray-100', text: 'text-gray-700' },
+  pending_approval: { bg: 'bg-yellow-100', text: 'text-yellow-700' },
+  approved: { bg: 'bg-blue-100', text: 'text-blue-700' },
+  sent: { bg: 'bg-green-100', text: 'text-green-700' },
+  rejected: { bg: 'bg-red-100', text: 'text-red-700' },
+  failed: { bg: 'bg-red-100', text: 'text-red-700' },
+};
+
+// ======== AI返信 ========
+
+export interface AiReply {
+  id: string;
+  messageId: string;
+  riskLevel: AiReplyRiskLevel;
+  category: AiReplyCategory;
+  draftText: string;
+  finalText?: string;
+  status: AiReplyStatus;
+  referencesJson?: string; // テンプレIDなど
+  templateId?: string;
+  modelConfigVersion?: string;
+  escalationReason?: string;
+  createdAt: Date;
+  updatedAt?: Date;
+  sentAt?: Date;
+}
+
+// ======== AI返信テンプレート ========
+
+export interface AiTemplate {
+  id: string;
+  key: string;
+  title: string;
+  category: AiReplyCategory;
+  riskLevel: AiReplyRiskLevel;
+  requiredFieldsJson?: string;
+  templateText: string;
+  keywords?: string[];
+  createdAt: Date;
+}
+
+// ======== AIポリシー ========
+
+export interface AiPolicy {
+  id: string;
+  key: string;
+  version: number;
+  policyJson: string;
+  isActive: boolean;
+  createdAt: Date;
+}
+
+// ======== AI承認 ========
+
+export type AiApprovalDecision = 'approve' | 'revise' | 'reject';
+
+export interface AiApproval {
+  id: string;
+  replyId: string;
+  approverId: string;
+  approverName: string;
+  decision: AiApprovalDecision;
+  note?: string;
+  revisedText?: string;
+  decidedAt: Date;
+  createdAt: Date;
+}
+
+// ======== AI返信フォーマット定数 ========
+
+export const AI_REPLY_FOOTER = 'AI副社長として一次回答です。最終判断が必要な内容は吉田に確認します。';
+
+export const AI_REPLY_FORMAT = `
+【結論】
+{conclusion}
+
+【次にやること】
+{nextSteps}
+
+【迷ったら】
+{escalation}
+
+※ ${AI_REPLY_FOOTER}
+`.trim();
+
 // ======== デフォルト値 ========
 
 export const DEFAULT_EXTRACTED_JSON: ExtractedJson = {
