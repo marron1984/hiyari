@@ -643,3 +643,268 @@ export async function createAiReplyAuditLog(
     createdAt: Timestamp.now(),
   });
 }
+
+// ======== FAQテンプレート初期化 ========
+
+/**
+ * 初期FAQテンプレート（20本）
+ */
+export const INITIAL_TEMPLATES: Omit<AiTemplate, 'id' | 'createdAt'>[] = [
+  // L1テンプレート（自動返信OK）
+  {
+    key: 'ops_document_submit',
+    title: '書類提出方法',
+    category: 'ops',
+    riskLevel: 'L1',
+    templateText: '書類の提出方法をご案内します。\n\n1. AA-HUBにログイン\n2. 「書類提出」メニューを選択\n3. 必要書類をアップロード\n\n不明点は管理者にお問い合わせください。',
+    keywords: ['書類', '提出', 'アップロード', 'どこに'],
+  },
+  {
+    key: 'ops_attendance_fix',
+    title: '打刻修正方法',
+    category: 'ops',
+    riskLevel: 'L1',
+    templateText: '打刻修正の手順をご案内します。\n\n1. 勤怠画面で「修正申請」を選択\n2. 修正理由を入力\n3. 管理者承認後に反映\n\n誤打刻が多い場合は管理者に相談してください。',
+    keywords: ['打刻', '修正', '勤怠', '間違え'],
+  },
+  {
+    key: 'ops_shift_check',
+    title: 'シフト確認方法',
+    category: 'ops',
+    riskLevel: 'L1',
+    templateText: 'シフトの確認方法をご案内します。\n\n1. AA-HUBの「勤怠」メニュー\n2. カレンダー表示でシフト確認\n3. 希望変更は管理者へ連絡\n\n急な変更は直接ご連絡ください。',
+    keywords: ['シフト', '確認', '予定', 'スケジュール'],
+  },
+  {
+    key: 'nyukyo_required_docs',
+    title: '入居必要書類案内',
+    category: 'nyukyo',
+    riskLevel: 'L1',
+    templateText: '入居に必要な書類は以下の通りです。\n\n■ 必須書類\n・身分証明書（写真付き）\n・健康保険証\n・介護保険証\n・診断書（3ヶ月以内）\n\n■ 該当者のみ\n・生活保護受給証明書\n・後見人関係書類\n\n詳細は担当者にご確認ください。',
+    keywords: ['書類', '必要', '入居', '準備'],
+  },
+  {
+    key: 'nyukyo_tour_guide',
+    title: '見学案内',
+    category: 'nyukyo',
+    riskLevel: 'L1',
+    templateText: '見学についてご案内します。\n\n■ 見学可能時間\n10:00〜16:00（要予約）\n\n■ 所要時間\n約1時間\n\n■ 持ち物\n特になし\n\n日程調整は担当者にご連絡ください。',
+    keywords: ['見学', '案内', '予約', 'ツアー'],
+  },
+  {
+    key: 'ops_password_reset',
+    title: 'パスワードリセット',
+    category: 'ops',
+    riskLevel: 'L1',
+    templateText: 'パスワードのリセット方法をご案内します。\n\n1. ログイン画面で「パスワードを忘れた」を選択\n2. 登録メールアドレスを入力\n3. 届いたメールのリンクから再設定\n\nメールが届かない場合は管理者にご連絡ください。',
+    keywords: ['パスワード', 'リセット', 'ログイン', '忘れた'],
+  },
+  {
+    key: 'ops_system_trouble',
+    title: 'システムトラブル対応',
+    category: 'ops',
+    riskLevel: 'L1',
+    templateText: 'システムトラブル時の対応をご案内します。\n\n■ まず試すこと\n1. ブラウザの更新（F5キー）\n2. キャッシュクリア\n3. 別ブラウザで試す\n\n解決しない場合は管理者に連絡してください。',
+    keywords: ['システム', 'トラブル', 'エラー', '動かない'],
+  },
+  {
+    key: 'general_consultation',
+    title: '相談受付',
+    category: 'general',
+    riskLevel: 'L1',
+    requiredFieldsJson: JSON.stringify(['相談内容', '緊急度']),
+    templateText: 'ご相談ありがとうございます。\n\n内容を確認し、適切な担当者におつなぎします。\n\n■ 確認させてください\n・具体的な内容\n・緊急度（すぐ/今日中/今週中）\n\nお待ちください。',
+    keywords: ['相談', '聞きたい', '確認', '質問'],
+  },
+  // L2テンプレート（管理者承認）
+  {
+    key: 'sales_referral_reply',
+    title: '紹介会社への返信',
+    category: 'sales',
+    riskLevel: 'L2',
+    templateText: '紹介会社への返信文案です。\n\n---\nいつもお世話になっております。\nご紹介いただいた件、以下の通りご報告いたします。\n\n[報告内容を記載]\n\n引き続きよろしくお願いいたします。\n---\n\n※ 管理者確認後に送信します。',
+    keywords: ['紹介会社', '返信', '連絡', '報告'],
+  },
+  {
+    key: 'sales_family_contact',
+    title: 'ご家族への連絡',
+    category: 'sales',
+    riskLevel: 'L2',
+    templateText: 'ご家族への連絡文案です。\n\n---\n○○様\n\nいつもお世話になっております。\n[連絡内容を記載]\n\nご不明点がございましたらお気軽にお問い合わせください。\n---\n\n※ 管理者確認後に送信します。',
+    keywords: ['家族', '連絡', 'ご家族', '報告'],
+  },
+  {
+    key: 'expense_small_purchase',
+    title: '小口購入の確認',
+    category: 'expense',
+    riskLevel: 'L2',
+    templateText: '小口購入についてご案内します。\n\n■ 1万円未満の場合\n・事後報告で対応可能\n・レシート保管必須\n\n■ 1万円以上の場合\n・事前承認が必要\n・稟議申請をしてください\n\n管理者に確認します。',
+    keywords: ['購入', '経費', '買い物', '立替'],
+  },
+  {
+    key: 'hr_overtime_request',
+    title: '残業申請の確認',
+    category: 'hr',
+    riskLevel: 'L2',
+    templateText: '残業申請についてご案内します。\n\n■ 事前申請が原則です\n1. AA-HUBで残業申請\n2. 理由と予定時間を入力\n3. 管理者承認後に残業\n\n■ 注意事項\n・月45時間を超える場合は要相談\n\n管理者に確認します。',
+    keywords: ['残業', '申請', '超過', '延長'],
+  },
+  // L3テンプレート（吉田承認必須）
+  {
+    key: 'expense_refund',
+    title: '返金対応',
+    category: 'expense',
+    riskLevel: 'L3',
+    requiredFieldsJson: JSON.stringify(['契約書番号', '入居期間', '返金理由']),
+    templateText: '返金に関するご質問ですね。\n\n金銭に関わる判断は吉田の承認が必要です。\n\n■ 確認事項\n・契約書番号\n・入居期間\n・返金の理由\n\nこれらの情報を整理して、吉田に確認します。',
+    keywords: ['返金', '返却', '払い戻し', 'キャンセル'],
+  },
+  {
+    key: 'hr_employment',
+    title: '採用・雇用関連',
+    category: 'hr',
+    riskLevel: 'L3',
+    templateText: '採用・雇用に関するご質問ですね。\n\n人事に関わる判断は吉田の承認が必要です。\n\n内容を整理して、吉田に確認します。\n\n緊急の場合は直接吉田にご連絡ください。',
+    keywords: ['採用', '雇用', '面接', '入社', '退職'],
+  },
+  {
+    key: 'hr_discipline',
+    title: '労務問題対応',
+    category: 'hr',
+    riskLevel: 'L3',
+    templateText: '労務に関するご相談ですね。\n\n内容が重要なため、吉田の判断が必要です。\n\n■ 対応の流れ\n1. 状況を整理\n2. 吉田に報告\n3. 対応方針を決定\n\n緊急の場合は直接吉田にご連絡ください。',
+    keywords: ['トラブル', '問題', 'ハラスメント', '懲戒'],
+  },
+  {
+    key: 'risk_complaint',
+    title: 'クレーム対応',
+    category: 'risk',
+    riskLevel: 'L3',
+    requiredFieldsJson: JSON.stringify(['発生日時', '相手方', 'クレーム内容', '現状']),
+    templateText: 'クレームに関するご報告ですね。\n\nクレーム対応は吉田の判断が必要です。\n\n■ 確認事項\n・発生日時\n・相手方（ご家族/紹介会社等）\n・クレーム内容\n・現状\n\nこれらを整理して、至急吉田に報告します。',
+    keywords: ['クレーム', '苦情', '怒り', 'トラブル', '問題'],
+  },
+  {
+    key: 'risk_accident',
+    title: '事故対応',
+    category: 'risk',
+    riskLevel: 'L3',
+    requiredFieldsJson: JSON.stringify(['発生日時', '場所', '状況', '対応済み事項']),
+    templateText: '事故に関するご報告ですね。\n\n■ まず確認\n・怪我人の有無と状態\n・救急/警察への連絡有無\n\n■ 報告事項\n・発生日時\n・場所\n・状況\n・対応済み事項\n\n至急吉田に報告します。',
+    keywords: ['事故', '怪我', '転倒', '救急'],
+  },
+  {
+    key: 'risk_legal',
+    title: '法務・行政対応',
+    category: 'risk',
+    riskLevel: 'L3',
+    templateText: '法務・行政に関するご質問ですね。\n\n法的な判断は吉田の確認が必要です。\n\n■ 確認事項\n・関係機関（行政/弁護士等）\n・内容の概要\n・期限の有無\n\n至急吉田に確認します。',
+    keywords: ['行政', '法務', '弁護士', '監査', '指導'],
+  },
+  {
+    key: 'expense_contract',
+    title: '契約・支払い判断',
+    category: 'expense',
+    riskLevel: 'L3',
+    requiredFieldsJson: JSON.stringify(['契約相手', '金額', '契約内容']),
+    templateText: '契約・支払いに関するご質問ですね。\n\n金銭に関わる判断は吉田の承認が必要です。\n\n■ 確認事項\n・契約相手\n・金額\n・契約内容\n\n吉田に確認します。',
+    keywords: ['契約', '支払い', '請求', '振込'],
+  },
+  {
+    key: 'risk_medical',
+    title: '医療判断',
+    category: 'risk',
+    riskLevel: 'L3',
+    templateText: '医療に関するご質問ですね。\n\n医療の判断は吉田の確認が必要です。\n\n■ 緊急の場合\n・すぐに救急（119）に連絡\n・その後で報告\n\n■ 緊急でない場合\n・状況を整理して報告\n\n吉田に確認します。',
+    keywords: ['医療', '病院', '診断', '処置', '緊急'],
+  },
+];
+
+/**
+ * FAQテンプレートを初期化（存在しない場合のみ）
+ */
+export async function initializeAiTemplates(
+  userEmail: string,
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<{ created: number; existing: number }> {
+  assertAiVpOwner(userEmail);
+  const firestore = getDb();
+
+  let created = 0;
+  let existing = 0;
+
+  for (const template of INITIAL_TEMPLATES) {
+    // 既存チェック
+    const q = query(
+      collection(firestore, 'aiTemplates'),
+      where('tenantId', '==', tenantId),
+      where('key', '==', template.key)
+    );
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      await addDoc(collection(firestore, 'aiTemplates'), {
+        tenantId,
+        ...template,
+        createdAt: Timestamp.now(),
+      });
+      created++;
+    } else {
+      existing++;
+    }
+  }
+
+  return { created, existing };
+}
+
+/**
+ * メッセージを処理してAI返信を生成
+ */
+export async function processMessageAndGenerateReply(
+  message: LwMessage,
+  userEmail: string,
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<AiReply> {
+  assertAiVpOwner(userEmail);
+
+  // テンプレートを取得
+  const templates = await getAiTemplates(userEmail, tenantId);
+
+  // リスクレベルとカテゴリを判定
+  const riskLevel = determineRiskLevel(message.text);
+  const category = determineCategory(message.text);
+
+  // マッチするテンプレートを検索
+  const matchedTemplate = await findMatchingTemplate(message.text, templates);
+
+  // 返信テキストを生成
+  let draftText: string;
+  let templateId: string | undefined;
+
+  if (matchedTemplate) {
+    draftText = generateReplyFromTemplate(matchedTemplate, message);
+    templateId = matchedTemplate.id;
+  } else {
+    draftText = generateDefaultReply(category, riskLevel);
+  }
+
+  // エスカレーション理由
+  let escalationReason: string | undefined;
+  if (riskLevel === 'L3') {
+    escalationReason = '高リスク判定のため吉田承認が必要です';
+  } else if (riskLevel === 'L2') {
+    escalationReason = '中リスク判定のため管理者承認が必要です';
+  }
+
+  // AI返信を作成
+  const reply = await createAiReply({
+    messageId: message.id,
+    riskLevel,
+    category,
+    draftText,
+    templateId,
+    escalationReason,
+  }, tenantId);
+
+  return reply;
+}
