@@ -298,3 +298,25 @@ export const CHECKIN_SCALE_LABELS = [
 // 支援目的の文言（評価ではないことを明示）
 export const SUPPORT_PURPOSE_TEXT = 'この情報は支援のために使用されます。評価には直結しません。';
 export const ONEONONE_PURPOSE_TEXT = '1on1は評価や指導ではなく、あなたを支えるための安全装置です。';
+
+// 余裕メーター（社員向け表示）
+export type MeterColor = 'green' | 'yellow' | 'red';
+
+export const METER_LABELS: Record<MeterColor, string> = {
+  green: '余裕あり',
+  yellow: '余裕少なめ',
+  red: 'サポートが必要',
+} as const;
+
+export const METER_COLORS: Record<MeterColor, { bg: string; text: string; border: string }> = {
+  green: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-200' },
+  yellow: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-200' },
+  red: { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200' },
+} as const;
+
+// スコアから余裕メーターの色を判定
+export function getMeterColor(score: number): MeterColor {
+  if (score >= 70) return 'red';
+  if (score >= 40) return 'yellow';
+  return 'green';
+}

@@ -10,7 +10,7 @@ import { Loading } from '@/components/Loading';
 import { PreviewBadge } from '@/components/PreviewBadge';
 import { getChaosDashboardMetrics, getInterventions } from '@/lib/chaos';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
-import { Intervention } from '@/types/chaos';
+import { Intervention, METER_LABELS, METER_COLORS, MeterColor } from '@/types/chaos';
 import { getChaosViewLevel, canViewTeamChaosData, ChaosViewLevel } from '@/lib/auth';
 import {
   ArrowLeft,
@@ -189,7 +189,7 @@ function OSTeamContent() {
             <Card className={`p-4 ${redCount > 0 ? 'bg-red-50 border-red-200' : ''}`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">要支援（レッド）</p>
+                  <p className="text-sm text-gray-500">サポートが必要</p>
                   <p className={`text-2xl font-bold ${redCount > 0 ? 'text-red-600' : 'text-gray-900'}`}>
                     {redCount}
                   </p>
@@ -200,7 +200,7 @@ function OSTeamContent() {
             <Card className={`p-4 ${yellowCount > 0 ? 'bg-yellow-50 border-yellow-200' : ''}`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">注意（イエロー）</p>
+                  <p className="text-sm text-gray-500">余裕少なめ</p>
                   <p className={`text-2xl font-bold ${yellowCount > 0 ? 'text-yellow-600' : 'text-gray-900'}`}>
                     {yellowCount}
                   </p>
@@ -265,19 +265,13 @@ function OSTeamContent() {
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-right">
-                            <p className="text-lg font-bold">{member.score}</p>
                             <div className="flex items-center gap-1">
                               {member.trend === 'up' && <TrendingUp className="w-3 h-3 text-red-500" />}
                               {member.trend === 'down' && <TrendingUp className="w-3 h-3 text-green-500 rotate-180" />}
                               <Badge
-                                className={
-                                  member.level === 'red' ? 'bg-red-100 text-red-700' :
-                                  member.level === 'yellow' ? 'bg-yellow-100 text-yellow-700' :
-                                  'bg-green-100 text-green-700'
-                                }
+                                className={METER_COLORS[member.level as MeterColor].bg + ' ' + METER_COLORS[member.level as MeterColor].text}
                               >
-                                {member.level === 'red' ? '要支援' :
-                                 member.level === 'yellow' ? '注意' : '良好'}
+                                {METER_LABELS[member.level as MeterColor]}
                               </Badge>
                             </div>
                           </div>
