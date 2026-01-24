@@ -235,7 +235,7 @@ function OSDashboardContent() {
                 </CardContent>
               </Card>
 
-              {/* 入居確率ランク分布（ダミー） */}
+              {/* 入居確率ランク分布 */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">入居確率ランク分布</CardTitle>
@@ -257,9 +257,12 @@ function OSDashboardContent() {
                       </div>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-3">
-                    ※ ダミーデータです。スコアリング機能はPR6で実装予定
-                  </p>
+                  <Link
+                    href="/dashboard/sales/pipeline"
+                    className="text-sm text-blue-600 hover:underline flex items-center mt-3"
+                  >
+                    パイプライン詳細を見る <ArrowRight className="w-4 h-4 ml-1" />
+                  </Link>
                 </CardContent>
               </Card>
             </div>
