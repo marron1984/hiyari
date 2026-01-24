@@ -15,6 +15,10 @@ import {
   CHECKIN_LABELS,
   CHECKIN_SCALE_LABELS,
   SUPPORT_PURPOSE_TEXT,
+  METER_LABELS,
+  METER_COLORS,
+  getMeterColor,
+  MeterColor,
 } from '@/types/chaos';
 import {
   ArrowLeft,
@@ -229,31 +233,39 @@ function OSCheckinContent() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  {history.map((checkin) => {
-                    // 簡易スコア計算
+                {/* 7日間の色推移（数値は表示しない） */}
+                <div className="flex gap-1 mb-4">
+                  {history.slice(0, 7).map((checkin) => {
                     const avgScore = Math.round(
                       ((checkin.physicalFatigue + checkin.mentalFatigue + checkin.anxiety +
                         checkin.decisionLoad + (4 - checkin.sleep) + (4 - checkin.consulted)) / 6) * 25
                     );
+                    const color = getMeterColor(avgScore);
                     return (
                       <div
                         key={checkin.id}
-                        className={`flex items-center justify-between p-3 rounded-lg ${
-                          avgScore >= 60 ? 'bg-red-50' :
-                          avgScore >= 40 ? 'bg-yellow-50' :
-                          'bg-green-50'
-                        }`}
+                        className={`w-8 h-8 rounded-full ${METER_COLORS[color].bg} ${METER_COLORS[color].border} border-2`}
+                        title={`${checkin.date}: ${METER_LABELS[color]}`}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="space-y-2">
+                  {history.map((checkin) => {
+                    const avgScore = Math.round(
+                      ((checkin.physicalFatigue + checkin.mentalFatigue + checkin.anxiety +
+                        checkin.decisionLoad + (4 - checkin.sleep) + (4 - checkin.consulted)) / 6) * 25
+                    );
+                    const color = getMeterColor(avgScore);
+                    return (
+                      <div
+                        key={checkin.id}
+                        className={`flex items-center justify-between p-3 rounded-lg ${METER_COLORS[color].bg}`}
                       >
                         <span className="text-sm font-medium">{checkin.date}</span>
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className={`w-4 h-4 ${
-                            avgScore >= 60 ? 'text-red-600' :
-                            avgScore >= 40 ? 'text-yellow-600' :
-                            'text-green-600'
-                          }`} />
-                          <span className="text-sm">{avgScore}</span>
-                        </div>
+                        <span className={`text-sm font-medium ${METER_COLORS[color].text}`}>
+                          {METER_LABELS[color]}
+                        </span>
                       </div>
                     );
                   })}
