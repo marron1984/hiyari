@@ -694,3 +694,192 @@ export function calculateDeteriorationRate(currentScore: number, previousScore: 
   if (previousScore === 0) return 0;
   return (currentScore - previousScore) / previousScore;
 }
+
+// ======== WBR（Weekly Business Review） ========
+
+import { WbrReport, WbrActionItem, WbrStatus } from '@/types/chaos';
+
+// WBRレポート保存
+export async function saveWbrReport(
+  report: Omit<WbrReport, 'id' | 'createdAt'>
+): Promise<string> {
+  const firestore = ensureDb();
+
+  const docRef = await addDoc(collection(firestore, 'wbrReports'), {
+    ...report,
+    createdAt: Timestamp.now(),
+  });
+
+  return docRef.id;
+}
+
+// WBRレポート取得（単一）
+export async function getWbrReport(reportId: string): Promise<WbrReport | null> {
+  const firestore = ensureDb();
+  const docRef = doc(firestore, 'wbrReports', reportId);
+  const docSnap = await getDoc(docRef);
+
+  if (!docSnap.exists()) return null;
+
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    ...data,
+    createdAt: data.createdAt?.toDate() || new Date(),
+    updatedAt: data.updatedAt?.toDate(),
+  } as WbrReport;
+}
+
+// WBRレポート更新
+export async function updateWbrReport(
+  reportId: string,
+  data: Partial<Omit<WbrReport, 'id' | 'createdAt'>>
+): Promise<void> {
+  const firestore = ensureDb();
+  const docRef = doc(firestore, 'wbrReports', reportId);
+
+  await updateDoc(docRef, {
+    ...data,
+    updatedAt: Timestamp.now(),
+  });
+}
+
+// WBRレポート一覧取得
+export async function getWbrReports(
+  scopeType: 'company' | 'property' = 'company',
+  scopeId: string = 'all',
+  limitCount: number = 12
+): Promise<WbrReport[]> {
+  const firestore = ensureDb();
+
+  const q = query(
+    collection(firestore, 'wbrReports'),
+    where('scopeType', '==', scopeType),
+    where('scopeId', '==', scopeId),
+    orderBy('weekStart', 'desc'),
+    limit(limitCount)
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data(),
+    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+    updatedAt: docSnap.data().updatedAt?.toDate(),
+  })) as WbrReport[];
+}
+
+// 最新のWBRレポート取得（今週 or 先週）
+export async function getLatestWbrReport(
+  scopeType: 'company' | 'property' = 'company',
+  scopeId: string = 'all'
+): Promise<WbrReport | null> {
+  const reports = await getWbrReports(scopeType, scopeId, 1);
+  return reports.length > 0 ? reports[0] : null;
+}
+
+// 週の開始日と終了日を計算（月曜始まり）
+export function getWeekRange(date: Date = new Date()): { weekStart: string; weekEnd: string } {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
+  return {
+    weekStart: formatDate(monday),
+    weekEnd: formatDate(sunday),
+  };
+}
+
+// 今週のWBRレポートを取得または作成
+export async function getOrCreateCurrentWeekWbr(
+  scopeType: 'company' | 'property' = 'company',
+  scopeId: string = 'all'
+): Promise<WbrReport> {
+  const firestore = ensureDb();
+  const { weekStart, weekEnd } = getWeekRange();
+
+  // 今週のレポートを検索
+  const q = query(
+    collection(firestore, 'wbrReports'),
+    where('scopeType', '==', scopeType),
+    where('scopeId', '==', scopeId),
+    where('weekStart', '==', weekStart),
+    limit(1)
+  );
+
+  const snapshot = await getDocs(q);
+
+  if (!snapshot.empty) {
+    const docSnap = snapshot.docs[0];
+    return {
+      id: docSnap.id,
+      ...docSnap.data(),
+      createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+      updatedAt: docSnap.data().updatedAt?.toDate(),
+    } as WbrReport;
+  }
+
+  // 存在しない場合は新規作成
+  const newReport: Omit<WbrReport, 'id' | 'createdAt'> = {
+    scopeType,
+    scopeId,
+    weekStart,
+    weekEnd,
+    metricsJson: '{}',
+    narrativeMd: '',
+    actionItemsJson: '[]',
+    status: 'draft',
+  };
+
+  const reportId = await saveWbrReport(newReport);
+
+  return {
+    id: reportId,
+    ...newReport,
+    createdAt: new Date(),
+  };
+}
+
+// WBRレポートを確定
+export async function finalizeWbrReport(reportId: string): Promise<void> {
+  await updateWbrReport(reportId, { status: 'finalized' });
+}
+
+// アクションアイテムの更新
+export async function updateWbrActionItems(
+  reportId: string,
+  actionItems: WbrActionItem[]
+): Promise<void> {
+  await updateWbrReport(reportId, {
+    actionItemsJson: JSON.stringify(actionItems),
+  });
+}
+
+// アクションアイテムのパース
+export function parseActionItems(actionItemsJson: string | undefined): WbrActionItem[] {
+  if (!actionItemsJson) return [];
+  try {
+    return JSON.parse(actionItemsJson);
+  } catch {
+    return [];
+  }
+}
+
+// メトリクスのパース
+export function parseWbrMetrics(metricsJson: string | undefined): Record<string, unknown> {
+  if (!metricsJson) return {};
+  try {
+    return JSON.parse(metricsJson);
+  } catch {
+    return {};
+  }
+}

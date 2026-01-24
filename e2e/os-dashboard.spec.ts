@@ -105,6 +105,11 @@ test.describe('営業OS - ページ存在確認', () => {
     const response = await page.goto('/dashboard/prospects');
     expect(response?.status()).toBeLessThan(500);
   });
+
+  test('WBRページが存在する', async ({ page }) => {
+    const response = await page.goto('/dashboard/wbr');
+    expect(response?.status()).toBeLessThan(500);
+  });
 });
 
 /**
