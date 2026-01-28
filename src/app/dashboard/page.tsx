@@ -30,6 +30,14 @@ import {
 } from '@/lib/scoring';
 import { getChaosViewLevel } from '@/lib/auth';
 import {
+  safeRate,
+  formatPercent,
+  calcOccupancyRate,
+  calcInterventionRate,
+  toDashboardError,
+  DashboardError,
+} from '@/lib/dashboard/calc';
+import {
   Heart,
   Shield,
   MessageCircle,
@@ -59,6 +67,7 @@ export default function DashboardPage() {
 function DashboardContent() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<DashboardError | null>(null);
 
   // 共通データ
   const [checkinHistory, setCheckinHistory] = useState<StaffCheckin[]>([]);
@@ -79,18 +88,30 @@ function DashboardContent() {
   } | null>(null);
 
   // Exec用データ
-  const [salesMetrics, setSalesMetrics] = useState({
+  const [salesMetrics, setSalesMetrics] = useState<{
+    accounts: number;
+    activeDeals: number;
+    completedDeals: number;
+    totalDeals: number;
+    cvRate: number | null;
+    expectedMoveIns: number;
+    rankA: number;
+    rankB: number;
+    rankC: number;
+    rankD: number;
+  }>({
     accounts: 0,
     activeDeals: 0,
     completedDeals: 0,
-    cvRate: 0,
+    totalDeals: 0,
+    cvRate: null,
     expectedMoveIns: 0,
     rankA: 0,
     rankB: 0,
     rankC: 0,
     rankD: 0,
   });
-  const [occupancyRate, setOccupancyRate] = useState(0);
+  const [occupancyRate, setOccupancyRate] = useState<number | null>(null);
 
   // 役割判定
   const viewLevel = user ? getChaosViewLevel(user.role, user.email) : 'self';
@@ -103,6 +124,8 @@ function DashboardContent() {
       if (!user) return;
 
       try {
+        setError(null);
+
         // 全員：自分のチェックイン履歴
         const history = await getCheckinHistory(user.id, 7);
         setCheckinHistory(history);
@@ -137,9 +160,8 @@ function DashboardContent() {
 
           const activeDeals = dealsData.filter(d => !['請求書到着', '失注'].includes(d.status));
           const completedDeals = dealsData.filter(d => d.status === '請求書到着');
-          const cvRate = dealsData.length > 0
-            ? Math.round((completedDeals.length / dealsData.length) * 100)
-            : 0;
+          // 安全な率計算（分母0の場合はnull）
+          const cvRate = safeRate(completedDeals.length, dealsData.length);
 
           // 入居確率スコアリング
           const activeProspects = prospectsData.filter(
@@ -153,6 +175,7 @@ function DashboardContent() {
             accounts: accountsData.length,
             activeDeals: activeDeals.length,
             completedDeals: completedDeals.length,
+            totalDeals: dealsData.length,
             cvRate,
             expectedMoveIns,
             rankA: rankDistribution.A,
@@ -161,14 +184,15 @@ function DashboardContent() {
             rankD: rankDistribution.D,
           });
 
-          // 稼働率
+          // 稼働率（安全な計算）
           const totalCapacity = facilitiesData.reduce((sum, f) => sum + (f.facility.capacity || 0), 0);
           const totalVacant = facilitiesData.reduce((sum, f) => sum + (f.vacancy?.vacantCount ?? 0), 0);
-          const rate = totalCapacity > 0 ? Math.round(((totalCapacity - totalVacant) / totalCapacity) * 100) : 0;
+          const rate = calcOccupancyRate(totalCapacity, totalVacant);
           setOccupancyRate(rate);
         }
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
+      } catch (err) {
+        console.error('Failed to fetch dashboard data:', err);
+        setError(toDashboardError(err));
       } finally {
         setLoading(false);
       }
@@ -185,6 +209,14 @@ function DashboardContent() {
       </>
     );
   }
+
+  // エラー表示
+  const retryFetch = () => {
+    setLoading(true);
+    setError(null);
+    // Re-trigger useEffect
+    window.location.reload();
+  };
 
   // 今日の余裕メーター計算
   const todayCheckin = checkinHistory[0];
@@ -219,6 +251,35 @@ function DashboardContent() {
               </div>
             </CardContent>
           </Card>
+
+          {/* エラーバナー */}
+          {error && (
+            <Card className="mb-6 bg-red-50 border-red-200">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-red-800">
+                        データの取得に失敗しました
+                      </p>
+                      <p className="text-xs text-red-600 mt-1">
+                        {error.message}
+                      </p>
+                      {error.createIndexUrl && isExec && (
+                        <p className="text-xs text-red-500 mt-2">
+                          管理者向け: インデックス作成が必要です
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Button variant="secondary" onClick={retryFetch} className="text-sm">
+                    再試行
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* 役割別コンテンツ */}
           {isStaff && <StaffDashboard
@@ -560,20 +621,21 @@ function ExecDashboard({
     accounts: number;
     activeDeals: number;
     completedDeals: number;
-    cvRate: number;
+    totalDeals: number;
+    cvRate: number | null;
     expectedMoveIns: number;
     rankA: number;
     rankB: number;
     rankC: number;
     rankD: number;
   };
-  occupancyRate: number;
+  occupancyRate: number | null;
 }) {
   const redCount = teamData.filter(m => m.level === 'red').length;
   const yellowCount = teamData.filter(m => m.level === 'yellow').length;
-  const interventionRate = interventions.length > 0
-    ? Math.round((interventions.filter(i => i.status === 'done').length / interventions.length) * 100)
-    : 100;
+  // 安全な介入実施率計算（総介入数0の場合はnull、100%ではない）
+  const doneCount = interventions.filter(i => i.status === 'done').length;
+  const interventionRate = calcInterventionRate(doneCount, interventions.length);
 
   return (
     <div className="space-y-6">
@@ -583,7 +645,9 @@ function ExecDashboard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">稼働率</p>
-              <p className="text-2xl font-bold text-blue-600">{occupancyRate}%</p>
+              <p className="text-2xl font-bold text-blue-600">
+                {formatPercent(occupancyRate)}
+              </p>
             </div>
             <Building2 className="w-8 h-8 text-blue-300" />
           </div>
@@ -600,9 +664,9 @@ function ExecDashboard({
         <Card className={`p-4 ${redCount > 0 ? 'bg-red-50' : yellowCount > 0 ? 'bg-yellow-50' : ''}`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">赤/黄率</p>
+              <p className="text-sm text-gray-500">赤/黄</p>
               <p className={`text-2xl font-bold ${redCount > 0 ? 'text-red-600' : yellowCount > 0 ? 'text-yellow-600' : 'text-green-600'}`}>
-                {redCount}/{yellowCount}
+                {teamData.length > 0 ? `${redCount}/${yellowCount}` : '--'}
               </p>
             </div>
             <AlertTriangle className={`w-8 h-8 ${redCount > 0 ? 'text-red-300' : 'text-gray-300'}`} />
@@ -612,7 +676,9 @@ function ExecDashboard({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500">介入実施率</p>
-              <p className="text-2xl font-bold text-purple-600">{interventionRate}%</p>
+              <p className="text-2xl font-bold text-purple-600">
+                {formatPercent(interventionRate)}
+              </p>
             </div>
             <CheckCircle className="w-8 h-8 text-purple-300" />
           </div>
@@ -642,7 +708,7 @@ function ExecDashboard({
               <p className="text-xs text-gray-600">M（成約）</p>
             </div>
             <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <p className="text-2xl font-bold text-gray-600">{salesMetrics.cvRate}%</p>
+              <p className="text-2xl font-bold text-gray-600">{formatPercent(salesMetrics.cvRate)}</p>
               <p className="text-xs text-gray-600">CV率</p>
             </div>
           </div>
