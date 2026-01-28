@@ -8,6 +8,7 @@ import { getCheckinHistory, getChaosDashboardMetrics, getInterventions } from '@
 import { getSalesDeals, getSalesAccounts } from '@/lib/sales';
 import { getProspects } from '@/lib/prospect';
 import { getFacilitiesWithVacancy } from '@/lib/vacancy';
+import { getRingisByUser, getPendingRingis } from '@/lib/ringi';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
@@ -54,6 +55,10 @@ import {
   Briefcase,
   BarChart2,
   ArrowRight,
+  ClipboardList,
+  Plus,
+  RotateCcw,
+  FileText,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -86,6 +91,14 @@ function DashboardContent() {
     alertCount: { yellow: number; red: number };
     burnoutRiskHeatmap: { userId: string; userName: string; score: number; level: string }[];
   } | null>(null);
+
+  // 稟議データ（全員共通）
+  const [approvalStats, setApprovalStats] = useState<{
+    draft: number;
+    submitted: number;
+    returned: number;
+    pendingApproval: number; // 承認待ち（リーダー以上用）
+  }>({ draft: 0, submitted: 0, returned: 0, pendingApproval: 0 });
 
   // Exec用データ
   const [salesMetrics, setSalesMetrics] = useState<{
@@ -132,6 +145,29 @@ function DashboardContent() {
       } catch (err) {
         console.error('[dashboard:checkinHistory] Failed:', err);
         errors.push(toDashboardError(err));
+      }
+
+      // 全員：稟議データ
+      try {
+        const myRingis = await getRingisByUser(user.id, user.tenantId);
+        const draft = myRingis.filter(r => r.status === 'draft').length;
+        const submitted = myRingis.filter(r => r.status === 'submitted').length;
+        const returned = myRingis.filter(r => r.status === 'returned').length;
+
+        // リーダー以上：承認待ち件数
+        let pendingApproval = 0;
+        if (!isStaff) {
+          try {
+            const pending = await getPendingRingis(user.tenantId, user.branchId);
+            pendingApproval = pending.length;
+          } catch (e) {
+            console.error('[dashboard:pendingRingis] Failed:', e);
+          }
+        }
+
+        setApprovalStats({ draft, submitted, returned, pendingApproval });
+      } catch (err) {
+        console.error('[dashboard:approvalStats] Failed:', err);
       }
 
       // Manager以上：チーム・組織データ
@@ -324,12 +360,14 @@ function DashboardContent() {
             todayCheckin={todayCheckin}
             todayMeterColor={todayMeterColor}
             checkinHistory={checkinHistory}
+            approvalStats={approvalStats}
           />}
 
           {isManager && <ManagerDashboard
             teamData={teamData}
             interventions={interventions}
             orgMetrics={orgMetrics}
+            approvalStats={approvalStats}
           />}
 
           {isExec && <ExecDashboard
@@ -338,10 +376,108 @@ function DashboardContent() {
             orgMetrics={orgMetrics}
             salesMetrics={salesMetrics}
             occupancyRate={occupancyRate}
+            approvalStats={approvalStats}
           />}
         </div>
       </main>
     </>
+  );
+}
+
+// ========== 稟議カード（共通） ==========
+function ApprovalCard({
+  approvalStats,
+  isLeader = false,
+}: {
+  approvalStats: { draft: number; submitted: number; returned: number; pendingApproval: number };
+  isLeader?: boolean;
+}) {
+  const hasReturned = approvalStats.returned > 0;
+  const hasPending = approvalStats.pendingApproval > 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center justify-between">
+          <span className="flex items-center">
+            <ClipboardList className="w-5 h-5 mr-2 text-blue-600" />
+            稟議
+          </span>
+          <Link href="/dashboard/approvals/new">
+            <Button size="sm" variant="secondary">
+              <Plus className="w-4 h-4" />
+              新規
+            </Button>
+          </Link>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {/* 差戻しアラート */}
+        {hasReturned && (
+          <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-2">
+            <RotateCcw className="w-5 h-5 text-orange-600" />
+            <div>
+              <p className="text-sm font-medium text-orange-700">
+                {approvalStats.returned}件の差戻しがあります
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 承認待ちアラート（リーダー以上） */}
+        {isLeader && hasPending && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+            <Clock className="w-5 h-5 text-amber-600" />
+            <div>
+              <p className="text-sm font-medium text-amber-700">
+                {approvalStats.pendingApproval}件の承認待ちがあります
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* 件数サマリー */}
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="p-3 rounded-lg text-center bg-zinc-50">
+            <p className="text-2xl font-bold text-zinc-900">{approvalStats.draft}</p>
+            <p className="text-xs text-zinc-500">下書き</p>
+          </div>
+          <div className="p-3 rounded-lg text-center bg-amber-50">
+            <p className="text-2xl font-bold text-amber-600">{approvalStats.submitted}</p>
+            <p className="text-xs text-zinc-500">申請中</p>
+          </div>
+          {hasReturned ? (
+            <div className="p-3 rounded-lg text-center bg-orange-50">
+              <p className="text-2xl font-bold text-orange-600">{approvalStats.returned}</p>
+              <p className="text-xs text-orange-600">差戻し</p>
+            </div>
+          ) : (
+            <div className="p-3 rounded-lg text-center bg-zinc-50">
+              <p className="text-2xl font-bold text-zinc-400">-</p>
+              <p className="text-xs text-zinc-400">差戻し</p>
+            </div>
+          )}
+        </div>
+
+        {/* アクションボタン */}
+        <div className="flex gap-2">
+          <Link href="/dashboard/approvals" className="flex-1">
+            <Button variant="secondary" className="w-full">
+              <FileText className="w-4 h-4 mr-1" />
+              一覧を見る
+            </Button>
+          </Link>
+          {isLeader && (
+            <Link href="/admin/ringi" className="flex-1">
+              <Button variant="secondary" className="w-full">
+                <CheckCircle className="w-4 h-4 mr-1" />
+                承認する
+              </Button>
+            </Link>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -350,10 +486,12 @@ function StaffDashboard({
   todayCheckin,
   todayMeterColor,
   checkinHistory,
+  approvalStats,
 }: {
   todayCheckin: StaffCheckin | undefined;
   todayMeterColor: MeterColor;
   checkinHistory: StaffCheckin[];
+  approvalStats: { draft: number; submitted: number; returned: number; pendingApproval: number };
 }) {
   return (
     <div className="space-y-6">
@@ -452,7 +590,10 @@ function StaffDashboard({
         </CardContent>
       </Card>
 
-      {/* 5. 小さな成長（承認ワンポイント） */}
+      {/* 5. 稟議カード */}
+      <ApprovalCard approvalStats={approvalStats} />
+
+      {/* 6. 小さな成長（承認ワンポイント） */}
       <Card className="bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200">
         <CardHeader>
           <CardTitle className="text-base flex items-center">
@@ -475,6 +616,7 @@ function ManagerDashboard({
   teamData,
   interventions,
   orgMetrics,
+  approvalStats,
 }: {
   teamData: { userId: string; userName: string; score: number; level: MeterColor }[];
   interventions: Intervention[];
@@ -484,6 +626,7 @@ function ManagerDashboard({
     alertCount: { yellow: number; red: number };
     burnoutRiskHeatmap: { userId: string; userName: string; score: number; level: string }[];
   } | null;
+  approvalStats: { draft: number; submitted: number; returned: number; pendingApproval: number };
 }) {
   const redCount = teamData.filter(m => m.level === 'red').length;
   const yellowCount = teamData.filter(m => m.level === 'yellow').length;
@@ -594,6 +737,9 @@ function ManagerDashboard({
         </Card>
       </div>
 
+      {/* 稟議カード */}
+      <ApprovalCard approvalStats={approvalStats} isLeader />
+
       {/* 下段 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* 現場ボトルネック */}
@@ -646,6 +792,7 @@ function ExecDashboard({
   orgMetrics,
   salesMetrics,
   occupancyRate,
+  approvalStats,
 }: {
   teamData: { userId: string; userName: string; score: number; level: MeterColor }[];
   interventions: Intervention[];
@@ -668,6 +815,7 @@ function ExecDashboard({
     rankD: number;
   };
   occupancyRate: number | null;
+  approvalStats: { draft: number; submitted: number; returned: number; pendingApproval: number };
 }) {
   const redCount = teamData.filter(m => m.level === 'red').length;
   const yellowCount = teamData.filter(m => m.level === 'yellow').length;
@@ -827,6 +975,9 @@ function ExecDashboard({
           </Link>
         </CardContent>
       </Card>
+
+      {/* 稟議カード */}
+      <ApprovalCard approvalStats={approvalStats} isLeader />
 
       {/* WBRサマリ */}
       <Card>

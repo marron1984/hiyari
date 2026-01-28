@@ -1,5 +1,24 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
+// 旧URL /ringi から新URL /dashboard/approvals へリダイレクト
+export default function RingiListPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/dashboard/approvals');
+  }, [router]);
+
+  return (
+    <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+    </div>
+  );
+}
+
+/* 以下は旧実装（参考用に残す）
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,7 +30,7 @@ import { Plus, FileText, Clock, CheckCircle, XCircle, Edit } from 'lucide-react'
 import { getRingisByUser } from '@/lib/ringi';
 import { Ringi, RINGI_STATUS_LABELS, RINGI_STATUS_COLORS } from '@/types';
 
-export default function RingiListPage() {
+function RingiListPageOld() {
   const { user } = useAuth();
   const [ringis, setRingis] = useState<Ringi[]>([]);
   const [loading, setLoading] = useState(true);
