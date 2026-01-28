@@ -12,9 +12,12 @@ import {
   seedFacilitiesIfEmpty,
   syncVacancyData,
 } from '@/lib/vacancy';
+import { getRooms } from '@/lib/prospect';
+import { Room } from '@/types/prospect';
 import { FacilityWithVacancy } from '@/types/vacancy';
 import { hasMinRole } from '@/lib/auth';
-import { Building2, Edit2, Save, X, RefreshCw, Clock, User, AlertTriangle, TrendingUp, Database } from 'lucide-react';
+import { Building2, Edit2, Save, X, RefreshCw, Clock, User, AlertTriangle, TrendingUp, Database, Lock, ChevronDown, ChevronUp } from 'lucide-react';
+import Link from 'next/link';
 
 // 稼働率を計算
 function calcOccupancyRate(capacity: number | undefined, vacantCount: number): number {
@@ -44,6 +47,8 @@ function OccupancyBar({ rate }: { rate: number }) {
 export default function VacancyPage() {
   const { user } = useAuth();
   const [facilities, setFacilities] = useState<FacilityWithVacancy[]>([]);
+  const [lockedRooms, setLockedRooms] = useState<Room[]>([]);
+  const [showLockedRooms, setShowLockedRooms] = useState(true);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ vacantCount: number; note: string }>({
@@ -79,8 +84,14 @@ export default function VacancyPage() {
     if (!user) return;
     try {
       await seedFacilitiesIfEmpty(user.tenantId);
-      const data = await getFacilitiesWithVacancy(user.tenantId);
+      const [data, rooms] = await Promise.all([
+        getFacilitiesWithVacancy(user.tenantId),
+        getRooms(user.tenantId),
+      ]);
       setFacilities(data);
+      // ロック済み部屋（予約ステータス）をフィルター
+      const locked = rooms.filter((r) => r.status === '予約' && r.lockedCaseId);
+      setLockedRooms(locked);
       setLastUpdated(new Date());
     } catch (err) {
       console.error('Failed to fetch facilities:', err);
@@ -253,6 +264,67 @@ export default function VacancyPage() {
                   </p>
                 </div>
               </div>
+            </Card>
+          )}
+
+          {/* ロック済み部屋 */}
+          {lockedRooms.length > 0 && (
+            <Card className="mb-6 border border-blue-200">
+              <button
+                onClick={() => setShowLockedRooms(!showLockedRooms)}
+                className="w-full p-4 flex items-center justify-between text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-blue-600" />
+                  <span className="font-medium text-blue-800">
+                    ロック中の部屋（{lockedRooms.length}室）
+                  </span>
+                </div>
+                {showLockedRooms ? (
+                  <ChevronUp className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
+              </button>
+              {showLockedRooms && (
+                <div className="px-4 pb-4">
+                  <p className="text-sm text-gray-600 mb-3">
+                    入居希望者の申込によりロックされている部屋です
+                  </p>
+                  <div className="space-y-2">
+                    {lockedRooms.map((room) => (
+                      <div
+                        key={room.id}
+                        className="flex items-center justify-between p-3 bg-blue-50 rounded-lg"
+                      >
+                        <div>
+                          <span className="font-medium text-blue-800">
+                            {room.buildingName} {room.roomNumber}
+                          </span>
+                          {room.lockedByName && (
+                            <span className="text-xs text-blue-600 ml-2">
+                              by {room.lockedByName}
+                            </span>
+                          )}
+                          {room.lockedAt && (
+                            <span className="text-xs text-gray-500 ml-2">
+                              ({new Date(room.lockedAt).toLocaleDateString('ja-JP')}〜)
+                            </span>
+                          )}
+                        </div>
+                        {room.lockedCaseId && (
+                          <Link
+                            href={`/dashboard/prospects/${room.lockedCaseId}`}
+                            className="text-sm text-blue-600 hover:underline"
+                          >
+                            詳細
+                          </Link>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 

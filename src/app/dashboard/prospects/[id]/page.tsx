@@ -46,6 +46,8 @@ import {
   Home,
   ChevronDown,
   ChevronUp,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { getUsers } from '@/lib/firestore';
 import { ProspectDocuments } from '@/components/ProspectDocuments';
@@ -80,6 +82,12 @@ function ProspectDetailContent() {
   // 折りたたみ
   const [showRawData, setShowRawData] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+
+  // 部屋選択モーダル
+  const [showRoomModal, setShowRoomModal] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<ProspectStatus | null>(null);
+  const [allRooms, setAllRooms] = useState<Room[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
 
   const canManage = hasMinRole(user?.role, 'leader');
 
@@ -127,10 +135,46 @@ function ProspectDetailContent() {
   const handleStatusChange = async (newStatus: ProspectStatus) => {
     if (!prospect || !user || !canManage) return;
 
+    // 「申込中」への変更時は部屋選択モーダルを表示
+    if (newStatus === '申込中') {
+      setPendingStatus(newStatus);
+      setLoadingRooms(true);
+      try {
+        const response = await fetch('/api/rooms/available');
+        const data = await response.json();
+        if (data.success) {
+          setAllRooms(data.rooms);
+        }
+      } catch (err) {
+        console.error('Failed to fetch rooms:', err);
+      } finally {
+        setLoadingRooms(false);
+      }
+      setShowRoomModal(true);
+      return;
+    }
+
+    // 「見送り」「クローズ」への変更時は自動的にロック解除
+    if ((newStatus === '見送り' || newStatus === 'クローズ') && prospect.selectedRoomId) {
+      try {
+        await fetch(`/api/prospects/${prospect.id}/lock-room`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.id,
+            userName: user.name,
+            userRole: user.role,
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to unlock room:', err);
+      }
+    }
+
     setSaving(true);
     setError(null);
     try {
-      const result = await updateProspectStatus(
+      await updateProspectStatus(
         prospect.id,
         newStatus,
         undefined,
@@ -142,6 +186,110 @@ function ProspectDetailContent() {
       await fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : '更新に失敗しました');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 部屋選択後の処理
+  const handleRoomSelect = async (roomId: string) => {
+    if (!prospect || !user || !pendingStatus) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      // 部屋をロック
+      const lockResponse = await fetch(`/api/prospects/${prospect.id}/lock-room`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId,
+          userId: user.id,
+          userName: user.name,
+          userRole: user.role,
+        }),
+      });
+      const lockData = await lockResponse.json();
+
+      if (!lockData.success) {
+        setError(lockData.error || '部屋のロックに失敗しました');
+        return;
+      }
+
+      // ステータスを更新
+      await updateProspectStatus(
+        prospect.id,
+        pendingStatus,
+        undefined,
+        user.id,
+        user.name,
+        user.role
+      );
+
+      setSuccess(`ステータスを「${pendingStatus}」に更新し、${lockData.data.roomName}をロックしました`);
+      setShowRoomModal(false);
+      setPendingStatus(null);
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '更新に失敗しました');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 部屋選択をスキップ
+  const handleSkipRoomSelect = async () => {
+    if (!prospect || !user || !pendingStatus) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      await updateProspectStatus(
+        prospect.id,
+        pendingStatus,
+        undefined,
+        user.id,
+        user.name,
+        user.role
+      );
+      setSuccess(`ステータスを「${pendingStatus}」に更新しました（部屋未選択）`);
+      setShowRoomModal(false);
+      setPendingStatus(null);
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '更新に失敗しました');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ロック解除
+  const handleUnlockRoom = async () => {
+    if (!prospect || !user || !prospect.selectedRoomId) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/prospects/${prospect.id}/lock-room`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          userName: user.name,
+          userRole: user.role,
+        }),
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(data.error || 'ロック解除に失敗しました');
+        return;
+      }
+
+      setSuccess('ロックを解除しました');
+      await fetchData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'ロック解除に失敗しました');
     } finally {
       setSaving(false);
     }
@@ -319,6 +467,36 @@ function ProspectDetailContent() {
                       ]}
                       disabled={saving}
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* ロック済み部屋の表示 */}
+              {prospect.selectedRoomId && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Lock className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm text-blue-800">
+                        <span className="font-medium">{prospect.selectedRoomName}</span> をロック中
+                      </span>
+                      {prospect.appliedAt && (
+                        <span className="text-xs text-blue-600">
+                          （{new Date(prospect.appliedAt).toLocaleDateString('ja-JP')}〜）
+                        </span>
+                      )}
+                    </div>
+                    {canManage && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleUnlockRoom}
+                        disabled={saving}
+                      >
+                        <Unlock className="w-4 h-4 mr-1" />
+                        解除
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
@@ -575,6 +753,103 @@ function ProspectDetailContent() {
             )}
           </Card>
         </div>
+
+        {/* 部屋選択モーダル */}
+        {showRoomModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden">
+              <div className="p-4 border-b flex items-center justify-between">
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <Home className="w-5 h-5" />
+                  部屋を選択
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowRoomModal(false);
+                    setPendingStatus(null);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-4 overflow-y-auto max-h-[60vh]">
+                {loadingRooms ? (
+                  <div className="text-center py-8 text-gray-500">読み込み中...</div>
+                ) : allRooms.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">空室がありません</div>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-600 mb-4">
+                      申込に伴い、ロックする部屋を選択してください。
+                    </p>
+                    {/* 建物ごとにグループ化 */}
+                    {Object.entries(
+                      allRooms.reduce((acc, room) => {
+                        if (!acc[room.buildingName]) acc[room.buildingName] = [];
+                        acc[room.buildingName].push(room);
+                        return acc;
+                      }, {} as Record<string, Room[]>)
+                    ).map(([buildingName, rooms]) => (
+                      <div key={buildingName} className="mb-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">{buildingName}</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {rooms.map((room) => (
+                            <button
+                              key={room.id}
+                              onClick={() => handleRoomSelect(room.id)}
+                              disabled={saving || room.status === '予約'}
+                              className={`p-3 rounded-lg text-left transition ${
+                                room.status === '予約'
+                                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                  : 'bg-green-50 hover:bg-green-100 text-green-800'
+                              }`}
+                            >
+                              <p className="font-medium">{room.roomNumber}</p>
+                              <p className="text-xs">
+                                {room.status === '予約' ? (
+                                  <span className="flex items-center gap-1">
+                                    <Lock className="w-3 h-3" />
+                                    ロック済
+                                  </span>
+                                ) : (
+                                  '空室'
+                                )}
+                              </p>
+                              {room.expectedCareLevel && (
+                                <p className="text-xs opacity-75">{room.expectedCareLevel}</p>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+
+              <div className="p-4 border-t flex justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={handleSkipRoomSelect}
+                  disabled={saving}
+                >
+                  部屋を選択せずに進む
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowRoomModal(false);
+                    setPendingStatus(null);
+                  }}
+                >
+                  キャンセル
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </>
   );

@@ -177,6 +177,11 @@ export interface Prospect {
   // 書類管理
   documents?: ProspectDocument[];  // アップロードされた書類
 
+  // 部屋ロック関連（申込中ステータス時）
+  selectedRoomId?: string;        // 選択された部屋ID
+  selectedRoomName?: string;      // 選択された部屋名（建物名 + 部屋番号）
+  appliedAt?: Date;               // 申込日時
+
   // メタ
   createdAt: Date;
   updatedAt?: Date;
@@ -235,6 +240,11 @@ export interface Room {
   status: RoomStatus;
   expectedCareLevel?: string;   // 入居想定介護度数
   note?: string;                // 備考
+  // ロック関連
+  lockedCaseId?: string;        // ロック元の入居希望ID
+  lockedAt?: Date;              // ロック日時
+  lockedBy?: string;            // ロックしたユーザーID
+  lockedByName?: string;        // ロックしたユーザー名
   createdAt: Date;
   updatedAt?: Date;
 }
