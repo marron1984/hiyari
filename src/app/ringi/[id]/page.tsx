@@ -21,7 +21,7 @@ import {
 import {
   Ringi, RingiAuditLog, RingiFormData,
   RINGI_STATUS_LABELS, RINGI_STATUS_COLORS, RINGI_CATEGORIES,
-  canEdit, canDelete, canTransition, RingiCategory
+  canEdit, canDelete, canTransition, RingiCategory, RETURN_REASON_TEMPLATES
 } from '@/types';
 import { Select } from '@/components/ui/Select';
 
@@ -487,11 +487,33 @@ export default function RingiDetailPage() {
       {showRejectModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-zinc-900 mb-4">却下理由</h3>
+            <h3 className="text-lg font-bold text-zinc-900 mb-4">却下・差戻し理由</h3>
+
+            {/* テンプレートボタン */}
+            <div className="mb-3">
+              <p className="text-xs text-zinc-500 mb-2">テンプレートから選択:</p>
+              <div className="flex flex-wrap gap-2">
+                {RETURN_REASON_TEMPLATES.map((template, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setRejectReason((prev) =>
+                        prev ? `${prev}\n${template}` : template
+                      );
+                    }}
+                    className="text-xs px-2.5 py-1.5 rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-colors"
+                  >
+                    {template}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="却下の理由を入力してください"
+              placeholder="却下・差戻しの理由を入力してください"
               rows={4}
               className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900 resize-none mb-4"
             />
