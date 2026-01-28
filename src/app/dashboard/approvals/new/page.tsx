@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,6 +17,8 @@ import {
   Upload,
   X,
   Paperclip,
+  RotateCcw,
+  Clock,
 } from 'lucide-react';
 import { createRingi, submitRingi } from '@/lib/ringi';
 import {
@@ -43,6 +45,9 @@ const STEPS = [
   { id: 5, title: '確認', description: '送信前プレビュー' },
 ];
 
+const DRAFT_STORAGE_KEY = 'ringi_draft';
+const AUTO_SAVE_INTERVAL = 30000; // 30秒
+
 export default function NewApprovalPage() {
   return (
     <AuthGuard>
@@ -57,8 +62,13 @@ function NewApprovalContent() {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [savedDraft, setSavedDraft] = useState<{ data: RingiFormData; step: number; savedAt: string } | null>(null);
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const formDataRef = useRef<RingiFormData | null>(null);
+  const currentStepRef = useRef(1);
 
-  const [formData, setFormData] = useState<RingiFormData>({
+  const initialFormData: RingiFormData = {
     title: '',
     category: '備品購入',
     urgency: '通常',
@@ -70,8 +80,100 @@ function NewApprovalContent() {
     payeeName: '',
     paymentMethod: '振込',
     attachments: [],
-  });
+  };
+
+  const [formData, setFormData] = useState<RingiFormData>(initialFormData);
   const [categoryChangeNotice, setCategoryChangeNotice] = useState<string | null>(null);
+
+  // refs を更新
+  useEffect(() => {
+    formDataRef.current = formData;
+    currentStepRef.current = currentStep;
+  }, [formData, currentStep]);
+
+  // 初回ロード時に下書きを確認
+  useEffect(() => {
+    const checkSavedDraft = () => {
+      try {
+        const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          // 24時間以内の下書きのみ復元対象
+          const savedTime = new Date(parsed.savedAt).getTime();
+          const now = Date.now();
+          if (now - savedTime < 24 * 60 * 60 * 1000) {
+            setSavedDraft(parsed);
+            setShowRestoreDialog(true);
+          } else {
+            // 24時間以上前の下書きは削除
+            localStorage.removeItem(DRAFT_STORAGE_KEY);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load draft:', e);
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      }
+    };
+    checkSavedDraft();
+  }, []);
+
+  // 下書きを保存する関数
+  const saveDraft = useCallback(() => {
+    if (!formDataRef.current) return;
+    try {
+      const draftData = {
+        data: formDataRef.current,
+        step: currentStepRef.current,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData));
+      setLastSaved(new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }));
+    } catch (e) {
+      console.error('Failed to save draft:', e);
+    }
+  }, []);
+
+  // 自動保存（30秒ごと）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      saveDraft();
+    }, AUTO_SAVE_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [saveDraft]);
+
+  // ページ離脱時に保存
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      saveDraft();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [saveDraft]);
+
+  // 下書きを復元
+  const restoreDraft = () => {
+    if (savedDraft) {
+      setFormData(savedDraft.data);
+      setCurrentStep(savedDraft.step);
+      setShowRestoreDialog(false);
+    }
+  };
+
+  // 下書きを破棄
+  const discardDraft = () => {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    setShowRestoreDialog(false);
+    setSavedDraft(null);
+  };
+
+  // 下書きをクリア（送信成功時に呼ぶ）
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_STORAGE_KEY);
+  };
 
   const updateField = <K extends keyof RingiFormData>(field: K, value: RingiFormData[K]) => {
     // カテゴリ変更時の添付要件変更通知
@@ -145,6 +247,7 @@ function NewApprovalContent() {
         user.branchId,
         user.tenantId
       );
+      clearDraft(); // 送信成功時にローカル下書きをクリア
       router.push('/ringi');
     } catch (error) {
       console.error('Failed to save draft:', error);
@@ -177,6 +280,7 @@ function NewApprovalContent() {
       );
 
       await submitRingi(ringi.id, user.id, user.name, user.role, user.branchId);
+      clearDraft(); // 送信成功時にローカル下書きをクリア
       router.push('/ringi');
     } catch (error) {
       console.error('Failed to submit:', error);
@@ -195,18 +299,75 @@ function NewApprovalContent() {
 
   return (
     <div className="min-h-screen bg-zinc-50">
+      {/* 下書き復元ダイアログ */}
+      {showRestoreDialog && savedDraft && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                  <RotateCcw className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-zinc-900">下書きがあります</h3>
+                  <p className="text-sm text-zinc-500">
+                    {new Date(savedDraft.savedAt).toLocaleString('ja-JP')} に保存
+                  </p>
+                </div>
+              </div>
+
+              {savedDraft.data.title && (
+                <div className="bg-zinc-50 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-zinc-500">件名</p>
+                  <p className="font-medium text-zinc-900">{savedDraft.data.title}</p>
+                </div>
+              )}
+
+              <p className="text-sm text-zinc-600 mb-4">
+                前回の入力内容を復元しますか？
+              </p>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={discardDraft}
+                  className="flex-1"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  破棄して新規作成
+                </Button>
+                <Button onClick={restoreDraft} className="flex-1">
+                  <RotateCcw className="w-4 h-4 mr-1" />
+                  復元する
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <div className="max-w-3xl mx-auto px-4 py-6">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/ringi">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-xl font-bold text-zinc-900">稟議作成</h1>
-            <p className="text-sm text-zinc-500">ステップ {currentStep} / 5</p>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Link href="/ringi">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4" />
+              </Button>
+            </Link>
+            <div>
+              <h1 className="text-xl font-bold text-zinc-900">稟議作成</h1>
+              <p className="text-sm text-zinc-500">ステップ {currentStep} / 5</p>
+            </div>
           </div>
+
+          {/* 自動保存ステータス */}
+          {lastSaved && (
+            <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+              <Clock className="w-3.5 h-3.5" />
+              <span>自動保存: {lastSaved}</span>
+            </div>
+          )}
         </div>
 
         {/* Step Indicator */}
