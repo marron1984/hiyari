@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import {
   ArrowLeft, Send, Undo2, CheckCircle, XCircle,
-  Clock, Edit, Trash2, Save, X
+  Clock, Edit, Trash2, Save, X, ChevronDown, ChevronUp,
+  AlertTriangle, CircleDollarSign, Folder, Calendar
 } from 'lucide-react';
 import {
   getRingi, updateRingi, deleteRingi,
@@ -36,6 +37,7 @@ export default function RingiDetailPage() {
   const [editData, setEditData] = useState<RingiFormData | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   const ringiId = params.id as string;
 
@@ -294,26 +296,117 @@ export default function RingiDetailPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              <div>
-                <p className="text-xs text-zinc-400 mb-1">件名</p>
-                <p className="text-lg font-medium text-zinc-900">{ringi.title}</p>
-              </div>
-              <div className="flex gap-6">
-                <div>
-                  <p className="text-xs text-zinc-400 mb-1">カテゴリ</p>
-                  <p className="text-zinc-900">{ringi.category}</p>
+              {/* 要点サマリー（承認者向け最優先表示） */}
+              <div className="bg-zinc-50 rounded-xl p-4">
+                <h3 className="text-lg font-bold text-zinc-900 mb-3">{ringi.title}</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center gap-2">
+                    <CircleDollarSign className="w-4 h-4 text-zinc-400" />
+                    <div>
+                      <p className="text-xs text-zinc-400">金額</p>
+                      <p className="text-lg font-semibold text-zinc-900">
+                        {ringi.amount ? `¥${ringi.amount.toLocaleString()}` : '-'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Folder className="w-4 h-4 text-zinc-400" />
+                    <div>
+                      <p className="text-xs text-zinc-400">カテゴリ</p>
+                      <p className="text-zinc-900 font-medium">{ringi.category}</p>
+                    </div>
+                  </div>
+                  {ringi.urgency === '至急' && (
+                    <div className="col-span-2 flex items-center gap-2 text-red-600">
+                      <AlertTriangle className="w-4 h-4" />
+                      <span className="font-medium">至急対応が必要です</span>
+                    </div>
+                  )}
+                  {ringi.desiredDecisionDate && (
+                    <div className="col-span-2 flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-zinc-400" />
+                      <div>
+                        <p className="text-xs text-zinc-400">希望決裁日</p>
+                        <p className="text-zinc-900">
+                          {new Date(ringi.desiredDecisionDate).toLocaleDateString('ja-JP')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {ringi.amount && (
-                  <div>
-                    <p className="text-xs text-zinc-400 mb-1">金額</p>
-                    <p className="text-zinc-900">¥{ringi.amount.toLocaleString()}</p>
+              </div>
+
+              {/* 詳細（折りたたみ） */}
+              <div className="border border-zinc-200 rounded-xl overflow-hidden">
+                <button
+                  className="w-full flex items-center justify-between p-4 text-left hover:bg-zinc-50 transition-colors"
+                  onClick={() => setShowDetails(!showDetails)}
+                >
+                  <span className="font-medium text-zinc-700">詳細を{showDetails ? '閉じる' : '表示'}</span>
+                  {showDetails ? (
+                    <ChevronUp className="w-5 h-5 text-zinc-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-zinc-400" />
+                  )}
+                </button>
+
+                {showDetails && (
+                  <div className="border-t border-zinc-200 p-4 space-y-4">
+                    {/* 背景（新フィールド） */}
+                    {ringi.background && (
+                      <div>
+                        <p className="text-xs text-zinc-400 mb-1 font-medium">背景（なぜ必要か）</p>
+                        <p className="text-zinc-700 whitespace-pre-wrap">{ringi.background}</p>
+                      </div>
+                    )}
+
+                    {/* 目的（新フィールド） */}
+                    {ringi.purpose && (
+                      <div>
+                        <p className="text-xs text-zinc-400 mb-1 font-medium">目的（何をするか）</p>
+                        <p className="text-zinc-700 whitespace-pre-wrap">{ringi.purpose}</p>
+                      </div>
+                    )}
+
+                    {/* 期待効果（新フィールド） */}
+                    {ringi.expectedEffect && (
+                      <div>
+                        <p className="text-xs text-zinc-400 mb-1 font-medium">期待効果</p>
+                        <p className="text-zinc-700 whitespace-pre-wrap">{ringi.expectedEffect}</p>
+                      </div>
+                    )}
+
+                    {/* 旧フィールド：申請理由（互換性） */}
+                    {ringi.description && !ringi.background && (
+                      <div>
+                        <p className="text-xs text-zinc-400 mb-1">申請理由</p>
+                        <p className="text-zinc-700 whitespace-pre-wrap">{ringi.description}</p>
+                      </div>
+                    )}
+
+                    {/* 支払情報 */}
+                    {(ringi.payeeName || ringi.paymentMethod) && (
+                      <div>
+                        <p className="text-xs text-zinc-400 mb-1 font-medium">支払情報</p>
+                        <div className="text-zinc-700">
+                          {ringi.payeeName && <p>支払先: {ringi.payeeName}</p>}
+                          {ringi.paymentMethod && <p>支払方法: {ringi.paymentMethod}</p>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* リスク */}
+                    {ringi.risk && (
+                      <div>
+                        <p className="text-xs text-amber-600 mb-1 font-medium">リスク・懸念</p>
+                        <p className="text-zinc-700 whitespace-pre-wrap p-2 bg-amber-50 rounded-lg">{ringi.risk}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-              <div>
-                <p className="text-xs text-zinc-400 mb-1">申請理由</p>
-                <p className="text-zinc-700 whitespace-pre-wrap">{ringi.description}</p>
-              </div>
+
+              {/* 申請者情報 */}
               <div className="pt-4 border-t border-zinc-100">
                 <p className="text-xs text-zinc-400 mb-1">申請者</p>
                 <p className="text-zinc-900">{ringi.authorName}</p>
@@ -322,6 +415,8 @@ export default function RingiDetailPage() {
                   {ringi.submittedAt && ` / 申請: ${formatDateTime(ringi.submittedAt)}`}
                 </p>
               </div>
+
+              {/* 承認情報 */}
               {ringi.status === 'approved' && ringi.approvedByName && (
                 <div className="pt-4 border-t border-zinc-100">
                   <p className="text-xs text-emerald-600 mb-1">承認情報</p>
@@ -332,6 +427,8 @@ export default function RingiDetailPage() {
                   )}
                 </div>
               )}
+
+              {/* 却下情報 */}
               {ringi.status === 'rejected' && ringi.rejectedByName && (
                 <div className="pt-4 border-t border-zinc-100">
                   <p className="text-xs text-red-600 mb-1">却下情報</p>
@@ -339,6 +436,18 @@ export default function RingiDetailPage() {
                   <p className="text-xs text-zinc-400">{ringi.rejectedAt && formatDateTime(ringi.rejectedAt)}</p>
                   {ringi.rejectionReason && (
                     <p className="text-sm text-red-600 mt-1 p-2 bg-red-50 rounded-lg">{ringi.rejectionReason}</p>
+                  )}
+                </div>
+              )}
+
+              {/* 差戻し情報 */}
+              {ringi.status === 'returned' && ringi.returnedByName && (
+                <div className="pt-4 border-t border-zinc-100">
+                  <p className="text-xs text-orange-600 mb-1">差戻し情報</p>
+                  <p className="text-zinc-900">{ringi.returnedByName}が差戻し</p>
+                  <p className="text-xs text-zinc-400">{ringi.returnedAt && formatDateTime(ringi.returnedAt)}</p>
+                  {ringi.returnReason && (
+                    <p className="text-sm text-orange-600 mt-1 p-2 bg-orange-50 rounded-lg">{ringi.returnReason}</p>
                   )}
                 </div>
               )}
