@@ -273,9 +273,10 @@ function DocumentsContent() {
                     const ownerConfig = DOCUMENT_OWNER_TYPE_CONFIG[doc.ownerType];
 
                     return (
-                      <div
+                      <Link
                         key={doc.id}
-                        className="py-4 flex items-center justify-between hover:bg-gray-50 -mx-4 px-4"
+                        href={`/dashboard/docs/${doc.id}`}
+                        className="block py-4 flex items-center justify-between hover:bg-gray-50 -mx-4 px-4 cursor-pointer"
                       >
                         <div className="flex items-center gap-4">
                           <div className={`p-2 rounded-lg ${statusConfig.bgColor}`}>
@@ -303,7 +304,7 @@ function DocumentsContent() {
                           )}
                           <ArrowRight className="w-4 h-4 text-gray-400" />
                         </div>
-                      </div>
+                      </Link>
                     );
                   })}
                 </div>
