@@ -48,6 +48,7 @@ import {
   ChevronUp,
   Lock,
   Unlock,
+  FilePlus,
 } from 'lucide-react';
 import { getUsers } from '@/lib/firestore';
 import { ProspectDocuments } from '@/components/ProspectDocuments';
@@ -88,6 +89,10 @@ function ProspectDetailContent() {
   const [pendingStatus, setPendingStatus] = useState<ProspectStatus | null>(null);
   const [allRooms, setAllRooms] = useState<Room[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(false);
+
+  // 書類生成
+  const [generatingDocs, setGeneratingDocs] = useState(false);
+  const [docsGenerated, setDocsGenerated] = useState(false);
 
   const canManage = hasMinRole(user?.role, 'leader');
 
@@ -295,6 +300,45 @@ function ProspectDetailContent() {
     }
   };
 
+  // 入居者必須書類の自動生成
+  const handleGenerateDocuments = async () => {
+    if (!prospect || !user) return;
+
+    setGeneratingDocs(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/documents/generate-required', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId: user.tenantId,
+          ownerType: 'RESIDENT',
+          ownerId: prospect.id,
+          ownerName: prospect.customerName || prospect.id,
+          actorId: user.id,
+          actorName: user.name,
+        }),
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        setError(data.error || '書類生成に失敗しました');
+        return;
+      }
+
+      if (data.existing > 0) {
+        setSuccess(`既に${data.existing}件の書類が存在します`);
+      } else {
+        setSuccess(`${data.created}件の必須書類を生成しました`);
+      }
+      setDocsGenerated(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '書類生成に失敗しました');
+    } finally {
+      setGeneratingDocs(false);
+    }
+  };
+
   const handleAssign = async (assigneeId: string) => {
     if (!prospect || !user || !canManage) return;
 
@@ -497,6 +541,35 @@ function ProspectDetailContent() {
                         解除
                       </Button>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* 入居決定時の書類生成 */}
+              {prospect.status === '入居決定' && canManage && !docsGenerated && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <FilePlus className="w-4 h-4 text-green-600" />
+                      <span className="text-sm text-green-800">
+                        入居者の必須書類を生成できます
+                      </span>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleGenerateDocuments}
+                      disabled={generatingDocs}
+                    >
+                      {generatingDocs ? (
+                        <>処理中...</>
+                      ) : (
+                        <>
+                          <FilePlus className="w-4 h-4 mr-1" />
+                          書類生成
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
               )}
