@@ -32,20 +32,36 @@ import { UserRole } from '@/types';
 
 // ======== 定数 ========
 
-// 社内No 252以降のみアクティブ対象（251以前は旧データ）
-export const ACTIVE_INTERNAL_NO_THRESHOLD = 252;
+// カットオフ日（この日以降のデータのみ有効）
+// UTCで2026-01-01 00:00:00を基準とする
+export const PROSPECTS_CUTOFF_DATE = new Date('2026-01-01T00:00:00.000Z');
 
 // KPI集計対象年（2026年以降）
 export const KPI_START_YEAR = 2026;
 
 /**
- * 社内Noが有効範囲（252以上）かどうかを判定
+ * プロスペクトの判定日を取得（優先順位: inquiryDate > receivedAt > createdAt）
  */
-export function isActiveInternalNo(internalNo?: string): boolean {
-  if (!internalNo) return true; // internalNoがない場合はデフォルトでアクティブ
-  const num = parseInt(internalNo, 10);
-  if (isNaN(num)) return true;
-  return num >= ACTIVE_INTERNAL_NO_THRESHOLD;
+export function getProspectCutoffDate(prospect: Prospect): Date {
+  // 1. inquiryDate（文字列なのでパース）
+  if (prospect.inquiryDate) {
+    const parsed = new Date(prospect.inquiryDate);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  // 2. receivedAt
+  if (prospect.receivedAt) {
+    return prospect.receivedAt;
+  }
+  // 3. createdAt
+  return prospect.createdAt;
+}
+
+/**
+ * プロスペクトがカットオフ日以降（有効）かどうかを判定
+ */
+export function isProspectValid(prospect: Prospect): boolean {
+  const prospectDate = getProspectCutoffDate(prospect);
+  return prospectDate >= PROSPECTS_CUTOFF_DATE;
 }
 
 /**
@@ -170,6 +186,7 @@ export async function getProspect(id: string): Promise<Prospect | null> {
 
 /**
  * 入居希望者一覧を取得
+ * デフォルトで2026-01-01以降のデータのみ返す
  */
 export async function getProspects(
   tenantId: string = DEFAULT_TENANT_ID,
@@ -178,7 +195,7 @@ export async function getProspects(
     assigneeId?: string;
     desiredFacility?: string;
     salesCompanyName?: string;
-    includeClosedOldData?: boolean; // 旧データ（251以前）を含めるか
+    includeOldData?: boolean; // 2026年以前のデータを含めるか（パージ用）
   }
 ): Promise<Prospect[]> {
   const firestore = getDb();
@@ -201,9 +218,9 @@ export async function getProspects(
     } as Prospect;
   });
 
-  // デフォルトで旧データ（社内No 251以前）を除外
-  if (!filters?.includeClosedOldData) {
-    results = results.filter((p) => isActiveInternalNo(p.internalNo));
+  // デフォルトで2026年以前のデータを除外（カットオフ日ベース）
+  if (!filters?.includeOldData) {
+    results = results.filter((p) => isProspectValid(p));
   }
 
   // クライアントサイドフィルタ
@@ -851,8 +868,10 @@ export async function getRecentNotifications(
 // ======== 旧データ管理 ========
 
 /**
- * 旧データ（社内No 251以前）を一括でクローズにする
+ * 旧データ（2026年以前）を一括でクローズにする
  * 管理者のみ実行可能
+ *
+ * 注意: 完全削除は prospect-purge.ts の purgeExecute を使用してください
  */
 export async function closeOldProspects(
   userId: string,
@@ -867,14 +886,11 @@ export async function closeOldProspects(
   const firestore = getDb();
 
   // 全件取得（旧データ含む）
-  const allProspects = await getProspects(tenantId, { includeClosedOldData: true });
+  const allProspects = await getProspects(tenantId, { includeOldData: true });
 
-  // 社内No 251以前でまだクローズでないものを抽出
+  // 2026年以前でまだクローズでないものを抽出
   const oldProspects = allProspects.filter((p) => {
-    if (!p.internalNo) return false;
-    const num = parseInt(p.internalNo, 10);
-    if (isNaN(num)) return false;
-    return num < ACTIVE_INTERNAL_NO_THRESHOLD && p.status !== 'クローズ';
+    return !isProspectValid(p) && p.status !== 'クローズ';
   });
 
   if (oldProspects.length === 0) {
@@ -888,7 +904,7 @@ export async function closeOldProspects(
   oldProspects.forEach((p) => {
     batch.update(doc(firestore, 'prospects', p.id), {
       status: 'クローズ' as ProspectStatus,
-      statusNote: '旧データのため一括クローズ',
+      statusNote: '2026年以前の旧データのため一括クローズ',
       updatedAt: now,
     });
   });
@@ -903,7 +919,7 @@ export async function closeOldProspects(
     action: 'update',
     entity: 'prospect',
     entityId: 'batch',
-    note: `社内No ${ACTIVE_INTERNAL_NO_THRESHOLD - 1}以前の旧データ ${oldProspects.length}件を一括クローズ`,
+    note: `${PROSPECTS_CUTOFF_DATE.toISOString()}以前の旧データ ${oldProspects.length}件を一括クローズ`,
   });
 
   return { closedCount: oldProspects.length };
