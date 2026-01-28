@@ -37,17 +37,19 @@ export function Header() {
 
   if (!user) return null;
 
+  // メニュー順序（確定版）:
+  // 1.打刻 2.稟議 3.入居希望 4.営業進捗 5.空室 6.改善 7.ランク 8.経営OS 9.報告(ヒヤリ)
   const navItems = [
     { href: '/dashboard', label: 'ホーム', icon: Home },
-    { href: '/submit', label: '報告', icon: FileText },
     { href: '/attendance', label: '打刻', icon: Clock },
-    { href: '/dashboard/vacancy', label: '空室', icon: Building2 },
+    { href: '/ringi', label: '稟議', icon: ClipboardList },
     { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus },
     { href: '/sales', label: '営業', icon: Briefcase },
-    { href: '/ringi', label: '稟議', icon: ClipboardList },
+    { href: '/dashboard/vacancy', label: '空室', icon: Building2 },
     { href: '/improvements', label: '改善', icon: Lightbulb },
     { href: '/rankings', label: 'ランク', icon: Trophy },
     { href: '/dashboard/os', label: '経営OS', icon: Activity },
+    { href: '/submit', label: '報告', icon: FileText },
   ];
 
   const adminItems = [

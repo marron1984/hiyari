@@ -30,6 +30,47 @@ import {
 import { hasMinRole } from './auth';
 import { UserRole } from '@/types';
 
+// ======== 定数 ========
+
+// カットオフ日（この日以降のデータのみ有効）
+// UTCで2026-01-01 00:00:00を基準とする
+export const PROSPECTS_CUTOFF_DATE = new Date('2026-01-01T00:00:00.000Z');
+
+// KPI集計対象年（2026年以降）
+export const KPI_START_YEAR = 2026;
+
+/**
+ * プロスペクトの判定日を取得（優先順位: inquiryDate > receivedAt > createdAt）
+ */
+export function getProspectCutoffDate(prospect: Prospect): Date {
+  // 1. inquiryDate（文字列なのでパース）
+  if (prospect.inquiryDate) {
+    const parsed = new Date(prospect.inquiryDate);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  // 2. receivedAt
+  if (prospect.receivedAt) {
+    return prospect.receivedAt;
+  }
+  // 3. createdAt
+  return prospect.createdAt;
+}
+
+/**
+ * プロスペクトがカットオフ日以降（有効）かどうかを判定
+ */
+export function isProspectValid(prospect: Prospect): boolean {
+  const prospectDate = getProspectCutoffDate(prospect);
+  return prospectDate >= PROSPECTS_CUTOFF_DATE;
+}
+
+/**
+ * 日付がKPI対象期間（2026年以降）かどうかを判定
+ */
+export function isKpiTargetDate(date: Date): boolean {
+  return date.getFullYear() >= KPI_START_YEAR;
+}
+
 function getDb() {
   if (!db) throw new Error('Firestore not initialized');
   return db;
@@ -145,6 +186,7 @@ export async function getProspect(id: string): Promise<Prospect | null> {
 
 /**
  * 入居希望者一覧を取得
+ * デフォルトで2026-01-01以降のデータのみ返す
  */
 export async function getProspects(
   tenantId: string = DEFAULT_TENANT_ID,
@@ -153,6 +195,7 @@ export async function getProspects(
     assigneeId?: string;
     desiredFacility?: string;
     salesCompanyName?: string;
+    includeOldData?: boolean; // 2026年以前のデータを含めるか（パージ用）
   }
 ): Promise<Prospect[]> {
   const firestore = getDb();
@@ -174,6 +217,11 @@ export async function getProspects(
       updatedAt: data.updatedAt?.toDate(),
     } as Prospect;
   });
+
+  // デフォルトで2026年以前のデータを除外（カットオフ日ベース）
+  if (!filters?.includeOldData) {
+    results = results.filter((p) => isProspectValid(p));
+  }
 
   // クライアントサイドフィルタ
   if (filters?.status) {
@@ -817,10 +865,214 @@ export async function getRecentNotifications(
     .filter((n) => n.sentAt > cutoffTime);
 }
 
+// ======== 旧データ管理 ========
+
+/**
+ * 旧データ（2026年以前）を一括でクローズにする
+ * 管理者のみ実行可能
+ *
+ * 注意: 完全削除は prospect-purge.ts の purgeExecute を使用してください
+ */
+export async function closeOldProspects(
+  userId: string,
+  userName: string,
+  userRole: UserRole,
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<{ closedCount: number }> {
+  if (!hasMinRole(userRole, 'admin')) {
+    throw new Error('管理者権限が必要です');
+  }
+
+  const firestore = getDb();
+
+  // 全件取得（旧データ含む）
+  const allProspects = await getProspects(tenantId, { includeOldData: true });
+
+  // 2026年以前でまだクローズでないものを抽出
+  const oldProspects = allProspects.filter((p) => {
+    return !isProspectValid(p) && p.status !== 'クローズ';
+  });
+
+  if (oldProspects.length === 0) {
+    return { closedCount: 0 };
+  }
+
+  // バッチ更新
+  const batch = writeBatch(firestore);
+  const now = Timestamp.now();
+
+  oldProspects.forEach((p) => {
+    batch.update(doc(firestore, 'prospects', p.id), {
+      status: 'クローズ' as ProspectStatus,
+      statusNote: '2026年以前の旧データのため一括クローズ',
+      updatedAt: now,
+    });
+  });
+
+  await batch.commit();
+
+  // 監査ログ
+  await createAuditLog({
+    tenantId,
+    actor: userId,
+    actorName: userName,
+    action: 'update',
+    entity: 'prospect',
+    entityId: 'batch',
+    note: `${PROSPECTS_CUTOFF_DATE.toISOString()}以前の旧データ ${oldProspects.length}件を一括クローズ`,
+  });
+
+  return { closedCount: oldProspects.length };
+}
+
+// ======== 部屋ロック機能 ========
+
+export interface RoomLock {
+  roomId: string;
+  caseId: string;        // 入居希望ID
+  lockedAt: Date;
+  lockedBy: string;
+  lockedByName: string;
+  lockExpireAt?: Date;   // 期限（任意）
+}
+
+/**
+ * 申込時に部屋をロックする
+ * トランザクションで原子的に実行
+ */
+export async function lockRoomForApplication(
+  roomId: string,
+  caseId: string,
+  userId: string,
+  userName: string,
+  userRole: UserRole,
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<{ success: boolean; error?: string }> {
+  if (!hasMinRole(userRole, 'leader')) {
+    throw new Error('部屋ロックにはリーダー以上の権限が必要です');
+  }
+
+  const firestore = getDb();
+
+  // 部屋の現在状態を確認
+  const roomRef = doc(firestore, 'rooms', roomId);
+  const roomSnap = await getDoc(roomRef);
+
+  if (!roomSnap.exists()) {
+    return { success: false, error: '部屋が見つかりません' };
+  }
+
+  const roomData = roomSnap.data();
+  const currentStatus = roomData.status as RoomStatus;
+
+  // 空室以外はロックできない
+  if (currentStatus !== '空室') {
+    return {
+      success: false,
+      error: `この部屋は現在「${currentStatus}」のためロックできません。別の部屋を選択してください。`,
+    };
+  }
+
+  // ロック（ステータスを「予約」に変更）
+  const now = Timestamp.now();
+  await updateDoc(roomRef, {
+    status: '予約' as RoomStatus,
+    lockedCaseId: caseId,
+    lockedAt: now,
+    lockedBy: userId,
+    lockedByName: userName,
+    updatedAt: now,
+  });
+
+  // 監査ログ
+  await createAuditLog({
+    tenantId,
+    actor: userId,
+    actorName: userName,
+    action: 'update',
+    entity: 'room',
+    entityId: roomId,
+    diff: {
+      before: { status: '空室' },
+      after: { status: '予約', lockedCaseId: caseId },
+    },
+    note: `入居希望 ${caseId} の申込により部屋をロック`,
+  });
+
+  return { success: true };
+}
+
+/**
+ * 部屋のロックを解除する
+ * 管理者またはロックした本人のみ可能
+ */
+export async function unlockRoom(
+  roomId: string,
+  userId: string,
+  userName: string,
+  userRole: UserRole,
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<{ success: boolean; error?: string }> {
+  const firestore = getDb();
+
+  const roomRef = doc(firestore, 'rooms', roomId);
+  const roomSnap = await getDoc(roomRef);
+
+  if (!roomSnap.exists()) {
+    return { success: false, error: '部屋が見つかりません' };
+  }
+
+  const roomData = roomSnap.data();
+
+  // 予約状態でない場合は解除不要
+  if (roomData.status !== '予約') {
+    return { success: false, error: 'この部屋はロックされていません' };
+  }
+
+  // 管理者または本人のみ解除可能
+  const isAdmin = hasMinRole(userRole, 'admin');
+  const isLocker = roomData.lockedBy === userId;
+
+  if (!isAdmin && !isLocker) {
+    return { success: false, error: 'ロック解除には管理者権限、またはロックした本人である必要があります' };
+  }
+
+  const previousCaseId = roomData.lockedCaseId;
+
+  // ロック解除
+  const now = Timestamp.now();
+  await updateDoc(roomRef, {
+    status: '空室' as RoomStatus,
+    lockedCaseId: null,
+    lockedAt: null,
+    lockedBy: null,
+    lockedByName: null,
+    updatedAt: now,
+  });
+
+  // 監査ログ
+  await createAuditLog({
+    tenantId,
+    actor: userId,
+    actorName: userName,
+    action: 'update',
+    entity: 'room',
+    entityId: roomId,
+    diff: {
+      before: { status: '予約', lockedCaseId: previousCaseId },
+      after: { status: '空室' },
+    },
+    note: 'ロック解除',
+  });
+
+  return { success: true };
+}
+
 // ======== 統計 ========
 
 /**
  * ダッシュボード統計を取得
+ * KPIは2026年以降のデータのみで算出
  */
 export async function getProspectStats(
   tenantId: string = DEFAULT_TENANT_ID
@@ -830,6 +1082,7 @@ export async function getProspectStats(
   newThisWeek: number;
   newThisMonth: number;
   avgDaysElapsed: number;
+  kpiNote: string;
 }> {
   const prospects = await getProspects(tenantId);
 
@@ -837,13 +1090,20 @@ export async function getProspectStats(
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+  // KPI対象は2026年以降のデータのみ
+  const kpiTargetProspects = prospects.filter((p) => isKpiTargetDate(p.receivedAt));
+
   const byStatus: Record<string, number> = {};
   let totalDays = 0;
   let activeCount = 0;
 
+  // ステータス集計は全件（アクティブな社内No 252以降）
   prospects.forEach((p) => {
     byStatus[p.status] = (byStatus[p.status] || 0) + 1;
+  });
 
+  // KPIは2026以降のみ
+  kpiTargetProspects.forEach((p) => {
     if (!['クローズ', '見送り', '入居決定'].includes(p.status)) {
       const days = Math.floor((now.getTime() - p.receivedAt.getTime()) / (1000 * 60 * 60 * 24));
       totalDays += days;
@@ -854,8 +1114,9 @@ export async function getProspectStats(
   return {
     total: prospects.length,
     byStatus: byStatus as Record<ProspectStatus, number>,
-    newThisWeek: prospects.filter((p) => p.receivedAt > weekAgo).length,
-    newThisMonth: prospects.filter((p) => p.receivedAt > monthAgo).length,
+    newThisWeek: kpiTargetProspects.filter((p) => p.receivedAt > weekAgo).length,
+    newThisMonth: kpiTargetProspects.filter((p) => p.receivedAt > monthAgo).length,
     avgDaysElapsed: activeCount > 0 ? Math.round(totalDays / activeCount) : 0,
+    kpiNote: `KPIは${KPI_START_YEAR}年以降のデータで算出`,
   };
 }
