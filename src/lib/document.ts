@@ -34,13 +34,45 @@ function ensureDb() {
 
 // ======== テンプレート ========
 
-export function getDocumentTemplates(): DocumentTemplate[] {
-  // 静的データから取得（DBに入れる場合は後で変更）
+// 静的データから取得（フォールバック用）
+export function getDocumentTemplatesFromStatic(): DocumentTemplate[] {
   return DOCUMENT_TEMPLATES.map((t, idx) => ({
     ...t,
     id: `template_${idx}`,
     createdAt: new Date(),
   })) as DocumentTemplate[];
+}
+
+// Firestoreから取得（シード後に使用）
+export async function getDocumentTemplatesFromDB(): Promise<DocumentTemplate[]> {
+  const firestore = ensureDb();
+
+  const q = query(
+    collection(firestore, 'documentTemplates'),
+    orderBy('ownerType', 'asc')
+  );
+
+  const snapshot = await getDocs(q);
+
+  if (snapshot.empty) {
+    // DBにない場合は静的データを返す
+    return getDocumentTemplatesFromStatic();
+  }
+
+  return snapshot.docs.map((d) => {
+    const data = d.data();
+    return {
+      id: d.id,
+      ...data,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate(),
+    } as DocumentTemplate;
+  });
+}
+
+// 互換性のためのエイリアス（静的データ使用）
+export function getDocumentTemplates(): DocumentTemplate[] {
+  return getDocumentTemplatesFromStatic();
 }
 
 export function getDocumentTemplateByKey(key: string): DocumentTemplate | undefined {

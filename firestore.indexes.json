@@ -171,6 +171,57 @@
         { "fieldPath": "userId", "order": "ASCENDING" },
         { "fieldPath": "read", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "documents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "documents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "ownerType", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "documents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "documents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "documentTemplates",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerType", "order": "ASCENDING" },
+        { "fieldPath": "required", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "documentEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "documentId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
