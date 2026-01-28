@@ -42,7 +42,7 @@ export function Header() {
   const navItems = [
     { href: '/dashboard', label: 'ホーム', icon: Home },
     { href: '/attendance', label: '打刻', icon: Clock },
-    { href: '/ringi', label: '稟議', icon: ClipboardList },
+    { href: '/dashboard/approvals', label: '稟議', icon: ClipboardList },
     { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus },
     { href: '/sales', label: '営業', icon: Briefcase },
     { href: '/dashboard/vacancy', label: '空室', icon: Building2 },
