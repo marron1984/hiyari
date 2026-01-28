@@ -3,7 +3,13 @@
 import { UserRole } from './index';
 
 // 稟議ステータス
-export type RingiStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+export type RingiStatus = 'draft' | 'submitted' | 'approved' | 'rejected' | 'returned';
+
+// 緊急度
+export type RingiUrgency = '通常' | '至急';
+
+// 支払方法
+export type PaymentMethod = '振込' | '口座振替' | 'カード' | '現金' | 'その他';
 
 // 稟議カテゴリ
 export type RingiCategory =
@@ -29,6 +35,7 @@ export const RINGI_STATUS_LABELS: Record<RingiStatus, string> = {
   submitted: '承認待ち',
   approved: '承認済',
   rejected: '却下',
+  returned: '差戻し',
 };
 
 // ステータス表示色
@@ -37,7 +44,28 @@ export const RINGI_STATUS_COLORS: Record<RingiStatus, { bg: string; text: string
   submitted: { bg: 'bg-amber-100', text: 'text-amber-700' },
   approved: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
   rejected: { bg: 'bg-red-100', text: 'text-red-700' },
+  returned: { bg: 'bg-orange-100', text: 'text-orange-700' },
 };
+
+// カテゴリ別必須添付
+export const REQUIRED_ATTACHMENTS_BY_CATEGORY: Record<RingiCategory, string[]> = {
+  '備品購入': ['見積書'],
+  '設備修繕': ['見積書'],
+  '人事関連': [],
+  '研修・教育': [],
+  '契約・外注': ['見積書', '契約書案'],
+  'その他': [],
+};
+
+// 差戻し理由テンプレート
+export const RETURN_REASON_TEMPLATES = [
+  '見積書が不足しています',
+  '支払先情報が不足しています',
+  '背景・理由の記載が不足しています',
+  '比較検討（相見積もり）が必要です',
+  '契約書案を添付してください',
+  '金額の内訳を明記してください',
+];
 
 // ======== 状態遷移ルール ========
 
@@ -51,9 +79,10 @@ export const RINGI_STATUS_COLORS: Record<RingiStatus, { bg: string; text: string
  */
 export const RINGI_TRANSITIONS: Record<RingiStatus, RingiStatus[]> = {
   draft: ['submitted'],
-  submitted: ['approved', 'rejected', 'draft'],
+  submitted: ['approved', 'rejected', 'returned', 'draft'],
   approved: [],
   rejected: [],
+  returned: ['submitted', 'draft'], // 差戻し後は再申請または下書きに戻す
 };
 
 /**
@@ -81,41 +110,209 @@ export interface Ringi {
   id: string;
   tenantId: string;
   branchId: string;
+
   // 申請者
   authorId: string;
   authorName: string;
-  // 内容
+
+  // Step 1: 概要
   title: string;
   category: RingiCategory;
-  amount?: number;           // 金額（任意）
-  description: string;       // 申請理由・詳細
-  attachmentUrls?: string[]; // 添付ファイルURL
+  urgency?: RingiUrgency;
+  desiredDecisionDate?: Date;
+
+  // Step 2: 内容（背景と目的）
+  background?: string;       // 背景（なぜ）
+  purpose?: string;          // 目的（何を）
+  expectedEffect?: string;  // 期待効果（どう良くなる）
+  risk?: string;            // リスク・懸念
+
+  // Step 3: 金額と支払い
+  amount?: number;
+  payeeName?: string;       // 支払先
+  paymentMethod?: PaymentMethod;
+  desiredPayDate?: Date;    // 希望支払日
+  accountCode?: string;     // 勘定科目
+  department?: string;      // 部門
+
+  // Step 4: 添付
+  attachments?: RingiAttachment[];
+
+  // 旧フィールド（互換性維持）
+  description?: string;     // 旧：申請理由・詳細
+  attachmentUrls?: string[];
+
   // 状態
   status: RingiStatus;
+
   // 承認情報
   approvedBy?: string;
   approvedByName?: string;
   approvedAt?: Date;
   approvalComment?: string;
+
   // 却下情報
   rejectedBy?: string;
   rejectedByName?: string;
   rejectedAt?: Date;
   rejectionReason?: string;
+
+  // 差戻し情報
+  returnedBy?: string;
+  returnedByName?: string;
+  returnedAt?: Date;
+  returnReason?: string;
+
   // タイムスタンプ
   submittedAt?: Date;
   createdAt: Date;
   updatedAt?: Date;
 }
 
+// 稟議添付ファイル
+export interface RingiAttachment {
+  id: string;
+  type: 'QUOTE' | 'CONTRACT_DRAFT' | 'OTHER'; // 見積書/契約書案/その他
+  fileName: string;
+  fileUrl: string;
+  fileMime?: string;
+  fileSize?: number;
+  uploadedAt: Date;
+}
+
 // ======== フォーム入力値 ========
 
 export interface RingiFormData {
+  // Step 1: 概要
   title: string;
   category: RingiCategory;
+  urgency?: RingiUrgency;          // オプショナル（後方互換）
+  desiredDecisionDate?: string;
+
+  // Step 2: 内容
+  background?: string;             // オプショナル（後方互換）
+  purpose?: string;                // オプショナル（後方互換）
+  expectedEffect?: string;
+  risk?: string;
+
+  // Step 3: 金額と支払い
   amount?: number;
-  description: string;
-  attachments?: File[];
+  payeeName?: string;
+  paymentMethod?: PaymentMethod;
+  desiredPayDate?: string;
+  accountCode?: string;
+  department?: string;
+
+  // Step 4: 添付
+  attachments?: RingiAttachment[];
+
+  // 旧フィールド（互換性）
+  description?: string;
+}
+
+// ======== バリデーション ========
+
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+  warnings: string[];
+}
+
+/**
+ * Step 1: 概要のバリデーション
+ */
+export function validateStep1(data: RingiFormData): ValidationResult {
+  const errors: ValidationError[] = [];
+
+  if (!data.title?.trim()) {
+    errors.push({ field: 'title', message: '件名は必須です' });
+  }
+  if (!data.category) {
+    errors.push({ field: 'category', message: 'カテゴリは必須です' });
+  }
+
+  return { isValid: errors.length === 0, errors, warnings: [] };
+}
+
+/**
+ * Step 2: 内容のバリデーション
+ */
+export function validateStep2(data: RingiFormData): ValidationResult {
+  const errors: ValidationError[] = [];
+
+  if (!data.background?.trim()) {
+    errors.push({ field: 'background', message: '背景（なぜ必要か）は必須です' });
+  }
+  if (!data.purpose?.trim()) {
+    errors.push({ field: 'purpose', message: '目的（何をするか）は必須です' });
+  }
+
+  return { isValid: errors.length === 0, errors, warnings: [] };
+}
+
+/**
+ * Step 3: 金額と支払いのバリデーション
+ */
+export function validateStep3(data: RingiFormData): ValidationResult {
+  const errors: ValidationError[] = [];
+  const warnings: string[] = [];
+
+  if (data.amount === undefined || data.amount === null) {
+    errors.push({ field: 'amount', message: '金額は必須です' });
+  }
+
+  // カテゴリによって支払先が必須
+  if (['備品購入', '設備修繕', '契約・外注'].includes(data.category)) {
+    if (!data.payeeName?.trim()) {
+      warnings.push('支払先を入力すると承認がスムーズです');
+    }
+  }
+
+  return { isValid: errors.length === 0, errors, warnings };
+}
+
+/**
+ * Step 4: 添付のバリデーション（カテゴリ別必須チェック）
+ */
+export function validateStep4(data: RingiFormData): ValidationResult {
+  const errors: ValidationError[] = [];
+  const warnings: string[] = [];
+
+  const requiredTypes = REQUIRED_ATTACHMENTS_BY_CATEGORY[data.category] || [];
+  const attachedTypes: string[] = (data.attachments || []).map((a) => {
+    if (a.type === 'QUOTE') return '見積書';
+    if (a.type === 'CONTRACT_DRAFT') return '契約書案';
+    return 'その他';
+  });
+
+  for (const required of requiredTypes) {
+    if (!attachedTypes.includes(required)) {
+      errors.push({ field: 'attachments', message: `${required}が必要です` });
+    }
+  }
+
+  return { isValid: errors.length === 0, errors, warnings };
+}
+
+/**
+ * 全ステップのバリデーション
+ */
+export function validateAllSteps(data: RingiFormData): ValidationResult {
+  const step1 = validateStep1(data);
+  const step2 = validateStep2(data);
+  const step3 = validateStep3(data);
+  const step4 = validateStep4(data);
+
+  return {
+    isValid: step1.isValid && step2.isValid && step3.isValid && step4.isValid,
+    errors: [...step1.errors, ...step2.errors, ...step3.errors, ...step4.errors],
+    warnings: [...step1.warnings, ...step2.warnings, ...step3.warnings, ...step4.warnings],
+  };
 }
 
 // ======== 監査ログ ========

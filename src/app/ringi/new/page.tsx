@@ -30,7 +30,7 @@ export default function NewRingiPage() {
       alert('件名を入力してください');
       return;
     }
-    if (!formData.description.trim()) {
+    if (!formData.description?.trim()) {
       alert('申請理由を入力してください');
       return;
     }

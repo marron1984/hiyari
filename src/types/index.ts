@@ -148,6 +148,8 @@ export interface User {
   branchId: string;
   jobType: JobType;
   tenantId: string;
+  birthDate?: Date;
+  department?: string;
   createdAt: Date;
   updatedAt?: Date;
 }
