@@ -296,6 +296,77 @@ monthlyStats/{tenantId}/{yyyyMM}/branches/{branchId}
 7. **監査ログ**
    - 管理者の操作履歴記録
 
+## 本番デプロイ手順
+
+### 1. セルフチェック（Self Check）
+
+本番デプロイ前に `/dashboard/admin/self-check` で以下を確認してください（admin以上の権限が必要）。
+
+**確認項目**:
+- `/api/health` が 200 を返している
+- 認証（auth_health）が OK
+- DB接続（db_health）が OK
+- ダッシュボードメトリクステストが OK
+- 主要ページが表示できる
+
+### 2. 環境変数（Feature Flags）
+
+本番環境で以下の環境変数を設定できます：
+
+| 環境変数 | 説明 | デフォルト |
+|----------|------|-----------|
+| `APP_ENV` | 環境識別（production/preview/development） | VERCEL_ENV |
+| `EXTERNAL_SEND_ENABLED` | 外部送信許可（LINE WORKS等） | false |
+| `FEATURE_APPROVALS_V2` | 稟議新UI有効化 | false |
+| `FEATURE_AI_VP` | AI副社長有効化 | false |
+| `FEATURE_DOCS` | 書類管理有効化 | false |
+| `FEATURE_NYUKYO_LOCK` | 入居希望部屋ロック有効化 | false |
+
+**外部送信の安全装置**:
+- `APP_ENV=preview` → 常に dry-run（外部送信しない）
+- `APP_ENV=production` かつ `EXTERNAL_SEND_ENABLED=true` → 外部送信有効
+
+### 3. PRマージ手順
+
+```bash
+# 1. PRを作成
+gh pr create --base main --head feature-branch \
+  --title "feat: 機能名" \
+  --body "## Summary\n- 変更点\n\n## Test plan\n- [ ] Self Check OK"
+
+# 2. CI確認（自動実行）
+# - lint
+# - typecheck
+# - unit test
+# - build
+# - e2e test
+
+# 3. レビュー承認後、Squash merge
+gh pr merge --squash
+
+# 4. Vercel自動デプロイ（main → Production）
+```
+
+### 4. 本番反映後の確認チェックリスト
+
+- [ ] `aa-g.org/api/health` が 200
+- [ ] `aa-g.org/` がリダイレクトループしない
+- [ ] `/dashboard` が無限スピナーにならない
+- [ ] `/dashboard/approvals/new` が表示できる
+- [ ] `/dashboard/admin/self-check` で全項目OK
+- [ ] LINE WORKSが本番のみ enabled（Previewでは dry-run）
+
+### 5. Firestore インデックス
+
+インデックスは `firestore.indexes.json` でrepo管理しています。
+
+```bash
+# インデックスをデプロイ
+firebase deploy --only firestore:indexes
+```
+
+インデックス不足エラーが発生した場合、エラーメッセージ内のURLからFirebase Consoleで作成できます。
+
 ## ライセンス
 
 MIT License
