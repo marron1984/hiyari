@@ -71,8 +71,29 @@ function NewApprovalContent() {
     paymentMethod: '振込',
     attachments: [],
   });
+  const [categoryChangeNotice, setCategoryChangeNotice] = useState<string | null>(null);
 
   const updateField = <K extends keyof RingiFormData>(field: K, value: RingiFormData[K]) => {
+    // カテゴリ変更時の添付要件変更通知
+    if (field === 'category' && value !== formData.category) {
+      const newCategory = value as RingiCategory;
+      const oldRequired = REQUIRED_ATTACHMENTS_BY_CATEGORY[formData.category] || [];
+      const newRequired = REQUIRED_ATTACHMENTS_BY_CATEGORY[newCategory] || [];
+
+      if (JSON.stringify(oldRequired) !== JSON.stringify(newRequired)) {
+        if (newRequired.length > 0) {
+          setCategoryChangeNotice(
+            `カテゴリ変更により、${newRequired.join('・')}の添付が必要になりました`
+          );
+          // 3秒後に通知を消す
+          setTimeout(() => setCategoryChangeNotice(null), 5000);
+        } else if (oldRequired.length > 0) {
+          setCategoryChangeNotice('カテゴリ変更により、必須添付がなくなりました');
+          setTimeout(() => setCategoryChangeNotice(null), 3000);
+        }
+      }
+    }
+
     setFormData((prev) => ({ ...prev, [field]: value }));
     // エラーをクリア
     setErrors((prev) => prev.filter((e) => e.field !== field));
@@ -246,9 +267,16 @@ function NewApprovalContent() {
                     options={RINGI_CATEGORIES.map((cat) => ({ value: cat, label: cat }))}
                   />
                   {requiredAttachments.length > 0 && (
-                    <p className="text-sm text-amber-600 mt-1">
+                    <p className="text-sm text-amber-600 mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
                       このカテゴリでは {requiredAttachments.join('、')} が必要です
                     </p>
+                  )}
+                  {categoryChangeNotice && (
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                      {categoryChangeNotice}
+                    </div>
                   )}
                 </div>
 
@@ -473,26 +501,66 @@ function NewApprovalContent() {
               <div className="space-y-6">
                 <h2 className="text-lg font-semibold mb-4">送信前確認</h2>
 
-                {/* バリデーション結果 */}
+                {/* 不足項目（エラー） */}
                 {!allValidation.isValid && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                     <div className="flex items-center gap-2 text-red-700 mb-2">
                       <AlertCircle className="w-5 h-5" />
-                      <span className="font-medium">以下の項目が不足しています</span>
+                      <span className="font-medium">
+                        以下の必須項目が不足しています（{allValidation.errors.length}件）
+                      </span>
                     </div>
-                    <ul className="ml-7 text-red-600 text-sm list-disc">
+                    <ul className="ml-7 text-red-600 text-sm space-y-1">
                       {allValidation.errors.map((err, idx) => (
-                        <li key={idx}>{err.message}</li>
+                        <li key={idx} className="flex items-center gap-2">
+                          <X className="w-4 h-4" />
+                          {err.message}
+                        </li>
                       ))}
                     </ul>
+                    <p className="mt-3 text-sm text-red-600 font-medium">
+                      ※ 不足項目を入力するまで申請できません
+                    </p>
                   </div>
                 )}
 
-                {allValidation.isValid && (
+                {/* 警告（推奨項目） */}
+                {allValidation.warnings.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-amber-700 mb-2">
+                      <AlertCircle className="w-5 h-5" />
+                      <span className="font-medium">
+                        推奨項目（{allValidation.warnings.length}件）
+                      </span>
+                    </div>
+                    <ul className="ml-7 text-amber-600 text-sm space-y-1">
+                      {allValidation.warnings.map((warn, idx) => (
+                        <li key={idx} className="flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          {warn}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-3 text-sm text-amber-600">
+                      ※ 警告項目があっても申請可能ですが、差戻しの原因になることがあります
+                    </p>
+                  </div>
+                )}
+
+                {allValidation.isValid && allValidation.warnings.length === 0 && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="flex items-center gap-2 text-green-700">
                       <Check className="w-5 h-5" />
                       <span className="font-medium">入力内容に問題ありません</span>
+                    </div>
+                  </div>
+                )}
+
+                {allValidation.isValid && allValidation.warnings.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-blue-700">
+                      <Check className="w-5 h-5" />
+                      <span className="font-medium">必須項目は入力済みです（警告あり）</span>
                     </div>
                   </div>
                 )}
