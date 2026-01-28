@@ -10,7 +10,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "seed:chaos": "ts-node scripts/seed-chaos.ts"
+    "seed:chaos": "ts-node scripts/seed-chaos.ts",
+    "deploy:indexes": "firebase deploy --only firestore:indexes"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",

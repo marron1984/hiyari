@@ -123,23 +123,24 @@ function DashboardContent() {
     const fetchData = async () => {
       if (!user) return;
 
-      try {
-        setError(null);
+      const errors: DashboardError[] = [];
 
-        // 全員：自分のチェックイン履歴
+      // 全員：自分のチェックイン履歴
+      try {
         const history = await getCheckinHistory(user.id, 7);
         setCheckinHistory(history);
+      } catch (err) {
+        console.error('[dashboard:checkinHistory] Failed:', err);
+        errors.push(toDashboardError(err));
+      }
 
-        // Manager以上：チーム・組織データ
-        if (!isStaff) {
-          const [chaosData, interventionsData] = await Promise.all([
-            getChaosDashboardMetrics(DEFAULT_TENANT_ID),
-            getInterventions('open', 20),
-          ]);
+      // Manager以上：チーム・組織データ
+      if (!isStaff) {
+        // CHAOS組織データ
+        try {
+          const chaosData = await getChaosDashboardMetrics(DEFAULT_TENANT_ID);
           setOrgMetrics(chaosData.organization);
-          setInterventions(interventionsData);
 
-          // チームデータをセット
           const team = chaosData.organization.burnoutRiskHeatmap.map(m => ({
             userId: m.userId,
             userName: m.userName,
@@ -147,23 +148,50 @@ function DashboardContent() {
             level: getMeterColor(m.score),
           }));
           setTeamData(team);
+        } catch (err) {
+          console.error('[dashboard:chaosMetrics] Failed:', err);
+          errors.push(toDashboardError(err));
         }
 
-        // Exec：営業・経営データ
-        if (isExec) {
-          const [dealsData, accountsData, prospectsData, facilitiesData] = await Promise.all([
+        // 介入データ
+        try {
+          const interventionsData = await getInterventions('open', 20);
+          setInterventions(interventionsData);
+        } catch (err) {
+          console.error('[dashboard:interventions] Failed:', err);
+          errors.push(toDashboardError(err));
+        }
+      }
+
+      // Exec：営業・経営データ
+      if (isExec) {
+        // 営業データ（案件・営業先）
+        try {
+          const [dealsData, accountsData] = await Promise.all([
             getSalesDeals(DEFAULT_TENANT_ID),
             getSalesAccounts(DEFAULT_TENANT_ID),
-            getProspects(DEFAULT_TENANT_ID),
-            getFacilitiesWithVacancy(DEFAULT_TENANT_ID),
           ]);
 
           const activeDeals = dealsData.filter(d => !['請求書到着', '失注'].includes(d.status));
           const completedDeals = dealsData.filter(d => d.status === '請求書到着');
-          // 安全な率計算（分母0の場合はnull）
           const cvRate = safeRate(completedDeals.length, dealsData.length);
 
-          // 入居確率スコアリング
+          setSalesMetrics(prev => ({
+            ...prev,
+            accounts: accountsData.length,
+            activeDeals: activeDeals.length,
+            completedDeals: completedDeals.length,
+            totalDeals: dealsData.length,
+            cvRate,
+          }));
+        } catch (err) {
+          console.error('[dashboard:salesData] Failed:', err);
+          errors.push(toDashboardError(err));
+        }
+
+        // 入居希望データ（スコアリング）
+        try {
+          const prospectsData = await getProspects(DEFAULT_TENANT_ID);
           const activeProspects = prospectsData.filter(
             p => p.status !== '見送り' && p.status !== 'クローズ' && p.status !== '入居決定'
           );
@@ -171,31 +199,41 @@ function DashboardContent() {
           const rankDistribution = aggregateByRank(scoringResults);
           const expectedMoveIns = calculateExpectedMoveIns(scoringResults);
 
-          setSalesMetrics({
-            accounts: accountsData.length,
-            activeDeals: activeDeals.length,
-            completedDeals: completedDeals.length,
-            totalDeals: dealsData.length,
-            cvRate,
+          setSalesMetrics(prev => ({
+            ...prev,
             expectedMoveIns,
             rankA: rankDistribution.A,
             rankB: rankDistribution.B,
             rankC: rankDistribution.C,
             rankD: rankDistribution.D,
-          });
+          }));
+        } catch (err) {
+          console.error('[dashboard:prospects] Failed:', err);
+          errors.push(toDashboardError(err));
+        }
 
-          // 稼働率（安全な計算）
+        // 稼働率データ
+        try {
+          const facilitiesData = await getFacilitiesWithVacancy(DEFAULT_TENANT_ID);
           const totalCapacity = facilitiesData.reduce((sum, f) => sum + (f.facility.capacity || 0), 0);
           const totalVacant = facilitiesData.reduce((sum, f) => sum + (f.vacancy?.vacantCount ?? 0), 0);
           const rate = calcOccupancyRate(totalCapacity, totalVacant);
           setOccupancyRate(rate);
+        } catch (err) {
+          console.error('[dashboard:occupancy] Failed:', err);
+          errors.push(toDashboardError(err));
         }
-      } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
-        setError(toDashboardError(err));
-      } finally {
-        setLoading(false);
       }
+
+      // インデックスエラーがあれば最初のものを表示
+      const indexError = errors.find(e => e.code === 'INDEX_REQUIRED');
+      if (indexError) {
+        setError(indexError);
+      } else if (errors.length > 0) {
+        setError(errors[0]);
+      }
+
+      setLoading(false);
     };
 
     fetchData();
