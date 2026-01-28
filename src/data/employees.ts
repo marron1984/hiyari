@@ -61,6 +61,12 @@ export const BRANCHES_SEED = [
     tenantId: 'defaultTenant',
     headcount: 10,
   },
+  {
+    id: 'remote',
+    name: '在宅ワーク',
+    tenantId: 'defaultTenant',
+    headcount: 0,
+  },
 ];
 
 // 資格タイプ
@@ -108,6 +114,7 @@ const BRANCH_MAP: Record<string, string> = {
   'セレーネ': 'serene',
   'パール': 'pearl',
   'シャンクレール': 'champsclaire',
+  '在宅ワーク': 'remote',
 };
 
 // 従業員シードデータ
