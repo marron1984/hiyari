@@ -75,8 +75,10 @@ function AdminRingiContent() {
   // 承認経路用ローディング・エラー
   const [routesLoading, setRoutesLoading] = useState(true);
   const [routesError, setRoutesError] = useState<string | null>(null);
+  const [routesFetched, setRoutesFetched] = useState(false); // 取得完了フラグ
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
 
   // 稟議却下モーダル
   const [rejectModal, setRejectModal] = useState<{ ringiId: string; title: string } | null>(null);
@@ -159,13 +161,49 @@ function AdminRingiContent() {
       }));
 
       setRoutes(routesWithDates);
+      setRoutesFetched(true);
+      setRoutesError(null);
     } catch (err) {
       console.error('Failed to load routes:', err);
       setRoutesError(err instanceof Error ? err.message : '承認経路の取得に失敗しました');
+      setRoutesFetched(false);
     } finally {
       setRoutesLoading(false);
     }
   }, [firebaseUser]);
+
+  // 初期テンプレ作成
+  const seedTemplates = async () => {
+    if (!firebaseUser) return;
+    setSeeding(true);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch('/api/admin/approval-routes/seed', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '作成に失敗しました');
+      }
+
+      if (data.seeded) {
+        // 作成成功 → リロード
+        await loadRoutes(false);
+      } else {
+        // 既に存在する場合
+        alert(data.message);
+      }
+    } catch (err) {
+      console.error('Failed to seed templates:', err);
+      alert(err instanceof Error ? err.message : '作成に失敗しました');
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'pending' || activeTab === 'all') {
@@ -526,8 +564,8 @@ function AdminRingiContent() {
                 </div>
               </div>
 
-              {/* 経路エラー表示 */}
-              {routesError && (
+              {/* エラー表示（取得失敗時のみ） */}
+              {routesError && !routesFetched && (
                 <ErrorBanner
                   message={routesError}
                   onRetry={() => loadRoutes()}
@@ -536,17 +574,37 @@ function AdminRingiContent() {
               )}
 
               {/* ローディング */}
-              {routesLoading && routes.length === 0 ? (
+              {routesLoading && routes.length === 0 && !routesFetched ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
                 </div>
-              ) : routes.length === 0 ? (
+              ) : routesFetched && routes.length === 0 ? (
+                // 取得成功 & 0件の場合
                 <Card className="p-8 text-center">
                   <Route className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-                  <p className="text-zinc-500">承認経路がありません</p>
-                  <p className="text-xs text-zinc-400 mt-1">新規作成ボタンから追加してください</p>
+                  <p className="text-zinc-500 mb-2">承認経路がありません</p>
+                  <p className="text-xs text-zinc-400 mb-4">
+                    初期テンプレートを作成するか、新規作成ボタンから追加してください
+                  </p>
+                  <Button
+                    onClick={seedTemplates}
+                    disabled={seeding}
+                    className="mx-auto"
+                  >
+                    {seeding ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        作成中...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4 mr-2" />
+                        初期テンプレートを作成
+                      </>
+                    )}
+                  </Button>
                 </Card>
-              ) : (
+              ) : routes.length > 0 ? (
                 <div className="space-y-3">
                   {routes.map((route) => (
                     <Card
@@ -623,7 +681,7 @@ function AdminRingiContent() {
                     </Card>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
 
             {/* 右: 経路編集 */}
