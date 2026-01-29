@@ -19,8 +19,9 @@ import {
   Paperclip,
   RotateCcw,
   Clock,
+  Route,
 } from 'lucide-react';
-import { createRingi, submitRingi } from '@/lib/ringi';
+import { createRingi } from '@/lib/ringi';
 import {
   RingiFormData,
   RingiCategory,
@@ -58,7 +59,7 @@ export default function NewApprovalPage() {
 
 function NewApprovalContent() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, firebaseUser } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
@@ -258,7 +259,7 @@ function NewApprovalContent() {
   };
 
   const handleSubmit = async () => {
-    if (!user) return;
+    if (!user || !firebaseUser) return;
 
     const validation = validateAllSteps(formData);
     if (!validation.isValid) {
@@ -268,6 +269,7 @@ function NewApprovalContent() {
 
     setLoading(true);
     try {
+      // 1. まず稟議を作成
       const ringi = await createRingi(
         {
           ...formData,
@@ -279,12 +281,27 @@ function NewApprovalContent() {
         user.tenantId
       );
 
-      await submitRingi(ringi.id, user.id, user.name, user.role, user.branchId);
+      // 2. API経由で申請（承認経路を自動適用）
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch('/api/ringi/submit', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ringiId: ringi.id }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || '申請に失敗しました');
+      }
+
       clearDraft(); // 送信成功時にローカル下書きをクリア
       router.push('/ringi');
     } catch (error) {
       console.error('Failed to submit:', error);
-      alert('申請に失敗しました');
+      alert(error instanceof Error ? error.message : '申請に失敗しました');
     } finally {
       setLoading(false);
     }

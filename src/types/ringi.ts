@@ -163,6 +163,9 @@ export interface Ringi {
   returnedAt?: Date;
   returnReason?: string;
 
+  // 承認フロー（経路適用時に設定）
+  approvalFlow?: RingiApprovalFlow;
+
   // タイムスタンプ
   submittedAt?: Date;
   createdAt: Date;
@@ -386,4 +389,116 @@ export function canTransition(
  */
 export function canDelete(ringi: Ringi, userId: string): boolean {
   return ringi.status === 'draft' && isAuthor(ringi, userId);
+}
+
+// ======== 承認経路 ========
+
+/**
+ * 承認者タイプ
+ * - ROLE: ロールベース（manager, leader, admin, exec）
+ * - USER: 特定ユーザー指定
+ */
+export type ApproverType = 'ROLE' | 'USER';
+
+/**
+ * ロール承認者の種類
+ */
+export type ApproverRole = 'manager' | 'leader' | 'admin' | 'exec';
+
+export const APPROVER_ROLE_LABELS: Record<ApproverRole, string> = {
+  manager: '部門長',
+  leader: '拠点長',
+  admin: '管理者',
+  exec: '経営層',
+};
+
+/**
+ * 承認ステップ
+ */
+export interface RingiApprovalRouteStep {
+  id: string;
+  routeId: string;
+  stepOrder: number;
+  approverType: ApproverType;
+  approverValue: string; // ROLEの場合はApproverRole、USERの場合はuserId
+  approverName?: string; // USER指定時の表示名
+  required: boolean;
+  createdAt: Date;
+}
+
+/**
+ * 承認経路
+ */
+export interface RingiApprovalRoute {
+  id: string;
+  tenantId: string;
+  name: string;
+  description?: string;
+  category: RingiCategory | null; // nullは全カテゴリ
+  branchId: string | null; // nullは全拠点
+  branchName?: string;
+  minAmount: number | null; // nullは下限なし
+  maxAmount: number | null; // nullは上限なし
+  isActive: boolean;
+  isDefault: boolean; // デフォルト経路フラグ
+  priority: number; // マッチング優先度（低い方が優先）
+  steps: RingiApprovalRouteStep[];
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string;
+  createdByName: string;
+}
+
+/**
+ * 稟議に紐づく承認フロー（実行時）
+ */
+export interface RingiApprovalFlow {
+  ringiId: string;
+  routeId: string;
+  routeName: string;
+  currentStepOrder: number;
+  steps: RingiApprovalFlowStep[];
+  completedAt?: Date;
+}
+
+export interface RingiApprovalFlowStep {
+  stepOrder: number;
+  approverType: ApproverType;
+  approverValue: string;
+  approverName?: string;
+  required: boolean;
+  status: 'pending' | 'approved' | 'skipped';
+  approvedBy?: string;
+  approvedByName?: string;
+  approvedAt?: Date;
+  comment?: string;
+}
+
+/**
+ * 承認経路フォームデータ
+ */
+export interface RingiApprovalRouteFormData {
+  name: string;
+  description?: string;
+  category: RingiCategory | '';
+  branchId: string;
+  minAmount: number | '';
+  maxAmount: number | '';
+  isActive: boolean;
+  priority: number;
+  steps: Array<{
+    approverType: ApproverType;
+    approverValue: string;
+    required: boolean;
+  }>;
+}
+
+/**
+ * 金額条件のラベル表示
+ */
+export function formatAmountCondition(min: number | null, max: number | null): string {
+  if (min === null && max === null) return '金額制限なし';
+  if (min === null) return `${max?.toLocaleString()}円以下`;
+  if (max === null) return `${min.toLocaleString()}円以上`;
+  return `${min.toLocaleString()}円 〜 ${max.toLocaleString()}円`;
 }
