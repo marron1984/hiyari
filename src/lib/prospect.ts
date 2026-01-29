@@ -12,6 +12,8 @@ import {
   where,
   Timestamp,
   writeBatch,
+  runTransaction,
+  setDoc,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
 import {
@@ -38,6 +40,12 @@ export const PROSPECTS_CUTOFF_DATE = new Date('2026-01-01T00:00:00.000Z');
 
 // KPI集計対象年（2026年以降）
 export const KPI_START_YEAR = 2026;
+
+// KPI対象の最小internal_no（252以上のみKPI対象、251以前は対象外）
+export const KPI_MIN_INTERNAL_NO = 252;
+
+// カウンタードキュメントパス
+const COUNTER_DOC_PATH = 'counters/prospects_internal_no';
 
 /**
  * プロスペクトの判定日を取得（優先順位: inquiryDate > receivedAt > createdAt）
@@ -71,15 +79,135 @@ export function isKpiTargetDate(date: Date): boolean {
   return date.getFullYear() >= KPI_START_YEAR;
 }
 
+/**
+ * internal_noがKPI対象（252以上）かどうかを判定
+ */
+export function isKpiTargetInternalNo(internalNo: string | number | undefined | null): boolean {
+  if (internalNo === undefined || internalNo === null || internalNo === '') {
+    return false;
+  }
+  const num = typeof internalNo === 'number' ? internalNo : parseInt(String(internalNo), 10);
+  return !isNaN(num) && num >= KPI_MIN_INTERNAL_NO;
+}
+
+/**
+ * ProspectがKPI対象かどうかを判定（internal_no >= 252）
+ */
+export function isProspectKpiTarget(prospect: Prospect): boolean {
+  return isKpiTargetInternalNo(prospect.internalNo);
+}
+
+/**
+ * Prospect配列にKPIスコープを適用（internal_no >= 252 のみ返す）
+ */
+export function applyProspectKpiScope(prospects: Prospect[]): Prospect[] {
+  return prospects.filter(isProspectKpiTarget);
+}
+
 function getDb() {
   if (!db) throw new Error('Firestore not initialized');
   return db;
+}
+
+// ======== 自動付番 ========
+
+/**
+ * 次のinternal_noを取得（トランザクションで重複防止）
+ * - カウンタが未設定の場合は、既存prospectsの最大値から初期化
+ * - カウンタが251以下の場合は252から開始
+ */
+export async function getNextInternalNo(
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<number> {
+  const firestore = getDb();
+  const counterRef = doc(firestore, COUNTER_DOC_PATH);
+
+  return await runTransaction(firestore, async (transaction) => {
+    const counterSnap = await transaction.get(counterRef);
+
+    let current: number;
+
+    if (!counterSnap.exists()) {
+      // カウンタ未設定の場合、既存prospectsの最大internal_noを計算
+      const prospectsSnap = await getDocs(
+        query(collection(firestore, 'prospects'), where('tenantId', '==', tenantId))
+      );
+
+      let maxInternalNo = 0;
+      prospectsSnap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.internalNo) {
+          const num = typeof data.internalNo === 'number'
+            ? data.internalNo
+            : parseInt(String(data.internalNo), 10);
+          if (!isNaN(num) && num > maxInternalNo) {
+            maxInternalNo = num;
+          }
+        }
+      });
+
+      // 251以下なら251にセット（次は252になる）
+      current = maxInternalNo < KPI_MIN_INTERNAL_NO - 1 ? KPI_MIN_INTERNAL_NO - 1 : maxInternalNo;
+    } else {
+      current = counterSnap.data().current || 0;
+      // 251以下なら251に補正
+      if (current < KPI_MIN_INTERNAL_NO - 1) {
+        current = KPI_MIN_INTERNAL_NO - 1;
+      }
+    }
+
+    // インクリメント
+    const nextNo = current + 1;
+
+    // カウンタを更新
+    transaction.set(counterRef, {
+      current: nextNo,
+      updatedAt: Timestamp.now(),
+    });
+
+    return nextNo;
+  });
+}
+
+/**
+ * 自動付番を割り当てて監査ログを記録
+ */
+export async function assignInternalNo(
+  prospectId: string,
+  tenantId: string = DEFAULT_TENANT_ID
+): Promise<number> {
+  const firestore = getDb();
+  const nextNo = await getNextInternalNo(tenantId);
+
+  // Prospectを更新
+  await updateDoc(doc(firestore, 'prospects', prospectId), {
+    internalNo: nextNo.toString(),
+    updatedAt: Timestamp.now(),
+  });
+
+  // 監査ログを記録
+  await createAuditLog({
+    tenantId,
+    actor: 'system',
+    actorName: 'System',
+    action: 'update',
+    entity: 'prospect',
+    entityId: prospectId,
+    diff: {
+      before: { internalNo: null },
+      after: { internalNo: nextNo },
+    },
+    note: `PROSPECT_AUTO_NUMBER_ASSIGNED: ${nextNo}`,
+  });
+
+  return nextNo;
 }
 
 // ======== 入居希望者 CRUD ========
 
 /**
  * 入居希望者を作成
+ * internal_noが未設定の場合は自動付番する
  */
 export async function createProspect(
   data: Partial<Prospect>,
@@ -98,6 +226,14 @@ export async function createProspect(
     salesRepName: data.salesRepName,
   });
 
+  // internal_noが未設定の場合は自動付番
+  let internalNo = data.internalNo || null;
+  const needsAutoNumber = !internalNo;
+  if (needsAutoNumber) {
+    const nextNo = await getNextInternalNo(tenantId);
+    internalNo = nextNo.toString();
+  }
+
   const prospectData = {
     tenantId,
     status: data.status || '新規受付',
@@ -107,7 +243,7 @@ export async function createProspect(
     createdBy: createdBy || null,
     createdByName: createdByName || null,
     // 基本情報
-    internalNo: data.internalNo || null,
+    internalNo,
     statusNote: data.statusNote || null,
     assigneeId: data.assigneeId || null,
     assigneeName: data.assigneeName || null,
@@ -155,6 +291,22 @@ export async function createProspect(
   };
 
   const docRef = await addDoc(collection(firestore, 'prospects'), prospectData);
+
+  // 自動付番を行った場合は監査ログを記録
+  if (needsAutoNumber) {
+    await createAuditLog({
+      tenantId,
+      actor: 'system',
+      actorName: 'System',
+      action: 'create',
+      entity: 'prospect',
+      entityId: docRef.id,
+      diff: {
+        after: { internalNo },
+      },
+      note: `PROSPECT_AUTO_NUMBER_ASSIGNED: ${internalNo}`,
+    });
+  }
 
   return {
     id: docRef.id,
@@ -1072,13 +1224,15 @@ export async function unlockRoom(
 
 /**
  * ダッシュボード統計を取得
- * KPIは2026年以降のデータのみで算出
+ * KPIはinternal_no >= 252のデータのみで算出
  */
 export async function getProspectStats(
   tenantId: string = DEFAULT_TENANT_ID
 ): Promise<{
   total: number;
+  totalKpi: number;
   byStatus: Record<ProspectStatus, number>;
+  byStatusKpi: Record<ProspectStatus, number>;
   newThisWeek: number;
   newThisMonth: number;
   avgDaysElapsed: number;
@@ -1090,19 +1244,25 @@ export async function getProspectStats(
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  // KPI対象は2026年以降のデータのみ
-  const kpiTargetProspects = prospects.filter((p) => isKpiTargetDate(p.receivedAt));
+  // KPI対象はinternal_no >= 252のみ（厳格）
+  const kpiTargetProspects = applyProspectKpiScope(prospects);
 
   const byStatus: Record<string, number> = {};
+  const byStatusKpi: Record<string, number> = {};
   let totalDays = 0;
   let activeCount = 0;
 
-  // ステータス集計は全件（アクティブな社内No 252以降）
+  // ステータス集計（全件）
   prospects.forEach((p) => {
     byStatus[p.status] = (byStatus[p.status] || 0) + 1;
   });
 
-  // KPIは2026以降のみ
+  // ステータス集計（KPI対象のみ）
+  kpiTargetProspects.forEach((p) => {
+    byStatusKpi[p.status] = (byStatusKpi[p.status] || 0) + 1;
+  });
+
+  // KPIはinternal_no >= 252のみ
   kpiTargetProspects.forEach((p) => {
     if (!['クローズ', '見送り', '入居決定'].includes(p.status)) {
       const days = Math.floor((now.getTime() - p.receivedAt.getTime()) / (1000 * 60 * 60 * 24));
@@ -1113,10 +1273,12 @@ export async function getProspectStats(
 
   return {
     total: prospects.length,
+    totalKpi: kpiTargetProspects.length,
     byStatus: byStatus as Record<ProspectStatus, number>,
+    byStatusKpi: byStatusKpi as Record<ProspectStatus, number>,
     newThisWeek: kpiTargetProspects.filter((p) => p.receivedAt > weekAgo).length,
     newThisMonth: kpiTargetProspects.filter((p) => p.receivedAt > monthAgo).length,
     avgDaysElapsed: activeCount > 0 ? Math.round(totalDays / activeCount) : 0,
-    kpiNote: `KPIは${KPI_START_YEAR}年以降のデータで算出`,
+    kpiNote: `KPIはinternal_no >= ${KPI_MIN_INTERNAL_NO}のデータで算出`,
   };
 }

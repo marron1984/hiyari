@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { getCheckinHistory, getChaosDashboardMetrics, getInterventions } from '@/lib/chaos';
 import { getSalesDeals, getSalesAccounts } from '@/lib/sales';
-import { getProspects } from '@/lib/prospect';
+import { getProspects, applyProspectKpiScope } from '@/lib/prospect';
 import { getFacilitiesWithVacancy } from '@/lib/vacancy';
 import { getRingisByUser, getPendingRingis } from '@/lib/ringi';
 import { AuthGuard } from '@/components/AuthGuard';
@@ -225,10 +225,12 @@ function DashboardContent() {
           errors.push(toDashboardError(err));
         }
 
-        // 入居希望データ（スコアリング）
+        // 入居希望データ（スコアリング）- KPI対象はinternal_no >= 252のみ
         try {
           const prospectsData = await getProspects(DEFAULT_TENANT_ID);
-          const activeProspects = prospectsData.filter(
+          // KPIスコープ適用: internal_no >= 252 のみ
+          const kpiTargetProspects = applyProspectKpiScope(prospectsData);
+          const activeProspects = kpiTargetProspects.filter(
             p => p.status !== '見送り' && p.status !== 'クローズ' && p.status !== '入居決定'
           );
           const scoringResults = calculateBatchMoveInProbability(activeProspects);
