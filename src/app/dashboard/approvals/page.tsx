@@ -1,13 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
+import { Card, Button, Badge } from '@/components/ui';
 import {
   Plus,
   FileText,
@@ -17,9 +15,14 @@ import {
   Edit,
   RotateCcw,
   AlertTriangle,
+  RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { getRingisByUser } from '@/lib/ringi';
 import { Ringi, RingiStatus, RINGI_STATUS_LABELS, RINGI_STATUS_COLORS } from '@/types';
+
+// 自動更新間隔
+const AUTO_REFRESH_INTERVAL = 60000; // 60秒
 
 export default function ApprovalsListPage() {
   return (
@@ -33,27 +36,61 @@ function ApprovalsListContent() {
   const { user } = useAuth();
   const [ringis, setRingis] = useState<Ringi[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [filter, setFilter] = useState<'all' | RingiStatus>('all');
 
-  useEffect(() => {
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // データ取得
+  const loadRingis = useCallback(async (showLoadingState = true) => {
     if (!user) return;
 
-    const loadRingis = async () => {
-      try {
-        const data = await getRingisByUser(user.id, user.tenantId);
-        setRingis(data);
-      } catch (error) {
-        console.error('Failed to load ringis:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (showLoadingState) {
+      setRefreshing(true);
+    }
+    setError(null);
 
-    loadRingis();
+    try {
+      const data = await getRingisByUser(user.id, user.tenantId);
+      setRingis(data);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Failed to load ringis:', err);
+      setError(err instanceof Error ? err.message : 'データの取得に失敗しました');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [user]);
 
-  const filteredRingis =
-    filter === 'all' ? ringis : ringis.filter((r) => r.status === filter);
+  // 初回ロード
+  useEffect(() => {
+    loadRingis();
+  }, [loadRingis]);
+
+  // 自動更新
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      loadRingis(false);
+    }, AUTO_REFRESH_INTERVAL);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [loadRingis]);
+
+  // 手動更新
+  const handleRefresh = () => {
+    loadRingis(true);
+  };
+
+  const filteredRingis = filter === 'all'
+    ? ringis
+    : ringis.filter((r) => r.status === filter);
 
   const statusIcon = (status: RingiStatus) => {
     switch (status) {
@@ -81,17 +118,36 @@ function ApprovalsListContent() {
     }).format(date);
   };
 
+  const formatTime = (date: Date) => {
+    return date.toLocaleString('ja-JP', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // 件数表示（エラー時は--）
+  const displayCount = (count: number | null): string => {
+    if (error || count === null) return '--';
+    return count.toString();
+  };
+
   // 件数集計
-  const draftCount = ringis.filter((r) => r.status === 'draft').length;
-  const submittedCount = ringis.filter((r) => r.status === 'submitted').length;
-  const returnedCount = ringis.filter((r) => r.status === 'returned').length;
+  const draftCount = error ? null : ringis.filter((r) => r.status === 'draft').length;
+  const submittedCount = error ? null : ringis.filter((r) => r.status === 'submitted').length;
+  const returnedCount = error ? null : ringis.filter((r) => r.status === 'returned').length;
+  const approvedCount = error ? null : ringis.filter((r) => r.status === 'approved').length;
 
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-50">
         <Header />
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+          <div className="flex flex-col items-center gap-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+            <p className="text-sm text-zinc-500">読み込み中...</p>
+          </div>
         </div>
       </div>
     );
@@ -101,47 +157,88 @@ function ApprovalsListContent() {
     <div className="min-h-screen bg-zinc-50">
       <Header />
       <div className="max-w-2xl mx-auto px-4 py-6 safe-bottom">
-        {/* Page Title & New Button */}
+        {/* Page Title & Actions */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-zinc-900">稟議</h1>
-          <Link href="/dashboard/approvals/new">
-            <Button size="sm">
-              <Plus className="w-4 h-4" />
-              新規稟議
-            </Button>
-          </Link>
-        </div>
-
-        {/* Summary Cards */}
-        {(draftCount > 0 || submittedCount > 0 || returnedCount > 0) && (
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <Card className="p-3 text-center">
-              <p className="text-2xl font-bold text-zinc-900">{draftCount}</p>
-              <p className="text-xs text-zinc-500">下書き</p>
-            </Card>
-            <Card className="p-3 text-center">
-              <p className="text-2xl font-bold text-amber-600">{submittedCount}</p>
-              <p className="text-xs text-zinc-500">申請中</p>
-            </Card>
-            {returnedCount > 0 && (
-              <Card className="p-3 text-center bg-orange-50 border-orange-200">
-                <p className="text-2xl font-bold text-orange-600">{returnedCount}</p>
-                <p className="text-xs text-orange-600">差戻し</p>
-              </Card>
-            )}
-            {returnedCount === 0 && (
-              <Card className="p-3 text-center">
-                <p className="text-2xl font-bold text-emerald-600">
-                  {ringis.filter((r) => r.status === 'approved').length}
-                </p>
-                <p className="text-xs text-zinc-500">承認済</p>
-              </Card>
+          <div>
+            <h1 className="text-xl font-bold text-zinc-900">稟議</h1>
+            {lastUpdated && (
+              <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                最終更新: {formatTime(lastUpdated)}
+              </p>
             )}
           </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
+            <Link href="/dashboard/approvals/new">
+              <Button size="sm">
+                <Plus className="w-4 h-4" />
+                新規稟議
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* エラーバナー */}
+        {error && (
+          <Card className="p-4 mb-6 bg-red-50 border border-red-200">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium text-red-800">データ取得エラー</p>
+                <p className="text-sm text-red-700 mt-1">{error}</p>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleRefresh}
+              >
+                再試行
+              </Button>
+            </div>
+          </Card>
         )}
 
+        {/* Summary Cards */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <Card className="p-3 text-center">
+            <p className={`text-2xl font-bold ${error ? 'text-zinc-400' : 'text-zinc-900'}`}>
+              {displayCount(draftCount)}
+            </p>
+            <p className="text-xs text-zinc-500">下書き</p>
+          </Card>
+          <Card className={`p-3 text-center ${submittedCount && submittedCount > 0 ? 'bg-amber-50 border-amber-200' : ''}`}>
+            <p className={`text-2xl font-bold ${error ? 'text-zinc-400' : 'text-amber-600'}`}>
+              {displayCount(submittedCount)}
+            </p>
+            <p className="text-xs text-zinc-500">申請中</p>
+          </Card>
+          {returnedCount && returnedCount > 0 ? (
+            <Card className="p-3 text-center bg-orange-50 border-orange-200">
+              <p className="text-2xl font-bold text-orange-600">
+                {displayCount(returnedCount)}
+              </p>
+              <p className="text-xs text-orange-600">差戻し</p>
+            </Card>
+          ) : (
+            <Card className="p-3 text-center">
+              <p className={`text-2xl font-bold ${error ? 'text-zinc-400' : 'text-emerald-600'}`}>
+                {displayCount(approvedCount)}
+              </p>
+              <p className="text-xs text-zinc-500">承認済</p>
+            </Card>
+          )}
+        </div>
+
         {/* 差戻しアラート */}
-        {returnedCount > 0 && (
+        {returnedCount && returnedCount > 0 && !error && (
           <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-xl flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-orange-600 shrink-0" />
             <div>
@@ -168,7 +265,7 @@ function ApprovalsListContent() {
               }`}
             >
               {status === 'all' ? 'すべて' : RINGI_STATUS_LABELS[status]}
-              {status !== 'all' && (
+              {status !== 'all' && !error && (
                 <span className="ml-1.5 text-xs opacity-70">
                   {ringis.filter((r) => r.status === status).length}
                 </span>
@@ -179,7 +276,21 @@ function ApprovalsListContent() {
 
         {/* List */}
         <div className="space-y-3">
-          {filteredRingis.length === 0 ? (
+          {error ? (
+            <Card className="p-8 text-center">
+              <AlertCircle className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+              <p className="text-zinc-500">データを取得できませんでした</p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleRefresh}
+                className="mt-4"
+              >
+                <RefreshCw className="w-4 h-4 mr-1" />
+                再試行
+              </Button>
+            </Card>
+          ) : filteredRingis.length === 0 ? (
             <Card className="p-8 text-center">
               <FileText className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
               <p className="text-zinc-500">
@@ -235,6 +346,11 @@ function ApprovalsListContent() {
               );
             })
           )}
+        </div>
+
+        {/* フッター情報 */}
+        <div className="mt-6 text-center text-xs text-zinc-400">
+          <p>自動更新: 60秒ごと</p>
         </div>
       </div>
     </div>
