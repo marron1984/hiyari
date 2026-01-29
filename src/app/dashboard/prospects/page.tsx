@@ -7,7 +7,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, Select } from '@/components/ui';
 import { Loading } from '@/components/Loading';
-import { getProspects, getProspectStats } from '@/lib/prospect';
+import { getProspects, getProspectStats, applyProspectKpiScope, isProspectKpiTarget, KPI_MIN_INTERNAL_NO } from '@/lib/prospect';
 import { hasMinRole } from '@/lib/auth';
 import {
   Prospect,
@@ -56,6 +56,8 @@ function ProspectsContent() {
   const [statusFilter, setStatusFilter] = useState<ProspectStatus | ''>('');
   const [facilityFilter, setFacilityFilter] = useState('');
   const [sortBy, setSortBy] = useState<'receivedAt' | 'daysElapsed' | 'interviewDateTime'>('receivedAt');
+  // 過去データ表示（internal_no < 252）- デフォルト非表示
+  const [showLegacyData, setShowLegacyData] = useState(false);
 
   const canManage = hasMinRole(user?.role, 'leader');
 
@@ -80,9 +82,16 @@ function ProspectsContent() {
     fetchData();
   }, [fetchData]);
 
+  // 過去データ（internal_no < 252）の件数
+  const legacyCount = prospects.filter((p) => !isProspectKpiTarget(p)).length;
+
   // フィルタリングとソート
   const filteredProspects = prospects
     .filter((p) => {
+      // 過去データフィルター（デフォルト: internal_no >= 252 のみ表示）
+      if (!showLegacyData && !isProspectKpiTarget(p)) {
+        return false;
+      }
       // 検索
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -278,6 +287,30 @@ function ProspectsContent() {
                 />
               </div>
             </div>
+            {/* 管理者向け: 過去データ表示トグル */}
+            {canManage && legacyCount > 0 && (
+              <div className="mt-3 pt-3 border-t flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showLegacyData}
+                      onChange={(e) => setShowLegacyData(e.target.checked)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-600">
+                      過去データを表示（No.{KPI_MIN_INTERNAL_NO}未満）
+                    </span>
+                  </label>
+                  <Badge variant="default" className="text-xs">
+                    {legacyCount}件
+                  </Badge>
+                </div>
+                <p className="text-xs text-gray-400">
+                  ※ KPIにはNo.{KPI_MIN_INTERNAL_NO}以上のみ含まれます
+                </p>
+              </div>
+            )}
           </Card>
 
           {/* 一覧 */}
