@@ -7,7 +7,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, Select } from '@/components/ui';
 import { Loading } from '@/components/Loading';
-import { getProspects, getProspectStats } from '@/lib/prospect';
+import { getProspects, getProspectStats, PROSPECT_MIN_INTERNAL_NO } from '@/lib/prospect';
 import { hasMinRole } from '@/lib/auth';
 import {
   Prospect,
@@ -55,7 +55,7 @@ function ProspectsContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProspectStatus | ''>('');
   const [facilityFilter, setFacilityFilter] = useState('');
-  const [sortBy, setSortBy] = useState<'receivedAt' | 'daysElapsed' | 'interviewDateTime'>('receivedAt');
+  const [sortBy, setSortBy] = useState<'internalNo' | 'receivedAt' | 'daysElapsed' | 'interviewDateTime'>('internalNo');
 
   const canManage = hasMinRole(user?.role, 'leader');
 
@@ -107,6 +107,8 @@ function ProspectsContent() {
     })
     .sort((a, b) => {
       switch (sortBy) {
+        case 'internalNo':
+          return (b.internalNo ?? 0) - (a.internalNo ?? 0);
         case 'daysElapsed':
           return calculateDaysElapsed(b.receivedAt) - calculateDaysElapsed(a.receivedAt);
         case 'interviewDateTime':
@@ -146,6 +148,9 @@ function ProspectsContent() {
               </h1>
               <p className="text-sm text-gray-500 mt-1">
                 入居希望者の管理・進捗追跡
+                <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                  表示対象：社内No {PROSPECT_MIN_INTERNAL_NO}以上
+                </span>
               </p>
             </div>
             <div className="flex gap-2">
@@ -271,6 +276,7 @@ function ProspectsContent() {
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
                   options={[
+                    { value: 'internalNo', label: '社内No順' },
                     { value: 'receivedAt', label: '受信日時順' },
                     { value: 'daysElapsed', label: '滞留日数順' },
                     { value: 'interviewDateTime', label: '面談日時順' },
@@ -321,6 +327,11 @@ function ProspectsContent() {
                         {/* 顧客情報 */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
+                            {prospect.internalNo && (
+                              <span className="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-mono rounded">
+                                {prospect.internalNo}
+                              </span>
+                            )}
                             <h3 className="font-semibold text-gray-900 truncate">
                               {prospect.customerName || '名前未登録'}
                             </h3>

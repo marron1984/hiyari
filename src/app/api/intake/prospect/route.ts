@@ -10,6 +10,7 @@ import {
   ProspectStatus,
   generateProspectKey,
 } from '@/types/prospect';
+import { getNextInternalNo } from '@/lib/prospect-admin';
 
 // Firebase Admin初期化（サーバーサイド用）
 function getAdminFirestore() {
@@ -183,6 +184,9 @@ export async function POST(request: NextRequest) {
     const db = getAdminFirestore();
     const now = Timestamp.now();
 
+    // 社内Noを自動付番（トランザクションで重複を防止）
+    const internalNo = await getNextInternalNo();
+
     // データマッピング
     const customerName = (extracted['顧客名'] || extracted['お名前'] || '') as string;
     const ageValue = extracted['年齢'];
@@ -224,8 +228,8 @@ export async function POST(request: NextRequest) {
       createdBy: null,
       createdByName: 'Webhook',
 
-      // 基本情報
-      internalNo: null,
+      // 基本情報（自動付番された社内No）
+      internalNo,
       statusNote: null,
       assigneeId: null,
       assigneeName: null,
@@ -323,6 +327,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       prospectId,
+      internalNo,
       duplicateCandidates: duplicateCandidates.length > 0 ? duplicateCandidates : undefined,
       notificationSent,
     });

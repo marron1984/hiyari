@@ -39,6 +39,9 @@ export const PROSPECTS_CUTOFF_DATE = new Date('2026-01-01T00:00:00.000Z');
 // KPI集計対象年（2026年以降）
 export const KPI_START_YEAR = 2026;
 
+// 有効な入居希望者の最小社内No（252以上のみ有効）
+export const PROSPECT_MIN_INTERNAL_NO = 252;
+
 /**
  * プロスペクトの判定日を取得（優先順位: inquiryDate > receivedAt > createdAt）
  */
@@ -69,6 +72,27 @@ export function isProspectValid(prospect: Prospect): boolean {
  */
 export function isKpiTargetDate(date: Date): boolean {
   return date.getFullYear() >= KPI_START_YEAR;
+}
+
+/**
+ * 入居希望者が有効（internal_no >= 252）かどうかを判定
+ * internal_no が未設定（null/undefined）の場合は無効とみなす
+ */
+export function isProspectActiveByInternalNo(prospect: Prospect): boolean {
+  const internalNo = prospect.internalNo;
+  if (internalNo === null || internalNo === undefined) {
+    return false;
+  }
+  return internalNo >= PROSPECT_MIN_INTERNAL_NO;
+}
+
+/**
+ * 入居希望者の有効性を判定（internal_no >= 252 AND 日付条件）
+ * 表示・集計で使用する統合判定関数
+ */
+export function isProspectActive(prospect: Prospect): boolean {
+  // internal_no >= 252 が必須条件
+  return isProspectActiveByInternalNo(prospect);
 }
 
 function getDb() {
@@ -166,8 +190,13 @@ export async function createProspect(
 
 /**
  * 入居希望者を取得
+ * @param id プロスペクトID
+ * @param options.requireActive trueの場合、internal_no < 252 のデータはnullを返す
  */
-export async function getProspect(id: string): Promise<Prospect | null> {
+export async function getProspect(
+  id: string,
+  options?: { requireActive?: boolean }
+): Promise<Prospect | null> {
   const firestore = getDb();
   const docRef = doc(firestore, 'prospects', id);
   const docSnap = await getDoc(docRef);
@@ -175,18 +204,25 @@ export async function getProspect(id: string): Promise<Prospect | null> {
   if (!docSnap.exists()) return null;
 
   const data = docSnap.data();
-  return {
+  const prospect = {
     id: docSnap.id,
     ...data,
     receivedAt: data.receivedAt?.toDate() || new Date(),
     createdAt: data.createdAt?.toDate() || new Date(),
     updatedAt: data.updatedAt?.toDate(),
   } as Prospect;
+
+  // internal_no チェックが必要な場合
+  if (options?.requireActive && !isProspectActive(prospect)) {
+    return null;
+  }
+
+  return prospect;
 }
 
 /**
  * 入居希望者一覧を取得
- * デフォルトで2026-01-01以降のデータのみ返す
+ * デフォルトで internal_no >= 252 のデータのみ返す
  */
 export async function getProspects(
   tenantId: string = DEFAULT_TENANT_ID,
@@ -195,7 +231,7 @@ export async function getProspects(
     assigneeId?: string;
     desiredFacility?: string;
     salesCompanyName?: string;
-    includeOldData?: boolean; // 2026年以前のデータを含めるか（パージ用）
+    includeInactiveByInternalNo?: boolean; // internal_no < 252 のデータを含めるか（管理用）
   }
 ): Promise<Prospect[]> {
   const firestore = getDb();
@@ -218,9 +254,9 @@ export async function getProspects(
     } as Prospect;
   });
 
-  // デフォルトで2026年以前のデータを除外（カットオフ日ベース）
-  if (!filters?.includeOldData) {
-    results = results.filter((p) => isProspectValid(p));
+  // デフォルトで internal_no < 252 のデータを除外
+  if (!filters?.includeInactiveByInternalNo) {
+    results = results.filter((p) => isProspectActive(p));
   }
 
   // クライアントサイドフィルタ
@@ -237,8 +273,12 @@ export async function getProspects(
     results = results.filter((p) => p.salesCompanyName === filters.salesCompanyName);
   }
 
-  // 受信日時降順
-  return results.sort((a, b) => b.receivedAt.getTime() - a.receivedAt.getTime());
+  // 社内No降順（デフォルト）
+  return results.sort((a, b) => {
+    const aNo = a.internalNo ?? 0;
+    const bNo = b.internalNo ?? 0;
+    return bNo - aNo;
+  });
 }
 
 /**
@@ -868,7 +908,7 @@ export async function getRecentNotifications(
 // ======== 旧データ管理 ========
 
 /**
- * 旧データ（2026年以前）を一括でクローズにする
+ * 旧データ（internal_no < 252）を一括でクローズにする
  * 管理者のみ実行可能
  *
  * 注意: 完全削除は prospect-purge.ts の purgeExecute を使用してください
@@ -886,11 +926,11 @@ export async function closeOldProspects(
   const firestore = getDb();
 
   // 全件取得（旧データ含む）
-  const allProspects = await getProspects(tenantId, { includeOldData: true });
+  const allProspects = await getProspects(tenantId, { includeInactiveByInternalNo: true });
 
-  // 2026年以前でまだクローズでないものを抽出
+  // internal_no < 252 でまだクローズでないものを抽出
   const oldProspects = allProspects.filter((p) => {
-    return !isProspectValid(p) && p.status !== 'クローズ';
+    return !isProspectActive(p) && p.status !== 'クローズ';
   });
 
   if (oldProspects.length === 0) {
@@ -904,7 +944,7 @@ export async function closeOldProspects(
   oldProspects.forEach((p) => {
     batch.update(doc(firestore, 'prospects', p.id), {
       status: 'クローズ' as ProspectStatus,
-      statusNote: '2026年以前の旧データのため一括クローズ',
+      statusNote: `社内No ${PROSPECT_MIN_INTERNAL_NO}未満の旧データのため一括クローズ`,
       updatedAt: now,
     });
   });
@@ -919,7 +959,7 @@ export async function closeOldProspects(
     action: 'update',
     entity: 'prospect',
     entityId: 'batch',
-    note: `${PROSPECTS_CUTOFF_DATE.toISOString()}以前の旧データ ${oldProspects.length}件を一括クローズ`,
+    note: `社内No ${PROSPECT_MIN_INTERNAL_NO}未満の旧データ ${oldProspects.length}件を一括クローズ`,
   });
 
   return { closedCount: oldProspects.length };
@@ -1072,7 +1112,7 @@ export async function unlockRoom(
 
 /**
  * ダッシュボード統計を取得
- * KPIは2026年以降のデータのみで算出
+ * KPIは internal_no >= 252 のデータのみで算出
  */
 export async function getProspectStats(
   tenantId: string = DEFAULT_TENANT_ID
@@ -1084,26 +1124,24 @@ export async function getProspectStats(
   avgDaysElapsed: number;
   kpiNote: string;
 }> {
+  // internal_no >= 252 のみを対象に取得
   const prospects = await getProspects(tenantId);
 
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  // KPI対象は2026年以降のデータのみ
-  const kpiTargetProspects = prospects.filter((p) => isKpiTargetDate(p.receivedAt));
-
   const byStatus: Record<string, number> = {};
   let totalDays = 0;
   let activeCount = 0;
 
-  // ステータス集計は全件（アクティブな社内No 252以降）
+  // ステータス集計（internal_no >= 252 のみ）
   prospects.forEach((p) => {
     byStatus[p.status] = (byStatus[p.status] || 0) + 1;
   });
 
-  // KPIは2026以降のみ
-  kpiTargetProspects.forEach((p) => {
+  // 滞留日数計算（アクティブな案件のみ）
+  prospects.forEach((p) => {
     if (!['クローズ', '見送り', '入居決定'].includes(p.status)) {
       const days = Math.floor((now.getTime() - p.receivedAt.getTime()) / (1000 * 60 * 60 * 24));
       totalDays += days;
@@ -1114,9 +1152,9 @@ export async function getProspectStats(
   return {
     total: prospects.length,
     byStatus: byStatus as Record<ProspectStatus, number>,
-    newThisWeek: kpiTargetProspects.filter((p) => p.receivedAt > weekAgo).length,
-    newThisMonth: kpiTargetProspects.filter((p) => p.receivedAt > monthAgo).length,
+    newThisWeek: prospects.filter((p) => p.receivedAt > weekAgo).length,
+    newThisMonth: prospects.filter((p) => p.receivedAt > monthAgo).length,
     avgDaysElapsed: activeCount > 0 ? Math.round(totalDays / activeCount) : 0,
-    kpiNote: `KPIは${KPI_START_YEAR}年以降のデータで算出`,
+    kpiNote: `KPIは社内No ${PROSPECT_MIN_INTERNAL_NO}以上のデータで算出`,
   };
 }

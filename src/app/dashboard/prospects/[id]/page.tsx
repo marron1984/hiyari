@@ -15,6 +15,8 @@ import {
   updateProspect,
   findAvailableRooms,
   getAuditLogs,
+  isProspectActive,
+  PROSPECT_MIN_INTERNAL_NO,
 } from '@/lib/prospect';
 import { getFacilities } from '@/lib/vacancy';
 import { hasMinRole } from '@/lib/auth';
@@ -106,7 +108,8 @@ function ProspectDetailContent() {
         getUsers(),
       ]);
 
-      if (!prospectData) {
+      // データが存在しない、または internal_no < 252 の場合はリダイレクト
+      if (!prospectData || !isProspectActive(prospectData)) {
         router.push('/dashboard/prospects');
         return;
       }
@@ -440,6 +443,11 @@ function ProspectDetailContent() {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
+                    {prospect.internalNo && (
+                      <span className="px-2 py-1 bg-gray-100 text-gray-700 text-sm font-mono rounded">
+                        No.{prospect.internalNo}
+                      </span>
+                    )}
                     <h1 className="text-2xl font-bold">
                       {prospect.customerName || '名前未登録'}
                     </h1>

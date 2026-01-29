@@ -87,7 +87,7 @@ export interface PurgeDryRunResult {
   purgeTargets: {
     id: string;
     customerName?: string;
-    internalNo?: string;
+    internalNo?: number | null;
     status: ProspectStatus;
     cutoffDateUsed: string;
     cutoffColumnUsed: string;
