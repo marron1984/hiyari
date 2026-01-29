@@ -55,7 +55,7 @@ export function Header() {
   const adminItems = [
     { href: '/admin/incidents', label: '報告管理', icon: BarChart3 },
     { href: '/admin/attendance/dashboard', label: '勤怠管理', icon: Clock },
-    { href: '/admin/ringi', label: '稟議承認', icon: ClipboardList },
+    { href: '/dashboard/admin/ringi', label: '稟議管理', icon: ClipboardList },
     { href: '/admin/improvements', label: '改善管理', icon: Lightbulb },
     { href: '/admin/insights', label: '連携提案', icon: Megaphone },
     { href: '/admin/points', label: 'ポイント', icon: Star },
