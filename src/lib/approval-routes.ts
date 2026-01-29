@@ -1,8 +1,9 @@
 // ======== 承認経路モジュール ========
 // Firestore Admin SDK使用（サーバーサイド専用）
+// index不要：クエリはシンプルに、フィルタ/ソートはJS側で実施
 
 import { getAdminDb } from './firebase-admin';
-import { Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import {
   RingiApprovalRoute,
   RingiApprovalRouteStep,
@@ -15,45 +16,48 @@ const DEFAULT_TENANT_ID = 'defaultTenant';
 // ======== 承認経路 CRUD ========
 
 /**
- * 全承認経路を取得
+ * 全承認経路を取得（index不要版）
+ * - tenantIdでフィルタはJS側
+ * - priorityでソートもJS側
  */
 export async function getApprovalRoutes(
   tenantId: string = DEFAULT_TENANT_ID
 ): Promise<RingiApprovalRoute[]> {
   const db = getAdminDb();
 
-  const routesSnap = await db
-    .collection('approval_routes')
-    .where('tenantId', '==', tenantId)
-    .orderBy('priority', 'asc')
-    .get();
+  // シンプルなクエリ（index不要）
+  const routesSnap = await db.collection('approval_routes').get();
 
   const routes: RingiApprovalRoute[] = [];
 
   for (const doc of routesSnap.docs) {
     const data = doc.data();
 
-    // ステップを取得
+    // JS側でtenantIdフィルタ
+    if (data.tenantId !== tenantId) continue;
+
+    // ステップを取得（index不要：シンプルget + JS sort）
     const stepsSnap = await db
       .collection('approval_routes')
       .doc(doc.id)
       .collection('steps')
-      .orderBy('stepOrder', 'asc')
       .get();
 
-    const steps: RingiApprovalRouteStep[] = stepsSnap.docs.map(stepDoc => {
-      const stepData = stepDoc.data();
-      return {
-        id: stepDoc.id,
-        routeId: doc.id,
-        stepOrder: stepData.stepOrder,
-        approverType: stepData.approverType,
-        approverValue: stepData.approverValue,
-        approverName: stepData.approverName,
-        required: stepData.required !== false,
-        createdAt: stepData.createdAt?.toDate() || new Date(),
-      };
-    });
+    const steps: RingiApprovalRouteStep[] = stepsSnap.docs
+      .map(stepDoc => {
+        const stepData = stepDoc.data();
+        return {
+          id: stepDoc.id,
+          routeId: doc.id,
+          stepOrder: stepData.stepOrder,
+          approverType: stepData.approverType,
+          approverValue: stepData.approverValue,
+          approverName: stepData.approverName,
+          required: stepData.required !== false,
+          createdAt: stepData.createdAt?.toDate() || new Date(),
+        };
+      })
+      .sort((a, b) => a.stepOrder - b.stepOrder); // JS側でソート
 
     routes.push({
       id: doc.id,
@@ -76,6 +80,9 @@ export async function getApprovalRoutes(
     });
   }
 
+  // JS側でpriorityソート
+  routes.sort((a, b) => a.priority - b.priority);
+
   return routes;
 }
 
@@ -92,27 +99,28 @@ export async function getApprovalRoute(
 
   const data = doc.data()!;
 
-  // ステップを取得
+  // ステップを取得（index不要：シンプルget + JS sort）
   const stepsSnap = await db
     .collection('approval_routes')
     .doc(routeId)
     .collection('steps')
-    .orderBy('stepOrder', 'asc')
     .get();
 
-  const steps: RingiApprovalRouteStep[] = stepsSnap.docs.map(stepDoc => {
-    const stepData = stepDoc.data();
-    return {
-      id: stepDoc.id,
-      routeId: routeId,
-      stepOrder: stepData.stepOrder,
-      approverType: stepData.approverType,
-      approverValue: stepData.approverValue,
-      approverName: stepData.approverName,
-      required: stepData.required !== false,
-      createdAt: stepData.createdAt?.toDate() || new Date(),
-    };
-  });
+  const steps: RingiApprovalRouteStep[] = stepsSnap.docs
+    .map(stepDoc => {
+      const stepData = stepDoc.data();
+      return {
+        id: stepDoc.id,
+        routeId: routeId,
+        stepOrder: stepData.stepOrder,
+        approverType: stepData.approverType,
+        approverValue: stepData.approverValue,
+        approverName: stepData.approverName,
+        required: stepData.required !== false,
+        createdAt: stepData.createdAt?.toDate() || new Date(),
+      };
+    })
+    .sort((a, b) => a.stepOrder - b.stepOrder); // JS側でソート
 
   return {
     id: doc.id,
@@ -344,7 +352,7 @@ export async function deleteApprovalRoute(routeId: string): Promise<void> {
 }
 
 /**
- * 承認経路をデフォルトに設定
+ * 承認経路をデフォルトに設定（index不要版）
  */
 export async function setDefaultApprovalRoute(
   routeId: string,
@@ -352,16 +360,15 @@ export async function setDefaultApprovalRoute(
 ): Promise<void> {
   const db = getAdminDb();
 
-  // 既存のデフォルトを解除
-  const existingDefaults = await db
-    .collection('approval_routes')
-    .where('tenantId', '==', tenantId)
-    .where('isDefault', '==', true)
-    .get();
+  // 既存のデフォルトを解除（index不要：全件取得してJS側でフィルタ）
+  const allRoutes = await db.collection('approval_routes').get();
 
   const batch = db.batch();
-  existingDefaults.docs.forEach(doc => {
-    batch.update(doc.ref, { isDefault: false, updatedAt: Timestamp.now() });
+  allRoutes.docs.forEach(doc => {
+    const data = doc.data();
+    if (data.tenantId === tenantId && data.isDefault === true) {
+      batch.update(doc.ref, { isDefault: false, updatedAt: Timestamp.now() });
+    }
   });
 
   // 新しいデフォルトを設定
@@ -418,4 +425,154 @@ export async function findMatchingApprovalRoute(
   // デフォルト経路を返す
   const defaultRoute = activeRoutes.find(r => r.isDefault);
   return defaultRoute || null;
+}
+
+// ======== 初期テンプレ作成 ========
+
+/**
+ * 初期承認経路テンプレを作成
+ * approval_routes が 0件のときのみ実行
+ *
+ * 作成する経路:
+ * 1. 通常稟議: manager → exec（デフォルト）
+ * 2. 高額稟議: manager → exec（50万円以上）
+ * 3. 人事稟議: execのみ（人事関連カテゴリ）
+ */
+export interface SeedResult {
+  seeded: boolean;
+  message: string;
+  routesCreated: number;
+  routeIds: string[];
+}
+
+export async function seedApprovalRouteTemplates(
+  tenantId: string = DEFAULT_TENANT_ID,
+  performedBy: string = 'system',
+  performedByName: string = 'システム'
+): Promise<SeedResult> {
+  const db = getAdminDb();
+
+  // 既存の経路数を確認
+  const existingRoutes = await getApprovalRoutes(tenantId);
+  if (existingRoutes.length > 0) {
+    return {
+      seeded: false,
+      message: `既に${existingRoutes.length}件の承認経路が存在します`,
+      routesCreated: 0,
+      routeIds: [],
+    };
+  }
+
+  const now = Timestamp.now();
+  const routeIds: string[] = [];
+
+  // テンプレート定義
+  const templates = [
+    {
+      name: '通常稟議',
+      description: '一般的な稟議（デフォルト経路）',
+      category: null,
+      branchId: null,
+      minAmount: null,
+      maxAmount: null,
+      isActive: true,
+      isDefault: true,
+      priority: 100,
+      steps: [
+        { approverType: 'ROLE' as const, approverValue: 'manager', required: true },
+        { approverType: 'ROLE' as const, approverValue: 'exec', required: true },
+      ],
+    },
+    {
+      name: '高額稟議',
+      description: '50万円以上の高額稟議',
+      category: null,
+      branchId: null,
+      minAmount: 500000,
+      maxAmount: null,
+      isActive: true,
+      isDefault: false,
+      priority: 10, // 高優先度（先にマッチ）
+      steps: [
+        { approverType: 'ROLE' as const, approverValue: 'manager', required: true },
+        { approverType: 'ROLE' as const, approverValue: 'exec', required: true },
+      ],
+    },
+    {
+      name: '人事稟議',
+      description: '人事関連の稟議（経営層のみ）',
+      category: '人事関連' as RingiCategory,
+      branchId: null,
+      minAmount: null,
+      maxAmount: null,
+      isActive: true,
+      isDefault: false,
+      priority: 5, // 最高優先度
+      steps: [
+        { approverType: 'ROLE' as const, approverValue: 'exec', required: true },
+      ],
+    },
+  ];
+
+  // 経路を作成
+  for (const template of templates) {
+    const routeRef = db.collection('approval_routes').doc();
+    const routeData = {
+      tenantId,
+      name: template.name,
+      description: template.description,
+      category: template.category,
+      branchId: template.branchId,
+      minAmount: template.minAmount,
+      maxAmount: template.maxAmount,
+      isActive: template.isActive,
+      isDefault: template.isDefault,
+      priority: template.priority,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: performedBy,
+      createdByName: performedByName,
+    };
+
+    await routeRef.set(routeData);
+
+    // ステップを作成
+    const batch = db.batch();
+    for (let i = 0; i < template.steps.length; i++) {
+      const step = template.steps[i];
+      const stepRef = routeRef.collection('steps').doc();
+      batch.set(stepRef, {
+        stepOrder: i + 1,
+        approverType: step.approverType,
+        approverValue: step.approverValue,
+        required: step.required,
+        createdAt: now,
+      });
+    }
+    await batch.commit();
+
+    routeIds.push(routeRef.id);
+  }
+
+  // 監査ログを記録
+  await db.collection('auditLogs').add({
+    tenantId,
+    action: 'seed_approval_routes',
+    resourceType: 'approval_routes',
+    resourceIds: routeIds,
+    performedBy,
+    performedByName,
+    details: {
+      templatesCreated: templates.map(t => t.name),
+      routeCount: templates.length,
+    },
+    createdAt: now,
+  });
+
+  return {
+    seeded: true,
+    message: `${templates.length}件の承認経路テンプレを作成しました`,
+    routesCreated: templates.length,
+    routeIds,
+  };
 }

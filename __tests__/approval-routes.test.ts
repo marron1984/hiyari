@@ -251,3 +251,108 @@ describe('RingiApprovalRouteStep', () => {
     expect(step.required).toBe(false);
   });
 });
+
+// ======== 初期テンプレート関連テスト ========
+
+describe('初期テンプレート設計', () => {
+  // テンプレート定義（lib/approval-routes.ts の seedApprovalRouteTemplates と同等）
+  const SEED_TEMPLATES = [
+    {
+      name: '通常稟議',
+      description: '一般的な稟議（デフォルト経路）',
+      category: null,
+      branchId: null,
+      minAmount: null,
+      maxAmount: null,
+      isActive: true,
+      isDefault: true,
+      priority: 100,
+      steps: [
+        { approverType: 'ROLE' as const, approverValue: 'manager', required: true },
+        { approverType: 'ROLE' as const, approverValue: 'exec', required: true },
+      ],
+    },
+    {
+      name: '高額稟議',
+      description: '50万円以上の高額稟議',
+      category: null,
+      branchId: null,
+      minAmount: 500000,
+      maxAmount: null,
+      isActive: true,
+      isDefault: false,
+      priority: 10,
+      steps: [
+        { approverType: 'ROLE' as const, approverValue: 'manager', required: true },
+        { approverType: 'ROLE' as const, approverValue: 'exec', required: true },
+      ],
+    },
+    {
+      name: '人事稟議',
+      description: '人事関連の稟議（経営層のみ）',
+      category: '人事関連',
+      branchId: null,
+      minAmount: null,
+      maxAmount: null,
+      isActive: true,
+      isDefault: false,
+      priority: 5,
+      steps: [
+        { approverType: 'ROLE' as const, approverValue: 'exec', required: true },
+      ],
+    },
+  ];
+
+  test('テンプレートは3つ', () => {
+    expect(SEED_TEMPLATES.length).toBe(3);
+  });
+
+  test('デフォルト経路は1つだけ', () => {
+    const defaults = SEED_TEMPLATES.filter(t => t.isDefault);
+    expect(defaults.length).toBe(1);
+    expect(defaults[0].name).toBe('通常稟議');
+  });
+
+  test('高額稟議は50万円以上が条件', () => {
+    const highAmount = SEED_TEMPLATES.find(t => t.name === '高額稟議');
+    expect(highAmount).toBeDefined();
+    expect(highAmount!.minAmount).toBe(500000);
+    expect(highAmount!.maxAmount).toBeNull();
+  });
+
+  test('人事稟議はカテゴリ条件付き', () => {
+    const hr = SEED_TEMPLATES.find(t => t.name === '人事稟議');
+    expect(hr).toBeDefined();
+    expect(hr!.category).toBe('人事関連');
+    expect(hr!.steps.length).toBe(1);
+    expect(hr!.steps[0].approverValue).toBe('exec');
+  });
+
+  test('通常稟議は2段階承認', () => {
+    const normal = SEED_TEMPLATES.find(t => t.name === '通常稟議');
+    expect(normal).toBeDefined();
+    expect(normal!.steps.length).toBe(2);
+    expect(normal!.steps[0].approverValue).toBe('manager');
+    expect(normal!.steps[1].approverValue).toBe('exec');
+  });
+
+  test('優先度順: 人事(5) < 高額(10) < 通常(100)', () => {
+    const sorted = [...SEED_TEMPLATES].sort((a, b) => a.priority - b.priority);
+    expect(sorted[0].name).toBe('人事稟議');
+    expect(sorted[1].name).toBe('高額稟議');
+    expect(sorted[2].name).toBe('通常稟議');
+  });
+
+  test('全テンプレートがアクティブ', () => {
+    const inactive = SEED_TEMPLATES.filter(t => !t.isActive);
+    expect(inactive.length).toBe(0);
+  });
+
+  test('全ステップが必須', () => {
+    for (const template of SEED_TEMPLATES) {
+      for (const step of template.steps) {
+        expect(step.required).toBe(true);
+      }
+    }
+  });
+});
