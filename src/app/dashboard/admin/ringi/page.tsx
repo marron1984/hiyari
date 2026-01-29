@@ -28,6 +28,7 @@ import {
   ChevronDown,
   ChevronUp,
   Edit,
+  Star,
 } from 'lucide-react';
 import { getPendingRingis, getAllRingis, approveRingi, rejectRingi } from '@/lib/ringi';
 import {
@@ -51,103 +52,6 @@ import { Branch } from '@/types';
 // ===== タブ定義 =====
 type TabType = 'pending' | 'all' | 'routes';
 
-// ===== ダミーデータ（後でFirestoreに移行） =====
-const DUMMY_ROUTES: RingiApprovalRoute[] = [
-  {
-    id: 'route-1',
-    tenantId: 'defaultTenant',
-    name: '通常稟議',
-    description: '50万円未満の通常稟議',
-    category: null,
-    branchId: null,
-    minAmount: null,
-    maxAmount: 500000,
-    isActive: true,
-    isDefault: false,
-    priority: 10,
-    steps: [
-      {
-        id: 'step-1-1',
-        routeId: 'route-1',
-        stepOrder: 1,
-        approverType: 'ROLE',
-        approverValue: 'leader',
-        required: true,
-        createdAt: new Date(),
-      },
-    ],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    createdBy: 'system',
-    createdByName: 'システム',
-  },
-  {
-    id: 'route-2',
-    tenantId: 'defaultTenant',
-    name: '高額稟議',
-    description: '50万円以上の高額稟議',
-    category: null,
-    branchId: null,
-    minAmount: 500000,
-    maxAmount: null,
-    isActive: true,
-    isDefault: false,
-    priority: 5,
-    steps: [
-      {
-        id: 'step-2-1',
-        routeId: 'route-2',
-        stepOrder: 1,
-        approverType: 'ROLE',
-        approverValue: 'leader',
-        required: true,
-        createdAt: new Date(),
-      },
-      {
-        id: 'step-2-2',
-        routeId: 'route-2',
-        stepOrder: 2,
-        approverType: 'ROLE',
-        approverValue: 'exec',
-        required: true,
-        createdAt: new Date(),
-      },
-    ],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    createdBy: 'system',
-    createdByName: 'システム',
-  },
-  {
-    id: 'route-default',
-    tenantId: 'defaultTenant',
-    name: 'デフォルト経路',
-    description: 'マッチしない場合のデフォルト',
-    category: null,
-    branchId: null,
-    minAmount: null,
-    maxAmount: null,
-    isActive: true,
-    isDefault: true,
-    priority: 999,
-    steps: [
-      {
-        id: 'step-default-1',
-        routeId: 'route-default',
-        stepOrder: 1,
-        approverType: 'ROLE',
-        approverValue: 'admin',
-        required: true,
-        createdAt: new Date(),
-      },
-    ],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    createdBy: 'system',
-    createdByName: 'システム',
-  },
-];
-
 export default function AdminRingiPage() {
   return (
     <AuthGuard requireAdmin>
@@ -157,16 +61,22 @@ export default function AdminRingiPage() {
 }
 
 function AdminRingiContent() {
-  const { user, isAdmin, canApprove } = useAuth();
+  const { user, isAdmin, canApprove, firebaseUser } = useAuth();
   const [activeTab, setActiveTab] = useState<TabType>('pending');
   const [ringis, setRingis] = useState<Ringi[]>([]);
-  const [routes, setRoutes] = useState<RingiApprovalRoute[]>(DUMMY_ROUTES);
+  const [routes, setRoutes] = useState<RingiApprovalRoute[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<RingiStatus | 'all'>('all');
+
+  // 承認経路用ローディング・エラー
+  const [routesLoading, setRoutesLoading] = useState(true);
+  const [routesError, setRoutesError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   // 稟議却下モーダル
   const [rejectModal, setRejectModal] = useState<{ ringiId: string; title: string } | null>(null);
@@ -175,6 +85,7 @@ function AdminRingiContent() {
   // 承認経路編集
   const [editingRoute, setEditingRoute] = useState<RingiApprovalRoute | null>(null);
   const [editForm, setEditForm] = useState<RingiApprovalRouteFormData | null>(null);
+  const [isNewRoute, setIsNewRoute] = useState(false);
 
   // 稟議読み込み
   const loadRingis = useCallback(async (showLoading = true) => {
@@ -216,12 +127,55 @@ function AdminRingiContent() {
     }
   }, [user]);
 
+  // 承認経路読み込み
+  const loadRoutes = useCallback(async (showLoading = true) => {
+    if (!firebaseUser) return;
+    if (showLoading) setRoutesLoading(true);
+    setRoutesError(null);
+
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch('/api/admin/approval-routes', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'no-cache',
+        },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '承認経路の取得に失敗しました');
+      }
+
+      // Date型への変換
+      const routesWithDates = data.routes.map((route: RingiApprovalRoute) => ({
+        ...route,
+        createdAt: new Date(route.createdAt),
+        updatedAt: new Date(route.updatedAt),
+        steps: route.steps.map((step: RingiApprovalRouteStep) => ({
+          ...step,
+          createdAt: new Date(step.createdAt),
+        })),
+      }));
+
+      setRoutes(routesWithDates);
+    } catch (err) {
+      console.error('Failed to load routes:', err);
+      setRoutesError(err instanceof Error ? err.message : '承認経路の取得に失敗しました');
+    } finally {
+      setRoutesLoading(false);
+    }
+  }, [firebaseUser]);
+
   useEffect(() => {
     if (activeTab === 'pending' || activeTab === 'all') {
       loadRingis();
     }
+    if (activeTab === 'routes') {
+      loadRoutes();
+    }
     loadBranches();
-  }, [activeTab, loadRingis, loadBranches]);
+  }, [activeTab, loadRingis, loadBranches, loadRoutes]);
 
   // 承認処理
   const handleApprove = async (ringiId: string) => {
@@ -261,6 +215,7 @@ function AdminRingiContent() {
   // 経路編集開始
   const startEditRoute = (route: RingiApprovalRoute) => {
     setEditingRoute(route);
+    setIsNewRoute(false);
     setEditForm({
       name: route.name,
       description: route.description,
@@ -298,6 +253,7 @@ function AdminRingiContent() {
       createdByName: user?.name || '',
     };
     setEditingRoute(newRoute);
+    setIsNewRoute(true);
     setEditForm({
       name: '',
       description: '',
@@ -311,9 +267,9 @@ function AdminRingiContent() {
     });
   };
 
-  // 経路保存
-  const saveRoute = () => {
-    if (!editingRoute || !editForm) return;
+  // 経路保存（API経由）
+  const saveRoute = async () => {
+    if (!editingRoute || !editForm || !firebaseUser) return;
     if (!editForm.name.trim()) {
       alert('経路名を入力してください');
       return;
@@ -323,41 +279,107 @@ function AdminRingiContent() {
       return;
     }
 
-    const updatedRoute: RingiApprovalRoute = {
-      ...editingRoute,
-      name: editForm.name,
-      description: editForm.description,
-      category: editForm.category as RingiCategory || null,
-      branchId: editForm.branchId || null,
-      branchName: branches.find((b) => b.id === editForm.branchId)?.name,
-      minAmount: editForm.minAmount === '' ? null : Number(editForm.minAmount),
-      maxAmount: editForm.maxAmount === '' ? null : Number(editForm.maxAmount),
-      isActive: editForm.isActive,
-      priority: editForm.priority,
-      steps: editForm.steps.map((s, i) => ({
-        id: `step-${editingRoute.id}-${i}`,
-        routeId: editingRoute.id,
-        stepOrder: i + 1,
-        approverType: s.approverType,
-        approverValue: s.approverValue,
-        required: s.required,
-        createdAt: new Date(),
-      })),
-      updatedAt: new Date(),
-    };
+    setSaving(true);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const url = isNewRoute
+        ? '/api/admin/approval-routes'
+        : `/api/admin/approval-routes/${editingRoute.id}`;
+      const method = isNewRoute ? 'POST' : 'PUT';
 
-    // 既存かどうかで更新/追加
-    const existingIndex = routes.findIndex((r) => r.id === editingRoute.id);
-    if (existingIndex >= 0) {
-      const newRoutes = [...routes];
-      newRoutes[existingIndex] = updatedRoute;
-      setRoutes(newRoutes);
-    } else {
-      setRoutes([...routes, updatedRoute]);
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editForm),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '保存に失敗しました');
+      }
+
+      // リスト再読み込み
+      await loadRoutes(false);
+      setEditingRoute(null);
+      setEditForm(null);
+      setIsNewRoute(false);
+    } catch (err) {
+      console.error('Failed to save route:', err);
+      alert(err instanceof Error ? err.message : '保存に失敗しました');
+    } finally {
+      setSaving(false);
     }
+  };
 
-    setEditingRoute(null);
-    setEditForm(null);
+  // 経路削除
+  const deleteRoute = async (routeId: string) => {
+    if (!firebaseUser) return;
+    if (!confirm('この承認経路を削除しますか？')) return;
+
+    setDeleting(routeId);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/admin/approval-routes/${routeId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '削除に失敗しました');
+      }
+
+      // 編集中の経路なら閉じる
+      if (editingRoute?.id === routeId) {
+        setEditingRoute(null);
+        setEditForm(null);
+      }
+
+      // リスト再読み込み
+      await loadRoutes(false);
+    } catch (err) {
+      console.error('Failed to delete route:', err);
+      alert(err instanceof Error ? err.message : '削除に失敗しました');
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  // デフォルト経路設定
+  const setDefaultRoute = async (routeId: string) => {
+    if (!firebaseUser) return;
+    if (!confirm('この経路をデフォルトに設定しますか？')) return;
+
+    setSaving(true);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/admin/approval-routes/${routeId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ setDefault: true }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || '設定に失敗しました');
+      }
+
+      // リスト再読み込み
+      await loadRoutes(false);
+    } catch (err) {
+      console.error('Failed to set default route:', err);
+      alert(err instanceof Error ? err.message : '設定に失敗しました');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ステップ追加
@@ -488,62 +510,120 @@ function AdminRingiContent() {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-zinc-900">承認経路一覧</h2>
-                <Button size="sm" onClick={startNewRoute}>
-                  <Plus className="w-4 h-4" />
-                  新規作成
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {routes.map((route) => (
-                  <Card
-                    key={route.id}
-                    className={`cursor-pointer transition-all ${
-                      editingRoute?.id === route.id
-                        ? 'ring-2 ring-zinc-900'
-                        : 'hover:bg-zinc-50'
-                    }`}
-                    onClick={() => startEditRoute(route)}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadRoutes()}
+                    disabled={routesLoading}
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-medium text-zinc-900">{route.name}</h3>
-                            {route.isDefault && (
-                              <Badge className="bg-blue-100 text-blue-700 text-xs">デフォルト</Badge>
-                            )}
-                            {!route.isActive && (
-                              <Badge className="bg-zinc-100 text-zinc-500 text-xs">無効</Badge>
-                            )}
+                    <RefreshCw className={`w-4 h-4 ${routesLoading ? 'animate-spin' : ''}`} />
+                  </Button>
+                  <Button size="sm" onClick={startNewRoute} disabled={saving}>
+                    <Plus className="w-4 h-4" />
+                    新規作成
+                  </Button>
+                </div>
+              </div>
+
+              {/* 経路エラー表示 */}
+              {routesError && (
+                <ErrorBanner
+                  message={routesError}
+                  onRetry={() => loadRoutes()}
+                  retrying={routesLoading}
+                />
+              )}
+
+              {/* ローディング */}
+              {routesLoading && routes.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+                </div>
+              ) : routes.length === 0 ? (
+                <Card className="p-8 text-center">
+                  <Route className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
+                  <p className="text-zinc-500">承認経路がありません</p>
+                  <p className="text-xs text-zinc-400 mt-1">新規作成ボタンから追加してください</p>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {routes.map((route) => (
+                    <Card
+                      key={route.id}
+                      className={`cursor-pointer transition-all ${
+                        editingRoute?.id === route.id
+                          ? 'ring-2 ring-zinc-900'
+                          : 'hover:bg-zinc-50'
+                      } ${deleting === route.id ? 'opacity-50' : ''}`}
+                      onClick={() => startEditRoute(route)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-medium text-zinc-900">{route.name}</h3>
+                              {route.isDefault && (
+                                <Badge className="bg-blue-100 text-blue-700 text-xs">デフォルト</Badge>
+                              )}
+                              {!route.isActive && (
+                                <Badge className="bg-zinc-100 text-zinc-500 text-xs">無効</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-zinc-500 mb-2">
+                              {route.description || formatAmountCondition(route.minAmount, route.maxAmount)}
+                            </p>
+                            <div className="flex items-center gap-4 text-xs text-zinc-400">
+                              {route.category && (
+                                <span className="flex items-center gap-1">
+                                  <FileText className="w-3 h-3" />
+                                  {route.category}
+                                </span>
+                              )}
+                              {route.branchName && (
+                                <span className="flex items-center gap-1">
+                                  <Building2 className="w-3 h-3" />
+                                  {route.branchName}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                {route.steps.length}ステップ
+                              </span>
+                            </div>
                           </div>
-                          <p className="text-sm text-zinc-500 mb-2">
-                            {route.description || formatAmountCondition(route.minAmount, route.maxAmount)}
-                          </p>
-                          <div className="flex items-center gap-4 text-xs text-zinc-400">
-                            {route.category && (
-                              <span className="flex items-center gap-1">
-                                <FileText className="w-3 h-3" />
-                                {route.category}
-                              </span>
+                          <div className="flex items-center gap-1">
+                            {!route.isDefault && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDefaultRoute(route.id);
+                                }}
+                                className="p-1.5 hover:bg-blue-50 rounded text-zinc-400 hover:text-blue-600"
+                                title="デフォルトに設定"
+                              >
+                                <Star className="w-4 h-4" />
+                              </button>
                             )}
-                            {route.branchName && (
-                              <span className="flex items-center gap-1">
-                                <Building2 className="w-3 h-3" />
-                                {route.branchName}
-                              </span>
-                            )}
-                            <span className="flex items-center gap-1">
-                              <Users className="w-3 h-3" />
-                              {route.steps.length}ステップ
-                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteRoute(route.id);
+                              }}
+                              className="p-1.5 hover:bg-red-50 rounded text-zinc-400 hover:text-red-600"
+                              disabled={deleting === route.id}
+                              title="削除"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <Edit className="w-4 h-4 text-zinc-400 ml-1" />
                           </div>
                         </div>
-                        <Edit className="w-4 h-4 text-zinc-400" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* 右: 経路編集 */}
@@ -553,7 +633,7 @@ function AdminRingiContent() {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-6">
                       <h2 className="text-lg font-bold text-zinc-900">
-                        {routes.find((r) => r.id === editingRoute.id) ? '経路編集' : '新規経路'}
+                        {isNewRoute ? '新規経路' : '経路編集'}
                       </h2>
                       <Button
                         variant="ghost"
@@ -773,9 +853,18 @@ function AdminRingiContent() {
 
                       {/* 保存ボタン */}
                       <div className="pt-4">
-                        <Button onClick={saveRoute} className="w-full">
-                          <Save className="w-4 h-4 mr-2" />
-                          保存
+                        <Button onClick={saveRoute} className="w-full" disabled={saving}>
+                          {saving ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              保存中...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              保存
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>
