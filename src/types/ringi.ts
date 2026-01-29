@@ -163,6 +163,9 @@ export interface Ringi {
   returnedAt?: Date;
   returnReason?: string;
 
+  // 承認フロー（経路適用時に設定）
+  approvalFlow?: RingiApprovalFlow;
+
   // タイムスタンプ
   submittedAt?: Date;
   createdAt: Date;
