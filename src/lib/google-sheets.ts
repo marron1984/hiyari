@@ -7,9 +7,6 @@ import type { Prospect, ProspectStatus, CareLevel, Gender } from '@/types/prospe
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
-// KPI対象の最小internal_no（252以上のみKPI対象）
-const KPI_MIN_INTERNAL_NO = 252;
-
 // カウンタードキュメントパス
 const COUNTER_DOC_PATH = 'counters/prospects_internal_no';
 
@@ -55,14 +52,9 @@ async function getNextInternalNoAdmin(): Promise<number> {
         }
       });
 
-      // 251以下なら251にセット（次は252になる）
-      current = maxInternalNo < KPI_MIN_INTERNAL_NO - 1 ? KPI_MIN_INTERNAL_NO - 1 : maxInternalNo;
+      current = maxInternalNo;
     } else {
       current = counterSnap.data()?.current || 0;
-      // 251以下なら251に補正
-      if (current < KPI_MIN_INTERNAL_NO - 1) {
-        current = KPI_MIN_INTERNAL_NO - 1;
-      }
     }
 
     // インクリメント
@@ -632,8 +624,9 @@ export async function importProspectsFromSheet(
 
         if (!dryRun) {
           // internal_noが未設定または"IMPORT-"で始まる場合は自動付番
-          let finalInternalNo = prospect.internalNo;
-          const needsAutoNumber = !finalInternalNo || finalInternalNo.startsWith('IMPORT-');
+          const internalNoStr = typeof prospect.internalNo === 'string' ? prospect.internalNo : String(prospect.internalNo || '');
+          const needsAutoNumber = !prospect.internalNo || internalNoStr.startsWith('IMPORT-');
+          let finalInternalNo: string | number = prospect.internalNo!;
           if (needsAutoNumber) {
             const nextNo = await getNextInternalNoAdmin();
             finalInternalNo = nextNo.toString();

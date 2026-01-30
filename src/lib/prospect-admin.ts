@@ -3,7 +3,6 @@
 
 import { getAdminDb } from './firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { PROSPECT_MIN_INTERNAL_NO } from './prospect';
 
 // countersコレクションのドキュメントパス
 const COUNTER_DOC_PATH = 'counters/prospects_internal_no';
@@ -11,7 +10,6 @@ const COUNTER_DOC_PATH = 'counters/prospects_internal_no';
 /**
  * 次の社内Noを取得してカウンタをインクリメント（トランザクション）
  * 重複を防ぐためにトランザクション内で実行
- * @returns 次の社内No（最低でもPROSPECT_MIN_INTERNAL_NO以上）
  */
 export async function getNextInternalNo(): Promise<number> {
   const db = getAdminDb();
@@ -26,7 +24,7 @@ export async function getNextInternalNo(): Promise<number> {
       // カウンタが存在しない場合は初期化
       // 現在の最大internal_noを取得して初期値を設定
       const maxNo = await getCurrentMaxInternalNo();
-      nextNo = Math.max(maxNo + 1, PROSPECT_MIN_INTERNAL_NO);
+      nextNo = maxNo + 1;
 
       transaction.set(counterRef, {
         current: nextNo,
@@ -35,13 +33,8 @@ export async function getNextInternalNo(): Promise<number> {
       });
     } else {
       const data = counterDoc.data();
-      const current = data?.current ?? (PROSPECT_MIN_INTERNAL_NO - 1);
+      const current = data?.current ?? 0;
       nextNo = current + 1;
-
-      // 最低でもPROSPECT_MIN_INTERNAL_NO以上を保証
-      if (nextNo < PROSPECT_MIN_INTERNAL_NO) {
-        nextNo = PROSPECT_MIN_INTERNAL_NO;
-      }
 
       transaction.update(counterRef, {
         current: nextNo,
@@ -69,11 +62,11 @@ async function getCurrentMaxInternalNo(): Promise<number> {
     .get();
 
   if (snapshot.empty) {
-    return PROSPECT_MIN_INTERNAL_NO - 1;
+    return 0;
   }
 
   const maxNo = snapshot.docs[0].data().internalNo;
-  return typeof maxNo === 'number' ? maxNo : PROSPECT_MIN_INTERNAL_NO - 1;
+  return typeof maxNo === 'number' ? maxNo : 0;
 }
 
 /**
@@ -94,8 +87,8 @@ export async function getCurrentCounter(): Promise<number | null> {
  * カウンタを強制的に特定の値に設定（管理者用、通常は使用しない）
  */
 export async function forceSetCounter(value: number): Promise<void> {
-  if (value < PROSPECT_MIN_INTERNAL_NO) {
-    throw new Error(`Counter value must be at least ${PROSPECT_MIN_INTERNAL_NO}`);
+  if (value < 0) {
+    throw new Error('Counter value must be at least 0');
   }
 
   const db = getAdminDb();
