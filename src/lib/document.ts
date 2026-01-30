@@ -342,6 +342,21 @@ export async function uploadDocumentFile(
 
 // ======== 必須書類の自動生成 ========
 
+/**
+ * 生成結果の詳細
+ */
+export interface GenerateDocumentsResult {
+  created: Document[];
+  skipped: { docType: string; reason: string }[];
+  errors: { docType: string; error: string }[];
+}
+
+/**
+ * 必須書類を自動生成
+ * - テンプレートに基づいて書類レコードを作成
+ * - 既存の書類は重複生成しない（doc_key + ownerIdで判定）
+ * - 生成失敗しても他の書類は継続生成
+ */
 export async function generateRequiredDocuments(
   ownerType: DocumentOwnerType,
   ownerId: string,
@@ -350,16 +365,43 @@ export async function generateRequiredDocuments(
   actorId: string,
   actorName: string
 ): Promise<Document[]> {
+  const result = await generateRequiredDocumentsWithDetails(
+    ownerType,
+    ownerId,
+    ownerName,
+    tenantId,
+    actorId,
+    actorName
+  );
+  return result.created;
+}
+
+/**
+ * 必須書類を自動生成（詳細結果付き）
+ */
+export async function generateRequiredDocumentsWithDetails(
+  ownerType: DocumentOwnerType,
+  ownerId: string,
+  ownerName: string,
+  tenantId: string = DEFAULT_TENANT_ID,
+  actorId: string,
+  actorName: string
+): Promise<GenerateDocumentsResult> {
+  const result: GenerateDocumentsResult = {
+    created: [],
+    skipped: [],
+    errors: [],
+  };
+
   // テンプレート取得
   const required = getRequiredTemplates(ownerType);
 
-  // ログ出力（デバッグ用）
   console.log(`[generateRequiredDocuments] ownerType=${ownerType}, ownerId=${ownerId}, templates=${required.length}`);
 
-  // テンプレートが0件の場合は早期リターン（エラーではない）
+  // テンプレートが0件の場合は早期リターン
   if (required.length === 0) {
     console.warn(`[generateRequiredDocuments] No required templates found for ownerType=${ownerType}`);
-    return [];
+    return result;
   }
 
   // 有効なテンプレートのみフィルタ（undefinedや不正データ防止）
@@ -368,23 +410,40 @@ export async function generateRequiredDocuments(
     console.warn(`[generateRequiredDocuments] Filtered ${required.length - validTemplates.length} invalid templates`);
   }
 
-  // テンプレート一覧をログ出力
   console.log(`[generateRequiredDocuments] Valid templates:`, validTemplates.map(t => ({ key: t.key, name: t.name })));
 
-  const created: Document[] = [];
+  // 既存書類を取得（重複チェック用）
+  const existingDocs = await getDocuments(tenantId, { ownerType, ownerId });
+  const existingDocTypes = new Set(existingDocs.map(d => d.docType));
+
+  console.log(`[generateRequiredDocuments] Existing doc types:`, Array.from(existingDocTypes));
 
   for (const template of validTemplates) {
-    // 生成するドキュメントデータを事前に構築
+    // 重複チェック（同一 ownerId + docType の書類が既に存在する場合はスキップ）
+    if (existingDocTypes.has(template.key)) {
+      console.log(`[generateRequiredDocuments] Skipping duplicate: ${template.key}`);
+      result.skipped.push({ docType: template.key, reason: '既に存在' });
+      continue;
+    }
+
+    // 生成するドキュメントデータを構築（undefined防止）
     const docInput = {
       tenantId: tenantId || 'defaultTenant',
       ownerType,
       ownerId: ownerId || '',
       ownerName: ownerName || '',
-      docType: template.key,
-      docTypeName: template.name,
+      docType: template.key || '',
+      docTypeName: template.name || '',
       status: 'MISSING' as const,
-      signedRequired: template.signedRequired ?? false,
+      signedRequired: Boolean(template.signedRequired),
     };
+
+    // 入力データの検証
+    if (!docInput.docType || !docInput.ownerId) {
+      console.error(`[generateRequiredDocuments] Invalid input data:`, docInput);
+      result.errors.push({ docType: template.key || 'unknown', error: 'Invalid input data' });
+      continue;
+    }
 
     console.log(`[generateRequiredDocuments] Creating document:`, docInput);
 
@@ -394,20 +453,18 @@ export async function generateRequiredDocuments(
         actorId || 'system',
         actorName || 'System'
       );
-      created.push(doc);
+      result.created.push(doc);
       console.log(`[generateRequiredDocuments] Created document: ${doc.id} (${template.key})`);
     } catch (error) {
-      // 個別のエラーをログに出力し、他の書類生成を継続
-      console.error(`[generateRequiredDocuments] Failed to create document: ${template.key}`, error);
-      if (error instanceof Error) {
-        console.error(`[generateRequiredDocuments] Error details:`, error.message, error.stack);
-      }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[generateRequiredDocuments] Failed to create document: ${template.key}`, errorMessage);
+      result.errors.push({ docType: template.key, error: errorMessage });
     }
   }
 
-  console.log(`[generateRequiredDocuments] Successfully created ${created.length}/${validTemplates.length} documents`);
+  console.log(`[generateRequiredDocuments] Result: created=${result.created.length}, skipped=${result.skipped.length}, errors=${result.errors.length}`);
 
-  return created;
+  return result;
 }
 
 // ======== サマリー取得 ========
