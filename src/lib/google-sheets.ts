@@ -442,8 +442,13 @@ function rowToProspect(
   const rawCustomerName = getValue(mapping.customerName);
   const customerName = rawCustomerName && !looksLikeDate(rawCustomerName) ? rawCustomerName : undefined;
 
+  // internalNoを数値として取得（空または無効な場合はnull）
+  const internalNoStr = getValue(mapping.internalNo);
+  const internalNo = internalNoStr ? parseInt(internalNoStr, 10) : null;
+  const validInternalNo = internalNo && !isNaN(internalNo) ? internalNo : null;
+
   return {
-    internalNo: getValue(mapping.internalNo) || `IMPORT-${rowIndex}`,
+    internalNo: validInternalNo,
     status: normalizeStatus(getValue(mapping.status) || ''),
     statusNote: getValue(mapping.statusNote),
     customerName,
@@ -601,7 +606,7 @@ export async function importProspectsFromSheet(
         let displayName = prospect.customerName;
         if (!displayName) {
           // 社内No.から名前を生成
-          if (prospect.internalNo && !prospect.internalNo.startsWith('IMPORT-')) {
+          if (prospect.internalNo !== null && prospect.internalNo !== undefined) {
             displayName = `案件${prospect.internalNo}`;
           } else if (prospect.salesRepName) {
             // 営業担当者名から
