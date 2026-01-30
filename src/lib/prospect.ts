@@ -833,6 +833,7 @@ export async function createRoom(
     tenantId,
     buildingName: data.buildingName,
     roomNumber: data.roomNumber,
+    capacity: data.capacity ?? 1,
     status: data.status || '空室',
     expectedCareLevel: data.expectedCareLevel || null,
     note: data.note || null,
