@@ -233,16 +233,47 @@ export async function createDocument(
 
   const template = getTemplateByKey(data.docType);
 
+  // 入力データをログ出力（デバッグ用）
+  console.log('[createDocument] Input data:', JSON.stringify(data, null, 2));
+
   // undefinedを除去してFirestoreに渡す
   const rawDocData = {
-    ...data,
-    docTypeName: template?.name || data.docType,
+    tenantId: data.tenantId || '',
+    ownerType: data.ownerType,
+    ownerId: data.ownerId || '',
+    ownerName: data.ownerName || '',
+    docType: data.docType || '',
+    docTypeName: template?.name || data.docTypeName || data.docType || '',
+    status: data.status || 'MISSING',
+    signedRequired: data.signedRequired ?? false,
     version: 1,
     createdAt: Timestamp.now(),
   };
+
+  // 正規化前のデータをログ出力
+  console.log('[createDocument] Raw doc data:', JSON.stringify(rawDocData, null, 2));
+
   const docData = normalizeForFirestore(rawDocData);
 
+  // 正規化後のデータをログ出力
+  console.log('[createDocument] Normalized doc data:', JSON.stringify(docData, null, 2));
+
+  // undefinedチェック（二重安全策）
+  const hasUndefined = Object.entries(docData).some(([key, value]) => {
+    if (value === undefined) {
+      console.error(`[createDocument] Found undefined value for key: ${key}`);
+      return true;
+    }
+    return false;
+  });
+
+  if (hasUndefined) {
+    throw new Error('Document data contains undefined values');
+  }
+
   const docRef = await addDoc(collection(firestore, 'documents'), docData);
+
+  console.log('[createDocument] Successfully created document:', docRef.id);
 
   // イベント記録
   await createDocumentEvent(docRef.id, 'CREATE', null, docData, actorId, actorName);
@@ -337,28 +368,40 @@ export async function generateRequiredDocuments(
     console.warn(`[generateRequiredDocuments] Filtered ${required.length - validTemplates.length} invalid templates`);
   }
 
+  // テンプレート一覧をログ出力
+  console.log(`[generateRequiredDocuments] Valid templates:`, validTemplates.map(t => ({ key: t.key, name: t.name })));
+
   const created: Document[] = [];
 
   for (const template of validTemplates) {
+    // 生成するドキュメントデータを事前に構築
+    const docInput = {
+      tenantId: tenantId || 'defaultTenant',
+      ownerType,
+      ownerId: ownerId || '',
+      ownerName: ownerName || '',
+      docType: template.key,
+      docTypeName: template.name,
+      status: 'MISSING' as const,
+      signedRequired: template.signedRequired ?? false,
+    };
+
+    console.log(`[generateRequiredDocuments] Creating document:`, docInput);
+
     try {
       const doc = await createDocument(
-        {
-          tenantId,
-          ownerType,
-          ownerId,
-          ownerName: ownerName || '', // 空文字で初期化（undefined防止）
-          docType: template.key,
-          docTypeName: template.name,
-          status: 'MISSING',
-          signedRequired: template.signedRequired ?? false,
-        },
-        actorId,
-        actorName
+        docInput,
+        actorId || 'system',
+        actorName || 'System'
       );
       created.push(doc);
+      console.log(`[generateRequiredDocuments] Created document: ${doc.id} (${template.key})`);
     } catch (error) {
       // 個別のエラーをログに出力し、他の書類生成を継続
       console.error(`[generateRequiredDocuments] Failed to create document: ${template.key}`, error);
+      if (error instanceof Error) {
+        console.error(`[generateRequiredDocuments] Error details:`, error.message, error.stack);
+      }
     }
   }
 
