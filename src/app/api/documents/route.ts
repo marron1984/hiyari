@@ -56,15 +56,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // undefinedではなくnullを使用（Firestoreはundefinedを許可しない）
     const document = await createDocument(
       {
         tenantId,
         ownerType,
         ownerId,
-        ownerName,
+        ownerName: ownerName || null,
         docType,
         status,
-        dueDate: dueDate ? new Date(dueDate) : undefined,
+        dueDate: dueDate ? new Date(dueDate) : null,
         signedRequired,
       },
       actorId,

@@ -32,6 +32,39 @@ function ensureDb() {
   return db;
 }
 
+/**
+ * Firestoreに渡す前にundefinedを除去する
+ * Firestoreはundefinedを許可しないため、nullまたは値のあるフィールドのみ保持
+ * @exported for testing
+ */
+export function normalizeForFirestore<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
+  // Firestore Timestampクラスのチェック（テスト環境でも動作するように）
+  const isTimestamp = (v: unknown): boolean => {
+    return v !== null && typeof v === 'object' && 'toDate' in v && typeof (v as { toDate: unknown }).toDate === 'function';
+  };
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      // ネストされたオブジェクトも再帰的に処理
+      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date) && !isTimestamp(value)) {
+        result[key] = normalizeForFirestore(value as Record<string, unknown>);
+      } else if (Array.isArray(value)) {
+        // 配列内のundefinedも除去
+        result[key] = value.filter(v => v !== undefined).map(v => {
+          if (v !== null && typeof v === 'object' && !(v instanceof Date) && !isTimestamp(v)) {
+            return normalizeForFirestore(v as Record<string, unknown>);
+          }
+          return v;
+        });
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+}
+
 // ======== テンプレート ========
 
 // 静的データから取得（フォールバック用）
@@ -200,12 +233,14 @@ export async function createDocument(
 
   const template = getTemplateByKey(data.docType);
 
-  const docData = {
+  // undefinedを除去してFirestoreに渡す
+  const rawDocData = {
     ...data,
     docTypeName: template?.name || data.docType,
     version: 1,
     createdAt: Timestamp.now(),
   };
+  const docData = normalizeForFirestore(rawDocData);
 
   const docRef = await addDoc(collection(firestore, 'documents'), docData);
 
@@ -229,10 +264,12 @@ export async function updateDocument(
   const existing = await getDocument(id);
   if (!existing) throw new Error('書類が見つかりません');
 
-  const updateData = {
+  // undefinedを除去してFirestoreに渡す
+  const rawUpdateData = {
     ...updates,
     updatedAt: Timestamp.now(),
   };
+  const updateData = normalizeForFirestore(rawUpdateData);
 
   await updateDoc(doc(firestore, 'documents', id), updateData);
 
@@ -372,15 +409,23 @@ async function createDocumentEvent(
 ): Promise<void> {
   const firestore = ensureDb();
 
-  await addDoc(collection(firestore, 'documentEvents'), {
+  // JSON.stringifyでundefinedが自動的に除去されるが、明示的にnullに変換
+  const sanitizeForJson = (obj: unknown): unknown => {
+    if (obj === null || obj === undefined) return null;
+    return JSON.parse(JSON.stringify(obj, (_, v) => v === undefined ? null : v));
+  };
+
+  const eventData = normalizeForFirestore({
     documentId,
     eventType,
-    prevJson: prev ? JSON.parse(JSON.stringify(prev)) : null,
-    nextJson: next ? JSON.parse(JSON.stringify(next)) : null,
+    prevJson: sanitizeForJson(prev),
+    nextJson: sanitizeForJson(next),
     actorId,
-    actorName,
+    actorName: actorName || '',
     createdAt: Timestamp.now(),
   });
+
+  await addDoc(collection(firestore, 'documentEvents'), eventData);
 }
 
 export async function getDocumentEvents(documentId: string): Promise<DocumentEvent[]> {
