@@ -41,8 +41,9 @@ export const PROSPECTS_CUTOFF_DATE = new Date('2026-01-01T00:00:00.000Z');
 // KPI集計対象年（2026年以降）
 export const KPI_START_YEAR = 2026;
 
-// KPI対象の最小internal_no（252以上のみKPI対象、251以前は対象外）
-export const KPI_MIN_INTERNAL_NO = 252;
+// KPI対象の最小internal_no（251以上のみKPI対象、250以前は対象外）
+// ユーザー要件: PROSPECTS_ACTIVE_NO_MIN=251
+export const KPI_MIN_INTERNAL_NO = 251;
 
 // カウンタードキュメントパス
 const COUNTER_DOC_PATH = 'counters/prospects_internal_no';
@@ -80,7 +81,7 @@ export function isKpiTargetDate(date: Date): boolean {
 }
 
 /**
- * internal_noがKPI対象（252以上）かどうかを判定
+ * internal_noがKPI対象（251以上）かどうかを判定
  */
 export function isKpiTargetInternalNo(internalNo: string | number | undefined | null): boolean {
   if (internalNo === undefined || internalNo === null || internalNo === '') {
@@ -91,14 +92,14 @@ export function isKpiTargetInternalNo(internalNo: string | number | undefined | 
 }
 
 /**
- * ProspectがKPI対象かどうかを判定（internal_no >= 252）
+ * ProspectがKPI対象かどうかを判定（internal_no >= 251）
  */
 export function isProspectKpiTarget(prospect: Prospect): boolean {
   return isKpiTargetInternalNo(prospect.internalNo);
 }
 
 /**
- * Prospect配列にKPIスコープを適用（internal_no >= 252 のみ返す）
+ * Prospect配列にKPIスコープを適用（internal_no >= 251 のみ返す）
  */
 export function applyProspectKpiScope(prospects: Prospect[]): Prospect[] {
   return prospects.filter(isProspectKpiTarget);
@@ -114,7 +115,7 @@ function getDb() {
 /**
  * 次のinternal_noを取得（トランザクションで重複防止）
  * - カウンタが未設定の場合は、既存prospectsの最大値から初期化
- * - カウンタが251以下の場合は252から開始
+ * - カウンタが250以下の場合は251から開始
  */
 export async function getNextInternalNo(
   tenantId: string = DEFAULT_TENANT_ID
@@ -146,11 +147,11 @@ export async function getNextInternalNo(
         }
       });
 
-      // 251以下なら251にセット（次は252になる）
+      // 250以下なら250にセット（次は251になる）
       current = maxInternalNo < KPI_MIN_INTERNAL_NO - 1 ? KPI_MIN_INTERNAL_NO - 1 : maxInternalNo;
     } else {
       current = counterSnap.data().current || 0;
-      // 251以下なら251に補正
+      // 250以下なら250に補正
       if (current < KPI_MIN_INTERNAL_NO - 1) {
         current = KPI_MIN_INTERNAL_NO - 1;
       }
@@ -1224,7 +1225,7 @@ export async function unlockRoom(
 
 /**
  * ダッシュボード統計を取得
- * KPIはinternal_no >= 252のデータのみで算出
+ * KPIはinternal_no >= 251のデータのみで算出
  */
 export async function getProspectStats(
   tenantId: string = DEFAULT_TENANT_ID
@@ -1262,7 +1263,7 @@ export async function getProspectStats(
     byStatusKpi[p.status] = (byStatusKpi[p.status] || 0) + 1;
   });
 
-  // KPIはinternal_no >= 252のみ
+  // KPIはinternal_no >= 251のみ
   kpiTargetProspects.forEach((p) => {
     if (!['クローズ', '見送り', '入居決定'].includes(p.status)) {
       const days = Math.floor((now.getTime() - p.receivedAt.getTime()) / (1000 * 60 * 60 * 24));

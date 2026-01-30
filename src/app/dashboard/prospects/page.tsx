@@ -56,7 +56,7 @@ function ProspectsContent() {
   const [statusFilter, setStatusFilter] = useState<ProspectStatus | ''>('');
   const [facilityFilter, setFacilityFilter] = useState('');
   const [sortBy, setSortBy] = useState<'receivedAt' | 'daysElapsed' | 'interviewDateTime'>('receivedAt');
-  // 過去データ表示（internal_no < 252）- デフォルト非表示
+  // 過去データ表示（internal_no < 251）- デフォルト非表示
   const [showLegacyData, setShowLegacyData] = useState(false);
 
   const canManage = hasMinRole(user?.role, 'leader');
@@ -82,13 +82,13 @@ function ProspectsContent() {
     fetchData();
   }, [fetchData]);
 
-  // 過去データ（internal_no < 252）の件数
+  // 過去データ（internal_no < 251）の件数
   const legacyCount = prospects.filter((p) => !isProspectKpiTarget(p)).length;
 
   // フィルタリングとソート
   const filteredProspects = prospects
     .filter((p) => {
-      // 過去データフィルター（デフォルト: internal_no >= 252 のみ表示）
+      // 過去データフィルター（デフォルト: internal_no >= 251 のみ表示）
       if (!showLegacyData && !isProspectKpiTarget(p)) {
         return false;
       }

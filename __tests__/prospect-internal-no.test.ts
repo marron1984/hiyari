@@ -2,7 +2,7 @@
  * 入居希望者 internal_no 自動付番・KPIスコープのUnit test
  *
  * テスト対象:
- * 1. isKpiTargetInternalNo: internal_noがKPI対象（252以上）かの判定
+ * 1. isKpiTargetInternalNo: internal_noがKPI対象（251以上）かの判定
  * 2. isProspectKpiTarget: ProspectがKPI対象かの判定
  * 3. applyProspectKpiScope: Prospect配列にKPIスコープを適用
  */
@@ -28,8 +28,8 @@ function createMockProspect(internalNo: string | number | undefined | null): Pro
 }
 
 describe('KPI_MIN_INTERNAL_NO', () => {
-  test('KPI_MIN_INTERNAL_NOは252', () => {
-    expect(KPI_MIN_INTERNAL_NO).toBe(252);
+  test('KPI_MIN_INTERNAL_NOは251', () => {
+    expect(KPI_MIN_INTERNAL_NO).toBe(251);
   });
 });
 
@@ -46,9 +46,14 @@ describe('isKpiTargetInternalNo', () => {
     expect(isKpiTargetInternalNo('')).toBe(false);
   });
 
-  test('251 はKPI対象外', () => {
-    expect(isKpiTargetInternalNo(251)).toBe(false);
-    expect(isKpiTargetInternalNo('251')).toBe(false);
+  test('250 はKPI対象外', () => {
+    expect(isKpiTargetInternalNo(250)).toBe(false);
+    expect(isKpiTargetInternalNo('250')).toBe(false);
+  });
+
+  test('251 はKPI対象', () => {
+    expect(isKpiTargetInternalNo(251)).toBe(true);
+    expect(isKpiTargetInternalNo('251')).toBe(true);
   });
 
   test('100 はKPI対象外', () => {
@@ -66,11 +71,6 @@ describe('isKpiTargetInternalNo', () => {
     expect(isKpiTargetInternalNo('252')).toBe(true);
   });
 
-  test('253 はKPI対象', () => {
-    expect(isKpiTargetInternalNo(253)).toBe(true);
-    expect(isKpiTargetInternalNo('253')).toBe(true);
-  });
-
   test('500 はKPI対象', () => {
     expect(isKpiTargetInternalNo(500)).toBe(true);
     expect(isKpiTargetInternalNo('500')).toBe(true);
@@ -83,13 +83,18 @@ describe('isKpiTargetInternalNo', () => {
 });
 
 describe('isProspectKpiTarget', () => {
+  test('internal_no=251 のProspectはKPI対象', () => {
+    const prospect = createMockProspect('251');
+    expect(isProspectKpiTarget(prospect)).toBe(true);
+  });
+
   test('internal_no=252 のProspectはKPI対象', () => {
     const prospect = createMockProspect('252');
     expect(isProspectKpiTarget(prospect)).toBe(true);
   });
 
-  test('internal_no=251 のProspectはKPI対象外', () => {
-    const prospect = createMockProspect('251');
+  test('internal_no=250 のProspectはKPI対象外', () => {
+    const prospect = createMockProspect('250');
     expect(isProspectKpiTarget(prospect)).toBe(false);
   });
 
@@ -107,23 +112,23 @@ describe('applyProspectKpiScope', () => {
 
   test('KPI対象のみをフィルタリング', () => {
     const prospects = [
+      createMockProspect('249'),
       createMockProspect('250'),
       createMockProspect('251'),
       createMockProspect('252'),
-      createMockProspect('253'),
       createMockProspect(undefined),
     ];
 
     const result = applyProspectKpiScope(prospects);
 
     expect(result.length).toBe(2);
-    expect(result[0].internalNo).toBe('252');
-    expect(result[1].internalNo).toBe('253');
+    expect(result[0].internalNo).toBe('251');
+    expect(result[1].internalNo).toBe('252');
   });
 
   test('全てKPI対象の場合はすべて返す', () => {
     const prospects = [
-      createMockProspect('252'),
+      createMockProspect('251'),
       createMockProspect('300'),
       createMockProspect('500'),
     ];
@@ -137,7 +142,7 @@ describe('applyProspectKpiScope', () => {
     const prospects = [
       createMockProspect('100'),
       createMockProspect('200'),
-      createMockProspect('251'),
+      createMockProspect('250'),
       createMockProspect(undefined),
     ];
 
@@ -148,8 +153,8 @@ describe('applyProspectKpiScope', () => {
 
   test('元の配列は変更されない（イミュータブル）', () => {
     const prospects = [
+      createMockProspect('250'),
       createMockProspect('251'),
-      createMockProspect('252'),
     ];
     const originalLength = prospects.length;
 
@@ -160,12 +165,12 @@ describe('applyProspectKpiScope', () => {
 });
 
 describe('自動付番ルール', () => {
-  test('KPI_MIN_INTERNAL_NO - 1 = 251 が境界値', () => {
-    // カウンタが251以下なら、次は252から開始する
-    expect(KPI_MIN_INTERNAL_NO - 1).toBe(251);
+  test('KPI_MIN_INTERNAL_NO - 1 = 250 が境界値', () => {
+    // カウンタが250以下なら、次は251から開始する
+    expect(KPI_MIN_INTERNAL_NO - 1).toBe(250);
   });
 
-  test('252が最初のKPI対象番号', () => {
+  test('251が最初のKPI対象番号', () => {
     expect(isKpiTargetInternalNo(KPI_MIN_INTERNAL_NO)).toBe(true);
     expect(isKpiTargetInternalNo(KPI_MIN_INTERNAL_NO - 1)).toBe(false);
   });
