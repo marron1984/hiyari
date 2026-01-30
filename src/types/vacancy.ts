@@ -4,8 +4,10 @@
 export interface Facility {
   id: string;
   name: string;
-  area?: string;
-  capacity?: number; // 定員
+  address?: string;    // 住所
+  area?: string;       // エリア
+  capacity?: number;   // 定員
+  note?: string;       // 備考
   isActive: boolean;
   tenantId: string;
   createdAt: Date;
