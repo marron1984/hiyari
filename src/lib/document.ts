@@ -319,26 +319,50 @@ export async function generateRequiredDocuments(
   actorId: string,
   actorName: string
 ): Promise<Document[]> {
+  // テンプレート取得
   const required = getRequiredTemplates(ownerType);
+
+  // ログ出力（デバッグ用）
+  console.log(`[generateRequiredDocuments] ownerType=${ownerType}, ownerId=${ownerId}, templates=${required.length}`);
+
+  // テンプレートが0件の場合は早期リターン（エラーではない）
+  if (required.length === 0) {
+    console.warn(`[generateRequiredDocuments] No required templates found for ownerType=${ownerType}`);
+    return [];
+  }
+
+  // 有効なテンプレートのみフィルタ（undefinedや不正データ防止）
+  const validTemplates = required.filter(t => t && t.key && t.name);
+  if (validTemplates.length !== required.length) {
+    console.warn(`[generateRequiredDocuments] Filtered ${required.length - validTemplates.length} invalid templates`);
+  }
+
   const created: Document[] = [];
 
-  for (const template of required) {
-    const doc = await createDocument(
-      {
-        tenantId,
-        ownerType,
-        ownerId,
-        ownerName,
-        docType: template.key,
-        docTypeName: template.name,
-        status: 'MISSING',
-        signedRequired: template.signedRequired,
-      },
-      actorId,
-      actorName
-    );
-    created.push(doc);
+  for (const template of validTemplates) {
+    try {
+      const doc = await createDocument(
+        {
+          tenantId,
+          ownerType,
+          ownerId,
+          ownerName: ownerName || '', // 空文字で初期化（undefined防止）
+          docType: template.key,
+          docTypeName: template.name,
+          status: 'MISSING',
+          signedRequired: template.signedRequired ?? false,
+        },
+        actorId,
+        actorName
+      );
+      created.push(doc);
+    } catch (error) {
+      // 個別のエラーをログに出力し、他の書類生成を継続
+      console.error(`[generateRequiredDocuments] Failed to create document: ${template.key}`, error);
+    }
   }
+
+  console.log(`[generateRequiredDocuments] Successfully created ${created.length}/${validTemplates.length} documents`);
 
   return created;
 }
