@@ -4,6 +4,7 @@
 import { google } from 'googleapis';
 import { getAdminDb } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { toDate } from './date';
 import type { TaskSyncRecord, TaskSyncType } from '@/types/request-engine';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
@@ -250,11 +251,11 @@ export async function getPendingTaskSyncRecords(limitCount: number = 50): Promis
       googleTaskListId: data.googleTaskListId,
       taskTitle: data.taskTitle,
       taskNotes: data.taskNotes,
-      dueDate: data.dueDate?.toDate(),
+      dueDate: toDate(data.dueDate),
       isCompleted: data.isCompleted,
-      completedAt: data.completedAt?.toDate(),
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
+      completedAt: toDate(data.completedAt),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) || new Date(),
     } as TaskSyncRecord;
   });
 }

@@ -3,6 +3,11 @@
 
 import { format, parseISO, isValid } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import dayjs, { Dayjs } from 'dayjs';
+import 'dayjs/locale/ja';
+
+// dayjs を日本語に設定
+dayjs.locale('ja');
 
 /**
  * Firestore Timestamp / string / Date を Date に変換
@@ -101,4 +106,36 @@ export function formatRelative(value: unknown, fallback: string = '-'): string {
 export function toISOString(value: unknown): string | null {
   const date = toDate(value);
   return date ? date.toISOString() : null;
+}
+
+/**
+ * Firestore Timestamp / string / Date を dayjs に変換
+ * - Firestore Timestamp / Date / string / number を自動判定
+ * - 無効な値なら null を返す
+ *
+ * 使い方:
+ *   toDayjs(createdAt)?.format("YYYY/MM/DD HH:mm") ?? "-"
+ */
+export function toDayjs(value: unknown): Dayjs | null {
+  if (!value) return null;
+
+  // Firestore Timestamp（toDate メソッドがある）
+  if (typeof (value as { toDate?: () => Date }).toDate === 'function') {
+    const date = (value as { toDate: () => Date }).toDate();
+    return dayjs(date);
+  }
+
+  // Date オブジェクト
+  if (value instanceof Date) {
+    const d = dayjs(value);
+    return d.isValid() ? d : null;
+  }
+
+  // ISO文字列 or 数値
+  if (typeof value === 'string' || typeof value === 'number') {
+    const d = dayjs(value);
+    return d.isValid() ? d : null;
+  }
+
+  return null;
 }

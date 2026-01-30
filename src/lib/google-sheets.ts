@@ -3,6 +3,7 @@
 
 import { getAdminDb } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { toDate } from './date';
 import type { Prospect, ProspectStatus, CareLevel, Gender } from '@/types/prospect';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
@@ -737,7 +738,7 @@ export async function getRecentImportLogs(limit: number = 10): Promise<Array<{
       sheetId: data.sheetId,
       result: data.result,
       importedByName: data.importedByName,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     };
   });
 }

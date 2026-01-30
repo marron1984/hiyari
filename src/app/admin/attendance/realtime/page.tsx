@@ -17,6 +17,7 @@ import { BRANCHES_SEED, EMPLOYEES_SEED } from '@/data/employees';
 import { formatTimeJST, getTodayJST } from '@/lib/attendance-calc';
 import { ClockStatus } from '@/types/attendance';
 import { RefreshCw, MapPin, Clock, Coffee, UserCheck, UserX } from 'lucide-react';
+import { toDate } from '@/lib/date';
 
 interface StaffStatus {
   id: string;
@@ -116,9 +117,9 @@ export default function AttendanceDashboardPage() {
         if (data.tenantId !== DEFAULT_TENANT_ID) return; // クライアント側フィルタ
         timeEntries.set(data.employeeCode, {
           status: data.status as ClockStatus,
-          clockIn: data.clockIn?.toDate(),
-          clockOut: data.clockOut?.toDate(),
-          breakStart: data.breakStart?.toDate(),
+          clockIn: toDate(data.clockIn) ?? undefined,
+          clockOut: toDate(data.clockOut) ?? undefined,
+          breakStart: toDate(data.breakStart) ?? undefined,
           branchId: data.branchId,
         });
       });

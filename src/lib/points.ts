@@ -16,6 +16,7 @@ import {
   increment,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import {
   PointHistory,
   PointReason,
@@ -248,7 +249,7 @@ export async function getPointHistory(
     return {
       id: doc.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as PointHistory;
   });
 }
@@ -274,7 +275,7 @@ export async function getAllPointHistory(
     return {
       id: doc.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as PointHistory;
   });
 }

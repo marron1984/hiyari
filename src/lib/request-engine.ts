@@ -16,6 +16,7 @@ import {
   Firestore,
 } from 'firebase/firestore';
 import { db as firebaseDb } from './firebase';
+import { toDate } from './date';
 
 // Note: Google Tasks連携はサーバーサイドAPIでのみ実行される
 // クライアントからは /api/google/tasks/sync APIを呼び出す
@@ -123,11 +124,11 @@ export async function getRequest(requestId: string): Promise<Request | null> {
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate() || new Date(),
-    submittedAt: data.submittedAt?.toDate(),
-    completedAt: data.completedAt?.toDate(),
-    paymentDate: data.paymentDate?.toDate(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) || new Date(),
+    submittedAt: toDate(data.submittedAt),
+    completedAt: toDate(data.completedAt),
+    paymentDate: toDate(data.paymentDate),
   } as Request;
 }
 
@@ -158,11 +159,11 @@ export async function getRequests(
     return {
       id: docSnap.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
-      submittedAt: data.submittedAt?.toDate(),
-      completedAt: data.completedAt?.toDate(),
-      paymentDate: data.paymentDate?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) || new Date(),
+      submittedAt: toDate(data.submittedAt),
+      completedAt: toDate(data.completedAt),
+      paymentDate: toDate(data.paymentDate),
     } as Request;
   });
 
@@ -244,8 +245,8 @@ export async function getApprovalRoute(routeId: string): Promise<ApprovalRoute |
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate() || new Date(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) || new Date(),
   } as ApprovalRoute;
 }
 
@@ -268,8 +269,8 @@ export async function findApplicableApprovalRoute(
     return {
       id: docSnap.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) || new Date(),
     } as ApprovalRoute;
   });
 
@@ -327,8 +328,8 @@ export async function getApprovalRoutes(): Promise<ApprovalRoute[]> {
     return {
       id: docSnap.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) || new Date(),
     } as ApprovalRoute;
   });
 }
@@ -401,7 +402,7 @@ export async function getApprovalLogs(requestId: string): Promise<ApprovalLog[]>
     return {
       id: docSnap.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as ApprovalLog;
   });
 }
@@ -424,10 +425,10 @@ export async function getApprovalKeys(): Promise<ApprovalKey[]> {
     return {
       id: docSnap.id,
       ...data,
-      validFrom: data.validFrom?.toDate() || new Date(),
-      validUntil: data.validUntil?.toDate() || new Date(),
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
+      validFrom: toDate(data.validFrom) || new Date(),
+      validUntil: toDate(data.validUntil) || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) || new Date(),
     } as ApprovalKey;
   });
 }
@@ -519,12 +520,12 @@ export async function getPaymentBatch(batchId: string): Promise<PaymentBatch | n
   return {
     id: docSnap.id,
     ...data,
-    paymentDate: data.paymentDate?.toDate() || new Date(),
-    confirmedAt: data.confirmedAt?.toDate(),
-    transferScheduledAt: data.transferScheduledAt?.toDate(),
-    executedAt: data.executedAt?.toDate(),
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate() || new Date(),
+    paymentDate: toDate(data.paymentDate) || new Date(),
+    confirmedAt: toDate(data.confirmedAt),
+    transferScheduledAt: toDate(data.transferScheduledAt),
+    executedAt: toDate(data.executedAt),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) || new Date(),
   } as PaymentBatch;
 }
 
@@ -545,12 +546,12 @@ export async function getPaymentBatches(limitCount: number = 20): Promise<Paymen
     return {
       id: docSnap.id,
       ...data,
-      paymentDate: data.paymentDate?.toDate() || new Date(),
-      confirmedAt: data.confirmedAt?.toDate(),
-      transferScheduledAt: data.transferScheduledAt?.toDate(),
-      executedAt: data.executedAt?.toDate(),
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
+      paymentDate: toDate(data.paymentDate) || new Date(),
+      confirmedAt: toDate(data.confirmedAt),
+      transferScheduledAt: toDate(data.transferScheduledAt),
+      executedAt: toDate(data.executedAt),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) || new Date(),
     } as PaymentBatch;
   });
 }

@@ -12,6 +12,7 @@ import {
   runTransaction,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import { Facility, VacancyStatus, VacancyEvent, FacilityWithVacancy } from '@/types/vacancy';
 
 // ======== 施設 ========
@@ -32,8 +33,8 @@ export async function getFacilities(tenantId: string = DEFAULT_TENANT_ID): Promi
     .map((d) => ({
       id: d.id,
       ...d.data(),
-      createdAt: d.data().createdAt?.toDate() || new Date(),
-      updatedAt: d.data().updatedAt?.toDate(),
+      createdAt: toDate(d.data().createdAt) || new Date(),
+      updatedAt: toDate(d.data().updatedAt),
     } as Facility))
     .filter((f) => f.isActive !== false)
     .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
@@ -71,7 +72,7 @@ export async function getAllVacancyStatus(): Promise<Map<string, VacancyStatus>>
       facilityId: d.id,
       vacantCount: data.vacantCount ?? 0,
       note: data.note,
-      updatedAt: data.updatedAt?.toDate() || new Date(),
+      updatedAt: toDate(data.updatedAt) || new Date(),
       updatedBy: data.updatedBy || '',
       updatedByName: data.updatedByName || '',
     });
@@ -129,7 +130,7 @@ export async function updateVacancyStatus(params: {
 
     // 楽観ロックチェック
     if (lastKnownUpdatedAt && vacancyDoc.exists()) {
-      const existingUpdatedAt = vacancyDoc.data().updatedAt?.toDate();
+      const existingUpdatedAt = toDate(vacancyDoc.data().updatedAt);
       if (existingUpdatedAt && existingUpdatedAt.getTime() !== lastKnownUpdatedAt.getTime()) {
         throw new Error('データが他のユーザーに更新されています。ページを更新してください。');
       }
@@ -201,7 +202,7 @@ export async function getVacancyEvents(
         after: data.after,
         changedBy: data.changedBy,
         changedByName: data.changedByName,
-        changedAt: data.changedAt?.toDate() || new Date(),
+        changedAt: toDate(data.changedAt) || new Date(),
       };
     })
     .sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime())

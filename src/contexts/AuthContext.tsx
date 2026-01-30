@@ -11,6 +11,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider, DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { User, UserRole, JobType } from '@/types';
 import { canApprove as checkCanApprove, canAccessAdmin, hasMinRole } from '@/lib/auth';
+import { toDate } from '@/lib/date';
 
 // 初期システム管理者のメールアドレス
 const INITIAL_SYSTEM_ADMINS = [
@@ -75,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             branchId: userData.branchId || '',
             jobType: userData.jobType as JobType || '介護職',
             tenantId: userData.tenantId || DEFAULT_TENANT_ID,
-            createdAt: userData.createdAt?.toDate() || new Date(),
+            createdAt: toDate(userData.createdAt) || new Date(),
           });
         } else {
           // 新規ユーザー（オンボーディング前）
@@ -168,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         branchId: userData.branchId,
         jobType: userData.jobType,
         tenantId: userData.tenantId,
-        createdAt: userData.createdAt?.toDate() || new Date(),
+        createdAt: toDate(userData.createdAt) || new Date(),
       });
     }
   };

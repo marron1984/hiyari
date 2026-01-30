@@ -16,6 +16,7 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import {
   Prospect,
   ProspectStatus,
@@ -351,9 +352,9 @@ export async function getProspect(id: string): Promise<Prospect | null> {
   return {
     id: docSnap.id,
     ...data,
-    receivedAt: data.receivedAt?.toDate() || new Date(),
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
+    receivedAt: toDate(data.receivedAt) || new Date(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt),
   } as Prospect;
 }
 
@@ -385,9 +386,9 @@ export async function getProspects(
     return {
       id: d.id,
       ...data,
-      receivedAt: data.receivedAt?.toDate() || new Date(),
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
+      receivedAt: toDate(data.receivedAt) || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
     } as Prospect;
   });
 
@@ -765,8 +766,8 @@ export async function getRooms(
     return {
       id: d.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
     } as Room;
   });
 
@@ -866,8 +867,8 @@ export async function getOccupancies(
     return {
       id: d.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
     } as Occupancy;
   });
 
@@ -969,7 +970,7 @@ export async function getAuditLogs(
     return {
       id: d.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as AuditLog;
   });
 
@@ -1033,7 +1034,7 @@ export async function getRecentNotifications(
       return {
         id: d.id,
         ...data,
-        sentAt: data.sentAt?.toDate() || new Date(),
+        sentAt: toDate(data.sentAt) || new Date(),
       } as NotificationLog;
     })
     .filter((n) => n.sentAt > cutoffTime);

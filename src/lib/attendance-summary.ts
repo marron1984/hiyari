@@ -11,6 +11,7 @@ import { db, DEFAULT_TENANT_ID } from './firebase';
 import { getTodayJST } from './attendance-calc';
 import { ClockStatus } from '@/types/attendance';
 import { EMPLOYEES_SEED, BRANCHES_SEED } from '@/data/employees';
+import { toDate } from './date';
 
 // ======== 型定義 ========
 
@@ -107,8 +108,8 @@ export async function getTodaySummary(
 
     // 遅刻判定（9:00以降の出勤を遅刻とみなす簡易ロジック）
     if (data.clockIn) {
-      const clockIn = data.clockIn.toDate();
-      const hour = clockIn.getHours();
+      const clockIn = toDate(data.clockIn);
+      const hour = clockIn?.getHours() ?? 0;
       if (hour >= 9) late++;
     }
   });

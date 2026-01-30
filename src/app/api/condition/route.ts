@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { isAiVpOwner } from '@/lib/auth';
+import { toDate } from '@/lib/date';
 import {
   getLatestConditionScores,
   getAlertedStaff,
@@ -162,13 +163,13 @@ export async function POST(request: NextRequest) {
           trend: scoreData?.trend,
           metrics: scoreData?.metrics,
           alertLevel: scoreData?.alertLevel,
-          alertTriggeredAt: scoreData?.alertTriggeredAt?.toDate(),
+          alertTriggeredAt: toDate(scoreData?.alertTriggeredAt),
           taskDistributed: scoreData?.taskDistributed,
           loadReduced: scoreData?.loadReduced,
           yoshidaNotified: scoreData?.yoshidaNotified,
-          calculatedAt: scoreData?.calculatedAt?.toDate() || new Date(),
-          periodStart: scoreData?.periodStart?.toDate() || new Date(),
-          periodEnd: scoreData?.periodEnd?.toDate() || new Date(),
+          calculatedAt: toDate(scoreData?.calculatedAt) || new Date(),
+          periodStart: toDate(scoreData?.periodStart) || new Date(),
+          periodEnd: toDate(scoreData?.periodEnd) || new Date(),
         };
 
         const notified = await notifyYoshidaAboutCondition(conditionScore as any);

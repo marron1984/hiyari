@@ -17,6 +17,7 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@hookform/resolvers": "^5.2.2",
     "date-fns": "^4.1.0",
+    "dayjs": "^1.11.19",
     "firebase": "^12.8.0",
     "firebase-admin": "^13.6.0",
     "googleapis": "^170.1.0",

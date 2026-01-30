@@ -3,6 +3,7 @@
 
 import { getAdminDb } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { toDate } from './date';
 import type {
   PaymentBatch,
   PaymentItem,
@@ -275,9 +276,9 @@ export async function getTransferRecords(
       status: data.status,
       errorCode: data.errorCode,
       errorMessage: data.errorMessage,
-      scheduledAt: data.scheduledAt?.toDate() || new Date(),
-      executedAt: data.executedAt?.toDate(),
-      createdAt: data.createdAt?.toDate() || new Date(),
+      scheduledAt: toDate(data.scheduledAt) || new Date(),
+      executedAt: toDate(data.executedAt),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as TransferRecord;
   });
 }

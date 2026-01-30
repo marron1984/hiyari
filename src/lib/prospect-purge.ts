@@ -14,6 +14,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import { Prospect, ProspectStatus } from '@/types/prospect';
 import { hasMinRole } from './auth';
 import { UserRole } from '@/types';
@@ -123,9 +124,9 @@ export async function purgeDryRun(
     return {
       id: d.id,
       ...data,
-      receivedAt: data.receivedAt?.toDate() || new Date(),
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
+      receivedAt: toDate(data.receivedAt) || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
     } as Prospect;
   });
 
@@ -347,9 +348,9 @@ export async function purgeExecute(
       return {
         id: d.id,
         ...data,
-        receivedAt: data.receivedAt?.toDate() || new Date(),
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate(),
+        receivedAt: toDate(data.receivedAt) || new Date(),
+        createdAt: toDate(data.createdAt) || new Date(),
+        updatedAt: toDate(data.updatedAt),
       } as Prospect;
     })
     .filter((p) => isProspectPurgeTarget(p, cutoffDate));

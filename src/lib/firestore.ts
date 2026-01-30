@@ -15,6 +15,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import { Branch, Incident, Settings, User, MonthlyUserStats, MonthlyBranchStats, DEFAULT_SCORING_RULES } from '@/types';
 import { getMonthKey } from './utils';
 
@@ -114,7 +115,7 @@ export async function getBranches(tenantId: string = DEFAULT_TENANT_ID): Promise
   const branches = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(doc.data().createdAt) || new Date(),
   })) as Branch[];
 
   // デバッグ: 取得した全事業所をログ出力
@@ -159,7 +160,7 @@ export async function getBranch(branchId: string): Promise<Branch | null> {
   return {
     id: docSnap.id,
     ...docSnap.data(),
-    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(docSnap.data().createdAt) || new Date(),
   } as Branch;
 }
 
@@ -182,7 +183,7 @@ export async function getSettings(tenantId: string = DEFAULT_TENANT_ID): Promise
   return {
     id: docSnap.id,
     ...docSnap.data(),
-    updatedAt: docSnap.data().updatedAt?.toDate() || new Date(),
+    updatedAt: toDate(docSnap.data().updatedAt) || new Date(),
   } as Settings;
 }
 
@@ -301,8 +302,8 @@ export async function getIncident(incidentId: string): Promise<Incident | null> 
   return {
     id: docSnap.id,
     ...docSnap.data(),
-    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
-    updatedAt: docSnap.data().updatedAt?.toDate() || undefined,
+    createdAt: toDate(docSnap.data().createdAt) || new Date(),
+    updatedAt: toDate(docSnap.data().updatedAt) || undefined,
   } as Incident;
 }
 
@@ -368,7 +369,7 @@ export async function getIncidentsByUser(
   const results = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(doc.data().createdAt) || new Date(),
   })) as Incident[];
 
   // クライアント側でソート
@@ -390,7 +391,7 @@ export async function getIncidentsByTenant(
   const results = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(doc.data().createdAt) || new Date(),
   })) as Incident[];
 
   // クライアント側でソート
@@ -413,7 +414,7 @@ export async function getIncidentsByMonth(
   const results = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(doc.data().createdAt) || new Date(),
   })) as Incident[];
 
   // クライアント側でフィルタ・ソート
@@ -497,7 +498,7 @@ export async function checkFraud(
   const recentIncidents = snapshot.docs.map((docSnap) => ({
     id: docSnap.id,
     ...docSnap.data(),
-    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(docSnap.data().createdAt) || new Date(),
   })) as Incident[];
 
   // 同一本文のチェック（簡易ハッシュ: 本文の前50文字 + 長さ）
@@ -533,7 +534,7 @@ export async function getUser(userId: string): Promise<User | null> {
   return {
     id: docSnap.id,
     ...docSnap.data(),
-    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(docSnap.data().createdAt) || new Date(),
   } as User;
 }
 
@@ -547,6 +548,6 @@ export async function getUsers(tenantId: string = DEFAULT_TENANT_ID): Promise<Us
   return snapshot.docs.map((d) => ({
     id: d.id,
     ...d.data(),
-    createdAt: d.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(d.data().createdAt) || new Date(),
   } as User)).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
 }

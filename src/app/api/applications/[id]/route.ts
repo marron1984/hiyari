@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { hasMinRole } from '@/lib/auth';
+import { toDate } from '@/lib/date';
 import { Timestamp } from 'firebase-admin/firestore';
 import {
   ApplicationType,
@@ -76,12 +77,12 @@ export async function GET(
     const application = {
       id: applicationDoc.id,
       ...data,
-      createdAt: data.createdAt?.toDate()?.toISOString() || new Date().toISOString(),
-      updatedAt: data.updatedAt?.toDate()?.toISOString(),
-      submittedAt: data.submittedAt?.toDate()?.toISOString(),
-      approvedAt: data.approvedAt?.toDate()?.toISOString(),
-      rejectedAt: data.rejectedAt?.toDate()?.toISOString(),
-      returnedAt: data.returnedAt?.toDate()?.toISOString(),
+      createdAt: toDate(data.createdAt)?.toISOString() || new Date().toISOString(),
+      updatedAt: toDate(data.updatedAt)?.toISOString(),
+      submittedAt: toDate(data.submittedAt)?.toISOString(),
+      approvedAt: toDate(data.approvedAt)?.toISOString(),
+      rejectedAt: toDate(data.rejectedAt)?.toISOString(),
+      returnedAt: toDate(data.returnedAt)?.toISOString(),
     };
 
     // 監査ログも取得
@@ -97,7 +98,7 @@ export async function GET(
         return {
           id: doc.id,
           ...logData,
-          createdAt: logData.createdAt?.toDate()?.toISOString() || new Date().toISOString(),
+          createdAt: toDate(logData.createdAt)?.toISOString() || new Date().toISOString(),
         };
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

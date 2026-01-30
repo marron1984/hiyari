@@ -14,6 +14,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import {
   SalesAccount,
   SalesAccountFormData,
@@ -47,8 +48,8 @@ export async function getSalesAccounts(tenantId: string = DEFAULT_TENANT_ID): Pr
   return snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate(),
+    createdAt: toDate(doc.data().createdAt) || new Date(),
+    updatedAt: toDate(doc.data().updatedAt),
   })) as SalesAccount[];
 }
 
@@ -61,8 +62,8 @@ export async function getSalesAccount(accountId: string): Promise<SalesAccount |
   return {
     id: docSnap.id,
     ...docSnap.data(),
-    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
-    updatedAt: docSnap.data().updatedAt?.toDate(),
+    createdAt: toDate(docSnap.data().createdAt) || new Date(),
+    updatedAt: toDate(docSnap.data().updatedAt),
   } as SalesAccount;
 }
 
@@ -137,11 +138,11 @@ export async function getSalesDeals(
   let deals = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate(),
-    statusHistory: (doc.data().statusHistory || []).map((h: { changedAt: { toDate: () => Date } }) => ({
+    createdAt: toDate(doc.data().createdAt) || new Date(),
+    updatedAt: toDate(doc.data().updatedAt),
+    statusHistory: (doc.data().statusHistory || []).map((h: { changedAt: unknown }) => ({
       ...h,
-      changedAt: h.changedAt?.toDate?.() || new Date(),
+      changedAt: toDate(h.changedAt) || new Date(),
     })),
   })) as SalesDeal[];
 
@@ -169,11 +170,11 @@ export async function getSalesDeal(dealId: string): Promise<SalesDeal | null> {
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
-    statusHistory: (data.statusHistory || []).map((h: { changedAt: { toDate: () => Date } }) => ({
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt),
+    statusHistory: (data.statusHistory || []).map((h: { changedAt: unknown }) => ({
       ...h,
-      changedAt: h.changedAt?.toDate?.() || new Date(),
+      changedAt: toDate(h.changedAt) || new Date(),
     })),
   } as SalesDeal;
 }

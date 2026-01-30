@@ -36,6 +36,7 @@ import {
   calculateTimeEntrySummary,
   calculateMinutesBetween,
 } from './attendance-calc';
+import { toDate } from './date';
 
 // ヘルパー: dbが初期化されているかチェック
 function ensureDb() {
@@ -1022,7 +1023,7 @@ export async function getAuditLogs(
       editedBy: data.editedBy as string,
       editedByName: data.editedByName as string,
       reason: data.reason as string | undefined,
-      createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     };
   });
 }
@@ -1151,10 +1152,10 @@ function convertTimeEntryDoc(doc: { id: string; data: () => Record<string, unkno
     userId: data.userId as string,
     employeeCode: data.employeeCode as string,
     workDate: data.workDate as string,
-    clockIn: data.clockIn ? (data.clockIn as Timestamp).toDate() : undefined,
-    clockOut: data.clockOut ? (data.clockOut as Timestamp).toDate() : undefined,
-    breakStart: data.breakStart ? (data.breakStart as Timestamp).toDate() : undefined,
-    breakEnd: data.breakEnd ? (data.breakEnd as Timestamp).toDate() : undefined,
+    clockIn: toDate(data.clockIn) ?? undefined,
+    clockOut: toDate(data.clockOut) ?? undefined,
+    breakStart: toDate(data.breakStart) ?? undefined,
+    breakEnd: toDate(data.breakEnd) ?? undefined,
     actualBreakMinutes: data.actualBreakMinutes as number | undefined,
     totalWorkMinutes: data.totalWorkMinutes as number | undefined,
     overtimeMinutes: data.overtimeMinutes as number | undefined,
@@ -1162,10 +1163,10 @@ function convertTimeEntryDoc(doc: { id: string; data: () => Record<string, unkno
     status: data.status as ClockStatus,
     isEdited: data.isEdited as boolean,
     editedBy: data.editedBy as string | undefined,
-    editedAt: data.editedAt ? (data.editedAt as Timestamp).toDate() : undefined,
+    editedAt: toDate(data.editedAt) ?? undefined,
     editReason: data.editReason as string | undefined,
-    createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : new Date(),
-    updatedAt: data.updatedAt ? (data.updatedAt as Timestamp).toDate() : undefined,
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) ?? undefined,
   };
 }
 
@@ -1185,8 +1186,8 @@ function convertShiftDoc(doc: { id: string; data: () => Record<string, unknown> 
     source: data.source as WorkShift['source'],
     aiGenerationMeta: data.aiGenerationMeta as WorkShift['aiGenerationMeta'],
     confidenceScore: data.confidenceScore as number | undefined,
-    createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : new Date(),
-    updatedAt: data.updatedAt ? (data.updatedAt as Timestamp).toDate() : undefined,
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) ?? undefined,
   };
 }
 
@@ -1205,9 +1206,9 @@ function convertOvertimeRequestDoc(doc: { id: string; data: () => Record<string,
     status: data.status as OvertimeRequest['status'],
     approvedBy: data.approvedBy as string | undefined,
     approvedByName: data.approvedByName as string | undefined,
-    approvedAt: data.approvedAt ? (data.approvedAt as Timestamp).toDate() : undefined,
+    approvedAt: toDate(data.approvedAt) ?? undefined,
     rejectionReason: data.rejectionReason as string | undefined,
-    createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : new Date(),
-    updatedAt: data.updatedAt ? (data.updatedAt as Timestamp).toDate() : undefined,
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) ?? undefined,
   };
 }

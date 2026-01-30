@@ -15,6 +15,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import {
   StaffCheckin,
   StaffScoreDaily,
@@ -90,8 +91,8 @@ export async function getCheckin(userId: string, date: string): Promise<StaffChe
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt),
   } as StaffCheckin;
 }
 
@@ -116,8 +117,8 @@ export async function getCheckinHistory(
   return snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate(),
+    createdAt: toDate(doc.data().createdAt) || new Date(),
+    updatedAt: toDate(doc.data().updatedAt),
   })) as StaffCheckin[];
 }
 
@@ -291,7 +292,7 @@ export async function getTeamDailyScores(
       results.push({
         id: docSnap.id,
         ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
+        createdAt: toDate(data.createdAt) || new Date(),
       } as StaffScoreDaily);
     }
   }
@@ -316,7 +317,7 @@ export async function getBurnoutRiskHeatmap(
   return snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(doc.data().createdAt) || new Date(),
   })) as StaffScoreDaily[];
 }
 
@@ -349,9 +350,9 @@ export async function getInterventions(
   return snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
-    createdAt: doc.data().createdAt?.toDate() || new Date(),
-    updatedAt: doc.data().updatedAt?.toDate(),
-    resolvedAt: doc.data().resolvedAt?.toDate(),
+    createdAt: toDate(doc.data().createdAt) || new Date(),
+    updatedAt: toDate(doc.data().updatedAt),
+    resolvedAt: toDate(doc.data().resolvedAt),
   })) as Intervention[];
 }
 
@@ -534,7 +535,7 @@ export async function getActiveScoringConfig(
       return {
         id: docSnap.id,
         ...docSnap.data(),
-        createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+        createdAt: toDate(docSnap.data().createdAt) || new Date(),
       } as ScoringConfig;
     }
   }
@@ -556,7 +557,7 @@ export async function getActiveScoringConfig(
   return {
     id: docSnap.id,
     ...docSnap.data(),
-    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(docSnap.data().createdAt) || new Date(),
   } as ScoringConfig;
 }
 
@@ -584,7 +585,7 @@ export async function getScoringConfigs(
   return snapshot.docs.map((docSnap) => ({
     id: docSnap.id,
     ...docSnap.data(),
-    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(docSnap.data().createdAt) || new Date(),
   })) as ScoringConfig[];
 }
 
@@ -624,7 +625,7 @@ export async function getLatestScoringRun(
   return {
     id: docSnap.id,
     ...docSnap.data(),
-    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(docSnap.data().createdAt) || new Date(),
   } as ScoringRun;
 }
 
@@ -644,7 +645,7 @@ export async function getScoringRuns(
   return snapshot.docs.map((docSnap) => ({
     id: docSnap.id,
     ...docSnap.data(),
-    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
+    createdAt: toDate(docSnap.data().createdAt) || new Date(),
   })) as ScoringRun[];
 }
 
@@ -725,8 +726,8 @@ export async function getWbrReport(reportId: string): Promise<WbrReport | null> 
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt),
   } as WbrReport;
 }
 
@@ -764,8 +765,8 @@ export async function getWbrReports(
   return snapshot.docs.map((docSnap) => ({
     id: docSnap.id,
     ...docSnap.data(),
-    createdAt: docSnap.data().createdAt?.toDate() || new Date(),
-    updatedAt: docSnap.data().updatedAt?.toDate(),
+    createdAt: toDate(docSnap.data().createdAt) || new Date(),
+    updatedAt: toDate(docSnap.data().updatedAt),
   })) as WbrReport[];
 }
 
@@ -823,8 +824,8 @@ export async function getOrCreateCurrentWeekWbr(
     return {
       id: docSnap.id,
       ...docSnap.data(),
-      createdAt: docSnap.data().createdAt?.toDate() || new Date(),
-      updatedAt: docSnap.data().updatedAt?.toDate(),
+      createdAt: toDate(docSnap.data().createdAt) || new Date(),
+      updatedAt: toDate(docSnap.data().updatedAt),
     } as WbrReport;
   }
 

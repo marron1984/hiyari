@@ -16,6 +16,7 @@ import { db, DEFAULT_TENANT_ID } from './firebase';
 import { DailyInsight, InsightFormData } from '@/types/insight';
 import { hasMinRole } from './auth';
 import { UserRole } from '@/types';
+import { toDate } from './date';
 
 function getDb() {
   if (!db) throw new Error('Firestore not initialized');
@@ -90,9 +91,9 @@ export async function getInsight(id: string): Promise<DailyInsight | null> {
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
-    expiresAt: data.expiresAt?.toDate(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) ?? undefined,
+    expiresAt: toDate(data.expiresAt) ?? undefined,
   } as DailyInsight;
 }
 
@@ -118,9 +119,9 @@ export async function getActiveInsights(
       return {
         id: d.id,
         ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate(),
-        expiresAt: data.expiresAt?.toDate(),
+        createdAt: toDate(data.createdAt) || new Date(),
+        updatedAt: toDate(data.updatedAt) ?? undefined,
+        expiresAt: toDate(data.expiresAt) ?? undefined,
       } as DailyInsight;
     })
     .filter((insight) => {
@@ -162,9 +163,9 @@ export async function getAllInsights(
       return {
         id: d.id,
         ...data,
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate(),
-        expiresAt: data.expiresAt?.toDate(),
+        createdAt: toDate(data.createdAt) || new Date(),
+        updatedAt: toDate(data.updatedAt) ?? undefined,
+        expiresAt: toDate(data.expiresAt) ?? undefined,
       } as DailyInsight;
     })
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
