@@ -101,11 +101,11 @@ describe('KPIスコープとの統合', () => {
     expect(cvRate).toBeNull();
   });
 
-  test('internal_no >= 252のみがKPI対象', () => {
-    // 251以下は対象外
-    const KPI_MIN_INTERNAL_NO = 252;
-    expect(251 >= KPI_MIN_INTERNAL_NO).toBe(false);
-    expect(252 >= KPI_MIN_INTERNAL_NO).toBe(true);
+  test('internal_no >= 251のみがKPI対象', () => {
+    // 250以下は対象外
+    const KPI_MIN_INTERNAL_NO = 251;
+    expect(250 >= KPI_MIN_INTERNAL_NO).toBe(false);
+    expect(251 >= KPI_MIN_INTERNAL_NO).toBe(true);
     expect(300 >= KPI_MIN_INTERNAL_NO).toBe(true);
   });
 });
