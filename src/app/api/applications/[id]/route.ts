@@ -14,6 +14,7 @@ import {
   OvertimeFormData,
 } from '@/types/application';
 import { RingiStatus } from '@/types/ringi';
+import { normalizeForFirestore } from '@/lib/firestore/normalize';
 
 const COLLECTION_NAME = 'applications';
 const AUDIT_LOG_COLLECTION = 'applicationAuditLogs';
@@ -189,18 +190,19 @@ export async function PUT(
     if (data.type === 'EXPENSE') {
       const expenseData = formData as ExpenseFormData;
       const currentPayload = data.payload as ExpensePayload;
-      newPayload = {
+      // normalizeForFirestoreでundefinedを完全除去
+      newPayload = normalizeForFirestore({
         ...currentPayload,
-        ...(expenseData.expenseDate !== undefined && { expenseDate: expenseData.expenseDate }),
-        ...(expenseData.amount !== undefined && expenseData.amount !== '' && { amount: expenseData.amount as number }),
-        ...(expenseData.category !== undefined && expenseData.category !== '' && { category: expenseData.category as ExpensePayload['category'] }),
-        ...(expenseData.paymentMethod !== undefined && expenseData.paymentMethod !== '' && { paymentMethod: expenseData.paymentMethod as ExpensePayload['paymentMethod'] }),
-        ...(expenseData.description !== undefined && { description: expenseData.description }),
-        ...(expenseData.receiptUrls !== undefined && { receiptUrls: expenseData.receiptUrls }),
-        ...(expenseData.vendor !== undefined && { vendor: expenseData.vendor || undefined }),
-        ...(expenseData.purpose !== undefined && { purpose: expenseData.purpose || undefined }),
-        ...(expenseData.projectCode !== undefined && { projectCode: expenseData.projectCode || undefined }),
-      };
+        expenseDate: expenseData.expenseDate !== undefined ? expenseData.expenseDate : currentPayload.expenseDate,
+        amount: expenseData.amount !== undefined && expenseData.amount !== '' ? expenseData.amount as number : currentPayload.amount,
+        category: expenseData.category !== undefined && expenseData.category !== '' ? expenseData.category as ExpensePayload['category'] : currentPayload.category,
+        paymentMethod: expenseData.paymentMethod !== undefined && expenseData.paymentMethod !== '' ? expenseData.paymentMethod as ExpensePayload['paymentMethod'] : currentPayload.paymentMethod,
+        description: expenseData.description !== undefined ? expenseData.description : currentPayload.description,
+        receiptUrls: expenseData.receiptUrls !== undefined ? expenseData.receiptUrls : (currentPayload.receiptUrls || []),
+        vendor: expenseData.vendor !== undefined ? (expenseData.vendor || '') : (currentPayload.vendor || ''),
+        purpose: expenseData.purpose !== undefined ? (expenseData.purpose || '') : (currentPayload.purpose || ''),
+        projectCode: expenseData.projectCode !== undefined ? (expenseData.projectCode || '') : (currentPayload.projectCode || ''),
+      }) as ExpensePayload;
       newTitle = generateApplicationTitle('EXPENSE', newPayload, data.authorName);
       newAmount = newPayload.amount;
     } else {
@@ -210,36 +212,34 @@ export async function PUT(
       const endTime = overtimeData.endTime !== undefined ? overtimeData.endTime : currentPayload.endTime;
       const hours = calculateOvertimeHours(startTime, endTime);
 
-      newPayload = {
+      // normalizeForFirestoreでundefinedを完全除去
+      newPayload = normalizeForFirestore({
         ...currentPayload,
-        ...(overtimeData.date !== undefined && { date: overtimeData.date }),
-        ...(overtimeData.startTime !== undefined && { startTime: overtimeData.startTime }),
-        ...(overtimeData.endTime !== undefined && { endTime: overtimeData.endTime }),
+        date: overtimeData.date !== undefined ? overtimeData.date : currentPayload.date,
+        startTime,
+        endTime,
         hours,
-        ...(overtimeData.reason !== undefined && overtimeData.reason !== '' && { reason: overtimeData.reason as OvertimePayload['reason'] }),
-        ...(overtimeData.reasonDetail !== undefined && { reasonDetail: overtimeData.reasonDetail || undefined }),
-        ...(overtimeData.workContent !== undefined && { workContent: overtimeData.workContent || undefined }),
-        ...(overtimeData.isHoliday !== undefined && { isHoliday: overtimeData.isHoliday }),
-        ...(overtimeData.isNightShift !== undefined && { isNightShift: overtimeData.isNightShift }),
-      };
+        reason: overtimeData.reason !== undefined && overtimeData.reason !== '' ? overtimeData.reason as OvertimePayload['reason'] : currentPayload.reason,
+        reasonDetail: overtimeData.reasonDetail !== undefined ? (overtimeData.reasonDetail || '') : (currentPayload.reasonDetail || ''),
+        workContent: overtimeData.workContent !== undefined ? (overtimeData.workContent || '') : (currentPayload.workContent || ''),
+        isHoliday: overtimeData.isHoliday !== undefined ? overtimeData.isHoliday : currentPayload.isHoliday,
+        isNightShift: overtimeData.isNightShift !== undefined ? overtimeData.isNightShift : currentPayload.isNightShift,
+      }) as OvertimePayload;
       newTitle = generateApplicationTitle('OVERTIME', newPayload, data.authorName);
     }
 
-    // 更新データ
-    const updateData: Record<string, unknown> = {
+    // 更新データ（normalizeForFirestoreでundefined完全除去）
+    const updateData = normalizeForFirestore({
       payload: newPayload,
       title: newTitle,
       updatedAt: now,
-    };
-
-    if (newAmount !== undefined) {
-      updateData.amount = newAmount;
-    }
+      amount: newAmount ?? 0,
+    });
 
     await applicationRef.update(updateData);
 
-    // 監査ログ
-    await db.collection(AUDIT_LOG_COLLECTION).add({
+    // 監査ログ（normalizeForFirestoreで安全に保存）
+    await db.collection(AUDIT_LOG_COLLECTION).add(normalizeForFirestore({
       tenantId: data.tenantId,
       applicationId: id,
       applicationType: data.type,
@@ -247,7 +247,7 @@ export async function PUT(
       performedBy: decodedToken.uid,
       performedByName: userData.name,
       createdAt: now,
-    });
+    }));
 
     return NextResponse.json({
       success: true,
