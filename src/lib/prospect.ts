@@ -45,6 +45,11 @@ export const KPI_START_YEAR = 2026;
 // ユーザー要件: PROSPECTS_ACTIVE_NO_MIN=251
 export const KPI_MIN_INTERNAL_NO = 251;
 
+// 有効データ開始日時（この日時以降のみ表示・集計・KPI対象）
+// 2026-01-12 13:49 JST = 2026-01-12 04:49 UTC
+export const PROSPECTS_ACTIVE_FROM = new Date('2026-01-12T04:49:00.000Z');
+export const PROSPECTS_ACTIVE_FROM_DISPLAY = '2026-01-12 13:49';
+
 // カウンタードキュメントパス
 const COUNTER_DOC_PATH = 'counters/prospects_internal_no';
 
@@ -81,6 +86,40 @@ export function isKpiTargetDate(date: Date): boolean {
 }
 
 /**
+ * Prospectの基準日時を取得（優先順位: receivedAt > inquiryDate > createdAt）
+ * ※ 時間ベーススコープ用
+ */
+export function getProspectBaseDate(prospect: Prospect): Date {
+  // 1. receivedAt（最優先）
+  if (prospect.receivedAt) {
+    return prospect.receivedAt;
+  }
+  // 2. inquiryDate（文字列なのでパース）
+  if (prospect.inquiryDate) {
+    const parsed = new Date(prospect.inquiryDate);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  // 3. createdAt
+  return prospect.createdAt;
+}
+
+/**
+ * Prospectが時間ベースのスコープ内かどうかを判定
+ * 2026-01-12 13:49 (JST) 以降のみ有効
+ */
+export function isActiveProspectByTime(prospect: Prospect): boolean {
+  const baseDate = getProspectBaseDate(prospect);
+  return baseDate >= PROSPECTS_ACTIVE_FROM;
+}
+
+/**
+ * Prospect配列に時間ベーススコープを適用
+ */
+export function applyProspectTimeScope(prospects: Prospect[]): Prospect[] {
+  return prospects.filter(isActiveProspectByTime);
+}
+
+/**
  * internal_noがKPI対象（251以上）かどうかを判定
  */
 export function isKpiTargetInternalNo(internalNo: string | number | undefined | null): boolean {
@@ -103,6 +142,25 @@ export function isProspectKpiTarget(prospect: Prospect): boolean {
  */
 export function applyProspectKpiScope(prospects: Prospect[]): Prospect[] {
   return prospects.filter(isProspectKpiTarget);
+}
+
+/**
+ * ProspectがKPI集計対象かどうかを判定（厳格版）
+ * - 時間スコープ: 2026-01-12 13:49 以降
+ * - 番号スコープ: internal_no >= 251
+ * 両方を満たす必要がある
+ */
+export function isProspectInFullScope(prospect: Prospect): boolean {
+  return isActiveProspectByTime(prospect) && isProspectKpiTarget(prospect);
+}
+
+/**
+ * Prospect配列に完全スコープを適用
+ * - 時間スコープ: 2026-01-12 13:49 以降
+ * - 番号スコープ: internal_no >= 251
+ */
+export function applyFullProspectScope(prospects: Prospect[]): Prospect[] {
+  return prospects.filter(isProspectInFullScope);
 }
 
 function getDb() {
@@ -339,7 +397,7 @@ export async function getProspect(id: string): Promise<Prospect | null> {
 
 /**
  * 入居希望者一覧を取得
- * デフォルトで2026-01-01以降のデータのみ返す
+ * デフォルトで2026-01-12 13:49以降のデータのみ返す（時間スコープ適用）
  */
 export async function getProspects(
   tenantId: string = DEFAULT_TENANT_ID,
@@ -348,7 +406,7 @@ export async function getProspects(
     assigneeId?: string;
     desiredFacility?: string;
     salesCompanyName?: string;
-    includeOldData?: boolean; // 2026年以前のデータを含めるか（パージ用）
+    includeOldData?: boolean; // 時間スコープ外のデータを含めるか（パージ用・過去データ表示用）
   }
 ): Promise<Prospect[]> {
   const firestore = getDb();
@@ -371,9 +429,9 @@ export async function getProspects(
     } as Prospect;
   });
 
-  // デフォルトで2026年以前のデータを除外（カットオフ日ベース）
+  // デフォルトで時間スコープを適用（2026-01-12 13:49以降のみ）
   if (!filters?.includeOldData) {
-    results = results.filter((p) => isProspectValid(p));
+    results = results.filter((p) => isActiveProspectByTime(p));
   }
 
   // クライアントサイドフィルタ
@@ -1041,9 +1099,9 @@ export async function closeOldProspects(
   // 全件取得（旧データ含む）
   const allProspects = await getProspects(tenantId, { includeOldData: true });
 
-  // 2026年以前でまだクローズでないものを抽出
+  // 時間スコープ外でまだクローズでないものを抽出
   const oldProspects = allProspects.filter((p) => {
-    return !isProspectValid(p) && p.status !== 'クローズ';
+    return !isActiveProspectByTime(p) && p.status !== 'クローズ';
   });
 
   if (oldProspects.length === 0) {
@@ -1057,7 +1115,7 @@ export async function closeOldProspects(
   oldProspects.forEach((p) => {
     batch.update(doc(firestore, 'prospects', p.id), {
       status: 'クローズ' as ProspectStatus,
-      statusNote: '2026年以前の旧データのため一括クローズ',
+      statusNote: `${PROSPECTS_ACTIVE_FROM_DISPLAY}より前の旧データのため一括クローズ`,
       updatedAt: now,
     });
   });
@@ -1072,7 +1130,7 @@ export async function closeOldProspects(
     action: 'update',
     entity: 'prospect',
     entityId: 'batch',
-    note: `${PROSPECTS_CUTOFF_DATE.toISOString()}以前の旧データ ${oldProspects.length}件を一括クローズ`,
+    note: `${PROSPECTS_ACTIVE_FROM_DISPLAY}より前の旧データ ${oldProspects.length}件を一括クローズ`,
   });
 
   return { closedCount: oldProspects.length };
@@ -1225,7 +1283,7 @@ export async function unlockRoom(
 
 /**
  * ダッシュボード統計を取得
- * KPIはinternal_no >= 251のデータのみで算出
+ * KPIは時間スコープ（2026-01-12 13:49以降）+ internal_no >= 251 で算出
  */
 export async function getProspectStats(
   tenantId: string = DEFAULT_TENANT_ID
@@ -1239,31 +1297,32 @@ export async function getProspectStats(
   avgDaysElapsed: number;
   kpiNote: string;
 }> {
+  // 時間スコープ適用済みのデータを取得
   const prospects = await getProspects(tenantId);
 
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  // KPI対象はinternal_no >= 252のみ（厳格）
-  const kpiTargetProspects = applyProspectKpiScope(prospects);
+  // KPI対象は完全スコープ（時間 + internal_no）
+  const kpiTargetProspects = applyFullProspectScope(prospects);
 
   const byStatus: Record<string, number> = {};
   const byStatusKpi: Record<string, number> = {};
   let totalDays = 0;
   let activeCount = 0;
 
-  // ステータス集計（全件）
+  // ステータス集計（時間スコープ適用後の全件）
   prospects.forEach((p) => {
     byStatus[p.status] = (byStatus[p.status] || 0) + 1;
   });
 
-  // ステータス集計（KPI対象のみ）
+  // ステータス集計（完全スコープ適用後）
   kpiTargetProspects.forEach((p) => {
     byStatusKpi[p.status] = (byStatusKpi[p.status] || 0) + 1;
   });
 
-  // KPIはinternal_no >= 251のみ
+  // 完全スコープ対象で平均経過日数を計算
   kpiTargetProspects.forEach((p) => {
     if (!['クローズ', '見送り', '入居決定'].includes(p.status)) {
       const days = Math.floor((now.getTime() - p.receivedAt.getTime()) / (1000 * 60 * 60 * 24));
@@ -1280,6 +1339,6 @@ export async function getProspectStats(
     newThisWeek: kpiTargetProspects.filter((p) => p.receivedAt > weekAgo).length,
     newThisMonth: kpiTargetProspects.filter((p) => p.receivedAt > monthAgo).length,
     avgDaysElapsed: activeCount > 0 ? Math.round(totalDays / activeCount) : 0,
-    kpiNote: `KPIはinternal_no >= ${KPI_MIN_INTERNAL_NO}のデータで算出`,
+    kpiNote: `KPIは${PROSPECTS_ACTIVE_FROM_DISPLAY}以降・internal_no >= ${KPI_MIN_INTERNAL_NO}で算出`,
   };
 }

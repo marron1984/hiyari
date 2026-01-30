@@ -7,7 +7,14 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, Select } from '@/components/ui';
 import { Loading } from '@/components/Loading';
-import { getProspects, getProspectStats, applyProspectKpiScope, isProspectKpiTarget, KPI_MIN_INTERNAL_NO } from '@/lib/prospect';
+import {
+  getProspects,
+  getProspectStats,
+  isProspectKpiTarget,
+  isProspectInFullScope,
+  KPI_MIN_INTERNAL_NO,
+  PROSPECTS_ACTIVE_FROM_DISPLAY,
+} from '@/lib/prospect';
 import { hasMinRole } from '@/lib/auth';
 import {
   Prospect,
@@ -56,7 +63,7 @@ function ProspectsContent() {
   const [statusFilter, setStatusFilter] = useState<ProspectStatus | ''>('');
   const [facilityFilter, setFacilityFilter] = useState('');
   const [sortBy, setSortBy] = useState<'receivedAt' | 'daysElapsed' | 'interviewDateTime'>('receivedAt');
-  // 過去データ表示（internal_no < 251）- デフォルト非表示
+  // 過去データ表示（スコープ外）- デフォルト非表示
   const [showLegacyData, setShowLegacyData] = useState(false);
 
   const canManage = hasMinRole(user?.role, 'leader');
@@ -82,14 +89,14 @@ function ProspectsContent() {
     fetchData();
   }, [fetchData]);
 
-  // 過去データ（internal_no < 251）の件数
-  const legacyCount = prospects.filter((p) => !isProspectKpiTarget(p)).length;
+  // スコープ外データの件数（時間スコープ外 または internal_no < 251）
+  const legacyCount = prospects.filter((p) => !isProspectInFullScope(p)).length;
 
   // フィルタリングとソート
   const filteredProspects = prospects
     .filter((p) => {
-      // 過去データフィルター（デフォルト: internal_no >= 251 のみ表示）
-      if (!showLegacyData && !isProspectKpiTarget(p)) {
+      // スコープフィルター（デフォルト: 完全スコープ内のみ表示）
+      if (!showLegacyData && !isProspectInFullScope(p)) {
         return false;
       }
       // 検索
@@ -146,6 +153,14 @@ function ProspectsContent() {
       <Header />
       <main className="pb-20 md:pb-8">
         <div className="max-w-7xl mx-auto px-4 py-6">
+          {/* スコープ通知 */}
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+            <Filter className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            <p className="text-sm text-blue-700">
+              表示対象：{PROSPECTS_ACTIVE_FROM_DISPLAY} 以降の受信データ（internal_no &gt;= {KPI_MIN_INTERNAL_NO}）
+            </p>
+          </div>
+
           {/* ヘッダー */}
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -299,7 +314,7 @@ function ProspectsContent() {
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <span className="text-sm text-gray-600">
-                      過去データを表示（No.{KPI_MIN_INTERNAL_NO}未満）
+                      スコープ外データを表示
                     </span>
                   </label>
                   <Badge variant="default" className="text-xs">
@@ -307,7 +322,7 @@ function ProspectsContent() {
                   </Badge>
                 </div>
                 <p className="text-xs text-gray-400">
-                  ※ KPIにはNo.{KPI_MIN_INTERNAL_NO}以上のみ含まれます
+                  ※ KPIは{PROSPECTS_ACTIVE_FROM_DISPLAY}以降・No.{KPI_MIN_INTERNAL_NO}以上のみ
                 </p>
               </div>
             )}
