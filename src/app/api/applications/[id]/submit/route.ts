@@ -9,8 +9,10 @@ import {
   validateOvertime,
   ExpensePayload,
   OvertimePayload,
+  ApplicationType,
 } from '@/types/application';
 import { normalizeForFirestore } from '@/lib/firestore/normalize';
+import { notifyApprovalPending } from '@/lib/notifications-server';
 
 const COLLECTION_NAME = 'applications';
 const AUDIT_LOG_COLLECTION = 'applicationAuditLogs';
@@ -140,6 +142,22 @@ export async function POST(
       performedByName: userData.name,
       createdAt: now,
     }));
+
+    // 承認者へ通知を送信
+    try {
+      await notifyApprovalPending({
+        tenantId: data.tenantId,
+        branchId: data.branchId,
+        applicationType: data.type as ApplicationType,
+        applicationId: id,
+        applicantName: data.authorName,
+        title: data.title,
+        amount: data.amount,
+      });
+    } catch (notifyError) {
+      console.error('Failed to send approval notification:', notifyError);
+      // 通知失敗は申請提出を失敗させない
+    }
 
     return NextResponse.json({
       success: true,

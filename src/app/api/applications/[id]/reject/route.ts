@@ -6,6 +6,8 @@ import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { hasMinRole } from '@/lib/auth';
 import { Timestamp } from 'firebase-admin/firestore';
 import { normalizeForFirestore } from '@/lib/firestore/normalize';
+import { notifyApplicationRejected } from '@/lib/notifications-server';
+import { ApplicationType } from '@/types/application';
 
 const COLLECTION_NAME = 'applications';
 const AUDIT_LOG_COLLECTION = 'applicationAuditLogs';
@@ -113,6 +115,22 @@ export async function POST(
       comment: reason.trim(),
       createdAt: now,
     }));
+
+    // 申請者へ却下通知を送信
+    try {
+      await notifyApplicationRejected({
+        tenantId: data.tenantId,
+        applicantId: data.authorId,
+        applicationType: data.type as ApplicationType,
+        applicationId: id,
+        title: data.title,
+        rejecterName: userData.name,
+        reason: reason.trim(),
+      });
+    } catch (notifyError) {
+      console.error('Failed to send rejection notification:', notifyError);
+      // 通知失敗は却下処理を失敗させない
+    }
 
     return NextResponse.json({
       success: true,
