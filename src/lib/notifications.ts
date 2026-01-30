@@ -21,6 +21,7 @@ import {
   CreateNotificationInput,
   DEFAULT_REMINDER_SETTINGS,
 } from '@/types/notification';
+import { toDate } from './date';
 
 // Firestore初期化チェック
 function getDb() {
@@ -74,8 +75,8 @@ export async function getUserNotifications(
   return snapshot.docs.map((d) => ({
     id: d.id,
     ...d.data(),
-    createdAt: d.data().createdAt?.toDate(),
-    readAt: d.data().readAt?.toDate(),
+    createdAt: toDate(d.data().createdAt),
+    readAt: toDate(d.data().readAt),
   })) as Notification[];
 }
 
@@ -139,8 +140,8 @@ export function subscribeToNotifications(
     const notifications = snapshot.docs.map((d) => ({
       id: d.id,
       ...d.data(),
-      createdAt: d.data().createdAt?.toDate(),
-      readAt: d.data().readAt?.toDate(),
+      createdAt: toDate(d.data().createdAt),
+      readAt: toDate(d.data().readAt),
     })) as Notification[];
     callback(notifications);
   });
@@ -181,7 +182,7 @@ export async function getReminderSettings(
   return {
     id: docSnap.id,
     ...docSnap.data(),
-    updatedAt: docSnap.data().updatedAt?.toDate(),
+    updatedAt: toDate(docSnap.data().updatedAt),
   } as ReminderSettings;
 }
 
@@ -363,5 +364,120 @@ export function createShiftPublishedNotification(
     title: 'シフト公開',
     message: `${periodStart}〜${periodEnd}のシフトが公開されました`,
     actionUrl: '/attendance',
+  };
+}
+
+// ===================
+// 申請通知ヘルパー（AA-HUB）
+// ===================
+
+// 申請種別ラベル
+const APPLICATION_TYPE_NAMES: Record<string, string> = {
+  RINGI: '稟議',
+  EXPENSE: '経費申請',
+  OVERTIME: '残業申請',
+};
+
+// 承認待ち通知（承認者向け）
+export function createApprovalPendingNotification(
+  tenantId: string,
+  approverId: string,
+  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME',
+  applicationId: string,
+  applicantName: string,
+  title: string,
+  amount?: number
+): CreateNotificationInput {
+  const typeName = APPLICATION_TYPE_NAMES[applicationType] || '申請';
+  const amountStr = amount ? `（¥${amount.toLocaleString()}）` : '';
+
+  return {
+    tenantId,
+    userId: approverId,
+    type: 'approval_pending',
+    title: `承認待ちの${typeName}があります`,
+    message: `${applicantName}さんの${typeName}${amountStr}: ${title}`,
+    actionUrl: applicationType === 'RINGI'
+      ? `/ringi/${applicationId}`
+      : `/dashboard/applications/${applicationId}`,
+    metadata: { applicationId, applicationType },
+  };
+}
+
+// 承認完了通知（申請者向け）
+export function createApplicationApprovedNotification(
+  tenantId: string,
+  applicantId: string,
+  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME',
+  applicationId: string,
+  title: string,
+  approverName: string
+): CreateNotificationInput {
+  const typeName = APPLICATION_TYPE_NAMES[applicationType] || '申請';
+
+  return {
+    tenantId,
+    userId: applicantId,
+    type: 'application_approved',
+    title: `${typeName}が承認されました`,
+    message: `「${title}」が${approverName}さんに承認されました`,
+    actionUrl: applicationType === 'RINGI'
+      ? `/ringi/${applicationId}`
+      : `/dashboard/applications/${applicationId}`,
+    metadata: { applicationId, applicationType },
+  };
+}
+
+// 却下通知（申請者向け）
+export function createApplicationRejectedNotification(
+  tenantId: string,
+  applicantId: string,
+  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME',
+  applicationId: string,
+  title: string,
+  rejecterName: string,
+  reason?: string
+): CreateNotificationInput {
+  const typeName = APPLICATION_TYPE_NAMES[applicationType] || '申請';
+
+  return {
+    tenantId,
+    userId: applicantId,
+    type: 'application_rejected',
+    title: `${typeName}が却下されました`,
+    message: reason
+      ? `「${title}」が却下されました: ${reason}`
+      : `「${title}」が${rejecterName}さんに却下されました`,
+    actionUrl: applicationType === 'RINGI'
+      ? `/ringi/${applicationId}`
+      : `/dashboard/applications/${applicationId}`,
+    metadata: { applicationId, applicationType, reason },
+  };
+}
+
+// 差戻し通知（申請者向け）
+export function createApplicationReturnedNotification(
+  tenantId: string,
+  applicantId: string,
+  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME',
+  applicationId: string,
+  title: string,
+  returnerName: string,
+  reason?: string
+): CreateNotificationInput {
+  const typeName = APPLICATION_TYPE_NAMES[applicationType] || '申請';
+
+  return {
+    tenantId,
+    userId: applicantId,
+    type: 'application_returned',
+    title: `${typeName}が差戻されました`,
+    message: reason
+      ? `「${title}」が差戻されました: ${reason}`
+      : `「${title}」が${returnerName}さんに差戻されました。修正して再申請してください`,
+    actionUrl: applicationType === 'RINGI'
+      ? `/ringi/${applicationId}`
+      : `/dashboard/applications/${applicationId}`,
+    metadata: { applicationId, applicationType, reason },
   };
 }

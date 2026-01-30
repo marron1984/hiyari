@@ -26,6 +26,7 @@ import {
   canDelete,
   UserRole,
 } from '@/types';
+import { toDate } from './date';
 
 // Firestoreが初期化されているか確認
 function getDb() {
@@ -94,11 +95,11 @@ export async function getRingi(ringiId: string): Promise<Ringi | null> {
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
-    submittedAt: data.submittedAt?.toDate(),
-    approvedAt: data.approvedAt?.toDate(),
-    rejectedAt: data.rejectedAt?.toDate(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt),
+    submittedAt: toDate(data.submittedAt),
+    approvedAt: toDate(data.approvedAt),
+    rejectedAt: toDate(data.rejectedAt),
   } as Ringi;
 }
 
@@ -364,11 +365,11 @@ export async function getRingisByUser(
     return {
       id: doc.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
-      submittedAt: data.submittedAt?.toDate(),
-      approvedAt: data.approvedAt?.toDate(),
-      rejectedAt: data.rejectedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
+      submittedAt: toDate(data.submittedAt),
+      approvedAt: toDate(data.approvedAt),
+      rejectedAt: toDate(data.rejectedAt),
     } as Ringi;
   });
 
@@ -399,11 +400,11 @@ export async function getPendingRingis(
     return {
       id: doc.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
-      submittedAt: data.submittedAt?.toDate(),
-      approvedAt: data.approvedAt?.toDate(),
-      rejectedAt: data.rejectedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
+      submittedAt: toDate(data.submittedAt),
+      approvedAt: toDate(data.approvedAt),
+      rejectedAt: toDate(data.rejectedAt),
     } as Ringi;
   });
 
@@ -441,11 +442,11 @@ export async function getAllRingis(
     return {
       id: doc.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
-      submittedAt: data.submittedAt?.toDate(),
-      approvedAt: data.approvedAt?.toDate(),
-      rejectedAt: data.rejectedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
+      submittedAt: toDate(data.submittedAt),
+      approvedAt: toDate(data.approvedAt),
+      rejectedAt: toDate(data.rejectedAt),
     } as Ringi;
   });
 
@@ -498,7 +499,7 @@ export async function getRingiAuditLogs(
     return {
       id: doc.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as RingiAuditLog;
   });
 

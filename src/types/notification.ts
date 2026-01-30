@@ -1,16 +1,20 @@
 // 通知タイプ
 export type NotificationType =
-  | 'clock_reminder'      // 打刻リマインダー
-  | 'overtime_request'    // 残業申請通知
-  | 'overtime_approved'   // 残業申請承認
-  | 'overtime_rejected'   // 残業申請却下
-  | 'shift_published'     // シフト公開
-  | 'shift_changed'       // シフト変更
-  | 'missing_clock'       // 打刻漏れ警告
-  | 'long_hours_warning'  // 長時間労働警告
-  | 'incident_submitted'  // ヒヤリハット投稿
-  | 'incident_commented'  // コメント通知
-  | 'system';             // システム通知
+  | 'clock_reminder'        // 打刻リマインダー
+  | 'overtime_request'      // 残業申請通知
+  | 'overtime_approved'     // 残業申請承認
+  | 'overtime_rejected'     // 残業申請却下
+  | 'shift_published'       // シフト公開
+  | 'shift_changed'         // シフト変更
+  | 'missing_clock'         // 打刻漏れ警告
+  | 'long_hours_warning'    // 長時間労働警告
+  | 'incident_submitted'    // ヒヤリハット投稿
+  | 'incident_commented'    // コメント通知
+  | 'approval_pending'      // 承認待ち（承認者向け）
+  | 'application_approved'  // 申請承認（申請者向け）
+  | 'application_rejected'  // 申請却下（申請者向け）
+  | 'application_returned'  // 申請差戻し（申請者向け）
+  | 'system';               // システム通知
 
 // 通知
 export interface Notification {
@@ -37,6 +41,10 @@ export interface Notification {
     shiftDate?: string;
     // incident
     incidentId?: string;
+    // application (approval_pending, application_approved, etc.)
+    applicationId?: string;
+    applicationType?: 'RINGI' | 'EXPENSE' | 'OVERTIME';
+    reason?: string;
   };
 }
 

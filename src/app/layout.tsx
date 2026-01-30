@@ -3,8 +3,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "ヒヤリハット報告システム",
-  description: "介護現場のヒヤリハット報告を管理し、安全性向上に貢献するシステム",
+  title: "AA-HUB",
+  description: "申請・承認・勤怠・報告を一元管理する統合プラットフォーム",
 };
 
 export const viewport: Viewport = {
