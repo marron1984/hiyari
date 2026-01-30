@@ -1,171 +1,833 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
-import { Button, Card } from '@/components/ui';
+import { Button, Card, Badge } from '@/components/ui';
 import { Loading } from '@/components/Loading';
-import {
-  getFacilitiesWithVacancy,
-  updateVacancyStatus,
-  seedFacilitiesIfEmpty,
-  syncVacancyData,
-} from '@/lib/vacancy';
-import { getRooms } from '@/lib/prospect';
-import { Room } from '@/types/prospect';
-import { FacilityWithVacancy } from '@/types/vacancy';
 import { hasMinRole } from '@/lib/auth';
-import { Building2, Edit2, Save, X, RefreshCw, Clock, User, AlertTriangle, TrendingUp, Database, Lock, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Building2,
+  RefreshCw,
+  Clock,
+  AlertTriangle,
+  TrendingUp,
+  Lock,
+  Home,
+  Wrench,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  Plus,
+  X,
+  Users,
+  DoorOpen,
+  MapPin,
+  ChevronRight,
+} from 'lucide-react';
 import Link from 'next/link';
 
-// 稼働率を計算
-function calcOccupancyRate(capacity: number | undefined, vacantCount: number): number {
-  if (!capacity || capacity === 0) return 0;
-  const occupied = capacity - vacantCount;
-  return Math.round((occupied / capacity) * 100);
+// ===== 型定義 =====
+
+interface FacilityData {
+  id: string;
+  name: string;
+  address: string | null;
+  area: string | null;
+  capacity: number | null;
+  note: string | null;
+  isActive: boolean;
 }
 
-// 稼働率に応じた色を返す
-function getOccupancyColor(rate: number): { bg: string; text: string; border: string } {
-  if (rate >= 95) return { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' };
-  if (rate >= 85) return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' };
-  if (rate >= 70) return { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200' };
-  return { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' };
+interface RoomData {
+  id: string;
+  buildingName: string;
+  roomNumber: string;
+  capacity: number;
+  status: string;
+  note: string | null;
+  lockedCaseId: string | null;
+  lockedByName: string | null;
+  lockedAt: string | null;
+  occupantId: string | null;
+  occupantName: string | null;
 }
 
-// 稼働率バー
-function OccupancyBar({ rate }: { rate: number }) {
-  const color = rate >= 95 ? 'bg-green-500' : rate >= 85 ? 'bg-blue-500' : rate >= 70 ? 'bg-yellow-500' : 'bg-red-500';
+interface FacilitySummary {
+  facilityId: string;
+  facilityName: string;
+  totalRooms: number;
+  available: number;
+  locked: number;
+  occupied: number;
+  maintenance: number;
+  occupancyRate: number | null;
+}
+
+// ===== ステータス設定 =====
+const ROOM_STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
+  '空室': { label: '空室', color: 'text-blue-700', bgColor: 'bg-blue-100', icon: <Home className="w-3 h-3" /> },
+  '予約': { label: 'ロック', color: 'text-purple-700', bgColor: 'bg-purple-100', icon: <Lock className="w-3 h-3" /> },
+  '入居中': { label: '入居中', color: 'text-green-700', bgColor: 'bg-green-100', icon: <Users className="w-3 h-3" /> },
+  '退去予定': { label: '退去予定', color: 'text-orange-700', bgColor: 'bg-orange-100', icon: <DoorOpen className="w-3 h-3" /> },
+  'メンテナンス': { label: '修繕中', color: 'text-yellow-700', bgColor: 'bg-yellow-100', icon: <Wrench className="w-3 h-3" /> },
+};
+
+// 状態変更の選択肢
+const STATUS_TRANSITIONS: Record<string, { value: string; label: string }[]> = {
+  '空室': [
+    { value: 'メンテナンス', label: '修繕中にする' },
+    { value: '入居中', label: '入居中にする' },
+  ],
+  'メンテナンス': [
+    { value: '空室', label: '空室にする' },
+  ],
+  '入居中': [
+    { value: '退去予定', label: '退去予定にする' },
+    { value: '空室', label: '退去（空室にする）' },
+  ],
+  '退去予定': [
+    { value: '空室', label: '退去完了（空室にする）' },
+    { value: '入居中', label: '入居継続' },
+  ],
+  '予約': [], // 手動変更不可
+};
+
+// ===== ユーティリティ =====
+
+function getOccupancyColor(rate: number | null): string {
+  if (rate === null) return 'text-gray-500';
+  if (rate >= 95) return 'text-green-600';
+  if (rate >= 85) return 'text-blue-600';
+  if (rate >= 70) return 'text-yellow-600';
+  return 'text-red-600';
+}
+
+function formatTime(dateStr: string | null): string {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  return date.toLocaleString('ja-JP', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+// ===== 施設追加モーダル =====
+
+interface AddFacilityModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: { name: string; address?: string; note?: string }) => Promise<void>;
+}
+
+function AddFacilityModal({ isOpen, onClose, onSubmit }: AddFacilityModalProps) {
+  const [name, setName] = useState('');
+  const [address, setAddress] = useState('');
+  const [note, setNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      await onSubmit({ name, address: address || undefined, note: note || undefined });
+      setName('');
+      setAddress('');
+      setNote('');
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '追加に失敗しました');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
   return (
-    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-      <div className={`h-full ${color} transition-all`} style={{ width: `${rate}%` }} />
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Building2 className="w-5 h-5" />
+            施設を追加
+          </h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              施設名 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例: パシフィック"
+              className="w-full border rounded-lg px-3 py-2"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              住所
+            </label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="例: 東京都..."
+              className="w-full border rounded-lg px-3 py-2"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              備考
+            </label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="メモ..."
+              className="w-full border rounded-lg px-3 py-2 h-20 resize-none"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              className="flex-1"
+              disabled={submitting}
+            >
+              キャンセル
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={submitting || !name.trim()}
+            >
+              {submitting ? '追加中...' : '追加'}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
 
-export default function VacancyPage() {
-  const { user } = useAuth();
-  const [facilities, setFacilities] = useState<FacilityWithVacancy[]>([]);
-  const [lockedRooms, setLockedRooms] = useState<Room[]>([]);
-  const [showLockedRooms, setShowLockedRooms] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<{ vacantCount: number; note: string }>({
-    vacantCount: 0,
-    note: '',
-  });
-  const [saving, setSaving] = useState(false);
+// ===== 部屋追加モーダル =====
+
+interface AddRoomModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: { buildingName: string; roomNumber: string; capacity: number }) => Promise<void>;
+  facilityName: string;
+}
+
+function AddRoomModal({ isOpen, onClose, onSubmit, facilityName }: AddRoomModalProps) {
+  const [roomNumber, setRoomNumber] = useState('');
+  const [capacity, setCapacity] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const canEdit = hasMinRole(user?.role, 'leader');
-  const [syncing, setSyncing] = useState(false);
-
-  // 最新データに一括更新
-  const handleSyncData = async () => {
-    setSyncing(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
-    setSuccess(null);
+    setSubmitting(true);
+
     try {
-      await syncVacancyData();
-      setSuccess('空室データを最新に更新しました');
-      await fetchData();
+      await onSubmit({ buildingName: facilityName, roomNumber, capacity });
+      setRoomNumber('');
+      setCapacity(1);
+      onClose();
     } catch (err) {
-      console.error('Sync error:', err);
-      setError('更新に失敗しました');
+      setError(err instanceof Error ? err.message : '追加に失敗しました');
     } finally {
-      setSyncing(false);
+      setSubmitting(false);
     }
   };
 
-  const fetchData = useCallback(async () => {
-    if (!user) return;
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            {facilityName} に部屋を追加
+          </h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              部屋番号 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={roomNumber}
+              onChange={(e) => setRoomNumber(e.target.value)}
+              placeholder="例: 101, 2F-A"
+              className="w-full border rounded-lg px-3 py-2"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              定員
+            </label>
+            <select
+              value={capacity}
+              onChange={(e) => setCapacity(Number(e.target.value))}
+              className="w-full border rounded-lg px-3 py-2"
+            >
+              <option value={1}>1人</option>
+              <option value={2}>2人</option>
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              className="flex-1"
+              disabled={submitting}
+            >
+              キャンセル
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={submitting || !roomNumber.trim()}
+            >
+              {submitting ? '追加中...' : '追加'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ===== 状態変更ドロップダウン =====
+
+interface StatusChangeDropdownProps {
+  room: RoomData;
+  onStatusChange: (roomId: string, newStatus: string) => Promise<void>;
+  disabled?: boolean;
+}
+
+function StatusChangeDropdown({ room, onStatusChange, disabled }: StatusChangeDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [changing, setChanging] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const transitions = STATUS_TRANSITIONS[room.status] || [];
+  const statusConfig = ROOM_STATUS_CONFIG[room.status] || {
+    label: room.status,
+    color: 'text-gray-700',
+    bgColor: 'bg-gray-100',
+    icon: null,
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleChange = async (newStatus: string) => {
+    setChanging(true);
     try {
-      await seedFacilitiesIfEmpty(user.tenantId);
-      const [data, rooms] = await Promise.all([
-        getFacilitiesWithVacancy(user.tenantId),
-        getRooms(user.tenantId),
+      await onStatusChange(room.id, newStatus);
+    } finally {
+      setChanging(false);
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => transitions.length > 0 && !disabled && setIsOpen(!isOpen)}
+        disabled={disabled || transitions.length === 0 || changing}
+        className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color} ${
+          transitions.length > 0 && !disabled ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
+        }`}
+      >
+        {statusConfig.icon}
+        {statusConfig.label}
+        {transitions.length > 0 && !disabled && (
+          <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        )}
+      </button>
+
+      {isOpen && transitions.length > 0 && (
+        <div className="absolute top-full left-0 mt-1 bg-white border rounded-lg shadow-lg z-10 min-w-[160px]">
+          {transitions.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => handleChange(t.value)}
+              disabled={changing}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg"
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== 施設詳細ドロワー =====
+
+interface FacilityDrawerProps {
+  facility: FacilityData | null;
+  rooms: RoomData[];
+  isOpen: boolean;
+  onClose: () => void;
+  onAddRoom: () => void;
+  onStatusChange: (roomId: string, newStatus: string) => Promise<void>;
+  canAddRoom: boolean;
+  canChangeStatus: boolean;
+}
+
+function FacilityDrawer({
+  facility,
+  rooms,
+  isOpen,
+  onClose,
+  onAddRoom,
+  onStatusChange,
+  canAddRoom,
+  canChangeStatus,
+}: FacilityDrawerProps) {
+  if (!isOpen || !facility) return null;
+
+  const facilityRooms = rooms.filter((r) => r.buildingName === facility.name);
+  const summary = {
+    total: facilityRooms.length,
+    available: facilityRooms.filter((r) => r.status === '空室').length,
+    locked: facilityRooms.filter((r) => r.status === '予約').length,
+    occupied: facilityRooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length,
+    maintenance: facilityRooms.filter((r) => r.status === 'メンテナンス').length,
+  };
+
+  return (
+    <>
+      {/* オーバーレイ */}
+      <div
+        className="fixed inset-0 bg-black/30 z-40"
+        onClick={onClose}
+      />
+
+      {/* ドロワー */}
+      <div className="fixed inset-y-0 right-0 w-full max-w-lg bg-white shadow-xl z-50 flex flex-col">
+        {/* ヘッダー */}
+        <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+          <div>
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Building2 className="w-5 h-5" />
+              {facility.name}
+            </h2>
+            {facility.address && (
+              <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
+                <MapPin className="w-3 h-3" />
+                {facility.address}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* サマリー */}
+        <div className="grid grid-cols-4 gap-2 p-4 bg-gray-50 border-b">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">{summary.available}</div>
+            <div className="text-xs text-gray-500">空室</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600">{summary.locked}</div>
+            <div className="text-xs text-gray-500">ロック</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">{summary.occupied}</div>
+            <div className="text-xs text-gray-500">入居中</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-yellow-600">{summary.maintenance}</div>
+            <div className="text-xs text-gray-500">修繕中</div>
+          </div>
+        </div>
+
+        {/* アクション */}
+        <div className="p-4 border-b">
+          {canAddRoom && (
+            <Button
+              onClick={onAddRoom}
+              className="w-full flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              部屋を追加
+            </Button>
+          )}
+        </div>
+
+        {/* 部屋一覧 */}
+        <div className="flex-1 overflow-y-auto">
+          {facilityRooms.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <Home className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>部屋がありません</p>
+              {canAddRoom && (
+                <p className="text-sm mt-2">「部屋を追加」から登録してください</p>
+              )}
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b sticky top-0">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">部屋番号</th>
+                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">状態</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">入居者/ロック</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {facilityRooms.map((room) => (
+                  <tr key={room.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium">{room.roomNumber}</td>
+                    <td className="px-4 py-3 text-center">
+                      <StatusChangeDropdown
+                        room={room}
+                        onStatusChange={onStatusChange}
+                        disabled={!canChangeStatus}
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">
+                      {room.status === '予約' && room.lockedCaseId && (
+                        <Link
+                          href={`/dashboard/prospects/${room.lockedCaseId}`}
+                          className="text-purple-600 hover:underline"
+                        >
+                          {room.lockedByName || '申込中'}
+                        </Link>
+                      )}
+                      {(room.status === '入居中' || room.status === '退去予定') && room.occupantName && (
+                        <span>{room.occupantName}</span>
+                      )}
+                      {room.status === '空室' && <span className="text-gray-400">-</span>}
+                      {room.status === 'メンテナンス' && <span className="text-gray-400">-</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ===== 施設カード =====
+
+interface FacilityCardProps {
+  facility: FacilityData;
+  summary: FacilitySummary;
+  onClick: () => void;
+}
+
+function FacilityCard({ facility, summary, onClick }: FacilityCardProps) {
+  const occupancyRate = summary.totalRooms > 0
+    ? Math.round((summary.occupied / summary.totalRooms) * 100)
+    : null;
+
+  return (
+    <Card
+      className="p-4 hover:shadow-lg transition-shadow cursor-pointer border-l-4 border-l-blue-500"
+      onClick={onClick}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <h3 className="font-bold text-lg flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-blue-600" />
+            {facility.name}
+          </h3>
+          {facility.address && (
+            <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              {facility.address}
+            </p>
+          )}
+        </div>
+        <ChevronRight className="w-5 h-5 text-gray-400" />
+      </div>
+
+      {/* サマリー数字 */}
+      <div className="grid grid-cols-4 gap-2 mb-3">
+        <div className="text-center p-2 bg-blue-50 rounded">
+          <div className="text-lg font-bold text-blue-600">{summary.available}</div>
+          <div className="text-xs text-gray-500">空室</div>
+        </div>
+        <div className="text-center p-2 bg-purple-50 rounded">
+          <div className="text-lg font-bold text-purple-600">{summary.locked}</div>
+          <div className="text-xs text-gray-500">ロック</div>
+        </div>
+        <div className="text-center p-2 bg-green-50 rounded">
+          <div className="text-lg font-bold text-green-600">{summary.occupied}</div>
+          <div className="text-xs text-gray-500">入居中</div>
+        </div>
+        <div className="text-center p-2 bg-yellow-50 rounded">
+          <div className="text-lg font-bold text-yellow-600">{summary.maintenance}</div>
+          <div className="text-xs text-gray-500">修繕</div>
+        </div>
+      </div>
+
+      {/* 稼働率バー */}
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className={`h-full ${
+              occupancyRate === null ? 'bg-gray-300' :
+              occupancyRate >= 95 ? 'bg-green-500' :
+              occupancyRate >= 85 ? 'bg-blue-500' :
+              occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+            }`}
+            style={{ width: `${occupancyRate || 0}%` }}
+          />
+        </div>
+        <span className={`text-sm font-medium ${getOccupancyColor(occupancyRate)}`}>
+          {occupancyRate !== null ? `${occupancyRate}%` : '--'}
+        </span>
+      </div>
+      <p className="text-xs text-gray-400 mt-1">
+        稼働率 ({summary.occupied}/{summary.totalRooms}室)
+      </p>
+    </Card>
+  );
+}
+
+// ===== メインコンポーネント =====
+
+export default function VacancyPage() {
+  const { user, firebaseUser } = useAuth();
+  const [facilities, setFacilities] = useState<FacilityData[]>([]);
+  const [rooms, setRooms] = useState<RoomData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // ドロワー・モーダル
+  const [selectedFacility, setSelectedFacility] = useState<FacilityData | null>(null);
+  const [showAddFacilityModal, setShowAddFacilityModal] = useState(false);
+  const [showAddRoomModal, setShowAddRoomModal] = useState(false);
+
+  // 自動更新タイマー
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const AUTO_REFRESH_INTERVAL = 60000;
+
+  const isAdmin = hasMinRole(user?.role, 'admin');
+  const isLeader = hasMinRole(user?.role, 'leader');
+
+  // 施設ごとのサマリーを計算
+  const facilitySummaries: Record<string, FacilitySummary> = {};
+  facilities.forEach((f) => {
+    const facilityRooms = rooms.filter((r) => r.buildingName === f.name);
+    const occupied = facilityRooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length;
+    const total = facilityRooms.length;
+    facilitySummaries[f.id] = {
+      facilityId: f.id,
+      facilityName: f.name,
+      totalRooms: total,
+      available: facilityRooms.filter((r) => r.status === '空室').length,
+      locked: facilityRooms.filter((r) => r.status === '予約').length,
+      occupied,
+      maintenance: facilityRooms.filter((r) => r.status === 'メンテナンス').length,
+      occupancyRate: total > 0 ? Math.round((occupied / total) * 100) : null,
+    };
+  });
+
+  // 全体サマリー
+  const totalSummary = {
+    totalRooms: rooms.length,
+    available: rooms.filter((r) => r.status === '空室').length,
+    locked: rooms.filter((r) => r.status === '予約').length,
+    occupied: rooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length,
+    maintenance: rooms.filter((r) => r.status === 'メンテナンス').length,
+    occupancyRate: rooms.length > 0
+      ? Math.round((rooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length / rooms.length) * 100)
+      : null,
+  };
+
+  // APIからデータ取得
+  const fetchData = useCallback(async (showLoadingState = true) => {
+    if (!firebaseUser) return;
+
+    if (showLoadingState) {
+      setRefreshing(true);
+    }
+    setError(null);
+
+    try {
+      const token = await firebaseUser.getIdToken();
+
+      const [facilitiesRes, roomsRes] = await Promise.all([
+        fetch('/api/facilities', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        }),
+        fetch('/api/rooms', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        }),
       ]);
-      setFacilities(data);
-      // ロック済み部屋（予約ステータス）をフィルター
-      const locked = rooms.filter((r) => r.status === '予約' && r.lockedCaseId);
-      setLockedRooms(locked);
+
+      if (facilitiesRes.ok) {
+        const data = await facilitiesRes.json();
+        if (data.success) {
+          setFacilities(data.facilities || []);
+        }
+      }
+
+      if (roomsRes.ok) {
+        const data = await roomsRes.json();
+        if (data.success) {
+          setRooms(data.rooms || []);
+        }
+      }
+
       setLastUpdated(new Date());
     } catch (err) {
-      console.error('Failed to fetch facilities:', err);
-      setError('データの取得に失敗しました');
+      console.error('Data fetch error:', err);
+      setError(err instanceof Error ? err.message : 'データの取得に失敗しました');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [user]);
+  }, [firebaseUser]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  const startEdit = (item: FacilityWithVacancy) => {
-    setEditingId(item.facility.id);
-    setEditValues({
-      vacantCount: item.vacancy?.vacantCount ?? 0,
-      note: item.vacancy?.note ?? '',
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      fetchData(false);
+    }, AUTO_REFRESH_INTERVAL);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [fetchData]);
+
+  // 施設追加
+  const handleAddFacility = async (data: { name: string; address?: string; note?: string }) => {
+    if (!firebaseUser) throw new Error('認証が必要です');
+
+    const token = await firebaseUser.getIdToken();
+    const res = await fetch('/api/facilities', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
     });
-    setError(null);
-    setSuccess(null);
-  };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditValues({ vacantCount: 0, note: '' });
-  };
-
-  const handleSave = async (item: FacilityWithVacancy) => {
-    if (!user) return;
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      await updateVacancyStatus({
-        facilityId: item.facility.id,
-        vacantCount: editValues.vacantCount,
-        note: editValues.note || undefined,
-        updatedBy: user.id,
-        updatedByName: user.name,
-        lastKnownUpdatedAt: item.vacancy?.updatedAt,
-      });
-      setSuccess(`${item.facility.name}の空室情報を更新しました`);
-      setEditingId(null);
-      await fetchData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '更新に失敗しました');
-    } finally {
-      setSaving(false);
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.error || '追加に失敗しました');
     }
+
+    await fetchData(false);
   };
 
-  const formatTime = (date: Date | undefined) => {
-    if (!date) return '-';
-    return date.toLocaleString('ja-JP', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+  // 部屋追加
+  const handleAddRoom = async (data: { buildingName: string; roomNumber: string; capacity: number }) => {
+    if (!firebaseUser) throw new Error('認証が必要です');
+
+    const token = await firebaseUser.getIdToken();
+    const res = await fetch('/api/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
     });
+
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.error || '追加に失敗しました');
+    }
+
+    await fetchData(false);
   };
 
-  // 集計
-  const totalCapacity = facilities.reduce((sum, f) => sum + (f.facility.capacity || 0), 0);
-  const totalVacant = facilities.reduce((sum, f) => sum + (f.vacancy?.vacantCount ?? 0), 0);
-  const totalOccupied = totalCapacity - totalVacant;
-  const totalOccupancyRate = totalCapacity > 0 ? Math.round((totalOccupied / totalCapacity) * 100) : 0;
+  // 状態変更
+  const handleStatusChange = async (roomId: string, newStatus: string) => {
+    if (!firebaseUser) throw new Error('認証が必要です');
 
-  // 低稼働施設（70%未満）
-  const lowOccupancyFacilities = facilities.filter(f => {
-    const rate = calcOccupancyRate(f.facility.capacity, f.vacancy?.vacantCount ?? 0);
-    return rate < 70;
-  });
+    const token = await firebaseUser.getIdToken();
+    const res = await fetch(`/api/rooms/${roomId}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status: newStatus }),
+    });
+
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.error || '状態変更に失敗しました');
+    }
+
+    await fetchData(false);
+  };
 
   if (loading) {
     return <Loading />;
@@ -176,300 +838,180 @@ export default function VacancyPage() {
       <div className="min-h-screen bg-gray-50">
         <Header />
 
-        <main className="max-w-4xl mx-auto px-4 py-6">
+        <main className="max-w-6xl mx-auto px-4 py-6">
           {/* ヘッダー */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Building2 className="w-6 h-6" />
-                空室・稼働状況
+                空室管理
               </h1>
+              <p className="text-sm text-gray-500 mt-1">
+                施設・部屋・状態を一元管理します
+              </p>
               {lastUpdated && (
-                <p className="text-sm text-gray-500 mt-1">
-                  最終取得: {formatTime(lastUpdated)}
+                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  最終更新: {formatTime(lastUpdated.toISOString())}
                 </p>
               )}
             </div>
-            <div className="flex gap-2">
-              {canEdit && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {isAdmin && (
                 <Button
                   variant="secondary"
-                  onClick={handleSyncData}
-                  disabled={syncing}
+                  onClick={() => setShowAddFacilityModal(true)}
                   className="flex items-center gap-2"
                 >
-                  <Database className="w-4 h-4" />
-                  {syncing ? '更新中...' : '一括更新'}
+                  <Plus className="w-4 h-4" />
+                  施設を追加
                 </Button>
               )}
               <Button
                 variant="secondary"
-                onClick={() => {
-                  setLoading(true);
-                  fetchData();
-                }}
+                onClick={() => fetchData(true)}
+                disabled={refreshing}
                 className="flex items-center gap-2"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
                 更新
               </Button>
             </div>
           </div>
 
-          {/* サマリーカード */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <Card className={`p-4 ${getOccupancyColor(totalOccupancyRate).bg} border ${getOccupancyColor(totalOccupancyRate).border}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="w-5 h-5 text-gray-600" />
-                <span className="text-sm font-medium text-gray-600">全体稼働率</span>
-              </div>
-              <div className="flex items-baseline gap-1">
-                <span className={`text-3xl font-bold ${getOccupancyColor(totalOccupancyRate).text}`}>
-                  {totalOccupancyRate}
-                </span>
-                <span className="text-gray-600">%</span>
-              </div>
-              <div className="mt-2">
-                <OccupancyBar rate={totalOccupancyRate} />
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                入居 {totalOccupied}名 / 定員 {totalCapacity}名
-              </p>
-            </Card>
-
-            <Card className="p-4 bg-white border">
-              <div className="flex items-center gap-2 mb-2">
-                <Building2 className="w-5 h-5 text-gray-600" />
-                <span className="text-sm font-medium text-gray-600">空室合計</span>
-              </div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-blue-600">{totalVacant}</span>
-                <span className="text-gray-600">室</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                即入居可能な空室数
-              </p>
-            </Card>
-          </div>
-
-          {/* 低稼働アラート */}
-          {lowOccupancyFacilities.length > 0 && (
+          {/* エラーバナー */}
+          {error && (
             <Card className="p-4 mb-6 bg-red-50 border border-red-200">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-red-800">入居促進が必要な施設</p>
-                  <p className="text-sm text-red-700 mt-1">
-                    {lowOccupancyFacilities.map(f => f.facility.name).join('、')} の稼働率が70%を下回っています
-                  </p>
+                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-red-800">データ取得エラー</p>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
                 </div>
+                <Button variant="secondary" onClick={() => fetchData(true)} className="text-sm">
+                  再試行
+                </Button>
               </div>
             </Card>
           )}
 
-          {/* ロック済み部屋 */}
-          {lockedRooms.length > 0 && (
-            <Card className="mb-6 border border-blue-200">
-              <button
-                onClick={() => setShowLockedRooms(!showLockedRooms)}
-                className="w-full p-4 flex items-center justify-between text-left"
-              >
-                <div className="flex items-center gap-2">
-                  <Lock className="w-5 h-5 text-blue-600" />
-                  <span className="font-medium text-blue-800">
-                    ロック中の部屋（{lockedRooms.length}室）
-                  </span>
-                </div>
-                {showLockedRooms ? (
-                  <ChevronUp className="w-5 h-5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
-                )}
-              </button>
-              {showLockedRooms && (
-                <div className="px-4 pb-4">
-                  <p className="text-sm text-gray-600 mb-3">
-                    入居希望者の申込によりロックされている部屋です
-                  </p>
-                  <div className="space-y-2">
-                    {lockedRooms.map((room) => (
-                      <div
-                        key={room.id}
-                        className="flex items-center justify-between p-3 bg-blue-50 rounded-lg"
-                      >
-                        <div>
-                          <span className="font-medium text-blue-800">
-                            {room.buildingName} {room.roomNumber}
-                          </span>
-                          {room.lockedByName && (
-                            <span className="text-xs text-blue-600 ml-2">
-                              by {room.lockedByName}
-                            </span>
-                          )}
-                          {room.lockedAt && (
-                            <span className="text-xs text-gray-500 ml-2">
-                              ({new Date(room.lockedAt).toLocaleDateString('ja-JP')}〜)
-                            </span>
-                          )}
-                        </div>
-                        {room.lockedCaseId && (
-                          <Link
-                            href={`/dashboard/prospects/${room.lockedCaseId}`}
-                            className="text-sm text-blue-600 hover:underline"
-                          >
-                            詳細
-                          </Link>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+          {/* 全体サマリー */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <Card className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-medium text-gray-600">稼働率</span>
+              </div>
+              <div className={`text-2xl font-bold ${getOccupancyColor(totalSummary.occupancyRate)}`}>
+                {totalSummary.occupancyRate !== null ? `${totalSummary.occupancyRate}%` : '--'}
+              </div>
+            </Card>
+            <Card className="p-4 bg-blue-50 border-blue-200">
+              <div className="flex items-center gap-2 mb-1">
+                <Home className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-medium text-gray-600">空室</span>
+              </div>
+              <div className="text-2xl font-bold text-blue-600">{totalSummary.available}</div>
+            </Card>
+            <Card className="p-4 bg-purple-50 border-purple-200">
+              <div className="flex items-center gap-2 mb-1">
+                <Lock className="w-4 h-4 text-purple-600" />
+                <span className="text-xs font-medium text-gray-600">ロック</span>
+              </div>
+              <div className="text-2xl font-bold text-purple-600">{totalSummary.locked}</div>
+            </Card>
+            <Card className="p-4 bg-green-50 border-green-200">
+              <div className="flex items-center gap-2 mb-1">
+                <Users className="w-4 h-4 text-green-600" />
+                <span className="text-xs font-medium text-gray-600">入居中</span>
+              </div>
+              <div className="text-2xl font-bold text-green-600">{totalSummary.occupied}</div>
+            </Card>
+            <Card className="p-4 bg-yellow-50 border-yellow-200">
+              <div className="flex items-center gap-2 mb-1">
+                <Wrench className="w-4 h-4 text-yellow-600" />
+                <span className="text-xs font-medium text-gray-600">修繕中</span>
+              </div>
+              <div className="text-2xl font-bold text-yellow-600">{totalSummary.maintenance}</div>
+            </Card>
+          </div>
+
+          {/* 施設カード一覧 */}
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Building2 className="w-5 h-5" />
+            施設一覧
+          </h2>
+
+          {facilities.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-gray-500">施設が登録されていません</p>
+              {isAdmin && (
+                <Button
+                  onClick={() => setShowAddFacilityModal(true)}
+                  className="mt-4"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  施設を追加
+                </Button>
               )}
             </Card>
-          )}
-
-          {/* メッセージ */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-              {error}
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {facilities.map((facility) => (
+                <FacilityCard
+                  key={facility.id}
+                  facility={facility}
+                  summary={facilitySummaries[facility.id] || {
+                    facilityId: facility.id,
+                    facilityName: facility.name,
+                    totalRooms: 0,
+                    available: 0,
+                    locked: 0,
+                    occupied: 0,
+                    maintenance: 0,
+                    occupancyRate: null,
+                  }}
+                  onClick={() => setSelectedFacility(facility)}
+                />
+              ))}
             </div>
           )}
-          {success && (
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
-              {success}
-            </div>
-          )}
 
-          {!canEdit && (
-            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4">
-              閲覧のみ可能です。編集にはリーダー以上の権限が必要です。
-            </div>
-          )}
-
-          {/* 施設一覧 */}
-          <div className="space-y-4">
-            {facilities.length === 0 ? (
-              <Card className="p-8 text-center text-gray-500">
-                施設が登録されていません
-              </Card>
-            ) : (
-              facilities.map((item) => {
-                const isEditing = editingId === item.facility.id;
-                const vacantCount = item.vacancy?.vacantCount ?? 0;
-                const occupancyRate = calcOccupancyRate(item.facility.capacity, vacantCount);
-                const colors = getOccupancyColor(occupancyRate);
-
-                return (
-                  <Card key={item.facility.id} className={`overflow-hidden border ${colors.border}`}>
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h2 className="text-lg font-semibold">{item.facility.name}</h2>
-                            {item.facility.area && (
-                              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
-                                {item.facility.area}
-                              </span>
-                            )}
-                          </div>
-
-                          {isEditing ? (
-                            <div className="space-y-3 mt-3">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">空室数</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={item.facility.capacity || 100}
-                                  value={editValues.vacantCount}
-                                  onChange={(e) => setEditValues({ ...editValues, vacantCount: parseInt(e.target.value) || 0 })}
-                                  className="w-24 px-3 py-2 border border-gray-300 rounded-lg"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">メモ</label>
-                                <input
-                                  type="text"
-                                  value={editValues.note}
-                                  onChange={(e) => setEditValues({ ...editValues, note: e.target.value })}
-                                  placeholder="例: 来週1室空き予定"
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <Button onClick={() => handleSave(item)} disabled={saving} className="flex items-center gap-1">
-                                  <Save className="w-4 h-4" />
-                                  {saving ? '保存中...' : '保存'}
-                                </Button>
-                                <Button variant="secondary" onClick={cancelEdit} disabled={saving} className="flex items-center gap-1">
-                                  <X className="w-4 h-4" />
-                                  キャンセル
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="mt-2">
-                              {/* 稼働率 */}
-                              <div className="flex items-center gap-4 mb-2">
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-sm text-gray-600">稼働率</span>
-                                    <span className={`font-bold ${colors.text}`}>{occupancyRate}%</span>
-                                  </div>
-                                  <OccupancyBar rate={occupancyRate} />
-                                </div>
-                              </div>
-
-                              {/* 空室・入居数 */}
-                              <div className="flex items-center gap-6 text-sm">
-                                <div>
-                                  <span className="text-gray-500">空室</span>
-                                  <span className="ml-2 text-xl font-bold text-blue-600">{vacantCount}</span>
-                                  <span className="text-gray-500 ml-1">室</span>
-                                </div>
-                                <div>
-                                  <span className="text-gray-500">入居</span>
-                                  <span className="ml-2 font-medium">{(item.facility.capacity || 0) - vacantCount}</span>
-                                  <span className="text-gray-500 ml-1">/ {item.facility.capacity}名</span>
-                                </div>
-                              </div>
-
-                              {item.vacancy?.note && (
-                                <p className="text-sm text-gray-500 mt-2 bg-gray-50 px-2 py-1 rounded">
-                                  {item.vacancy.note}
-                                </p>
-                              )}
-
-                              {item.vacancy && (
-                                <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3" />
-                                    {formatTime(item.vacancy.updatedAt)}
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <User className="w-3 h-3" />
-                                    {item.vacancy.updatedByName || '不明'}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {canEdit && !isEditing && (
-                          <Button variant="secondary" onClick={() => startEdit(item)} className="flex items-center gap-1">
-                            <Edit2 className="w-4 h-4" />
-                            編集
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })
-            )}
+          {/* フッター */}
+          <div className="mt-8 text-center text-xs text-gray-400">
+            <p>自動更新: 60秒ごと</p>
           </div>
         </main>
+
+        {/* 施設詳細ドロワー */}
+        <FacilityDrawer
+          facility={selectedFacility}
+          rooms={rooms}
+          isOpen={!!selectedFacility}
+          onClose={() => setSelectedFacility(null)}
+          onAddRoom={() => setShowAddRoomModal(true)}
+          onStatusChange={handleStatusChange}
+          canAddRoom={isAdmin}
+          canChangeStatus={isLeader}
+        />
+
+        {/* 施設追加モーダル */}
+        <AddFacilityModal
+          isOpen={showAddFacilityModal}
+          onClose={() => setShowAddFacilityModal(false)}
+          onSubmit={handleAddFacility}
+        />
+
+        {/* 部屋追加モーダル */}
+        {selectedFacility && (
+          <AddRoomModal
+            isOpen={showAddRoomModal}
+            onClose={() => setShowAddRoomModal(false)}
+            onSubmit={handleAddRoom}
+            facilityName={selectedFacility.name}
+          />
+        )}
       </div>
     </AuthGuard>
   );

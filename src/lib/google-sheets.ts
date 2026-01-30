@@ -7,6 +7,12 @@ import type { Prospect, ProspectStatus, CareLevel, Gender } from '@/types/prospe
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
+// KPI対象の最小internal_no（252以上のみKPI対象）
+const KPI_MIN_INTERNAL_NO = 252;
+
+// カウンタードキュメントパス
+const COUNTER_DOC_PATH = 'counters/prospects_internal_no';
+
 // 対象スプレッドシートID
 const PROSPECT_SHEET_ID = process.env.PROSPECT_SHEET_ID || '1y00PmqtKRCsyrvaH8ydO3QbzVbFXGEVA2dpKOUDJMaY';
 
@@ -15,6 +21,85 @@ const PROSPECT_SHEET_ID = process.env.PROSPECT_SHEET_ID || '1y00PmqtKRCsyrvaH8yd
  */
 export function isGoogleSheetsConfigured(): boolean {
   return true; // 公開シートはAPI認証不要
+}
+
+/**
+ * 次のinternal_noを取得（Admin SDK用・トランザクションで重複防止）
+ */
+async function getNextInternalNoAdmin(): Promise<number> {
+  const db = getAdminDb();
+  const counterRef = db.doc(COUNTER_DOC_PATH);
+
+  return await db.runTransaction(async (transaction) => {
+    const counterSnap = await transaction.get(counterRef);
+
+    let current: number;
+
+    if (!counterSnap.exists) {
+      // カウンタ未設定の場合、既存prospectsの最大internal_noを計算
+      const prospectsSnap = await db
+        .collection('prospects')
+        .where('tenantId', '==', DEFAULT_TENANT_ID)
+        .get();
+
+      let maxInternalNo = 0;
+      prospectsSnap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.internalNo) {
+          const num = typeof data.internalNo === 'number'
+            ? data.internalNo
+            : parseInt(String(data.internalNo), 10);
+          if (!isNaN(num) && num > maxInternalNo) {
+            maxInternalNo = num;
+          }
+        }
+      });
+
+      // 251以下なら251にセット（次は252になる）
+      current = maxInternalNo < KPI_MIN_INTERNAL_NO - 1 ? KPI_MIN_INTERNAL_NO - 1 : maxInternalNo;
+    } else {
+      current = counterSnap.data()?.current || 0;
+      // 251以下なら251に補正
+      if (current < KPI_MIN_INTERNAL_NO - 1) {
+        current = KPI_MIN_INTERNAL_NO - 1;
+      }
+    }
+
+    // インクリメント
+    const nextNo = current + 1;
+
+    // カウンタを更新
+    transaction.set(counterRef, {
+      current: nextNo,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return nextNo;
+  });
+}
+
+/**
+ * 監査ログを記録（Admin SDK用）
+ */
+async function createAuditLogAdmin(data: {
+  tenantId: string;
+  actor: string;
+  actorName: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  diff?: {
+    before?: Record<string, unknown>;
+    after?: Record<string, unknown>;
+  };
+  note?: string;
+}): Promise<void> {
+  await getAdminDb().collection('auditLogs').add({
+    ...data,
+    diff: data.diff || null,
+    note: data.note || null,
+    createdAt: FieldValue.serverTimestamp(),
+  });
 }
 
 /**
@@ -546,18 +631,43 @@ export async function importProspectsFromSheet(
         }
 
         if (!dryRun) {
+          // internal_noが未設定または"IMPORT-"で始まる場合は自動付番
+          let finalInternalNo = prospect.internalNo;
+          const needsAutoNumber = !finalInternalNo || finalInternalNo.startsWith('IMPORT-');
+          if (needsAutoNumber) {
+            const nextNo = await getNextInternalNoAdmin();
+            finalInternalNo = nextNo.toString();
+          }
+
           // Firestoreに保存（undefined値を除去）
           const cleanedProspect = removeUndefined(prospect as Record<string, unknown>);
           const docData = {
             tenantId: DEFAULT_TENANT_ID,
             prospectKey,
             ...cleanedProspect,
+            internalNo: finalInternalNo,
             createdAt: FieldValue.serverTimestamp(),
             receivedAt: prospect.receivedAt || new Date(),
           };
 
-          await getAdminDb().collection('prospects').add(docData);
+          const docRef = await getAdminDb().collection('prospects').add(docData);
           existingKeys.set(prospectKey, 'new');
+
+          // 自動付番した場合は監査ログを記録
+          if (needsAutoNumber) {
+            await createAuditLogAdmin({
+              tenantId: DEFAULT_TENANT_ID,
+              actor: 'system',
+              actorName: 'System (Import)',
+              action: 'create',
+              entity: 'prospect',
+              entityId: docRef.id,
+              diff: {
+                after: { internalNo: finalInternalNo },
+              },
+              note: `PROSPECT_AUTO_NUMBER_ASSIGNED: ${finalInternalNo}`,
+            });
+          }
         }
 
         result.imported++;

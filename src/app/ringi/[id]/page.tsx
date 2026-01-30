@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/Input';
 import {
   ArrowLeft, Send, Undo2, CheckCircle, XCircle,
   Clock, Edit, Trash2, Save, X, ChevronDown, ChevronUp,
-  AlertTriangle, CircleDollarSign, Folder, Calendar
+  AlertTriangle, CircleDollarSign, Folder, Calendar,
+  Route, User, Users,
 } from 'lucide-react';
 import {
   getRingi, updateRingi, deleteRingi,
@@ -21,7 +22,8 @@ import {
 import {
   Ringi, RingiAuditLog, RingiFormData,
   RINGI_STATUS_LABELS, RINGI_STATUS_COLORS, RINGI_CATEGORIES,
-  canEdit, canDelete, canTransition, RingiCategory, RETURN_REASON_TEMPLATES
+  canEdit, canDelete, canTransition, RingiCategory, RETURN_REASON_TEMPLATES,
+  RingiApprovalFlow, RingiApprovalFlowStep,
 } from '@/types';
 import { Select } from '@/components/ui/Select';
 
@@ -246,6 +248,98 @@ export default function RingiDetailPage() {
             )}
           </div>
         </Card>
+
+        {/* Approval Flow */}
+        {ringi.approvalFlow && ringi.approvalFlow.steps.length > 0 && (
+          <Card className="p-4 mb-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Route className="w-4 h-4 text-zinc-500" />
+              <p className="text-sm font-medium text-zinc-700">
+                承認フロー
+                <span className="text-xs text-zinc-400 ml-2">（{ringi.approvalFlow.routeName}）</span>
+              </p>
+            </div>
+            <div className="relative">
+              {/* Connector Line */}
+              <div className="absolute left-4 top-6 bottom-6 w-0.5 bg-zinc-200" />
+
+              {/* Steps */}
+              <div className="space-y-4">
+                {ringi.approvalFlow.steps.map((step, index) => {
+                  const isCurrentStep = step.stepOrder === ringi.approvalFlow!.currentStepOrder;
+                  const isPending = step.status === 'pending';
+                  const isApproved = step.status === 'approved';
+                  const isSkipped = step.status === 'skipped';
+
+                  return (
+                    <div key={index} className="flex items-start gap-3 relative">
+                      {/* Step Indicator */}
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ${
+                          isApproved
+                            ? 'bg-emerald-500 text-white'
+                            : isSkipped
+                            ? 'bg-zinc-300 text-white'
+                            : isCurrentStep
+                            ? 'bg-amber-500 text-white animate-pulse'
+                            : 'bg-zinc-200 text-zinc-400'
+                        }`}
+                      >
+                        {isApproved ? (
+                          <CheckCircle className="w-4 h-4" />
+                        ) : isSkipped ? (
+                          <X className="w-4 h-4" />
+                        ) : (
+                          <span className="text-xs font-bold">{step.stepOrder}</span>
+                        )}
+                      </div>
+
+                      {/* Step Content */}
+                      <div className="flex-1 min-w-0 pt-1">
+                        <div className="flex items-center gap-2">
+                          {step.approverType === 'ROLE' ? (
+                            <Users className="w-3.5 h-3.5 text-zinc-400" />
+                          ) : (
+                            <User className="w-3.5 h-3.5 text-zinc-400" />
+                          )}
+                          <span className="font-medium text-zinc-900">
+                            {step.approverName || step.approverValue}
+                          </span>
+                          {!step.required && (
+                            <span className="text-xs text-zinc-400">（任意）</span>
+                          )}
+                          {isCurrentStep && isPending && (
+                            <Badge className="bg-amber-100 text-amber-700 text-xs">現在</Badge>
+                          )}
+                        </div>
+
+                        {/* Approval Info */}
+                        {isApproved && step.approvedByName && (
+                          <div className="text-xs text-zinc-500 mt-1">
+                            {step.approvedByName} が承認
+                            {step.approvedAt && (
+                              <span className="ml-1">
+                                ({formatDateTime(new Date(step.approvedAt))})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {isApproved && step.comment && (
+                          <p className="text-xs text-zinc-600 mt-1 p-2 bg-zinc-50 rounded">
+                            {step.comment}
+                          </p>
+                        )}
+                        {isSkipped && (
+                          <div className="text-xs text-zinc-400 mt-1">スキップ</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Content */}
         <Card className="p-6 mb-4">

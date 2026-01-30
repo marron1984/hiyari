@@ -237,6 +237,7 @@ export interface Room {
   tenantId: string;
   buildingName: string;         // 建物名
   roomNumber: string;           // 部屋番号
+  capacity?: number;            // 定員（1 or 2人部屋など）
   status: RoomStatus;
   expectedCareLevel?: string;   // 入居想定介護度数
   note?: string;                // 備考
@@ -245,6 +246,9 @@ export interface Room {
   lockedAt?: Date;              // ロック日時
   lockedBy?: string;            // ロックしたユーザーID
   lockedByName?: string;        // ロックしたユーザー名
+  // 入居者関連
+  occupantId?: string;          // 入居者ID
+  occupantName?: string;        // 入居者名
   createdAt: Date;
   updatedAt?: Date;
 }

@@ -32,6 +32,39 @@ function ensureDb() {
   return db;
 }
 
+/**
+ * Firestoreに渡す前にundefinedを除去する
+ * Firestoreはundefinedを許可しないため、nullまたは値のあるフィールドのみ保持
+ * @exported for testing
+ */
+export function normalizeForFirestore<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
+  // Firestore Timestampクラスのチェック（テスト環境でも動作するように）
+  const isTimestamp = (v: unknown): boolean => {
+    return v !== null && typeof v === 'object' && 'toDate' in v && typeof (v as { toDate: unknown }).toDate === 'function';
+  };
+
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      // ネストされたオブジェクトも再帰的に処理
+      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date) && !isTimestamp(value)) {
+        result[key] = normalizeForFirestore(value as Record<string, unknown>);
+      } else if (Array.isArray(value)) {
+        // 配列内のundefinedも除去
+        result[key] = value.filter(v => v !== undefined).map(v => {
+          if (v !== null && typeof v === 'object' && !(v instanceof Date) && !isTimestamp(v)) {
+            return normalizeForFirestore(v as Record<string, unknown>);
+          }
+          return v;
+        });
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+}
+
 // ======== テンプレート ========
 
 // 静的データから取得（フォールバック用）
@@ -200,14 +233,47 @@ export async function createDocument(
 
   const template = getTemplateByKey(data.docType);
 
-  const docData = {
-    ...data,
-    docTypeName: template?.name || data.docType,
+  // 入力データをログ出力（デバッグ用）
+  console.log('[createDocument] Input data:', JSON.stringify(data, null, 2));
+
+  // undefinedを除去してFirestoreに渡す
+  const rawDocData = {
+    tenantId: data.tenantId || '',
+    ownerType: data.ownerType,
+    ownerId: data.ownerId || '',
+    ownerName: data.ownerName || '',
+    docType: data.docType || '',
+    docTypeName: template?.name || data.docTypeName || data.docType || '',
+    status: data.status || 'MISSING',
+    signedRequired: data.signedRequired ?? false,
     version: 1,
     createdAt: Timestamp.now(),
   };
 
+  // 正規化前のデータをログ出力
+  console.log('[createDocument] Raw doc data:', JSON.stringify(rawDocData, null, 2));
+
+  const docData = normalizeForFirestore(rawDocData);
+
+  // 正規化後のデータをログ出力
+  console.log('[createDocument] Normalized doc data:', JSON.stringify(docData, null, 2));
+
+  // undefinedチェック（二重安全策）
+  const hasUndefined = Object.entries(docData).some(([key, value]) => {
+    if (value === undefined) {
+      console.error(`[createDocument] Found undefined value for key: ${key}`);
+      return true;
+    }
+    return false;
+  });
+
+  if (hasUndefined) {
+    throw new Error('Document data contains undefined values');
+  }
+
   const docRef = await addDoc(collection(firestore, 'documents'), docData);
+
+  console.log('[createDocument] Successfully created document:', docRef.id);
 
   // イベント記録
   await createDocumentEvent(docRef.id, 'CREATE', null, docData, actorId, actorName);
@@ -229,10 +295,12 @@ export async function updateDocument(
   const existing = await getDocument(id);
   if (!existing) throw new Error('書類が見つかりません');
 
-  const updateData = {
+  // undefinedを除去してFirestoreに渡す
+  const rawUpdateData = {
     ...updates,
     updatedAt: Timestamp.now(),
   };
+  const updateData = normalizeForFirestore(rawUpdateData);
 
   await updateDoc(doc(firestore, 'documents', id), updateData);
 
@@ -282,26 +350,62 @@ export async function generateRequiredDocuments(
   actorId: string,
   actorName: string
 ): Promise<Document[]> {
+  // テンプレート取得
   const required = getRequiredTemplates(ownerType);
+
+  // ログ出力（デバッグ用）
+  console.log(`[generateRequiredDocuments] ownerType=${ownerType}, ownerId=${ownerId}, templates=${required.length}`);
+
+  // テンプレートが0件の場合は早期リターン（エラーではない）
+  if (required.length === 0) {
+    console.warn(`[generateRequiredDocuments] No required templates found for ownerType=${ownerType}`);
+    return [];
+  }
+
+  // 有効なテンプレートのみフィルタ（undefinedや不正データ防止）
+  const validTemplates = required.filter(t => t && t.key && t.name);
+  if (validTemplates.length !== required.length) {
+    console.warn(`[generateRequiredDocuments] Filtered ${required.length - validTemplates.length} invalid templates`);
+  }
+
+  // テンプレート一覧をログ出力
+  console.log(`[generateRequiredDocuments] Valid templates:`, validTemplates.map(t => ({ key: t.key, name: t.name })));
+
   const created: Document[] = [];
 
-  for (const template of required) {
-    const doc = await createDocument(
-      {
-        tenantId,
-        ownerType,
-        ownerId,
-        ownerName,
-        docType: template.key,
-        docTypeName: template.name,
-        status: 'MISSING',
-        signedRequired: template.signedRequired,
-      },
-      actorId,
-      actorName
-    );
-    created.push(doc);
+  for (const template of validTemplates) {
+    // 生成するドキュメントデータを事前に構築
+    const docInput = {
+      tenantId: tenantId || 'defaultTenant',
+      ownerType,
+      ownerId: ownerId || '',
+      ownerName: ownerName || '',
+      docType: template.key,
+      docTypeName: template.name,
+      status: 'MISSING' as const,
+      signedRequired: template.signedRequired ?? false,
+    };
+
+    console.log(`[generateRequiredDocuments] Creating document:`, docInput);
+
+    try {
+      const doc = await createDocument(
+        docInput,
+        actorId || 'system',
+        actorName || 'System'
+      );
+      created.push(doc);
+      console.log(`[generateRequiredDocuments] Created document: ${doc.id} (${template.key})`);
+    } catch (error) {
+      // 個別のエラーをログに出力し、他の書類生成を継続
+      console.error(`[generateRequiredDocuments] Failed to create document: ${template.key}`, error);
+      if (error instanceof Error) {
+        console.error(`[generateRequiredDocuments] Error details:`, error.message, error.stack);
+      }
+    }
   }
+
+  console.log(`[generateRequiredDocuments] Successfully created ${created.length}/${validTemplates.length} documents`);
 
   return created;
 }
@@ -372,15 +476,23 @@ async function createDocumentEvent(
 ): Promise<void> {
   const firestore = ensureDb();
 
-  await addDoc(collection(firestore, 'documentEvents'), {
+  // JSON.stringifyでundefinedが自動的に除去されるが、明示的にnullに変換
+  const sanitizeForJson = (obj: unknown): unknown => {
+    if (obj === null || obj === undefined) return null;
+    return JSON.parse(JSON.stringify(obj, (_, v) => v === undefined ? null : v));
+  };
+
+  const eventData = normalizeForFirestore({
     documentId,
     eventType,
-    prevJson: prev ? JSON.parse(JSON.stringify(prev)) : null,
-    nextJson: next ? JSON.parse(JSON.stringify(next)) : null,
+    prevJson: sanitizeForJson(prev),
+    nextJson: sanitizeForJson(next),
     actorId,
-    actorName,
+    actorName: actorName || '',
     createdAt: Timestamp.now(),
   });
+
+  await addDoc(collection(firestore, 'documentEvents'), eventData);
 }
 
 export async function getDocumentEvents(documentId: string): Promise<DocumentEvent[]> {
