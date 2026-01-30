@@ -10,6 +10,7 @@ import {
   ExpensePayload,
   OvertimePayload,
 } from '@/types/application';
+import { normalizeForFirestore } from '@/lib/firestore/normalize';
 
 const COLLECTION_NAME = 'applications';
 const AUDIT_LOG_COLLECTION = 'applicationAuditLogs';
@@ -120,16 +121,15 @@ export async function POST(
     const now = Timestamp.now();
     const fromStatus = data.status;
 
-    // 申請を更新
-    await applicationRef.update({
+    // 申請を更新（normalizeForFirestoreで安全に保存）
+    await applicationRef.update(normalizeForFirestore({
       status: 'submitted',
       submittedAt: now,
       updatedAt: now,
-      // 差戻し後の再提出の場合は差戻し情報はそのまま履歴として保持
-    });
+    }));
 
-    // 監査ログ
-    await db.collection(AUDIT_LOG_COLLECTION).add({
+    // 監査ログ（normalizeForFirestoreで安全に保存）
+    await db.collection(AUDIT_LOG_COLLECTION).add(normalizeForFirestore({
       tenantId: data.tenantId,
       applicationId: id,
       applicationType: data.type,
@@ -139,7 +139,7 @@ export async function POST(
       performedBy: decodedToken.uid,
       performedByName: userData.name,
       createdAt: now,
-    });
+    }));
 
     return NextResponse.json({
       success: true,

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { hasMinRole } from '@/lib/auth';
 import { Timestamp } from 'firebase-admin/firestore';
+import { normalizeForFirestore } from '@/lib/firestore/normalize';
 
 const COLLECTION_NAME = 'applications';
 const AUDIT_LOG_COLLECTION = 'applicationAuditLogs';
@@ -87,23 +88,20 @@ export async function POST(
     const now = Timestamp.now();
     const fromStatus = data.status;
 
-    // 更新データ
-    const updateData: Record<string, unknown> = {
+    // 更新データ（normalizeForFirestoreで安全に保存）
+    const updateData = normalizeForFirestore({
       status: 'approved',
       approvedBy: decodedToken.uid,
       approvedByName: userData.name,
       approvedAt: now,
       updatedAt: now,
-    };
-
-    if (comment) {
-      updateData.approvalComment = comment;
-    }
+      approvalComment: comment || '',
+    });
 
     await applicationRef.update(updateData);
 
-    // 監査ログ
-    await db.collection(AUDIT_LOG_COLLECTION).add({
+    // 監査ログ（normalizeForFirestoreで安全に保存）
+    await db.collection(AUDIT_LOG_COLLECTION).add(normalizeForFirestore({
       tenantId: data.tenantId,
       applicationId: id,
       applicationType: data.type,
@@ -112,9 +110,9 @@ export async function POST(
       toStatus: 'approved',
       performedBy: decodedToken.uid,
       performedByName: userData.name,
-      comment,
+      comment: comment || '',
       createdAt: now,
-    });
+    }));
 
     return NextResponse.json({
       success: true,

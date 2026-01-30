@@ -434,9 +434,15 @@ export async function findMatchingApprovalRoute(
  * approval_routes が 0件のときのみ実行
  *
  * 作成する経路:
- * 1. 通常稟議: manager → exec（デフォルト）
- * 2. 高額稟議: manager → exec（50万円以上）
- * 3. 人事稟議: execのみ（人事関連カテゴリ）
+ * RINGI:
+ *   1. 通常稟議: manager → exec（デフォルト）
+ *   2. 高額稟議: manager → exec（50万円以上）
+ *   3. 人事稟議: execのみ（人事関連カテゴリ）
+ * EXPENSE:
+ *   4. 経費申請（通常）: leader承認（デフォルト）
+ *   5. 経費申請（高額）: leader → manager（5万円以上）
+ * OVERTIME:
+ *   6. 残業申請: leader承認（デフォルト）
  */
 export interface SeedResult {
   seeded: boolean;
@@ -444,6 +450,9 @@ export interface SeedResult {
   routesCreated: number;
   routeIds: string[];
 }
+
+// 申請種別（RINGI/EXPENSE/OVERTIMEで承認経路を分離）
+export type ApprovalRouteApplicationType = 'RINGI' | 'EXPENSE' | 'OVERTIME';
 
 export async function seedApprovalRouteTemplates(
   tenantId: string = DEFAULT_TENANT_ID,
@@ -466,11 +475,13 @@ export async function seedApprovalRouteTemplates(
   const now = Timestamp.now();
   const routeIds: string[] = [];
 
-  // テンプレート定義
+  // テンプレート定義（RINGI + EXPENSE + OVERTIME）
   const templates = [
+    // === RINGI（稟議）===
     {
       name: '通常稟議',
       description: '一般的な稟議（デフォルト経路）',
+      applicationType: 'RINGI' as ApprovalRouteApplicationType,
       category: null,
       branchId: null,
       minAmount: null,
@@ -486,13 +497,14 @@ export async function seedApprovalRouteTemplates(
     {
       name: '高額稟議',
       description: '50万円以上の高額稟議',
+      applicationType: 'RINGI' as ApprovalRouteApplicationType,
       category: null,
       branchId: null,
       minAmount: 500000,
       maxAmount: null,
       isActive: true,
       isDefault: false,
-      priority: 10, // 高優先度（先にマッチ）
+      priority: 10,
       steps: [
         { approverType: 'ROLE' as const, approverValue: 'manager', required: true },
         { approverType: 'ROLE' as const, approverValue: 'exec', required: true },
@@ -501,15 +513,64 @@ export async function seedApprovalRouteTemplates(
     {
       name: '人事稟議',
       description: '人事関連の稟議（経営層のみ）',
+      applicationType: 'RINGI' as ApprovalRouteApplicationType,
       category: '人事関連' as RingiCategory,
       branchId: null,
       minAmount: null,
       maxAmount: null,
       isActive: true,
       isDefault: false,
-      priority: 5, // 最高優先度
+      priority: 5,
       steps: [
         { approverType: 'ROLE' as const, approverValue: 'exec', required: true },
+      ],
+    },
+    // === EXPENSE（経費申請）===
+    {
+      name: '経費申請（通常）',
+      description: '通常の経費申請（リーダー承認）',
+      applicationType: 'EXPENSE' as ApprovalRouteApplicationType,
+      category: null,
+      branchId: null,
+      minAmount: null,
+      maxAmount: 49999,
+      isActive: true,
+      isDefault: true,
+      priority: 100,
+      steps: [
+        { approverType: 'ROLE' as const, approverValue: 'leader', required: true },
+      ],
+    },
+    {
+      name: '経費申請（高額）',
+      description: '5万円以上の高額経費（リーダー→マネージャー承認）',
+      applicationType: 'EXPENSE' as ApprovalRouteApplicationType,
+      category: null,
+      branchId: null,
+      minAmount: 50000,
+      maxAmount: null,
+      isActive: true,
+      isDefault: false,
+      priority: 10,
+      steps: [
+        { approverType: 'ROLE' as const, approverValue: 'leader', required: true },
+        { approverType: 'ROLE' as const, approverValue: 'manager', required: true },
+      ],
+    },
+    // === OVERTIME（残業申請）===
+    {
+      name: '残業申請',
+      description: '残業・休日出勤の事前申請（リーダー承認）',
+      applicationType: 'OVERTIME' as ApprovalRouteApplicationType,
+      category: null,
+      branchId: null,
+      minAmount: null,
+      maxAmount: null,
+      isActive: true,
+      isDefault: true,
+      priority: 100,
+      steps: [
+        { approverType: 'ROLE' as const, approverValue: 'leader', required: true },
       ],
     },
   ];
@@ -521,6 +582,7 @@ export async function seedApprovalRouteTemplates(
       tenantId,
       name: template.name,
       description: template.description,
+      applicationType: template.applicationType, // RINGI/EXPENSE/OVERTIME
       category: template.category,
       branchId: template.branchId,
       minAmount: template.minAmount,

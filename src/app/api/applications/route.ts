@@ -17,6 +17,7 @@ import {
   OvertimeFormData,
 } from '@/types/application';
 import { RingiStatus } from '@/types/ringi';
+import { normalizeForFirestore } from '@/lib/firestore/normalize';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 const COLLECTION_NAME = 'applications';
@@ -206,35 +207,37 @@ export async function POST(request: NextRequest) {
 
     if (type === 'EXPENSE') {
       const expenseData = formData as ExpenseFormData;
-      payload = {
+      // normalizeForFirestoreでundefinedを除去
+      payload = normalizeForFirestore({
         expenseDate: expenseData.expenseDate || '',
         amount: typeof expenseData.amount === 'number' ? expenseData.amount : 0,
         category: (expenseData.category || '交通費') as ExpensePayload['category'],
         paymentMethod: (expenseData.paymentMethod || '立替') as ExpensePayload['paymentMethod'],
         description: expenseData.description || '',
         receiptUrls: expenseData.receiptUrls || [],
-        vendor: expenseData.vendor || undefined,
-        taxAmount: typeof expenseData.taxAmount === 'number' ? expenseData.taxAmount : undefined,
-        purpose: expenseData.purpose || undefined,
-        participants: expenseData.participants?.split(',').map((s: string) => s.trim()).filter(Boolean) || undefined,
-        projectCode: expenseData.projectCode || undefined,
-      };
+        vendor: expenseData.vendor || '',
+        taxAmount: typeof expenseData.taxAmount === 'number' ? expenseData.taxAmount : 0,
+        purpose: expenseData.purpose || '',
+        participants: expenseData.participants?.split(',').map((s: string) => s.trim()).filter(Boolean) || [],
+        projectCode: expenseData.projectCode || '',
+      }) as ExpensePayload;
       title = generateApplicationTitle('EXPENSE', payload, userData.name);
       amount = payload.amount;
     } else {
       const overtimeData = formData as OvertimeFormData;
       const hours = calculateOvertimeHours(overtimeData.startTime || '', overtimeData.endTime || '');
-      payload = {
+      // normalizeForFirestoreでundefinedを除去
+      payload = normalizeForFirestore({
         date: overtimeData.date || '',
         startTime: overtimeData.startTime || '',
         endTime: overtimeData.endTime || '',
         hours,
         reason: (overtimeData.reason || '業務繁忙') as OvertimePayload['reason'],
-        reasonDetail: overtimeData.reasonDetail || undefined,
-        workContent: overtimeData.workContent || undefined,
+        reasonDetail: overtimeData.reasonDetail || '',
+        workContent: overtimeData.workContent || '',
         isHoliday: overtimeData.isHoliday || false,
         isNightShift: overtimeData.isNightShift || false,
-      };
+      }) as OvertimePayload;
       title = generateApplicationTitle('OVERTIME', payload, userData.name);
     }
 
@@ -242,8 +245,8 @@ export async function POST(request: NextRequest) {
     const tenantId = userData.tenantId || DEFAULT_TENANT_ID;
     const branchId = userData.branchId || '';
 
-    // 申請を作成
-    const applicationData: Record<string, unknown> = {
+    // 申請を作成（normalizeForFirestoreでundefinedを完全除去）
+    const applicationData = normalizeForFirestore({
       tenantId,
       branchId,
       type,
@@ -253,16 +256,13 @@ export async function POST(request: NextRequest) {
       payload,
       status: 'draft' as RingiStatus,
       createdAt: now,
-    };
-
-    if (amount !== undefined) {
-      applicationData.amount = amount;
-    }
+      amount: amount ?? 0,
+    });
 
     const docRef = await db.collection(COLLECTION_NAME).add(applicationData);
 
-    // 監査ログ
-    await db.collection(AUDIT_LOG_COLLECTION).add({
+    // 監査ログ（normalizeForFirestoreで安全に保存）
+    await db.collection(AUDIT_LOG_COLLECTION).add(normalizeForFirestore({
       tenantId,
       applicationId: docRef.id,
       applicationType: type,
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
       performedBy: decodedToken.uid,
       performedByName: userData.name,
       createdAt: now,
-    });
+    }));
 
     return NextResponse.json({
       success: true,
