@@ -115,7 +115,7 @@ export interface Prospect {
   tenantId: string;
 
   // 基本情報
-  internalNo?: string;          // 社内No
+  internalNo?: number | null;   // 社内No（252以上が有効）
   status: ProspectStatus;
   statusNote?: string;          // ステータス備考
   assigneeId?: string;          // 担当者ID

@@ -41,10 +41,6 @@ export const PROSPECTS_CUTOFF_DATE = new Date('2026-01-01T00:00:00.000Z');
 // KPI集計対象年（2026年以降）
 export const KPI_START_YEAR = 2026;
 
-// KPI対象の最小internal_no（251以上のみKPI対象、250以前は対象外）
-// ユーザー要件: PROSPECTS_ACTIVE_NO_MIN=251
-export const KPI_MIN_INTERNAL_NO = 251;
-
 // 有効データ開始日時（この日時以降のみ表示・集計・KPI対象）
 // 2026-01-12 13:49 JST = 2026-01-12 04:49 UTC
 export const PROSPECTS_ACTIVE_FROM = new Date('2026-01-12T04:49:00.000Z');
@@ -120,44 +116,16 @@ export function applyProspectTimeScope(prospects: Prospect[]): Prospect[] {
 }
 
 /**
- * internal_noがKPI対象（251以上）かどうかを判定
- */
-export function isKpiTargetInternalNo(internalNo: string | number | undefined | null): boolean {
-  if (internalNo === undefined || internalNo === null || internalNo === '') {
-    return false;
-  }
-  const num = typeof internalNo === 'number' ? internalNo : parseInt(String(internalNo), 10);
-  return !isNaN(num) && num >= KPI_MIN_INTERNAL_NO;
-}
-
-/**
- * ProspectがKPI対象かどうかを判定（internal_no >= 251）
- */
-export function isProspectKpiTarget(prospect: Prospect): boolean {
-  return isKpiTargetInternalNo(prospect.internalNo);
-}
-
-/**
- * Prospect配列にKPIスコープを適用（internal_no >= 251 のみ返す）
- */
-export function applyProspectKpiScope(prospects: Prospect[]): Prospect[] {
-  return prospects.filter(isProspectKpiTarget);
-}
-
-/**
- * ProspectがKPI集計対象かどうかを判定（厳格版）
- * - 時間スコープ: 2026-01-12 13:49 以降
- * - 番号スコープ: internal_no >= 251
- * 両方を満たす必要がある
+ * ProspectがKPI集計対象かどうかを判定
+ * 時間スコープ: 2026-01-12 13:49 以降のみ
  */
 export function isProspectInFullScope(prospect: Prospect): boolean {
-  return isActiveProspectByTime(prospect) && isProspectKpiTarget(prospect);
+  return isActiveProspectByTime(prospect);
 }
 
 /**
- * Prospect配列に完全スコープを適用
- * - 時間スコープ: 2026-01-12 13:49 以降
- * - 番号スコープ: internal_no >= 251
+ * Prospect配列にスコープを適用
+ * 2026-01-12 13:49 以降のデータのみ返す
  */
 export function applyFullProspectScope(prospects: Prospect[]): Prospect[] {
   return prospects.filter(isProspectInFullScope);
@@ -173,7 +141,6 @@ function getDb() {
 /**
  * 次のinternal_noを取得（トランザクションで重複防止）
  * - カウンタが未設定の場合は、既存prospectsの最大値から初期化
- * - カウンタが250以下の場合は251から開始
  */
 export async function getNextInternalNo(
   tenantId: string = DEFAULT_TENANT_ID
@@ -205,14 +172,9 @@ export async function getNextInternalNo(
         }
       });
 
-      // 250以下なら250にセット（次は251になる）
-      current = maxInternalNo < KPI_MIN_INTERNAL_NO - 1 ? KPI_MIN_INTERNAL_NO - 1 : maxInternalNo;
+      current = maxInternalNo;
     } else {
       current = counterSnap.data().current || 0;
-      // 250以下なら250に補正
-      if (current < KPI_MIN_INTERNAL_NO - 1) {
-        current = KPI_MIN_INTERNAL_NO - 1;
-      }
     }
 
     // インクリメント
@@ -286,7 +248,7 @@ export async function createProspect(
   });
 
   // internal_noが未設定の場合は自動付番
-  let internalNo = data.internalNo || null;
+  let internalNo: string | number | null = data.internalNo || null;
   const needsAutoNumber = !internalNo;
   if (needsAutoNumber) {
     const nextNo = await getNextInternalNo(tenantId);
@@ -1284,7 +1246,7 @@ export async function unlockRoom(
 
 /**
  * ダッシュボード統計を取得
- * KPIは時間スコープ（2026-01-12 13:49以降）+ internal_no >= 251 で算出
+ * KPIは時間スコープ（2026-01-12 13:49以降）で算出
  */
 export async function getProspectStats(
   tenantId: string = DEFAULT_TENANT_ID
@@ -1305,7 +1267,7 @@ export async function getProspectStats(
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  // KPI対象は完全スコープ（時間 + internal_no）
+  // KPI対象は時間スコープ（2026-01-12 13:49以降）
   const kpiTargetProspects = applyFullProspectScope(prospects);
 
   const byStatus: Record<string, number> = {};
@@ -1340,6 +1302,6 @@ export async function getProspectStats(
     newThisWeek: kpiTargetProspects.filter((p) => p.receivedAt > weekAgo).length,
     newThisMonth: kpiTargetProspects.filter((p) => p.receivedAt > monthAgo).length,
     avgDaysElapsed: activeCount > 0 ? Math.round(totalDays / activeCount) : 0,
-    kpiNote: `KPIは${PROSPECTS_ACTIVE_FROM_DISPLAY}以降・internal_no >= ${KPI_MIN_INTERNAL_NO}で算出`,
+    kpiNote: `KPIは${PROSPECTS_ACTIVE_FROM_DISPLAY}以降の受信データで算出`,
   };
 }

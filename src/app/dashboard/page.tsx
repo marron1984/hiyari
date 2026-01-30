@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { getCheckinHistory, getChaosDashboardMetrics, getInterventions } from '@/lib/chaos';
 import { getSalesDeals, getSalesAccounts } from '@/lib/sales';
-import { getProspects, applyProspectKpiScope } from '@/lib/prospect';
+import { getProspects, applyProspectTimeScope } from '@/lib/prospect';
 import { getFacilitiesWithVacancy } from '@/lib/vacancy';
 import { getRingisByUser, getPendingRingis } from '@/lib/ringi';
 import { AuthGuard } from '@/components/AuthGuard';
@@ -225,11 +225,11 @@ function DashboardContent() {
           errors.push(toDashboardError(err));
         }
 
-        // 入居希望データ（スコアリング）- KPI対象はinternal_no >= 252のみ
+        // 入居希望データ（スコアリング）- 2026-01-12 13:49 JST以降のみ
         try {
           const prospectsData = await getProspects(DEFAULT_TENANT_ID);
-          // KPIスコープ適用: internal_no >= 252 のみ
-          const kpiTargetProspects = applyProspectKpiScope(prospectsData);
+          // 時間ベースのスコープ適用
+          const kpiTargetProspects = applyProspectTimeScope(prospectsData);
           const activeProspects = kpiTargetProspects.filter(
             p => p.status !== '見送り' && p.status !== 'クローズ' && p.status !== '入居決定'
           );

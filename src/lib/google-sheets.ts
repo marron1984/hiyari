@@ -7,9 +7,6 @@ import type { Prospect, ProspectStatus, CareLevel, Gender } from '@/types/prospe
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
-// KPI対象の最小internal_no（252以上のみKPI対象）
-const KPI_MIN_INTERNAL_NO = 252;
-
 // カウンタードキュメントパス
 const COUNTER_DOC_PATH = 'counters/prospects_internal_no';
 
@@ -55,14 +52,9 @@ async function getNextInternalNoAdmin(): Promise<number> {
         }
       });
 
-      // 251以下なら251にセット（次は252になる）
-      current = maxInternalNo < KPI_MIN_INTERNAL_NO - 1 ? KPI_MIN_INTERNAL_NO - 1 : maxInternalNo;
+      current = maxInternalNo;
     } else {
       current = counterSnap.data()?.current || 0;
-      // 251以下なら251に補正
-      if (current < KPI_MIN_INTERNAL_NO - 1) {
-        current = KPI_MIN_INTERNAL_NO - 1;
-      }
     }
 
     // インクリメント
@@ -442,8 +434,13 @@ function rowToProspect(
   const rawCustomerName = getValue(mapping.customerName);
   const customerName = rawCustomerName && !looksLikeDate(rawCustomerName) ? rawCustomerName : undefined;
 
+  // internalNoを数値として取得（空または無効な場合はnull）
+  const internalNoStr = getValue(mapping.internalNo);
+  const internalNo = internalNoStr ? parseInt(internalNoStr, 10) : null;
+  const validInternalNo = internalNo && !isNaN(internalNo) ? internalNo : null;
+
   return {
-    internalNo: getValue(mapping.internalNo) || `IMPORT-${rowIndex}`,
+    internalNo: validInternalNo,
     status: normalizeStatus(getValue(mapping.status) || ''),
     statusNote: getValue(mapping.statusNote),
     customerName,
@@ -601,7 +598,7 @@ export async function importProspectsFromSheet(
         let displayName = prospect.customerName;
         if (!displayName) {
           // 社内No.から名前を生成
-          if (prospect.internalNo && !prospect.internalNo.startsWith('IMPORT-')) {
+          if (prospect.internalNo !== null && prospect.internalNo !== undefined) {
             displayName = `案件${prospect.internalNo}`;
           } else if (prospect.salesRepName) {
             // 営業担当者名から
@@ -627,8 +624,9 @@ export async function importProspectsFromSheet(
 
         if (!dryRun) {
           // internal_noが未設定または"IMPORT-"で始まる場合は自動付番
-          let finalInternalNo = prospect.internalNo;
-          const needsAutoNumber = !finalInternalNo || finalInternalNo.startsWith('IMPORT-');
+          const internalNoStr = typeof prospect.internalNo === 'string' ? prospect.internalNo : String(prospect.internalNo || '');
+          const needsAutoNumber = !prospect.internalNo || internalNoStr.startsWith('IMPORT-');
+          let finalInternalNo: string | number = prospect.internalNo!;
           if (needsAutoNumber) {
             const nextNo = await getNextInternalNoAdmin();
             finalInternalNo = nextNo.toString();

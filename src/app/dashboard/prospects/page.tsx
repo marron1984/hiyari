@@ -10,9 +10,7 @@ import { Loading } from '@/components/Loading';
 import {
   getProspects,
   getProspectStats,
-  isProspectKpiTarget,
   isProspectInFullScope,
-  KPI_MIN_INTERNAL_NO,
   PROSPECTS_ACTIVE_FROM_DISPLAY,
 } from '@/lib/prospect';
 import { hasMinRole } from '@/lib/auth';
@@ -89,7 +87,7 @@ function ProspectsContent() {
     fetchData();
   }, [fetchData]);
 
-  // スコープ外データの件数（時間スコープ外 または internal_no < 251）
+  // スコープ外データの件数（時間スコープ外）
   const legacyCount = prospects.filter((p) => !isProspectInFullScope(p)).length;
 
   // フィルタリングとソート
@@ -157,7 +155,7 @@ function ProspectsContent() {
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
             <Filter className="w-4 h-4 text-blue-600 flex-shrink-0" />
             <p className="text-sm text-blue-700">
-              表示対象：{PROSPECTS_ACTIVE_FROM_DISPLAY} 以降の受信データ（internal_no &gt;= {KPI_MIN_INTERNAL_NO}）
+              表示対象：{PROSPECTS_ACTIVE_FROM_DISPLAY} 以降の受信データ
             </p>
           </div>
 
@@ -322,7 +320,7 @@ function ProspectsContent() {
                   </Badge>
                 </div>
                 <p className="text-xs text-gray-400">
-                  ※ KPIは{PROSPECTS_ACTIVE_FROM_DISPLAY}以降・No.{KPI_MIN_INTERNAL_NO}以上のみ
+                  ※ KPIは{PROSPECTS_ACTIVE_FROM_DISPLAY}以降のデータのみ
                 </p>
               </div>
             )}

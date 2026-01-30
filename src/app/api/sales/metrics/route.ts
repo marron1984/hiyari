@@ -7,8 +7,8 @@ import { hasMinRole } from '@/lib/auth';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
-// KPI対象の最小internal_no
-const KPI_MIN_INTERNAL_NO = 252;
+// 有効データ開始日時（2026-01-12 13:49 JST = 2026-01-12 04:49 UTC）
+const PROSPECTS_ACTIVE_FROM = new Date('2026-01-12T04:49:00.000Z');
 
 // キャッシュを完全に無効化
 export const dynamic = 'force-dynamic';
@@ -37,10 +37,10 @@ interface SalesMetricsResponse {
     teleapoCv: number | null;
     shiryouCv: number | null;
   };
-  // 入居希望者（prospects）KPI - internal_no >= 252のみ
+  // 入居希望者（prospects）KPI - 2026-01-12 13:49以降のみ
   prospects: {
     total: number;
-    kpiTotal: number; // internal_no >= 252
+    kpiTotal: number; // 時間スコープ適用後
     byStatus: Record<string, number>;
     expectedMoveIns: number;
     rankDistribution: { A: number; B: number; C: number; D: number };
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // ===== prospects取得（internal_no >= 252のみ）=====
+    // ===== prospects取得（2026-01-12 13:49以降のみ）=====
     let prospectsData = {
       total: 0,
       kpiTotal: 0,
@@ -173,14 +173,22 @@ export async function GET(request: NextRequest) {
 
       prospectsSnap.docs.forEach((doc) => {
         const prospect = doc.data();
-        const internalNo = prospect.internalNo;
         const status = prospect.status as string;
 
         prospectsData.total++;
 
-        // KPIスコープ: internal_no >= 252 のみ
-        const internalNoNum = typeof internalNo === 'number' ? internalNo : parseInt(String(internalNo || ''), 10);
-        const isKpiTarget = !isNaN(internalNoNum) && internalNoNum >= KPI_MIN_INTERNAL_NO;
+        // KPIスコープ: 2026-01-12 13:49以降のみ（receivedAt > inquiryDate > createdAt）
+        let baseDate: Date | null = null;
+        if (prospect.receivedAt?.toDate) {
+          baseDate = prospect.receivedAt.toDate();
+        } else if (prospect.inquiryDate) {
+          const parsed = new Date(prospect.inquiryDate);
+          if (!isNaN(parsed.getTime())) baseDate = parsed;
+        } else if (prospect.createdAt?.toDate) {
+          baseDate = prospect.createdAt.toDate();
+        }
+
+        const isKpiTarget = baseDate !== null && baseDate >= PROSPECTS_ACTIVE_FROM;
 
         if (!isKpiTarget) {
           return; // このレコードはKPI対象外
@@ -267,7 +275,7 @@ export async function GET(request: NextRequest) {
     // デバッグ情報
     if (debugMode) {
       response.debug = {
-        queryScope: `internal_no >= ${KPI_MIN_INTERNAL_NO}`,
+        queryScope: `receivedAt >= 2026-01-12 13:49 JST`,
         prospectsQueried,
         prospectsFiltered,
         dealsQueried,
