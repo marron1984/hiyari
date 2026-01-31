@@ -390,5 +390,28 @@ service cloud.firestore {
       // サーバーサイドからのみアクセス（Admin SDK経由）
       allow read, write: if false;
     }
+
+    // ======== AI副社長 今日のTODO ========
+
+    // TODOアイテムコレクション
+    match /todoItems/{todoId} {
+      // 認証済みユーザーは自分のTODOを読み取り可能
+      // 管理者は全TODOを読み取り可能
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      // 更新は自分のTODOのみ（完了操作）
+      allow update: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+      // 作成・削除はサーバーサイドのみ
+      allow create, delete: if false;
+    }
+
+    // TODO生成ログコレクション
+    match /todoGenerationLogs/{logId} {
+      // 管理者のみ読み取り可能
+      allow read: if isAuthenticated() && isAdmin();
+      // サーバーサイドからのみ書き込み
+      allow write: if false;
+    }
   }
 }

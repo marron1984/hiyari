@@ -5,6 +5,10 @@
       "schedule": "0 18 * * *"
     },
     {
+      "path": "/api/cron/generate-todos",
+      "schedule": "0 21 * * *"
+    },
+    {
       "path": "/api/cron/daily-anomaly-report",
       "schedule": "30 23 * * *"
     },
