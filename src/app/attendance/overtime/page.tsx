@@ -65,7 +65,7 @@ export default function OvertimeRequestPage() {
       return;
     }
     if (!reason.trim()) {
-      setError('申請理由を入力してください');
+      setError('理由を入力してください');
       return;
     }
 
@@ -85,7 +85,7 @@ export default function OvertimeRequestPage() {
         reason: reason.trim(),
       });
 
-      setSuccess('残業申請を送信しました');
+      setSuccess('残業届を送信しました');
       setReason('');
       setHours('1');
       setMinutes('0');
@@ -108,16 +108,16 @@ export default function OvertimeRequestPage() {
 
         <main className="max-w-lg mx-auto px-4 py-6">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-xl font-bold">残業申請</h1>
+            <h1 className="text-xl font-bold">残業届</h1>
             <Button variant="secondary" onClick={() => router.push('/attendance')}>
               打刻に戻る
             </Button>
           </div>
 
-          {/* 申請フォーム */}
+          {/* 届出フォーム */}
           <Card className="mb-6">
             <div className="p-4">
-              <h2 className="font-semibold mb-4">新規申請</h2>
+              <h2 className="font-semibold mb-4">新規届出</h2>
 
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
@@ -174,7 +174,7 @@ export default function OvertimeRequestPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    申請理由
+                    理由
                   </label>
                   <textarea
                     value={reason}
@@ -191,20 +191,20 @@ export default function OvertimeRequestPage() {
                   disabled={submitting}
                   className="w-full"
                 >
-                  {submitting ? '送信中...' : '申請する'}
+                  {submitting ? '送信中...' : '届出する'}
                 </Button>
               </form>
             </div>
           </Card>
 
-          {/* 申請履歴 */}
+          {/* 届出履歴 */}
           <Card>
             <div className="p-4">
-              <h2 className="font-semibold mb-4">申請履歴</h2>
+              <h2 className="font-semibold mb-4">届出履歴</h2>
 
               {requests.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  申請履歴がありません
+                  届出履歴がありません
                 </div>
               ) : (
                 <div className="space-y-3">
