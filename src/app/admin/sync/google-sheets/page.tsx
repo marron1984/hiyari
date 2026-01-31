@@ -26,14 +26,43 @@ import {
   Play,
   History,
   Info,
+  Moon,
+  Zap,
 } from 'lucide-react';
 import type { SyncEntity, SyncLog, SyncPreview, SheetsConnectionConfig } from '@/types/sheets-sync';
+
+interface BatchSyncLog {
+  id: string;
+  type: 'nightly-batch';
+  startedAt: string;
+  completedAt: string;
+  results: {
+    entity: SyncEntity;
+    success: boolean;
+    rowsProcessed: number;
+    rowsCreated: number;
+    rowsUpdated: number;
+    rowsSkipped: number;
+    rowsConflict: number;
+    errorCount: number;
+    error?: string;
+  }[];
+  summary: {
+    totalEntities: number;
+    successfulEntities: number;
+    failedEntities: number;
+    totalRowsProcessed: number;
+    totalRowsCreated: number;
+    totalRowsUpdated: number;
+  };
+}
 
 interface ConnectionStatus {
   isConfigured: boolean;
   serviceAccountEmail: string | null;
   connectionConfig: SheetsConnectionConfig | null;
   recentLogs: SyncLog[];
+  latestBatchLog: BatchSyncLog | null;
 }
 
 export default function GoogleSheetsSyncPage() {
@@ -639,6 +668,99 @@ function GoogleSheetsSyncContent() {
                       )}
                     </div>
                   )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 夜間バッチ同期結果 */}
+          {status?.latestBatchLog && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Moon className="w-5 h-5" />
+                  夜間自動バッチ同期
+                  <Badge variant={status.latestBatchLog.summary.failedEntities === 0 ? 'success' : 'danger'}>
+                    {status.latestBatchLog.summary.failedEntities === 0 ? '正常' : 'エラーあり'}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* 実行情報 */}
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      <span>
+                        {new Date(status.latestBatchLog.completedAt).toLocaleString('ja-JP')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Zap className="w-4 h-4" />
+                      <span>毎日 03:00 JST</span>
+                    </div>
+                  </div>
+
+                  {/* サマリー */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="bg-blue-50 p-3 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-blue-600">
+                        {status.latestBatchLog.summary.successfulEntities}/{status.latestBatchLog.summary.totalEntities}
+                      </p>
+                      <p className="text-xs text-gray-600">成功エンティティ</p>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-gray-600">
+                        {status.latestBatchLog.summary.totalRowsProcessed}
+                      </p>
+                      <p className="text-xs text-gray-600">処理行数</p>
+                    </div>
+                    <div className="bg-green-50 p-3 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-green-600">
+                        {status.latestBatchLog.summary.totalRowsCreated}
+                      </p>
+                      <p className="text-xs text-gray-600">新規作成</p>
+                    </div>
+                    <div className="bg-purple-50 p-3 rounded-lg text-center">
+                      <p className="text-2xl font-bold text-purple-600">
+                        {status.latestBatchLog.summary.totalRowsUpdated}
+                      </p>
+                      <p className="text-xs text-gray-600">更新</p>
+                    </div>
+                  </div>
+
+                  {/* エンティティ別結果 */}
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-medium mb-2">エンティティ別結果</h4>
+                    <div className="space-y-2">
+                      {status.latestBatchLog.results.map((result) => (
+                        <div
+                          key={result.entity}
+                          className={`flex items-center justify-between p-2 rounded-lg ${
+                            result.success ? 'bg-green-50' : 'bg-red-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {result.success ? (
+                              <CheckCircle className="w-4 h-4 text-green-600" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 text-red-600" />
+                            )}
+                            <span className="font-medium">{entityLabels[result.entity]}</span>
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {result.error ? (
+                              <span className="text-red-600">{result.error}</span>
+                            ) : (
+                              <span>
+                                処理: {result.rowsProcessed} / 作成: {result.rowsCreated} / 更新: {result.rowsUpdated}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

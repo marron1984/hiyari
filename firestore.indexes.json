@@ -306,6 +306,14 @@
         { "fieldPath": "entity", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "batchSyncLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tenantId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

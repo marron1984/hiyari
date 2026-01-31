@@ -376,5 +376,19 @@ service cloud.firestore {
       // サーバーサイドからのみ書き込み（Admin SDK経由）
       allow write: if false;
     }
+
+    // バッチ同期ログコレクション
+    match /batchSyncLogs/{logId} {
+      // 管理者のみ読み取り可能
+      allow read: if isAuthenticated() && isAdmin();
+      // サーバーサイドからのみ書き込み（Admin SDK経由）
+      allow write: if false;
+    }
+
+    // 同期ロックコレクション
+    match /syncLocks/{lockId} {
+      // サーバーサイドからのみアクセス（Admin SDK経由）
+      allow read, write: if false;
+    }
   }
 }

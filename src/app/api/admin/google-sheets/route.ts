@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { hasMinRole } from '@/lib/auth';
+import { toDate } from '@/lib/date';
 import {
   isServiceAccountConfigured,
   getServiceAccountEmail,
@@ -16,6 +17,31 @@ import {
 import type { SyncEntity } from '@/types/sheets-sync';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
+
+/**
+ * 最新のバッチ同期ログを取得
+ */
+async function getLatestBatchSyncLog() {
+  const db = getAdminDb();
+  const snapshot = await db
+    .collection('batchSyncLogs')
+    .where('tenantId', '==', DEFAULT_TENANT_ID)
+    .orderBy('createdAt', 'desc')
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) return null;
+
+  const doc = snapshot.docs[0];
+  const data = doc.data();
+  return {
+    id: doc.id,
+    ...data,
+    startedAt: toDate(data.startedAt),
+    completedAt: toDate(data.completedAt),
+    createdAt: toDate(data.createdAt),
+  };
+}
 
 /**
  * 認証チェック
@@ -70,6 +96,7 @@ export async function GET(request: NextRequest) {
         const serviceAccountEmail = getServiceAccountEmail();
         const connectionConfig = await getConnectionConfig();
         const recentLogs = await getRecentSyncLogs(undefined, 5);
+        const latestBatchLog = await getLatestBatchSyncLog();
 
         return NextResponse.json({
           success: true,
@@ -77,6 +104,7 @@ export async function GET(request: NextRequest) {
           serviceAccountEmail,
           connectionConfig,
           recentLogs,
+          latestBatchLog,
         });
       }
 
