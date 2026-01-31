@@ -184,6 +184,14 @@ const MENU_CATEGORIES: MenuCategory[] = [
         bgColor: 'bg-slate-100',
         iconColor: 'text-slate-600',
       },
+      {
+        href: '/dashboard/knowledge',
+        icon: BookOpen,
+        title: '知識ハブ',
+        description: '公式ドキュメント・AI参照（NotebookLM連携）',
+        bgColor: 'bg-blue-100',
+        iconColor: 'text-blue-600',
+      },
     ],
   },
 ];

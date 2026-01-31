@@ -170,6 +170,10 @@ export default function DashboardPage() {
           <Link href="/dashboard/os/team" className="hover:text-zinc-600">
             チーム
           </Link>
+          <span>・</span>
+          <Link href="/dashboard/knowledge" className="hover:text-zinc-600">
+            知識ハブ
+          </Link>
           {role === 'exec' && (
             <>
               <span>・</span>
