@@ -1,11 +1,10 @@
-// 勤怠・残業申請 日次突合 Cron API
-// Vercel Cronで毎日09:00 (JST) に実行（前日分を突合）
+// 勤怠・残業申請 夜間バッチ突合 Cron API
+// Vercel Cronで毎日 JST 02:00 に自動実行（前日分を突合）
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { createNotificationServer } from '@/lib/notifications-server';
-import { toDate } from '@/lib/date';
+import { createNotificationServer, createNotificationsServer } from '@/lib/notifications-server';
 import {
   executeOvertimeCheck,
   OvertimeCheckInput,
@@ -25,6 +24,9 @@ const TIME_ENTRIES_COLLECTION = 'timeEntries';
 const APPLICATIONS_COLLECTION = 'applications';
 
 export const dynamic = 'force-dynamic';
+
+// ロール階層
+const ROLE_HIERARCHY = ['user', 'leader', 'manager', 'admin', 'exec', 'owner'];
 
 // Vercel Cronからのリクエストを認証
 function verifyCronRequest(request: NextRequest): boolean {
@@ -145,18 +147,18 @@ async function getOvertimeApplicationsForDate(
 }
 
 /**
- * ユーザー情報を取得
+ * ユーザー情報を取得（ロール情報含む）
  */
 async function getUsersMap(
   db: FirebaseFirestore.Firestore,
   tenantId: string
-): Promise<Map<string, { name: string; employeeCode: string; branchId: string }>> {
+): Promise<Map<string, { name: string; employeeCode: string; branchId: string; role: string }>> {
   const snapshot = await db
     .collection('users')
     .where('tenantId', '==', tenantId)
     .get();
 
-  const usersMap = new Map<string, { name: string; employeeCode: string; branchId: string }>();
+  const usersMap = new Map<string, { name: string; employeeCode: string; branchId: string; role: string }>();
 
   snapshot.docs.forEach((doc) => {
     const data = doc.data();
@@ -164,6 +166,7 @@ async function getUsersMap(
       name: (data.name as string) || 'Unknown',
       employeeCode: (data.employeeCode as string) || '',
       branchId: (data.branchId as string) || '',
+      role: (data.role as string) || 'user',
     });
   });
 
@@ -171,7 +174,33 @@ async function getUsersMap(
 }
 
 /**
- * 既存の突合結果をチェック
+ * 事業所のmanager以上を取得
+ */
+function getManagersForBranch(
+  usersMap: Map<string, { name: string; employeeCode: string; branchId: string; role: string }>,
+  branchId: string,
+  tenantId: string
+): Array<{ id: string; name: string }> {
+  const managerRoleIndex = ROLE_HIERARCHY.indexOf('manager');
+  const managers: Array<{ id: string; name: string }> = [];
+
+  usersMap.forEach((user, id) => {
+    const userRoleIndex = ROLE_HIERARCHY.indexOf(user.role);
+
+    // manager以上
+    if (userRoleIndex >= managerRoleIndex) {
+      // admin以上は全事業所対応、それ以外は同一事業所のみ
+      if (userRoleIndex >= ROLE_HIERARCHY.indexOf('admin') || user.branchId === branchId) {
+        managers.push({ id, name: user.name });
+      }
+    }
+  });
+
+  return managers;
+}
+
+/**
+ * 既存の突合結果をチェック（二重生成防止）
  */
 async function getExistingChecks(
   db: FirebaseFirestore.Firestore,
@@ -193,7 +222,35 @@ async function getExistingChecks(
   return userIds;
 }
 
-// GET: 日次突合実行（Vercel Cronから呼び出し）
+/**
+ * 既存の通知をチェック（二重通知防止）
+ */
+async function getExistingNotifications(
+  db: FirebaseFirestore.Firestore,
+  tenantId: string,
+  workDate: string
+): Promise<Set<string>> {
+  const snapshot = await db
+    .collection('notifications')
+    .where('tenantId', '==', tenantId)
+    .where('metadata.workDate', '==', workDate)
+    .get();
+
+  // userId_type をキーとして保存
+  const notifiedKeys = new Set<string>();
+  snapshot.docs.forEach((doc) => {
+    const data = doc.data();
+    const userId = data.userId as string;
+    const type = data.type as string;
+    if (type === 'overtime_check_ng' || type === 'overtime_check_warn') {
+      notifiedKeys.add(`${userId}_${type}`);
+    }
+  });
+
+  return notifiedKeys;
+}
+
+// GET: 夜間バッチ実行（Vercel Cronから呼び出し）
 export async function GET(request: NextRequest) {
   // 認証チェック
   if (!verifyCronRequest(request)) {
@@ -202,31 +259,33 @@ export async function GET(request: NextRequest) {
 
   try {
     const targetDate = getYesterdayJST();
-    console.log('[Cron] Starting overtime check for:', targetDate);
+    console.log('[NightBatch] Starting overtime check for:', targetDate);
 
     const db = getAdminDb();
     const tenantId = DEFAULT_TENANT_ID;
 
     // データ取得
-    const [timeEntries, overtimeApps, usersMap, existingChecks] = await Promise.all([
+    const [timeEntries, overtimeApps, usersMap, existingChecks, existingNotifications] = await Promise.all([
       getTimeEntriesForDate(db, tenantId, targetDate),
       getOvertimeApplicationsForDate(db, tenantId, targetDate),
       getUsersMap(db, tenantId),
       getExistingChecks(db, tenantId, targetDate),
+      getExistingNotifications(db, tenantId, targetDate),
     ]);
 
-    console.log('[Cron] Data fetched:', {
+    console.log('[NightBatch] Data fetched:', {
       timeEntries: timeEntries.size,
       overtimeApps: overtimeApps.size,
       users: usersMap.size,
       existingChecks: existingChecks.size,
+      existingNotifications: existingNotifications.size,
     });
 
     // 突合対象ユーザーを収集（勤怠があるユーザー）
     const targetUserIds = new Set<string>();
     timeEntries.forEach((_, userId) => targetUserIds.add(userId));
 
-    // 既にチェック済みのユーザーは除外
+    // 既にチェック済みのユーザーは除外（二重生成防止）
     existingChecks.forEach((userId) => targetUserIds.delete(userId));
 
     const results: {
@@ -286,45 +345,79 @@ export async function GET(request: NextRequest) {
         const notifType: NotificationType = check.status === 'NG' ? 'overtime_check_ng' : 'overtime_check_warn';
         const { title, message } = generateNotificationMessage(check, check.status === 'NG' ? 'ng' : 'warn');
 
-        notifications.push({
-          tenantId,
-          userId,
-          type: notifType,
-          title,
-          message,
-          actionUrl: generateOvertimeApplicationUrl(targetDate),
-          metadata: {
-            workDate: targetDate,
-            actualOvertimeMinutes: check.actualOvertimeMinutes,
-            diffMinutes: check.diffMinutes,
-          },
-        });
+        // 本人への通知（二重通知チェック）
+        const userNotifKey = `${userId}_${notifType}`;
+        if (!existingNotifications.has(userNotifKey)) {
+          notifications.push({
+            tenantId,
+            userId,
+            type: notifType,
+            title,
+            message,
+            actionUrl: generateOvertimeApplicationUrl(targetDate),
+            metadata: {
+              workDate: targetDate,
+              actualOvertimeMinutes: check.actualOvertimeMinutes,
+              diffMinutes: check.diffMinutes,
+            },
+          });
+        }
+
+        // NGの場合はmanagerにも通知
+        if (check.status === 'NG') {
+          const branchId = timeEntry?.branchId || user.branchId;
+          const managers = getManagersForBranch(usersMap, branchId, tenantId);
+
+          for (const manager of managers) {
+            // 本人は除外
+            if (manager.id === userId) continue;
+
+            // 二重通知チェック
+            const managerNotifKey = `${manager.id}_${notifType}`;
+            if (existingNotifications.has(managerNotifKey)) continue;
+
+            const managerMessage = `${user.name}さんの${message}`;
+            notifications.push({
+              tenantId,
+              userId: manager.id,
+              type: notifType,
+              title: `【部下】${title}`,
+              message: managerMessage,
+              actionUrl: '/dashboard/admin/overtime-checks',
+              metadata: {
+                workDate: targetDate,
+                actualOvertimeMinutes: check.actualOvertimeMinutes,
+                diffMinutes: check.diffMinutes,
+              },
+            });
+          }
+        }
       }
     }
 
     // 突合結果を保存
-    const batch = db.batch();
-    const now = Timestamp.now();
+    if (checkDocs.length > 0) {
+      const batch = db.batch();
+      const now = Timestamp.now();
 
-    for (const check of checkDocs) {
-      const docRef = db.collection(OVERTIME_CHECKS_COLLECTION).doc();
-      batch.set(docRef, normalizeForFirestore({
-        ...check,
-        notified: shouldNotify(check.status),
-        notifiedAt: shouldNotify(check.status) ? now : null,
-        createdAt: now,
-      }));
+      for (const check of checkDocs) {
+        const docRef = db.collection(OVERTIME_CHECKS_COLLECTION).doc();
+        batch.set(docRef, normalizeForFirestore({
+          ...check,
+          notified: shouldNotify(check.status),
+          notifiedAt: shouldNotify(check.status) ? now : null,
+          createdAt: now,
+        }));
+      }
+
+      await batch.commit();
+      console.log('[NightBatch] Check results saved:', checkDocs.length);
     }
-
-    await batch.commit();
-    console.log('[Cron] Check results saved:', checkDocs.length);
 
     // 通知を送信
     if (notifications.length > 0) {
-      for (const notification of notifications) {
-        await createNotificationServer(notification);
-      }
-      console.log('[Cron] Notifications sent:', notifications.length);
+      await createNotificationsServer(notifications);
+      console.log('[NightBatch] Notifications sent:', notifications.length);
     }
 
     return NextResponse.json({
@@ -335,7 +428,7 @@ export async function GET(request: NextRequest) {
       notificationsSent: notifications.length,
     });
   } catch (error) {
-    console.error('[Cron] Overtime check error:', error);
+    console.error('[NightBatch] Overtime check error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Check failed' },
       { status: 500 }
@@ -347,7 +440,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { date } = body as { date?: string };
+    const { date, saveResults = false, sendNotifications = false } = body as {
+      date?: string;
+      saveResults?: boolean;
+      sendNotifications?: boolean;
+    };
 
     if (!date) {
       return NextResponse.json({ error: 'date is required (YYYY-MM-DD)' }, { status: 400 });
@@ -358,31 +455,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid date format. Use YYYY-MM-DD' }, { status: 400 });
     }
 
-    console.log('[Manual] Running overtime check for:', date);
+    console.log('[Manual] Running overtime check for:', date, { saveResults, sendNotifications });
 
     const db = getAdminDb();
     const tenantId = DEFAULT_TENANT_ID;
 
     // データ取得
-    const [timeEntries, overtimeApps, usersMap] = await Promise.all([
+    const [timeEntries, overtimeApps, usersMap, existingChecks] = await Promise.all([
       getTimeEntriesForDate(db, tenantId, date),
       getOvertimeApplicationsForDate(db, tenantId, date),
       getUsersMap(db, tenantId),
+      getExistingChecks(db, tenantId, date),
     ]);
 
     // 突合対象ユーザーを収集
     const targetUserIds = new Set<string>();
     timeEntries.forEach((_, userId) => targetUserIds.add(userId));
 
+    // 既存チェックを除外（saveResults=trueの場合のみ）
+    if (saveResults) {
+      existingChecks.forEach((userId) => targetUserIds.delete(userId));
+    }
+
     const checkResults: Array<{
       userId: string;
       userName: string;
+      branchId: string;
       status: string;
       actualOvertimeMinutes: number;
       requestedMinutes: number;
       diffMinutes: number;
       message: string;
     }> = [];
+
+    const checkDocs: Array<Omit<OvertimeCheck, 'id' | 'createdAt'>> = [];
+    const notifications: CreateNotificationInput[] = [];
 
     // 突合実行
     for (const userId of targetUserIds) {
@@ -408,15 +515,89 @@ export async function POST(request: NextRequest) {
       };
 
       const check = executeOvertimeCheck(input);
+
       checkResults.push({
         userId,
         userName: user.name,
+        branchId: check.branchId,
         status: check.status,
         actualOvertimeMinutes: check.actualOvertimeMinutes,
         requestedMinutes: check.requestedMinutes,
         diffMinutes: check.diffMinutes,
         message: check.message,
       });
+
+      if (saveResults) {
+        checkDocs.push(check);
+      }
+
+      // 通知準備
+      if (sendNotifications && shouldNotify(check.status)) {
+        const notifType: NotificationType = check.status === 'NG' ? 'overtime_check_ng' : 'overtime_check_warn';
+        const { title, message } = generateNotificationMessage(check, check.status === 'NG' ? 'ng' : 'warn');
+
+        notifications.push({
+          tenantId,
+          userId,
+          type: notifType,
+          title,
+          message,
+          actionUrl: generateOvertimeApplicationUrl(date),
+          metadata: {
+            workDate: date,
+            actualOvertimeMinutes: check.actualOvertimeMinutes,
+            diffMinutes: check.diffMinutes,
+          },
+        });
+
+        // NGの場合はmanagerにも通知
+        if (check.status === 'NG') {
+          const branchId = timeEntry?.branchId || user.branchId;
+          const managers = getManagersForBranch(usersMap, branchId, tenantId);
+
+          for (const manager of managers) {
+            if (manager.id === userId) continue;
+
+            const managerMessage = `${user.name}さんの${message}`;
+            notifications.push({
+              tenantId,
+              userId: manager.id,
+              type: notifType,
+              title: `【部下】${title}`,
+              message: managerMessage,
+              actionUrl: '/dashboard/admin/overtime-checks',
+              metadata: {
+                workDate: date,
+                actualOvertimeMinutes: check.actualOvertimeMinutes,
+                diffMinutes: check.diffMinutes,
+              },
+            });
+          }
+        }
+      }
+    }
+
+    // 結果を保存
+    if (saveResults && checkDocs.length > 0) {
+      const batch = db.batch();
+      const now = Timestamp.now();
+
+      for (const check of checkDocs) {
+        const docRef = db.collection(OVERTIME_CHECKS_COLLECTION).doc();
+        batch.set(docRef, normalizeForFirestore({
+          ...check,
+          notified: sendNotifications && shouldNotify(check.status),
+          notifiedAt: sendNotifications && shouldNotify(check.status) ? now : null,
+          createdAt: now,
+        }));
+      }
+
+      await batch.commit();
+    }
+
+    // 通知を送信
+    if (sendNotifications && notifications.length > 0) {
+      await createNotificationsServer(notifications);
     }
 
     return NextResponse.json({
@@ -429,6 +610,8 @@ export async function POST(request: NextRequest) {
         warn: checkResults.filter((r) => r.status === 'WARN').length,
         ng: checkResults.filter((r) => r.status === 'NG').length,
       },
+      saved: saveResults ? checkDocs.length : 0,
+      notificationsSent: sendNotifications ? notifications.length : 0,
     });
   } catch (error) {
     console.error('[Manual] Overtime check error:', error);
