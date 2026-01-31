@@ -25,6 +25,7 @@ import {
   Receipt,
   Save,
 } from 'lucide-react';
+import { AiApprovalCommentCard } from '@/components/applications/AiApprovalCommentCard';
 import {
   ApplicationType,
   APPLICATION_TYPE_LABELS,
@@ -412,6 +413,14 @@ function ApplicationDetailContent() {
             </div>
           </CardContent>
         </Card>
+
+        {/* AI VP Comment (承認者のみ表示) */}
+        {canApprove && firebaseUser && (
+          <AiApprovalCommentCard
+            applicationId={applicationId}
+            getToken={() => firebaseUser.getIdToken()}
+          />
+        )}
 
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-3 mb-6">
