@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
-import { Card, CardHeader, CardTitle, CardContent, Button, Input } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, Button, Input, Badge } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import {
   Plus,
@@ -16,9 +17,14 @@ import {
   ChevronUp,
   RefreshCw,
   Wand2,
+  Lightbulb,
+  TrendingUp,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
 import type { AccountingTemplate, JournalEntryDetail } from '@/types/accounting-template';
 import { COMMON_ACCOUNT_ITEMS } from '@/types/accounting-template';
+import type { TemplateSuggestion } from '@/types/template-improvement';
 
 export default function AccountingTemplatesPage() {
   return (
@@ -29,6 +35,7 @@ export default function AccountingTemplatesPage() {
 }
 
 function AccountingTemplatesContent() {
+  const { firebaseUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<AccountingTemplate[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -36,6 +43,15 @@ function AccountingTemplatesContent() {
   const [editingTemplate, setEditingTemplate] = useState<AccountingTemplate | null>(null);
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
+
+  // タブ状態
+  const [activeTab, setActiveTab] = useState<'templates' | 'suggestions'>('templates');
+
+  // 改善提案関連
+  const [suggestions, setSuggestions] = useState<TemplateSuggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [expandedSuggestionId, setExpandedSuggestionId] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   // フォーム状態
   const [formData, setFormData] = useState({
@@ -74,6 +90,113 @@ function AccountingTemplatesContent() {
   useEffect(() => {
     fetchTemplates();
   }, []);
+
+  // 改善提案一覧取得
+  const fetchSuggestions = async () => {
+    if (!firebaseUser) return;
+
+    setSuggestionsLoading(true);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const response = await fetch('/api/admin/template-suggestions?status=pending', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSuggestions(data.suggestions);
+      }
+    } catch (error) {
+      console.error('改善提案取得エラー:', error);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  // タブ切り替え時に改善提案を取得
+  useEffect(() => {
+    if (activeTab === 'suggestions' && suggestions.length === 0) {
+      fetchSuggestions();
+    }
+  }, [activeTab]);
+
+  // 提案を承認
+  const handleAcceptSuggestion = async (suggestionId: string) => {
+    if (!firebaseUser) return;
+    if (!confirm('この改善提案を採用しますか？テンプレートが更新されます。')) return;
+
+    setProcessingId(suggestionId);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const response = await fetch(`/api/admin/template-suggestions/${suggestionId}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'accept' }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        await fetchSuggestions();
+        await fetchTemplates();
+        alert('提案を採用しました');
+      } else {
+        alert(data.error || '処理に失敗しました');
+      }
+    } catch (error) {
+      console.error('提案承認エラー:', error);
+      alert('処理に失敗しました');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // 提案を見送り
+  const handleRejectSuggestion = async (suggestionId: string) => {
+    if (!firebaseUser) return;
+    if (!confirm('この改善提案を見送りますか？')) return;
+
+    setProcessingId(suggestionId);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const response = await fetch(`/api/admin/template-suggestions/${suggestionId}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'reject' }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        await fetchSuggestions();
+        alert('提案を見送りました');
+      } else {
+        alert(data.error || '処理に失敗しました');
+      }
+    } catch (error) {
+      console.error('提案見送りエラー:', error);
+      alert('処理に失敗しました');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // トリガー理由の表示テキスト
+  const getTriggerReasonText = (reason: TemplateSuggestion['triggerReason']) => {
+    switch (reason) {
+      case 'ai_review_count':
+        return 'AIレビュー多発';
+      case 'human_correction_count':
+        return '人による修正多発';
+      case 'amount_outlier_count':
+        return '金額外れ値多発';
+      case 'multiple':
+        return '複合要因';
+      default:
+        return reason;
+    }
+  };
 
   // フォームリセット
   const resetForm = () => {
@@ -270,15 +393,58 @@ function AccountingTemplatesContent() {
             </div>
           </div>
 
-          {/* 説明 */}
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
-            <p>仕訳テンプレートは、支払い依頼承認時にfreeeへ自動で仕訳を作成するためのルールです。</p>
-            <p className="mt-1">条件（金額・キーワード等）に一致するテンプレートが適用され、勘定科目が自動選択されます。</p>
+          {/* タブ */}
+          <div className="mb-6 flex border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('templates')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
+                activeTab === 'templates'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <BookOpen className="w-4 h-4 inline mr-1" />
+              テンプレート一覧
+            </button>
+            <button
+              onClick={() => setActiveTab('suggestions')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px flex items-center ${
+                activeTab === 'suggestions'
+                  ? 'border-purple-600 text-purple-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Lightbulb className="w-4 h-4 inline mr-1" />
+              AI改善提案
+              {suggestions.length > 0 && (
+                <Badge className="ml-2 bg-purple-100 text-purple-700 text-xs">
+                  {suggestions.length}
+                </Badge>
+              )}
+            </button>
           </div>
 
-          {/* フォーム */}
-          {showForm && (
-            <Card className="mb-6">
+          {/* 説明 */}
+          {activeTab === 'templates' && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+              <p>仕訳テンプレートは、支払い依頼承認時にfreeeへ自動で仕訳を作成するためのルールです。</p>
+              <p className="mt-1">条件（金額・キーワード等）に一致するテンプレートが適用され、勘定科目が自動選択されます。</p>
+            </div>
+          )}
+
+          {activeTab === 'suggestions' && (
+            <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-700">
+              <p>AIがテンプレートの利用状況を分析し、改善提案を自動生成します。</p>
+              <p className="mt-1">提案を確認し、採用または見送りを判断してください。採用するとテンプレートが自動更新されます。</p>
+            </div>
+          )}
+
+          {/* === テンプレートタブ === */}
+          {activeTab === 'templates' && (
+            <>
+              {/* フォーム */}
+              {showForm && (
+                <Card className="mb-6">
               <CardHeader>
                 <CardTitle>{editingTemplate ? 'テンプレート編集' : '新規テンプレート'}</CardTitle>
               </CardHeader>
@@ -542,6 +708,196 @@ function AccountingTemplatesContent() {
                 </Card>
               ))}
             </div>
+          )}
+            </>
+          )}
+
+          {/* === 改善提案タブ === */}
+          {activeTab === 'suggestions' && (
+            <>
+              {suggestionsLoading ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" />
+                </div>
+              ) : suggestions.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <Lightbulb className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500">改善提案はありません</p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      テンプレートの利用状況に応じて自動生成されます
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {suggestions.map((suggestion) => {
+                    const templateName = suggestion.originalTemplate.name;
+                    const isExpanded = expandedSuggestionId === suggestion.id;
+                    const isProcessing = processingId === suggestion.id;
+
+                    return (
+                      <Card key={suggestion.id} className="border-purple-200">
+                        <div
+                          className="p-4 cursor-pointer hover:bg-purple-50"
+                          onClick={() =>
+                            setExpandedSuggestionId(isExpanded ? null : suggestion.id)
+                          }
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start">
+                              <Lightbulb className="w-5 h-5 text-purple-500 mr-3 mt-0.5" />
+                              <div>
+                                <p className="font-medium text-gray-900">{templateName}</p>
+                                <p className="text-sm text-gray-600 mt-1">
+                                  {suggestion.aiAnalysis.reason}
+                                </p>
+                                <div className="flex items-center gap-2 mt-2">
+                                  <Badge className="bg-amber-100 text-amber-700 text-xs">
+                                    <AlertTriangle className="w-3 h-3 mr-1" />
+                                    {getTriggerReasonText(suggestion.triggerReason)}
+                                  </Badge>
+                                  <Badge className="bg-gray-100 text-gray-600 text-xs">
+                                    <TrendingUp className="w-3 h-3 mr-1" />
+                                    確信度 {suggestion.aiAnalysis.confidence}%
+                                  </Badge>
+                                  <span className="text-xs text-gray-400 flex items-center">
+                                    <Clock className="w-3 h-3 mr-1" />
+                                    {new Date(suggestion.createdAt).toLocaleDateString('ja-JP')}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {isExpanded ? (
+                                <ChevronUp className="w-5 h-5 text-gray-400" />
+                              ) : (
+                                <ChevronDown className="w-5 h-5 text-gray-400" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="px-4 pb-4 border-t border-purple-100">
+                            {/* 統計情報 */}
+                            <div className="mt-4 grid grid-cols-4 gap-3">
+                              <div className="bg-gray-50 p-3 rounded">
+                                <p className="text-xs text-gray-500">利用回数</p>
+                                <p className="text-lg font-semibold text-gray-900">
+                                  {suggestion.stats.usageCount}
+                                </p>
+                              </div>
+                              <div className="bg-gray-50 p-3 rounded">
+                                <p className="text-xs text-gray-500">AIレビュー</p>
+                                <p className="text-lg font-semibold text-amber-600">
+                                  {suggestion.stats.aiReviewCount}
+                                </p>
+                              </div>
+                              <div className="bg-gray-50 p-3 rounded">
+                                <p className="text-xs text-gray-500">人が修正</p>
+                                <p className="text-lg font-semibold text-red-600">
+                                  {suggestion.stats.humanCorrectionCount}
+                                </p>
+                              </div>
+                              <div className="bg-gray-50 p-3 rounded">
+                                <p className="text-xs text-gray-500">金額外れ値</p>
+                                <p className="text-lg font-semibold text-orange-600">
+                                  {suggestion.stats.amountOutlierCount}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* 差分プレビュー */}
+                            <div className="mt-4">
+                              <h4 className="text-sm font-medium text-gray-700 mb-2">
+                                変更内容プレビュー
+                              </h4>
+                              <div className="bg-gray-50 p-3 rounded text-sm space-y-2">
+                                {suggestion.aiAnalysis.diff.matchCondition && (
+                                  <div>
+                                    <p className="text-gray-500">マッチング条件:</p>
+                                    <ul className="ml-4 list-disc text-gray-700">
+                                      {suggestion.aiAnalysis.diff.matchCondition.changes.map(
+                                        (change, i) => (
+                                          <li key={i}>{change}</li>
+                                        )
+                                      )}
+                                    </ul>
+                                  </div>
+                                )}
+                                {suggestion.aiAnalysis.diff.entries && (
+                                  <div>
+                                    <p className="text-gray-500">勘定科目:</p>
+                                    <ul className="ml-4 list-disc text-gray-700">
+                                      {suggestion.aiAnalysis.diff.entries.changes.map(
+                                        (change, i) => (
+                                          <li key={i}>{change}</li>
+                                        )
+                                      )}
+                                    </ul>
+                                  </div>
+                                )}
+                                {suggestion.aiAnalysis.diff.priority && (
+                                  <div>
+                                    <p className="text-gray-500">
+                                      優先度: {suggestion.aiAnalysis.diff.priority.before} →{' '}
+                                      {suggestion.aiAnalysis.diff.priority.after}
+                                    </p>
+                                  </div>
+                                )}
+                                {!suggestion.aiAnalysis.diff.matchCondition &&
+                                  !suggestion.aiAnalysis.diff.entries &&
+                                  !suggestion.aiAnalysis.diff.priority && (
+                                    <p className="text-gray-400">変更内容なし</p>
+                                  )}
+                              </div>
+                            </div>
+
+                            {/* アクションボタン */}
+                            <div className="mt-4 flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRejectSuggestion(suggestion.id)}
+                                disabled={isProcessing}
+                                className="text-gray-600"
+                              >
+                                <XCircle className="w-4 h-4 mr-1" />
+                                見送り
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleAcceptSuggestion(suggestion.id)}
+                                disabled={isProcessing}
+                                loading={isProcessing}
+                                className="bg-purple-600 hover:bg-purple-700"
+                              >
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                採用する
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 更新ボタン */}
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchSuggestions}
+                  loading={suggestionsLoading}
+                >
+                  <RefreshCw className="w-4 h-4 mr-1" />
+                  更新
+                </Button>
+              </div>
+            </>
           )}
 
           {/* 戻るリンク */}
