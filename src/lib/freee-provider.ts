@@ -14,7 +14,13 @@ import type {
   FreeeWalletable,
   FreeePartner,
 } from '@/types/freee';
+import type { JournalEntry } from '@/types/accounting-template';
 import { getFreeeIntegration, refreshFreeeTokenIfNeeded } from './freee-token';
+import {
+  matchAccountingTemplate,
+  generateJournalEntry,
+  generateDescription,
+} from './accounting-template';
 
 // ======== freeeクライアント（ダミー） ========
 
@@ -133,6 +139,28 @@ export class FreeeApiClient {
     // ダミー: 完了を返す
     return 'settled';
   }
+
+  /**
+   * 仕訳（取引）を作成（ダミー）
+   */
+  async createDeal(journalEntry: JournalEntry): Promise<{ id: number }> {
+    console.log('[FreeeApiClient] 仕訳作成', {
+      companyId: this.companyId,
+      issueDate: journalEntry.issueDate,
+      type: journalEntry.type,
+      partnerName: journalEntry.partnerName,
+      description: journalEntry.description,
+      detailsCount: journalEntry.details.length,
+      details: journalEntry.details.map(d => ({
+        accountItemId: d.accountItemId,
+        amount: d.amount,
+        description: d.description,
+      })),
+    });
+
+    // ダミー: 成功を返す
+    return { id: Date.now() };
+  }
 }
 
 // ======== freee支払いプロバイダー ========
@@ -143,9 +171,18 @@ export class FreeeApiClient {
 export class FreeePaymentProvider implements PaymentProviderInterface {
   private name = 'FreeePaymentProvider';
   private integration: FreeeIntegration;
+  private branchId?: string;
+  private purpose?: string;
+  private invoiceNumber?: string;
 
-  constructor(integration: FreeeIntegration) {
+  constructor(
+    integration: FreeeIntegration,
+    options?: { branchId?: string; purpose?: string; invoiceNumber?: string }
+  ) {
     this.integration = integration;
+    this.branchId = options?.branchId;
+    this.purpose = options?.purpose;
+    this.invoiceNumber = options?.invoiceNumber;
   }
 
   /**
@@ -168,6 +205,26 @@ export class FreeePaymentProvider implements PaymentProviderInterface {
       };
     }
 
+    // === 仕訳テンプレートマッチング ===
+    const templateMatch = await matchAccountingTemplate(payment, this.branchId, this.purpose);
+
+    if (!templateMatch.matched || !templateMatch.template) {
+      console.error(`[${this.name}] 仕訳テンプレートなし`, {
+        paymentId: payment.id,
+        reason: templateMatch.reason,
+      });
+      return {
+        success: false,
+        errorCode: 'NO_ACCOUNTING_TEMPLATE',
+        errorMessage: templateMatch.reason || '条件に一致する仕訳テンプレートがありません。管理者に連絡してください。',
+      };
+    }
+
+    console.log(`[${this.name}] 仕訳テンプレートマッチ`, {
+      templateId: templateMatch.template.id,
+      templateName: templateMatch.template.name,
+    });
+
     try {
       // トークンリフレッシュ（必要な場合）
       const refreshedIntegration = await refreshFreeeTokenIfNeeded(this.integration);
@@ -188,23 +245,40 @@ export class FreeePaymentProvider implements PaymentProviderInterface {
       const partner = await client.findOrCreatePartner(payment.payeeName);
       console.log(`[${this.name}] 取引先: ${partner.name} (ID: ${partner.id})`);
 
-      // 2. 支払依頼を作成
+      // 2. 仕訳データを生成
+      const journalEntry = generateJournalEntry(templateMatch.template, payment, {
+        purpose: this.purpose,
+        invoiceNumber: this.invoiceNumber,
+        partnerId: partner.id,
+      });
+
+      // 3. freeeに仕訳（取引）を作成
+      const deal = await client.createDeal(journalEntry);
+      console.log(`[${this.name}] 仕訳作成: ID ${deal.id}`);
+
+      // 4. 支払依頼を作成（摘要はテンプレートから生成）
+      const description = generateDescription(templateMatch.template, payment, {
+        purpose: this.purpose,
+        invoiceNumber: this.invoiceNumber,
+      });
+
       const paymentRequest = await client.createPaymentRequest({
         title: payment.applicationTitle,
         totalAmount: payment.amount,
         partnerId: partner.id,
         partnerName: partner.name,
-        description: `AA-HUB支払依頼 #${payment.applicationId}`,
+        description,
         targetDate: new Date().toISOString().split('T')[0],
       });
       console.log(`[${this.name}] 支払依頼作成: ID ${paymentRequest.id}`);
 
-      // 3. 銀行振込の場合は振込依頼も作成
+      // 5. 銀行振込の場合は振込依頼も作成
       let transferId: number | undefined;
       if (payment.paymentMethod === 'bank_transfer' && payment.bankAccount) {
-        // デフォルト口座（ID: 1）から振込
+        // テンプレートの決済口座IDを使用、なければデフォルト口座（ID: 1）
+        const walletableId = templateMatch.template.freeeSettings?.walletableId || 1;
         const transfer = await client.createTransfer({
-          fromWalletableId: 1,
+          fromWalletableId: walletableId,
           amount: payment.amount,
           transferDate: new Date().toISOString().split('T')[0],
           toAccountName: payment.bankAccount.accountHolder,
@@ -218,14 +292,16 @@ export class FreeePaymentProvider implements PaymentProviderInterface {
         console.log(`[${this.name}] 振込依頼作成: ID ${transferId}`);
       }
 
-      // 4. トランザクションIDを生成
-      const transactionId = `FREEE-${paymentRequest.id}${transferId ? `-T${transferId}` : ''}`;
+      // 6. トランザクションIDを生成
+      const transactionId = `FREEE-${deal.id}-P${paymentRequest.id}${transferId ? `-T${transferId}` : ''}`;
 
       console.log(`[${this.name}] 支払い成功`, {
         paymentId: payment.id,
         transactionId,
+        freeeDealId: deal.id,
         freeePaymentRequestId: paymentRequest.id,
         freeeTransferId: transferId,
+        templateName: templateMatch.template.name,
       });
 
       return {
@@ -307,12 +383,39 @@ export class FreeePaymentProvider implements PaymentProviderInterface {
  */
 export class DummyFreeeProvider implements PaymentProviderInterface {
   private name = 'DummyFreeeProvider';
+  private branchId?: string;
+  private purpose?: string;
+
+  constructor(options?: { branchId?: string; purpose?: string }) {
+    this.branchId = options?.branchId;
+    this.purpose = options?.purpose;
+  }
 
   async execute(payment: Payment): Promise<PaymentExecutionResult> {
     console.log(`[${this.name}] ダミー支払い実行`, {
       paymentId: payment.id,
       amount: payment.amount,
       payeeName: payment.payeeName,
+    });
+
+    // === 仕訳テンプレートマッチング（ダミーでもチェック） ===
+    const templateMatch = await matchAccountingTemplate(payment, this.branchId, this.purpose);
+
+    if (!templateMatch.matched || !templateMatch.template) {
+      console.error(`[${this.name}] 仕訳テンプレートなし`, {
+        paymentId: payment.id,
+        reason: templateMatch.reason,
+      });
+      return {
+        success: false,
+        errorCode: 'NO_ACCOUNTING_TEMPLATE',
+        errorMessage: templateMatch.reason || '条件に一致する仕訳テンプレートがありません。管理者に連絡してください。',
+      };
+    }
+
+    console.log(`[${this.name}] 仕訳テンプレートマッチ`, {
+      templateId: templateMatch.template.id,
+      templateName: templateMatch.template.name,
     });
 
     // シミュレーション用の遅延
@@ -329,7 +432,10 @@ export class DummyFreeeProvider implements PaymentProviderInterface {
     }
 
     const transactionId = `FREEE-DUMMY-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    console.log(`[${this.name}] ダミー支払い成功`, { transactionId });
+    console.log(`[${this.name}] ダミー支払い成功`, {
+      transactionId,
+      templateName: templateMatch.template.name,
+    });
 
     return {
       success: true,
@@ -349,22 +455,30 @@ export class DummyFreeeProvider implements PaymentProviderInterface {
 
 // ======== プロバイダー取得 ========
 
+export interface FreeeProviderOptions {
+  branchId?: string;
+  purpose?: string;
+  invoiceNumber?: string;
+}
+
 /**
  * freee支払いプロバイダーを取得
  * 連携が設定されていればFreeePaymentProvider、なければDummyFreeeProvider
  */
-export async function getFreeePaymentProvider(): Promise<PaymentProviderInterface> {
+export async function getFreeePaymentProvider(
+  options?: FreeeProviderOptions
+): Promise<PaymentProviderInterface> {
   try {
     const integration = await getFreeeIntegration();
 
     if (integration?.connected && integration.accessToken && integration.companyId) {
       console.log('[FreeeProvider] freee連携有効、実プロバイダー使用');
-      return new FreeePaymentProvider(integration);
+      return new FreeePaymentProvider(integration, options);
     }
   } catch (error) {
     console.error('[FreeeProvider] 連携情報取得失敗', error);
   }
 
   console.log('[FreeeProvider] freee連携無効、ダミープロバイダー使用');
-  return new DummyFreeeProvider();
+  return new DummyFreeeProvider(options);
 }
