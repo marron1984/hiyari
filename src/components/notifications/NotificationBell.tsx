@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, X, Check, Clock, FileText, AlertTriangle, Calendar, MessageSquare, ClipboardCheck, RotateCcw, Brain, Heart, Flame } from 'lucide-react';
+import { Bell, X, Check, Clock, FileText, AlertTriangle, Calendar, MessageSquare, ClipboardCheck, RotateCcw, Brain, Heart, Flame, Banknote } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Notification, NotificationType } from '@/types/notification';
 import {
@@ -31,6 +31,9 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   application_approved: { icon: Check, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   application_rejected: { icon: X, color: 'text-red-600', bg: 'bg-red-50' },
   application_returned: { icon: RotateCcw, color: 'text-orange-600', bg: 'bg-orange-50' },
+  // 支払い通知
+  payment_completed: { icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  payment_failed: { icon: Banknote, color: 'text-red-600', bg: 'bg-red-50' },
   // AI副社長
   ai_anomaly_report: { icon: Brain, color: 'text-indigo-600', bg: 'bg-indigo-50' },
   ai_organization_health: { icon: Heart, color: 'text-pink-600', bg: 'bg-pink-50' },

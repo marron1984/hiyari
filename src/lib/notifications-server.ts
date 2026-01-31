@@ -110,6 +110,7 @@ const APPLICATION_TYPE_NAMES: Record<string, string> = {
   RINGI: '稟議',
   EXPENSE: '経費申請',
   OVERTIME: '残業申請',
+  PAYMENT_REQUEST: '支払い依頼',
 };
 
 /**
@@ -118,7 +119,7 @@ const APPLICATION_TYPE_NAMES: Record<string, string> = {
 export async function notifyApprovalPending(params: {
   tenantId: string;
   branchId: string;
-  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME';
+  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME' | 'PAYMENT_REQUEST';
   applicationId: string;
   applicantName: string;
   title: string;
@@ -158,7 +159,7 @@ export async function notifyApprovalPending(params: {
 export async function notifyApplicationApproved(params: {
   tenantId: string;
   applicantId: string;
-  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME';
+  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME' | 'PAYMENT_REQUEST';
   applicationId: string;
   title: string;
   approverName: string;
@@ -186,7 +187,7 @@ export async function notifyApplicationApproved(params: {
 export async function notifyApplicationRejected(params: {
   tenantId: string;
   applicantId: string;
-  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME';
+  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME' | 'PAYMENT_REQUEST';
   applicationId: string;
   title: string;
   rejecterName: string;
@@ -217,7 +218,7 @@ export async function notifyApplicationRejected(params: {
 export async function notifyApplicationReturned(params: {
   tenantId: string;
   applicantId: string;
-  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME';
+  applicationType: 'RINGI' | 'EXPENSE' | 'OVERTIME' | 'PAYMENT_REQUEST';
   applicationId: string;
   title: string;
   returnerName: string;

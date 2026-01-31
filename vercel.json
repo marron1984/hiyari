@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/weekly-organization-health",
       "schedule": "0 0 * * 1"
+    },
+    {
+      "path": "/api/cron/payment-batch",
+      "schedule": "0 18 * * *"
     }
   ]
 }
