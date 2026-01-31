@@ -10,6 +10,7 @@ import { Loading } from '@/components/Loading';
 import { getTimeEntriesByUser } from '@/lib/attendance';
 import { formatTimeJST, formatMinutesToHHMM } from '@/lib/attendance-calc';
 import { TimeEntry, ClockStatus } from '@/types/attendance';
+import { RefreshCw, Info } from 'lucide-react';
 
 const STATUS_LABELS: Record<ClockStatus, { label: string; color: string }> = {
   not_started: { label: '未出勤', color: 'bg-gray-100 text-gray-700' },
@@ -29,7 +30,7 @@ export default function AttendanceHistoryPage() {
     return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
   });
 
-  // データ取得
+  // データ取得（attendance_recordsから直接取得）
   const fetchData = useCallback(async () => {
     if (!user) return;
 
@@ -41,6 +42,7 @@ export default function AttendanceHistoryPage() {
       const lastDay = new Date(year, month, 0).getDate();
       const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
 
+      // 月初〜月末のattendance_recordsを直接取得
       const data = await getTimeEntriesByUser(
         user.id,
         user.tenantId,
@@ -59,9 +61,10 @@ export default function AttendanceHistoryPage() {
     fetchData();
   }, [fetchData]);
 
-  // 月次サマリー計算
+  // 月次サマリー計算（リアルタイム集計・キャッシュ不使用）
   const summary = entries.reduce(
     (acc, entry) => {
+      // 完了済みレコードのみ集計（確定ロジック不使用）
       if (entry.status === 'completed') {
         acc.totalDays++;
         acc.totalWorkMinutes += entry.totalWorkMinutes || 0;
@@ -74,7 +77,14 @@ export default function AttendanceHistoryPage() {
   );
 
   if (loading) {
-    return <Loading />;
+    return (
+      <AuthGuard>
+        <div className="min-h-screen bg-gray-50">
+          <Header />
+          <Loading text="勤務履歴を読み込み中..." />
+        </div>
+      </AuthGuard>
+    );
   }
 
   return (
@@ -105,10 +115,26 @@ export default function AttendanceHistoryPage() {
             </div>
           </Card>
 
-          {/* 月次サマリー */}
+          {/* 月次サマリー（リアルタイム集計） */}
           <Card className="mb-6">
             <div className="p-4">
-              <h2 className="font-semibold mb-3">月次サマリー</h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold">月次サマリー</h2>
+                <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                  <RefreshCw className="w-3 h-3" />
+                  <span>リアルタイム集計</span>
+                </div>
+              </div>
+
+              {/* リアルタイム集計の説明 */}
+              <div className="flex items-start gap-2 mb-4 p-2 bg-gray-50 rounded text-xs text-gray-600">
+                <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>
+                  この集計は打刻記録から直接計算されたリアルタイム値です。
+                  勤務中や休憩中のレコードは集計に含まれません。
+                </span>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-lg p-3">
                   <div className="text-sm text-gray-500">出勤日数</div>
@@ -127,7 +153,7 @@ export default function AttendanceHistoryPage() {
                   </div>
                 </div>
                 <div className="bg-green-50 rounded-lg p-3">
-                  <div className="text-sm text-gray-500">残業時間（承認済）</div>
+                  <div className="text-sm text-gray-500">残業時間</div>
                   <div className="text-lg font-medium text-green-600">
                     {formatMinutesToHHMM(summary.totalOvertimeMinutes)}
                   </div>
