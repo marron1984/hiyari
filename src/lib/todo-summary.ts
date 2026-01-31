@@ -486,6 +486,7 @@ export async function generateAndSaveSummaries(
 
 /**
  * 指定日の要約を取得
+ * 注意: インデックス制限を回避するため、最小限のクエリでJS側フィルタ
  */
 export async function getTodoSummary(
   date: string,
@@ -493,33 +494,51 @@ export async function getTodoSummary(
 ): Promise<TodoSummary | null> {
   const db = getAdminDb();
 
-  const snapshot = await db
-    .collection(TODO_SUMMARIES_COLLECTION)
-    .where('tenantId', '==', DEFAULT_TENANT_ID)
-    .where('date', '==', date)
-    .where('role', '==', role)
-    .orderBy('createdAt', 'desc')
-    .limit(1)
-    .get();
+  try {
+    // 最小限のwhere条件（tenantId + date）でクエリ
+    const snapshot = await db
+      .collection(TODO_SUMMARIES_COLLECTION)
+      .where('tenantId', '==', DEFAULT_TENANT_ID)
+      .where('date', '==', date)
+      .orderBy('createdAt', 'desc')
+      .limit(10)
+      .get();
 
-  if (snapshot.empty) {
+    if (snapshot.empty) {
+      return null;
+    }
+
+    // JS側でroleフィルタ
+    const filtered = snapshot.docs
+      .map((doc) => ({ doc, data: doc.data() }))
+      .filter(({ data }) => data.role === role)
+      .sort((a, b) => {
+        const aTime = a.data.createdAt?.toDate?.()?.getTime() || 0;
+        const bTime = b.data.createdAt?.toDate?.()?.getTime() || 0;
+        return bTime - aTime;
+      });
+
+    if (filtered.length === 0) {
+      return null;
+    }
+
+    const { doc, data } = filtered[0];
+
+    return {
+      id: doc.id,
+      tenantId: data.tenantId,
+      date: data.date,
+      role: data.role,
+      userId: data.userId,
+      summary: data.summary,
+      generatedBy: data.generatedBy,
+      stats: data.stats,
+      createdAt: data.createdAt?.toDate?.() || new Date(),
+    };
+  } catch (error) {
+    console.error('getTodoSummary error:', error);
     return null;
   }
-
-  const doc = snapshot.docs[0];
-  const data = doc.data();
-
-  return {
-    id: doc.id,
-    tenantId: data.tenantId,
-    date: data.date,
-    role: data.role,
-    userId: data.userId,
-    summary: data.summary,
-    generatedBy: data.generatedBy,
-    stats: data.stats,
-    createdAt: data.createdAt?.toDate?.() || new Date(),
-  };
 }
 
 /**

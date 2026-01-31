@@ -73,6 +73,7 @@ async function authenticateUser(request: NextRequest): Promise<{
 
 /**
  * GET: TODO一覧・サマリー取得
+ * 部分的なデータ取得失敗時もエラーを返さず、取得できたデータを返す
  */
 export async function GET(request: NextRequest) {
   try {
@@ -81,6 +82,9 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const action = searchParams.get('action') || 'list';
+
+    // 警告メッセージを収集
+    const warnings: string[] = [];
 
     switch (action) {
       case 'list': {
@@ -93,20 +97,27 @@ export async function GET(request: NextRequest) {
         const limitStr = searchParams.get('limit');
         const all = searchParams.get('all') === 'true';
 
-        const todos = await getTodos({
-          userId: all && hasMinRole(authResult.userRole as UserRole, 'admin') ? undefined : authResult.userId,
-          priority: priority || undefined,
-          source: source || undefined,
-          role: role || undefined,
-          date: date || undefined,
-          includeCompleted,
-          limit: limitStr ? parseInt(limitStr, 10) : 50,
-        });
+        let todos: Awaited<ReturnType<typeof getTodos>> = [];
+        try {
+          todos = await getTodos({
+            userId: all && hasMinRole(authResult.userRole as UserRole, 'admin') ? undefined : authResult.userId,
+            priority: priority || undefined,
+            source: source || undefined,
+            role: role || undefined,
+            date: date || undefined,
+            includeCompleted,
+            limit: limitStr ? parseInt(limitStr, 10) : 50,
+          });
+        } catch (todoError) {
+          console.error('getTodos error:', todoError);
+          warnings.push('TODO一覧の取得に失敗しました');
+        }
 
         return NextResponse.json({
           success: true,
           todos,
           count: todos.length,
+          warnings: warnings.length > 0 ? warnings : undefined,
         });
       }
 
@@ -115,14 +126,46 @@ export async function GET(request: NextRequest) {
         const date = searchParams.get('date');
         const all = searchParams.get('all') === 'true';
 
-        const summary = await getTodoDashboardSummary(
-          all && hasMinRole(authResult.userRole as UserRole, 'admin') ? undefined : authResult.userId,
-          date || undefined
-        );
+        let summary: Awaited<ReturnType<typeof getTodoDashboardSummary>> | null = null;
+        try {
+          summary = await getTodoDashboardSummary(
+            all && hasMinRole(authResult.userRole as UserRole, 'admin') ? undefined : authResult.userId,
+            date || undefined
+          );
+        } catch (summaryError) {
+          console.error('getTodoDashboardSummary error:', summaryError);
+          warnings.push('サマリーの取得に一部失敗しました');
+          // デフォルトサマリーを返す
+          summary = {
+            date: date || getTodayString(),
+            totalTodos: 0,
+            completedTodos: 0,
+            pendingTodos: 0,
+            byPriority: {
+              HIGH: { total: 0, completed: 0 },
+              MEDIUM: { total: 0, completed: 0 },
+              LOW: { total: 0, completed: 0 },
+            },
+            bySource: {
+              OVERTIME: { total: 0, completed: 0 },
+              APPROVAL: { total: 0, completed: 0 },
+              SALES: { total: 0, completed: 0 },
+              DOCUMENT: { total: 0, completed: 0 },
+              PROSPECT: { total: 0, completed: 0 },
+            },
+            recentTodos: [],
+          };
+        }
 
-        // AI要約を取得（ロール別）
-        const userTodoRole = mapUserRoleToTodoRole(authResult.userRole);
-        const aiSummary = await getTodoSummary(date || getTodayString(), userTodoRole);
+        // AI要約を取得（ロール別）- 失敗してもエラーにしない
+        let aiSummary: Awaited<ReturnType<typeof getTodoSummary>> | null = null;
+        try {
+          const userTodoRole = mapUserRoleToTodoRole(authResult.userRole);
+          aiSummary = await getTodoSummary(date || getTodayString(), userTodoRole);
+        } catch (aiError) {
+          console.error('getTodoSummary error:', aiError);
+          warnings.push('AI要約の取得に失敗しました');
+        }
 
         return NextResponse.json({
           success: true,
@@ -132,6 +175,7 @@ export async function GET(request: NextRequest) {
             generatedBy: aiSummary.generatedBy,
             role: aiSummary.role,
           } : null,
+          warnings: warnings.length > 0 ? warnings : undefined,
         });
       }
 
@@ -139,7 +183,17 @@ export async function GET(request: NextRequest) {
         // 全ロールのAI要約を取得（管理者向け）
         const date = searchParams.get('date') || getTodayString();
 
-        const summaries = await getAllTodoSummaries(date);
+        let summaries: Awaited<ReturnType<typeof getAllTodoSummaries>> = {
+          exec: null,
+          manager: null,
+          staff: null,
+        };
+        try {
+          summaries = await getAllTodoSummaries(date);
+        } catch (summariesError) {
+          console.error('getAllTodoSummaries error:', summariesError);
+          warnings.push('AI要約の取得に失敗しました');
+        }
 
         return NextResponse.json({
           success: true,
@@ -161,16 +215,24 @@ export async function GET(request: NextRequest) {
               stats: summaries.staff.stats,
             } : null,
           },
+          warnings: warnings.length > 0 ? warnings : undefined,
         });
       }
 
       case 'status': {
         // 生成ログ取得
-        const latestLog = await getLatestGenerationLog();
+        let latestLog: Awaited<ReturnType<typeof getLatestGenerationLog>> | null = null;
+        try {
+          latestLog = await getLatestGenerationLog();
+        } catch (logError) {
+          console.error('getLatestGenerationLog error:', logError);
+          warnings.push('生成ログの取得に失敗しました');
+        }
 
         return NextResponse.json({
           success: true,
           latestGeneration: latestLog,
+          warnings: warnings.length > 0 ? warnings : undefined,
         });
       }
 

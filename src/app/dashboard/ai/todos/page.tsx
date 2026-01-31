@@ -47,6 +47,7 @@ function TodoDashboardContent() {
   const [summary, setSummary] = useState<TodoDashboardSummary | null>(null);
   const [aiSummary, setAiSummary] = useState<AiSummary | null>(null);
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [filter, setFilter] = useState<{
     priority?: TodoPriority;
     source?: TodoSource;
@@ -60,6 +61,8 @@ function TodoDashboardContent() {
   // データ取得
   const fetchData = useCallback(async () => {
     if (!firebaseUser) return;
+
+    const collectedWarnings: string[] = [];
 
     try {
       const token = await firebaseUser.getIdToken();
@@ -83,15 +86,29 @@ function TodoDashboardContent() {
         if (data.aiSummary) {
           setAiSummary(data.aiSummary);
         }
+        // 警告を収集
+        if (data.warnings) {
+          collectedWarnings.push(...data.warnings);
+        }
+      } else {
+        collectedWarnings.push('サマリーの取得に失敗しました');
       }
 
       if (todosRes.ok) {
         const data = await todosRes.json();
-        setTodos(data.todos);
+        setTodos(data.todos || []);
+        // 警告を収集
+        if (data.warnings) {
+          collectedWarnings.push(...data.warnings);
+        }
+      } else {
+        collectedWarnings.push('TODO一覧の取得に失敗しました');
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
+      collectedWarnings.push('データの取得中にエラーが発生しました');
     } finally {
+      setWarnings(collectedWarnings);
       setLoading(false);
     }
   }, [firebaseUser, filter]);
@@ -243,6 +260,28 @@ function TodoDashboardContent() {
               </Button>
             )}
           </div>
+
+          {/* 警告バナー */}
+          {warnings.length > 0 && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-yellow-800">一部のデータ取得に問題があります</p>
+                  <ul className="mt-1 text-sm text-yellow-700 list-disc list-inside">
+                    {warnings.map((warning, index) => (
+                      <li key={index}>{warning}</li>
+                    ))}
+                  </ul>
+                  {isAdmin && (
+                    <p className="mt-2 text-xs text-yellow-600">
+                      管理者様へ: Firestoreのインデックス設定を確認してください。表示されているデータは取得できた範囲のものです。
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* サマリーカード */}
           {summary && (
