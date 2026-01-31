@@ -13,6 +13,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import {
   Resident,
   ResidentFilter,
@@ -51,12 +52,12 @@ export async function getResidents(
     return {
       id: d.id,
       ...data,
-      birthDate: data.birthDate?.toDate(),
-      moveInDate: data.moveInDate?.toDate(),
-      moveOutPlannedDate: data.moveOutPlannedDate?.toDate(),
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
-      syncedAt: data.syncedAt?.toDate(),
+      birthDate: toDate(data.birthDate),
+      moveInDate: toDate(data.moveInDate),
+      moveOutPlannedDate: toDate(data.moveOutPlannedDate),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
+      syncedAt: toDate(data.syncedAt),
     } as Resident;
   });
 
@@ -101,12 +102,12 @@ export async function getResident(id: string): Promise<Resident | null> {
   return {
     id: docSnap.id,
     ...data,
-    birthDate: data.birthDate?.toDate(),
-    moveInDate: data.moveInDate?.toDate(),
-    moveOutPlannedDate: data.moveOutPlannedDate?.toDate(),
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
-    syncedAt: data.syncedAt?.toDate(),
+    birthDate: toDate(data.birthDate),
+    moveInDate: toDate(data.moveInDate),
+    moveOutPlannedDate: toDate(data.moveOutPlannedDate),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt),
+    syncedAt: toDate(data.syncedAt),
   } as Resident;
 }
 
@@ -163,16 +164,16 @@ export async function createResident(
 ): Promise<Resident> {
   const firestore = ensureDb();
 
-  const toDate = (d: Date | string | undefined): Date | null => {
+  const convertToDate = (d: Date | string | undefined): Date | null => {
     if (!d) return null;
     return d instanceof Date ? d : new Date(d);
   };
 
   const residentData = {
     ...data,
-    birthDate: toDate(data.birthDate) ? Timestamp.fromDate(toDate(data.birthDate)!) : null,
-    moveInDate: toDate(data.moveInDate) ? Timestamp.fromDate(toDate(data.moveInDate)!) : null,
-    moveOutPlannedDate: toDate(data.moveOutPlannedDate) ? Timestamp.fromDate(toDate(data.moveOutPlannedDate)!) : null,
+    birthDate: convertToDate(data.birthDate) ? Timestamp.fromDate(convertToDate(data.birthDate)!) : null,
+    moveInDate: convertToDate(data.moveInDate) ? Timestamp.fromDate(convertToDate(data.moveInDate)!) : null,
+    moveOutPlannedDate: convertToDate(data.moveOutPlannedDate) ? Timestamp.fromDate(convertToDate(data.moveOutPlannedDate)!) : null,
     createdAt: Timestamp.now(),
     createdBy: actorId,
   };

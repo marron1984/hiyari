@@ -4,6 +4,7 @@
 import { getAdminDb } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { ConditionScore, BehaviorMetrics } from '@/types/request-engine';
+import { toDate } from './date';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
@@ -183,13 +184,13 @@ export async function getAlertedStaff(limitCount: number = 20): Promise<Conditio
         trend: data.trend,
         metrics: data.metrics,
         alertLevel: data.alertLevel,
-        alertTriggeredAt: data.alertTriggeredAt?.toDate(),
+        alertTriggeredAt: toDate(data.alertTriggeredAt) ?? undefined,
         taskDistributed: data.taskDistributed,
         loadReduced: data.loadReduced,
         yoshidaNotified: data.yoshidaNotified,
-        calculatedAt: data.calculatedAt?.toDate() || new Date(),
-        periodStart: data.periodStart?.toDate() || new Date(),
-        periodEnd: data.periodEnd?.toDate() || new Date(),
+        calculatedAt: toDate(data.calculatedAt) || new Date(),
+        periodStart: toDate(data.periodStart) || new Date(),
+        periodEnd: toDate(data.periodEnd) || new Date(),
       } as ConditionScore;
     })
     .sort((a, b) => b.calculatedAt.getTime() - a.calculatedAt.getTime())
@@ -215,8 +216,8 @@ export async function getLatestConditionScores(limitCount: number = 50): Promise
   const sortedDocs = snapshot.docs
     .map(doc => ({ doc, data: doc.data() }))
     .sort((a, b) => {
-      const aTime = a.data.calculatedAt?.toDate?.()?.getTime() || 0;
-      const bTime = b.data.calculatedAt?.toDate?.()?.getTime() || 0;
+      const aTime = toDate(a.data.calculatedAt)?.getTime() || 0;
+      const bTime = toDate(b.data.calculatedAt)?.getTime() || 0;
       return bTime - aTime; // 降順
     });
 
@@ -232,13 +233,13 @@ export async function getLatestConditionScores(limitCount: number = 50): Promise
         trend: data.trend,
         metrics: data.metrics,
         alertLevel: data.alertLevel,
-        alertTriggeredAt: data.alertTriggeredAt?.toDate(),
+        alertTriggeredAt: toDate(data.alertTriggeredAt) ?? undefined,
         taskDistributed: data.taskDistributed,
         loadReduced: data.loadReduced,
         yoshidaNotified: data.yoshidaNotified,
-        calculatedAt: data.calculatedAt?.toDate() || new Date(),
-        periodStart: data.periodStart?.toDate() || new Date(),
-        periodEnd: data.periodEnd?.toDate() || new Date(),
+        calculatedAt: toDate(data.calculatedAt) || new Date(),
+        periodStart: toDate(data.periodStart) || new Date(),
+        periodEnd: toDate(data.periodEnd) || new Date(),
       } as ConditionScore);
     }
   });

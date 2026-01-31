@@ -13,6 +13,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import {
   Document,
   DocumentTemplate,
@@ -97,8 +98,8 @@ export async function getDocumentTemplatesFromDB(): Promise<DocumentTemplate[]> 
     return {
       id: d.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
     } as DocumentTemplate;
   });
 }
@@ -138,12 +139,12 @@ export async function getDocuments(
     return {
       id: d.id,
       ...data,
-      dueDate: data.dueDate?.toDate(),
-      issuedDate: data.issuedDate?.toDate(),
-      signedAt: data.signedAt?.toDate(),
-      uploadedAt: data.uploadedAt?.toDate(),
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
+      dueDate: toDate(data.dueDate),
+      issuedDate: toDate(data.issuedDate),
+      signedAt: toDate(data.signedAt),
+      uploadedAt: toDate(data.uploadedAt),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
     } as Document;
   });
 
@@ -213,12 +214,12 @@ export async function getDocument(id: string): Promise<Document | null> {
   return {
     id: docSnap.id,
     ...data,
-    dueDate: data.dueDate?.toDate(),
-    issuedDate: data.issuedDate?.toDate(),
-    signedAt: data.signedAt?.toDate(),
-    uploadedAt: data.uploadedAt?.toDate(),
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
+    dueDate: toDate(data.dueDate),
+    issuedDate: toDate(data.issuedDate),
+    signedAt: toDate(data.signedAt),
+    uploadedAt: toDate(data.uploadedAt),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt),
   } as Document;
 }
 
@@ -568,7 +569,7 @@ export async function getDocumentEvents(documentId: string): Promise<DocumentEve
     return {
       id: d.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as DocumentEvent;
   });
 }

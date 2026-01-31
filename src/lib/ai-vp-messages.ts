@@ -14,6 +14,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import { isAiVpOwner } from './auth';
 import {
   LwMessage,
@@ -104,8 +105,8 @@ export async function getLwMessage(
     senderRole: data.senderRole,
     text: data.text,
     attachmentsJson: data.attachmentsJson,
-    receivedAt: data.receivedAt?.toDate() || new Date(),
-    createdAt: data.createdAt?.toDate() || new Date(),
+    receivedAt: toDate(data.receivedAt) || new Date(),
+    createdAt: toDate(data.createdAt) || new Date(),
   };
 }
 
@@ -141,8 +142,8 @@ export async function getLwMessages(
       senderRole: data.senderRole,
       text: data.text,
       attachmentsJson: data.attachmentsJson,
-      receivedAt: data.receivedAt?.toDate() || new Date(),
-      createdAt: data.createdAt?.toDate() || new Date(),
+      receivedAt: toDate(data.receivedAt) || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     };
   });
 }
@@ -215,9 +216,9 @@ export async function getAiReply(
     templateId: data.templateId,
     modelConfigVersion: data.modelConfigVersion,
     escalationReason: data.escalationReason,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
-    sentAt: data.sentAt?.toDate(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) ?? undefined,
+    sentAt: toDate(data.sentAt) ?? undefined,
   };
 }
 
@@ -257,8 +258,8 @@ export async function getAiRepliesWithMessages(
       senderRole: data.senderRole,
       text: data.text,
       attachmentsJson: data.attachmentsJson,
-      receivedAt: data.receivedAt?.toDate() || new Date(),
-      createdAt: data.createdAt?.toDate() || new Date(),
+      receivedAt: toDate(data.receivedAt) || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     };
   });
 
@@ -285,9 +286,9 @@ export async function getAiRepliesWithMessages(
       referencesJson: data.referencesJson,
       templateId: data.templateId,
       escalationReason: data.escalationReason,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
-      sentAt: data.sentAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) ?? undefined,
+      sentAt: toDate(data.sentAt) ?? undefined,
     };
     repliesMap.set(data.messageId, reply);
   });
@@ -408,8 +409,8 @@ export async function getAiApprovals(
       decision: data.decision,
       note: data.note,
       revisedText: data.revisedText,
-      decidedAt: data.decidedAt?.toDate() || new Date(),
-      createdAt: data.createdAt?.toDate() || new Date(),
+      decidedAt: toDate(data.decidedAt) || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     };
   });
 }
@@ -445,7 +446,7 @@ export async function getAiTemplates(
       requiredFieldsJson: data.requiredFieldsJson,
       templateText: data.templateText,
       keywords: data.keywords,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     };
   });
 }

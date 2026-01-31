@@ -6,6 +6,8 @@ import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { hasMinRole } from '@/lib/auth';
 import { Timestamp } from 'firebase-admin/firestore';
 import { normalizeForFirestore } from '@/lib/firestore/normalize';
+import { notifyApplicationApproved } from '@/lib/notifications-server';
+import { ApplicationType } from '@/types/application';
 
 const COLLECTION_NAME = 'applications';
 const AUDIT_LOG_COLLECTION = 'applicationAuditLogs';
@@ -113,6 +115,21 @@ export async function POST(
       comment: comment || '',
       createdAt: now,
     }));
+
+    // 申請者へ承認完了通知を送信
+    try {
+      await notifyApplicationApproved({
+        tenantId: data.tenantId,
+        applicantId: data.authorId,
+        applicationType: data.type as ApplicationType,
+        applicationId: id,
+        title: data.title,
+        approverName: userData.name,
+      });
+    } catch (notifyError) {
+      console.error('Failed to send approval notification:', notifyError);
+      // 通知失敗は承認処理を失敗させない
+    }
 
     return NextResponse.json({
       success: true,

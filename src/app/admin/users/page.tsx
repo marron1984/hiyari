@@ -19,6 +19,7 @@ import {
 } from 'firebase/firestore';
 import { UserRole } from '@/types';
 import { Shield, Users, Building2, CheckCircle } from 'lucide-react';
+import { toDate } from '@/lib/date';
 
 interface UserData {
   id: string;
@@ -81,7 +82,7 @@ export default function UsersPage() {
           role: d.role || 'user',
           branchId: d.branchId,
           branchName: d.branchId ? branchMap.get(d.branchId) || d.branchId : undefined,
-          createdAt: d.createdAt?.toDate(),
+          createdAt: toDate(d.createdAt) ?? undefined,
         } as UserData;
       });
       // ロール順でソート（system_admin > admin > leader > user）

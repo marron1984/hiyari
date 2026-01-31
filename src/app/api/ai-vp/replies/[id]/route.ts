@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { isAiVpOwner } from '@/lib/auth';
+import { toDate } from '@/lib/date';
 
 // Firebase Admin SDK初期化
 if (getApps().length === 0) {
@@ -62,9 +63,9 @@ export async function GET(
       status: replyData.status,
       templateId: replyData.templateId,
       escalationReason: replyData.escalationReason,
-      createdAt: replyData.createdAt?.toDate().toISOString(),
-      updatedAt: replyData.updatedAt?.toDate()?.toISOString(),
-      sentAt: replyData.sentAt?.toDate()?.toISOString(),
+      createdAt: toDate(replyData.createdAt)?.toISOString(),
+      updatedAt: toDate(replyData.updatedAt)?.toISOString(),
+      sentAt: toDate(replyData.sentAt)?.toISOString(),
     };
 
     // 元メッセージを取得
@@ -81,8 +82,8 @@ export async function GET(
           senderName: messageData.senderName,
           senderRole: messageData.senderRole,
           text: messageData.text,
-          receivedAt: messageData.receivedAt?.toDate().toISOString(),
-          createdAt: messageData.createdAt?.toDate().toISOString(),
+          receivedAt: toDate(messageData.receivedAt)?.toISOString(),
+          createdAt: toDate(messageData.createdAt)?.toISOString(),
         };
       }
     }
@@ -102,8 +103,8 @@ export async function GET(
         decision: data.decision,
         note: data.note,
         revisedText: data.revisedText,
-        decidedAt: data.decidedAt?.toDate()?.toISOString(),
-        createdAt: data.createdAt?.toDate().toISOString(),
+        decidedAt: toDate(data.decidedAt)?.toISOString(),
+        createdAt: toDate(data.createdAt)?.toISOString(),
       };
     });
 

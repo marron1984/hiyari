@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { isAiVpOwner } from '@/lib/auth';
+import { toDate } from '@/lib/date';
 import {
   isGmoApiConfigured,
   getAccountBalance,
@@ -58,20 +59,20 @@ export async function GET(request: NextRequest) {
         id: batchDoc.id,
         tenantId: batchData?.tenantId,
         batchNumber: batchData?.batchNumber,
-        paymentDate: batchData?.paymentDate?.toDate() || new Date(),
+        paymentDate: toDate(batchData?.paymentDate) || new Date(),
         status: batchData?.status,
         itemCount: batchData?.itemCount || 0,
         totalAmount: batchData?.totalAmount || 0,
         totalFee: batchData?.totalFee || 0,
-        confirmedAt: batchData?.confirmedAt?.toDate(),
+        confirmedAt: toDate(batchData?.confirmedAt) ?? undefined,
         confirmedBy: batchData?.confirmedBy,
-        transferScheduledAt: batchData?.transferScheduledAt?.toDate(),
+        transferScheduledAt: toDate(batchData?.transferScheduledAt) ?? undefined,
         gmoTransactionId: batchData?.gmoTransactionId,
-        executedAt: batchData?.executedAt?.toDate(),
+        executedAt: toDate(batchData?.executedAt) ?? undefined,
         executedBy: batchData?.executedBy,
-        createdAt: batchData?.createdAt?.toDate() || new Date(),
+        createdAt: toDate(batchData?.createdAt) || new Date(),
         createdBy: batchData?.createdBy,
-        updatedAt: batchData?.updatedAt?.toDate() || new Date(),
+        updatedAt: toDate(batchData?.updatedAt) || new Date(),
       };
 
       // 支払明細を取得
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest) {
       const items = itemsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date(),
+        createdAt: toDate(doc.data().createdAt) || new Date(),
       })) as PaymentItem[];
 
       // 振込記録を取得
@@ -122,16 +123,16 @@ export async function GET(request: NextRequest) {
         id: doc.id,
         tenantId: data.tenantId,
         batchNumber: data.batchNumber,
-        paymentDate: data.paymentDate?.toDate() || new Date(),
+        paymentDate: toDate(data.paymentDate) || new Date(),
         status: data.status,
         itemCount: data.itemCount || 0,
         totalAmount: data.totalAmount || 0,
         totalFee: data.totalFee || 0,
-        confirmedAt: data.confirmedAt?.toDate(),
-        transferScheduledAt: data.transferScheduledAt?.toDate(),
-        executedAt: data.executedAt?.toDate(),
-        createdAt: data.createdAt?.toDate() || new Date(),
-        updatedAt: data.updatedAt?.toDate() || new Date(),
+        confirmedAt: toDate(data.confirmedAt) ?? undefined,
+        transferScheduledAt: toDate(data.transferScheduledAt) ?? undefined,
+        executedAt: toDate(data.executedAt) ?? undefined,
+        createdAt: toDate(data.createdAt) || new Date(),
+        updatedAt: toDate(data.updatedAt) || new Date(),
       } as PaymentBatch;
     });
 

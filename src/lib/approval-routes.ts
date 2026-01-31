@@ -4,6 +4,7 @@
 
 import { getAdminDb } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
+import { toDate } from './date';
 import {
   RingiApprovalRoute,
   RingiApprovalRouteStep,
@@ -54,7 +55,7 @@ export async function getApprovalRoutes(
           approverValue: stepData.approverValue,
           approverName: stepData.approverName,
           required: stepData.required !== false,
-          createdAt: stepData.createdAt?.toDate() || new Date(),
+          createdAt: toDate(stepData.createdAt) || new Date(),
         };
       })
       .sort((a, b) => a.stepOrder - b.stepOrder); // JS側でソート
@@ -73,8 +74,8 @@ export async function getApprovalRoutes(
       isDefault: data.isDefault === true,
       priority: data.priority || 100,
       steps,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) || new Date(),
       createdBy: data.createdBy,
       createdByName: data.createdByName,
     });
@@ -117,7 +118,7 @@ export async function getApprovalRoute(
         approverValue: stepData.approverValue,
         approverName: stepData.approverName,
         required: stepData.required !== false,
-        createdAt: stepData.createdAt?.toDate() || new Date(),
+        createdAt: toDate(stepData.createdAt) || new Date(),
       };
     })
     .sort((a, b) => a.stepOrder - b.stepOrder); // JS側でソート
@@ -136,8 +137,8 @@ export async function getApprovalRoute(
     isDefault: data.isDefault === true,
     priority: data.priority || 100,
     steps,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate() || new Date(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) || new Date(),
     createdBy: data.createdBy,
     createdByName: data.createdByName,
   };

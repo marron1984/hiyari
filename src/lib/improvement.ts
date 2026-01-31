@@ -26,6 +26,7 @@ import {
   UserRole,
 } from '@/types';
 import { hasMinRole } from './auth';
+import { toDate } from './date';
 
 function getDb() {
   if (!db) throw new Error('Firestore not initialized');
@@ -86,10 +87,10 @@ export async function getImprovement(id: string): Promise<Improvement | null> {
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
-    adoptedAt: data.adoptedAt?.toDate(),
-    rejectedAt: data.rejectedAt?.toDate(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) ?? undefined,
+    adoptedAt: toDate(data.adoptedAt) ?? undefined,
+    rejectedAt: toDate(data.rejectedAt) ?? undefined,
   } as Improvement;
 }
 
@@ -121,10 +122,10 @@ export async function getImprovements(
     return {
       id: doc.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
-      adoptedAt: data.adoptedAt?.toDate(),
-      rejectedAt: data.rejectedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) ?? undefined,
+      adoptedAt: toDate(data.adoptedAt) ?? undefined,
+      rejectedAt: toDate(data.rejectedAt) ?? undefined,
     } as Improvement;
   });
 
@@ -318,7 +319,7 @@ export async function getComments(improvementId: string): Promise<ImprovementCom
     return {
       id: doc.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as ImprovementComment;
   });
 

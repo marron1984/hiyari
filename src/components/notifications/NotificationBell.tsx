@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, X, Check, Clock, FileText, AlertTriangle, Calendar, MessageSquare } from 'lucide-react';
+import { Bell, X, Check, Clock, FileText, AlertTriangle, Calendar, MessageSquare, ClipboardCheck, RotateCcw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Notification, NotificationType } from '@/types/notification';
 import {
@@ -12,6 +12,7 @@ import {
   markAllAsRead,
 } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
+import { toDate } from '@/lib/date';
 
 // 通知タイプ別のアイコンと色
 const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: string; bg: string }> = {
@@ -25,11 +26,19 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   long_hours_warning: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
   incident_submitted: { icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' },
   incident_commented: { icon: MessageSquare, color: 'text-blue-600', bg: 'bg-blue-50' },
+  // AA-HUB 申請通知
+  approval_pending: { icon: ClipboardCheck, color: 'text-amber-600', bg: 'bg-amber-50' },
+  application_approved: { icon: Check, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  application_rejected: { icon: X, color: 'text-red-600', bg: 'bg-red-50' },
+  application_returned: { icon: RotateCcw, color: 'text-orange-600', bg: 'bg-orange-50' },
   system: { icon: Bell, color: 'text-zinc-600', bg: 'bg-zinc-50' },
 };
 
-// 相対時間表示
-function formatRelativeTime(date: Date): string {
+// 相対時間表示（Firestore Timestamp / Date / string 対応）
+function formatRelativeTime(value: Date | unknown): string {
+  const date = toDate(value);
+  if (!date) return '-';
+
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);

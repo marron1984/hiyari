@@ -17,6 +17,7 @@ import {
 import { db, DEFAULT_TENANT_ID } from './firebase';
 import { UserRole } from '@/types';
 import { RingiStatus } from '@/types/ringi';
+import { toDate } from './date';
 import {
   Application,
   ApplicationType,
@@ -310,12 +311,12 @@ export async function getApplication(applicationId: string): Promise<Application
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
-    submittedAt: data.submittedAt?.toDate(),
-    approvedAt: data.approvedAt?.toDate(),
-    rejectedAt: data.rejectedAt?.toDate(),
-    returnedAt: data.returnedAt?.toDate(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt) ?? undefined,
+    submittedAt: toDate(data.submittedAt) ?? undefined,
+    approvedAt: toDate(data.approvedAt) ?? undefined,
+    rejectedAt: toDate(data.rejectedAt) ?? undefined,
+    returnedAt: toDate(data.returnedAt) ?? undefined,
   } as Application;
 }
 
@@ -672,12 +673,12 @@ export async function getApplicationsByUser(
     return {
       id: docSnap.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
-      submittedAt: data.submittedAt?.toDate(),
-      approvedAt: data.approvedAt?.toDate(),
-      rejectedAt: data.rejectedAt?.toDate(),
-      returnedAt: data.returnedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) ?? undefined,
+      submittedAt: toDate(data.submittedAt) ?? undefined,
+      approvedAt: toDate(data.approvedAt) ?? undefined,
+      rejectedAt: toDate(data.rejectedAt) ?? undefined,
+      returnedAt: toDate(data.returnedAt) ?? undefined,
     } as Application;
   });
 
@@ -715,12 +716,12 @@ export async function getPendingApplications(
     return {
       id: docSnap.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
-      submittedAt: data.submittedAt?.toDate(),
-      approvedAt: data.approvedAt?.toDate(),
-      rejectedAt: data.rejectedAt?.toDate(),
-      returnedAt: data.returnedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) ?? undefined,
+      submittedAt: toDate(data.submittedAt) ?? undefined,
+      approvedAt: toDate(data.approvedAt) ?? undefined,
+      rejectedAt: toDate(data.rejectedAt) ?? undefined,
+      returnedAt: toDate(data.returnedAt) ?? undefined,
     } as Application;
   });
 
@@ -765,12 +766,12 @@ export async function getAllApplications(
     return {
       id: docSnap.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
-      submittedAt: data.submittedAt?.toDate(),
-      approvedAt: data.approvedAt?.toDate(),
-      rejectedAt: data.rejectedAt?.toDate(),
-      returnedAt: data.returnedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt) ?? undefined,
+      submittedAt: toDate(data.submittedAt) ?? undefined,
+      approvedAt: toDate(data.approvedAt) ?? undefined,
+      rejectedAt: toDate(data.rejectedAt) ?? undefined,
+      returnedAt: toDate(data.returnedAt) ?? undefined,
     } as Application;
   });
 
@@ -828,7 +829,7 @@ export async function getApplicationAuditLogs(
     return {
       id: docSnap.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as ApplicationAuditLog;
   });
 

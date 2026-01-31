@@ -6,6 +6,8 @@ import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { hasMinRole } from '@/lib/auth';
 import { Timestamp } from 'firebase-admin/firestore';
 import { normalizeForFirestore } from '@/lib/firestore/normalize';
+import { notifyApplicationReturned } from '@/lib/notifications-server';
+import { ApplicationType } from '@/types/application';
 
 const COLLECTION_NAME = 'applications';
 const AUDIT_LOG_COLLECTION = 'applicationAuditLogs';
@@ -113,6 +115,22 @@ export async function POST(
       comment: reason.trim(),
       createdAt: now,
     }));
+
+    // 申請者へ差戻し通知を送信
+    try {
+      await notifyApplicationReturned({
+        tenantId: data.tenantId,
+        applicantId: data.authorId,
+        applicationType: data.type as ApplicationType,
+        applicationId: id,
+        title: data.title,
+        returnerName: userData.name,
+        reason: reason.trim(),
+      });
+    } catch (notifyError) {
+      console.error('Failed to send return notification:', notifyError);
+      // 通知失敗は差戻し処理を失敗させない
+    }
 
     return NextResponse.json({
       success: true,

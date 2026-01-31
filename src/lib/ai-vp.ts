@@ -14,6 +14,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db, DEFAULT_TENANT_ID } from './firebase';
+import { toDate } from './date';
 import { isAiVpOwner } from './auth';
 import {
   AiVpIngestion,
@@ -113,7 +114,7 @@ export async function getIngestion(
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
+    createdAt: toDate(data.createdAt) || new Date(),
   } as AiVpIngestion;
 }
 
@@ -142,7 +143,7 @@ export async function getIngestions(
     return {
       id: d.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as AiVpIngestion;
   });
 }
@@ -224,8 +225,8 @@ export async function getExtraction(
   return {
     id: docSnap.id,
     ...data,
-    createdAt: data.createdAt?.toDate() || new Date(),
-    updatedAt: data.updatedAt?.toDate(),
+    createdAt: toDate(data.createdAt) || new Date(),
+    updatedAt: toDate(data.updatedAt),
   } as AiVpExtraction;
 }
 
@@ -254,8 +255,8 @@ export async function getExtractions(
     return {
       id: d.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      updatedAt: data.updatedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
     } as AiVpExtraction;
   });
 }
@@ -452,8 +453,8 @@ export async function getActions(
     return {
       id: d.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
-      executedAt: data.executedAt?.toDate(),
+      createdAt: toDate(data.createdAt) || new Date(),
+      executedAt: toDate(data.executedAt),
     } as AiVpAction;
   });
 
@@ -509,7 +510,7 @@ export async function getAiVpAuditLogs(
     return {
       id: d.id,
       ...data,
-      createdAt: data.createdAt?.toDate() || new Date(),
+      createdAt: toDate(data.createdAt) || new Date(),
     } as AiVpAuditLog;
   });
 }

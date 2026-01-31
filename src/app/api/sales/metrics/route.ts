@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { hasMinRole } from '@/lib/auth';
+import { toDate } from '@/lib/date';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
@@ -179,13 +180,13 @@ export async function GET(request: NextRequest) {
 
         // KPIスコープ: 2026-01-12 13:49以降のみ（receivedAt > inquiryDate > createdAt）
         let baseDate: Date | null = null;
-        if (prospect.receivedAt?.toDate) {
-          baseDate = prospect.receivedAt.toDate();
+        if (prospect.receivedAt) {
+          baseDate = toDate(prospect.receivedAt);
         } else if (prospect.inquiryDate) {
           const parsed = new Date(prospect.inquiryDate);
           if (!isNaN(parsed.getTime())) baseDate = parsed;
-        } else if (prospect.createdAt?.toDate) {
-          baseDate = prospect.createdAt.toDate();
+        } else if (prospect.createdAt) {
+          baseDate = toDate(prospect.createdAt);
         }
 
         const isKpiTarget = baseDate !== null && baseDate >= PROSPECTS_ACTIVE_FROM;

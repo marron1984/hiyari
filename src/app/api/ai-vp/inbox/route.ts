@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { isAiVpOwner } from '@/lib/auth';
+import { toDate } from '@/lib/date';
 import { AiReplyRiskLevel, AiReplyStatus } from '@/types/ai-vp';
 
 // Firebase Admin SDK初期化
@@ -78,8 +79,8 @@ export async function GET(request: NextRequest) {
         senderName: data.senderName,
         senderRole: data.senderRole,
         text: data.text,
-        receivedAt: data.receivedAt?.toDate().toISOString(),
-        createdAt: data.createdAt?.toDate().toISOString(),
+        receivedAt: toDate(data.receivedAt)?.toISOString() || '',
+        createdAt: toDate(data.createdAt)?.toISOString() || '',
       };
     });
 
@@ -118,9 +119,9 @@ export async function GET(request: NextRequest) {
         status: data.status,
         templateId: data.templateId,
         escalationReason: data.escalationReason,
-        createdAt: data.createdAt?.toDate().toISOString(),
-        updatedAt: data.updatedAt?.toDate()?.toISOString(),
-        sentAt: data.sentAt?.toDate()?.toISOString(),
+        createdAt: toDate(data.createdAt)?.toISOString() || '',
+        updatedAt: toDate(data.updatedAt)?.toISOString(),
+        sentAt: toDate(data.sentAt)?.toISOString(),
       });
     });
 
