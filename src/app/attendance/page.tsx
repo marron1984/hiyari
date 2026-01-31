@@ -916,7 +916,7 @@ export default function AttendancePage() {
                 onClick={() => router.push('/attendance/overtime')}
                 className="py-3"
               >
-                残業申請
+                残業届
               </Button>
             </div>
           </div>

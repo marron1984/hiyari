@@ -47,7 +47,7 @@ export function MobileBottomNav() {
   // 主要ナビゲーション（5つまで）
   const mainNavItems: NavItem[] = [
     { href: '/dashboard', label: 'ホーム', icon: Home, matchPaths: ['/dashboard'] },
-    { href: '/submit', label: '申請', icon: FileText, matchPaths: ['/submit', '/attendance'] },
+    { href: '/attendance', label: '打刻', icon: Clock, matchPaths: ['/attendance'] },
     { href: '/dashboard/approvals', label: '承認', icon: ClipboardCheck, matchPaths: ['/dashboard/approvals'] },
   ];
 
@@ -71,7 +71,7 @@ export function MobileBottomNav() {
 
   // その他メニューの中身
   const moreItems: NavItem[] = [
-    { href: '/attendance', label: '打刻', icon: Clock },
+    { href: '/submit', label: '報告', icon: FileText },
     { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus },
     { href: '/sales', label: '営業', icon: Briefcase },
     { href: '/dashboard/vacancy', label: '空室', icon: Building2 },

@@ -130,7 +130,7 @@ export const KPI_DEFINITIONS: Record<string, KPIDefinition> = {
   my_approvals: {
     id: 'my_approvals',
     label: '稟議',
-    description: '申請中・差戻し',
+    description: '進行中・差戻し',
     unit: '件',
     href: '/dashboard/approvals',
     roles: ['staff', 'manager', 'exec'],
@@ -141,7 +141,7 @@ export const KPI_DEFINITIONS: Record<string, KPIDefinition> = {
     label: '今月の残業',
     description: '当月の残業時間',
     unit: '時間',
-    href: '/dashboard/attendance/overtime/new',
+    href: '/attendance/overtime',
     roles: ['staff'],
     thresholds: { warning: 30, critical: 45, direction: 'above' },
   },
@@ -310,7 +310,7 @@ export function getKPIMeaning(
       critical: '優先対応が必要',
     },
     my_approvals: {
-      normal: '申請なし',
+      normal: '稟議なし',
       warning: '差戻しあり',
       critical: '対応が必要',
     },

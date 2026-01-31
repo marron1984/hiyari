@@ -281,7 +281,7 @@ function calculateKPIValue(
         status = data.ringiData.returned > 0 ? 'warning' : 'normal';
         meaning = data.ringiData.returned > 0
           ? `${data.ringiData.returned}件の差戻しあり`
-          : value > 0 ? `${data.ringiData.submitted}件申請中` : '申請なし';
+          : value > 0 ? `${data.ringiData.submitted}件進行中` : '稟議なし';
       }
       break;
 
