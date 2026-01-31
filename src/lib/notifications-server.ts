@@ -241,3 +241,77 @@ export async function notifyApplicationReturned(params: {
     metadata: { applicationId, applicationType, reason },
   });
 }
+
+// ===================
+// AI副社長・TODO通知（サーバーサイド）
+// ===================
+
+/**
+ * HIGH優先度TODOの通知を送信
+ */
+export async function notifyHighPriorityTodo(params: {
+  tenantId: string;
+  userId: string;
+  todoId: string;
+  title: string;
+  description: string;
+  source: 'OVERTIME' | 'APPROVAL' | 'SALES' | 'DOCUMENT' | 'PROSPECT';
+  link: string;
+}): Promise<void> {
+  const { tenantId, userId, todoId, title, description, source, link } = params;
+
+  const sourceLabels: Record<string, string> = {
+    OVERTIME: '勤怠',
+    APPROVAL: '承認',
+    SALES: '営業',
+    DOCUMENT: '書類',
+    PROSPECT: '入居見込',
+  };
+
+  await createNotificationServer({
+    tenantId,
+    userId,
+    type: 'ai_todo_high',
+    title: `🚨 緊急TODO: ${sourceLabels[source] || source}`,
+    message: `${title}\n${description}`,
+    actionUrl: link,
+    metadata: { todoId, todoSource: source },
+  });
+}
+
+/**
+ * HIGH優先度TODOを一括通知
+ */
+export async function notifyHighPriorityTodos(
+  todos: Array<{
+    tenantId: string;
+    userId: string;
+    todoId: string;
+    title: string;
+    description: string;
+    source: 'OVERTIME' | 'APPROVAL' | 'SALES' | 'DOCUMENT' | 'PROSPECT';
+    link: string;
+  }>
+): Promise<void> {
+  if (todos.length === 0) return;
+
+  const sourceLabels: Record<string, string> = {
+    OVERTIME: '勤怠',
+    APPROVAL: '承認',
+    SALES: '営業',
+    DOCUMENT: '書類',
+    PROSPECT: '入居見込',
+  };
+
+  const notifications: CreateNotificationInput[] = todos.map((todo) => ({
+    tenantId: todo.tenantId,
+    userId: todo.userId,
+    type: 'ai_todo_high' as NotificationType,
+    title: `🚨 緊急TODO: ${sourceLabels[todo.source] || todo.source}`,
+    message: `${todo.title}\n${todo.description}`,
+    actionUrl: todo.link,
+    metadata: { todoId: todo.todoId, todoSource: todo.source },
+  }));
+
+  await createNotificationsServer(notifications);
+}

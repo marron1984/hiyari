@@ -3,6 +3,7 @@
 import { getAdminDb } from './firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { toDate } from './date';
+import { notifyHighPriorityTodos } from './notifications-server';
 import type {
   TodoItem,
   TodoGenerationResult,
@@ -567,7 +568,17 @@ export async function generateDailyTodos(): Promise<TodoGenerationResult> {
       batch.delete(doc.ref);
     });
 
-    // 新しいTODOを保存
+    // 新しいTODOを保存（HIGH優先度を通知用に収集）
+    const highPriorityTodos: Array<{
+      tenantId: string;
+      userId: string;
+      todoId: string;
+      title: string;
+      description: string;
+      source: 'OVERTIME' | 'APPROVAL' | 'SALES' | 'DOCUMENT' | 'PROSPECT';
+      link: string;
+    }> = [];
+
     for (const todo of allTodos) {
       const docRef = db.collection('todoItems').doc();
       batch.set(docRef, {
@@ -575,6 +586,19 @@ export async function generateDailyTodos(): Promise<TodoGenerationResult> {
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
+
+      // HIGH優先度TODOを通知用に収集
+      if (todo.priority === 'HIGH') {
+        highPriorityTodos.push({
+          tenantId: todo.tenantId,
+          userId: todo.userId,
+          todoId: docRef.id,
+          title: todo.title,
+          description: todo.description,
+          source: todo.source,
+          link: todo.link,
+        });
+      }
 
       // サマリーを更新
       result.summary.total++;
@@ -585,12 +609,23 @@ export async function generateDailyTodos(): Promise<TodoGenerationResult> {
 
     await batch.commit();
 
+    // HIGH優先度TODOを通知
+    if (highPriorityTodos.length > 0) {
+      try {
+        await notifyHighPriorityTodos(highPriorityTodos);
+        console.log(`Sent ${highPriorityTodos.length} HIGH priority TODO notifications`);
+      } catch (notifyError) {
+        result.errors.push(`通知送信エラー: ${notifyError instanceof Error ? notifyError.message : 'Unknown'}`);
+      }
+    }
+
     // 生成ログを保存
     await db.collection('todoGenerationLogs').add({
       tenantId: DEFAULT_TENANT_ID,
       type: 'daily-batch',
       generatedAt: now,
       result,
+      highPriorityNotifications: highPriorityTodos.length,
       createdAt: FieldValue.serverTimestamp(),
     });
 
