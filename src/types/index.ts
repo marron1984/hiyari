@@ -299,3 +299,6 @@ export * from './request-engine';
 
 // 入居者管理関連の型をre-export
 export * from './resident';
+
+// ダッシュボードKPI関連の型をre-export
+export * from './dashboard-kpi';
