@@ -154,8 +154,8 @@ const MENU_CATEGORIES: MenuCategory[] = [
       {
         href: '/admin/ai-vp/ask-inbox',
         icon: MessageSquare,
-        title: 'ふくしゃに聞く Inbox',
-        description: 'スタッフからの質問・相談受信箱',
+        title: 'ふくしゃに聞く',
+        description: '判断相談Inbox（AI一次整理→あなたの判断）',
         bgColor: 'bg-purple-100',
         iconColor: 'text-purple-600',
         highlight: true,

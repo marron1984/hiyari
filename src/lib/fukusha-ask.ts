@@ -1,4 +1,11 @@
-// ======== ふくしゃに聞く（AI副社長 質問箱）ライブラリ ========
+// ======== ふくしゃに聞く（判断相談・AI一次整理）ライブラリ ========
+//
+// 【AA.OS.HUB ブランド思想】
+// 判断は、ひとりで背負わない。責任は、最後まで引き受ける。
+// AAは、判断と責任のOSである。
+//
+// この機能は「質問→整理→人の判断→組織に残る」流れを実現する。
+// 判断を個人に背負わせないための"仕組み（OS）"の一部である。
 
 import { getAdminDb } from './firebase-admin';
 import type {
@@ -10,9 +17,13 @@ import type {
   FukushaQuestionStats,
   CreateFukushaQuestionInput,
   SendFukushaReplyInput,
+  DecisionLog,
+  CreateDecisionLogInput,
+  DecisionLogFilter,
 } from '@/types/fukusha-ask';
 
 const COLLECTION = 'fukusha_questions';
+const DECISION_LOG_COLLECTION = 'decision_logs';
 
 // ======== 質問投稿 ========
 
@@ -395,4 +406,144 @@ export async function archiveQuestion(questionId: string): Promise<void> {
     status: 'archived',
     updatedAt: new Date(),
   });
+}
+
+// ======== 判断ログ ========
+//
+// 判断ログは「正解の記録」ではない。
+// 判断がどのように行われたかを残し、次の判断を楽にするためのOS資産である。
+// 現場に判断を背負わせない。管理職に孤独を背負わせない。失敗を人のせいにしない。
+
+/**
+ * 判断ログを作成
+ *
+ * 質問→AI整理→人の判断という流れを組織の資産として記録する
+ */
+export async function createDecisionLog(
+  tenantId: string,
+  decisionMakerUserId: string,
+  decisionMakerName: string,
+  input: CreateDecisionLogInput
+): Promise<DecisionLog> {
+  const db = getAdminDb();
+  const now = new Date();
+
+  const log: Omit<DecisionLog, 'id'> = {
+    tenantId,
+    sourceQuestionId: input.sourceQuestionId,
+    sourceType: 'fukusha_ask',
+    questionContent: input.questionContent,
+    questionCategory: input.questionCategory,
+    questionCreatedAt: input.questionCreatedAt,
+    aiSummary: input.aiSummary,
+    aiKeyPoints: input.aiKeyPoints,
+    decisionContent: input.decisionContent,
+    decisionMakerUserId,
+    decisionMakerName,
+    decisionNote: input.decisionNote,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const docRef = db.collection(DECISION_LOG_COLLECTION).doc();
+  await docRef.set(log);
+
+  console.log('[DecisionLog] 判断ログ作成', {
+    id: docRef.id,
+    sourceQuestionId: input.sourceQuestionId,
+    category: input.questionCategory,
+    decisionMaker: decisionMakerName,
+  });
+
+  return { ...log, id: docRef.id };
+}
+
+/**
+ * 質問から判断ログを作成
+ *
+ * 返信時に呼び出され、質問とAI整理結果と最終判断をまとめて保存
+ */
+export async function createDecisionLogFromQuestion(
+  question: FukushaQuestion,
+  replyContent: string,
+  replyNote: string | undefined,
+  decisionMakerUserId: string,
+  decisionMakerName: string
+): Promise<DecisionLog> {
+  return createDecisionLog(
+    question.tenantId,
+    decisionMakerUserId,
+    decisionMakerName,
+    {
+      sourceQuestionId: question.id,
+      questionContent: question.content,
+      questionCategory: question.category,
+      questionCreatedAt: question.createdAt,
+      aiSummary: question.aiSummary || '',
+      aiKeyPoints: question.aiKeyPoints || [],
+      decisionContent: replyContent,
+      decisionNote: replyNote,
+    }
+  );
+}
+
+/**
+ * 判断ログ一覧を取得
+ */
+export async function getDecisionLogs(
+  tenantId: string,
+  filter: DecisionLogFilter = {}
+): Promise<DecisionLog[]> {
+  const db = getAdminDb();
+  let query: FirebaseFirestore.Query = db
+    .collection(DECISION_LOG_COLLECTION)
+    .where('tenantId', '==', tenantId);
+
+  if (filter.category) {
+    query = query.where('questionCategory', '==', filter.category);
+  }
+
+  if (filter.decisionMakerUserId) {
+    query = query.where('decisionMakerUserId', '==', filter.decisionMakerUserId);
+  }
+
+  query = query.orderBy('createdAt', 'desc');
+
+  if (filter.limit) {
+    query = query.limit(filter.limit);
+  }
+
+  const snapshot = await query.get();
+
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      questionCreatedAt: data.questionCreatedAt?.toDate() || new Date(),
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date(),
+    } as DecisionLog;
+  });
+}
+
+/**
+ * 判断ログ詳細を取得
+ */
+export async function getDecisionLog(
+  logId: string
+): Promise<DecisionLog | null> {
+  const db = getAdminDb();
+  const doc = await db.collection(DECISION_LOG_COLLECTION).doc(logId).get();
+
+  if (!doc.exists) return null;
+
+  const data = doc.data()!;
+  return {
+    ...data,
+    id: doc.id,
+    questionCreatedAt: data.questionCreatedAt?.toDate() || new Date(),
+    createdAt: data.createdAt?.toDate() || new Date(),
+    updatedAt: data.updatedAt?.toDate() || new Date(),
+  } as DecisionLog;
 }

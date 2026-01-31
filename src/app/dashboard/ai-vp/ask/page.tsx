@@ -123,7 +123,7 @@ export default function FukushaAskPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold">ふくしゃに聞く</h1>
-            <p className="text-sm text-gray-500">AI副社長への質問箱</p>
+            <p className="text-sm text-gray-500">判断相談（AI一次整理）</p>
           </div>
         </div>
 
@@ -133,11 +133,14 @@ export default function FukushaAskPage() {
             <div className="flex items-start gap-3">
               <MessageCircle className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
               <div className="text-sm text-purple-800">
-                <p className="font-medium mb-1">質問や相談を気軽に送れます</p>
-                <ul className="text-purple-700 space-y-1">
+                <p className="font-medium mb-2">判断は、ひとりで背負わない。</p>
+                <p className="text-purple-700 mb-2">
+                  仕事や職場のことで迷ったら、まずここで相談してください。
+                  AIが質問を整理し、吉田さんが確認して返信します。
+                </p>
+                <ul className="text-purple-700 space-y-1 text-xs">
                   <li>・ 匿名での投稿も可能です</li>
-                  <li>・ 吉田さんが確認して返信します</li>
-                  <li>・ 返信までしばらくお待ちください</li>
+                  <li>・ AIが整理→吉田さんが判断→あなたに返信</li>
                 </ul>
               </div>
             </div>

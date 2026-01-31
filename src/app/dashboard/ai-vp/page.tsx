@@ -113,7 +113,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
         href: '/dashboard/ai-vp/ask',
         icon: HelpCircle,
         title: 'ふくしゃに聞く',
-        description: '副社長への質問・相談',
+        description: '判断相談（AI一次整理）',
         bgColor: 'bg-purple-100',
         iconColor: 'text-purple-600',
         status: 'available',

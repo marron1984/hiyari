@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { isAiVpOwner } from '@/lib/auth';
-import { sendReply, getQuestion } from '@/lib/fukusha-ask';
+import { sendReply, getQuestion, createDecisionLogFromQuestion } from '@/lib/fukusha-ask';
 import type { SendFukushaReplyInput } from '@/types/fukusha-ask';
+
+// 【AA.OS.HUB ブランド思想】
+// 判断は、ひとりで背負わない。責任は、最後まで引き受ける。
+// AAは、判断と責任のOSである。
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
@@ -85,7 +89,23 @@ export async function POST(
 
     await sendReply(input, user.uid, user.name);
 
-    return NextResponse.json({ success: true });
+    // 判断ログに保存（チェックボックスがONの場合）
+    // 判断ログは「正解の記録」ではない。
+    // 判断がどのように行われたかを残し、次の判断を楽にするためのOS資産である。
+    let decisionLogId: string | undefined;
+    if (body.saveToDecisionLog) {
+      const decisionLog = await createDecisionLogFromQuestion(
+        question,
+        body.replyContent,
+        body.replyNote,
+        user.uid,
+        user.name
+      );
+      decisionLogId = decisionLog.id;
+      console.log('[API] 判断ログ保存完了', { questionId: id, decisionLogId });
+    }
+
+    return NextResponse.json({ success: true, decisionLogId });
   } catch (error) {
     console.error('[API] fukusha-ask/[id]/reply POST error:', error);
     return NextResponse.json(
