@@ -359,5 +359,22 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isAiVpOwner();
       allow write: if isAuthenticated() && isAiVpOwner();
     }
+
+    // ======== Google Sheets 双方向同期 ========
+
+    // シート接続設定コレクション
+    match /sheetsConnectionConfigs/{tenantId} {
+      // 管理者のみアクセス可能
+      allow read: if isAuthenticated() && isAdmin();
+      allow write: if isAuthenticated() && isAdmin();
+    }
+
+    // 同期ログコレクション
+    match /syncLogs/{logId} {
+      // 管理者のみ読み取り可能
+      allow read: if isAuthenticated() && isAdmin();
+      // サーバーサイドからのみ書き込み（Admin SDK経由）
+      allow write: if false;
+    }
   }
 }
