@@ -3,8 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { getChaosDashboardMetrics, getInterventions } from '@/lib/chaos';
@@ -29,14 +27,6 @@ import {
 } from 'lucide-react';
 
 export default function ChaosDashboardPage() {
-  return (
-    <AuthGuard>
-      <ChaosDashboardContent />
-    </AuthGuard>
-  );
-}
-
-function ChaosDashboardContent() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [orgMetrics, setOrgMetrics] = useState<{
@@ -76,12 +66,7 @@ function ChaosDashboardContent() {
   }, [user]);
 
   if (loading) {
-    return (
-      <>
-        <Header />
-        <Loading text="読み込み中..." />
-      </>
-    );
+    return <Loading text="読み込み中..." />;
   }
 
   // 営業KPI計算
@@ -94,9 +79,7 @@ function ChaosDashboardContent() {
   const rankDistribution = { A: 0, B: 0, C: 0, D: activeDeals.length };
 
   return (
-    <>
-      <Header />
-      <main className="pb-8">
+    <main className="pb-8">
         <div className="max-w-7xl mx-auto px-4 py-6">
           {/* ヘッダー */}
           <div className="flex items-center justify-between mb-6">
@@ -402,8 +385,7 @@ function ChaosDashboardContent() {
               </div>
             </CardContent>
           </Card>
-        </div>
-      </main>
-    </>
+      </div>
+    </main>
   );
 }

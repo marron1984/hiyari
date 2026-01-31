@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
+import { Loading } from '@/components/Loading';
 import { Card, Button, Badge } from '@/components/ui';
 import {
   Plus,
@@ -51,14 +50,6 @@ interface ApplicationItem {
 }
 
 export default function ApprovalsListPage() {
-  return (
-    <AuthGuard>
-      <ApprovalsListContent />
-    </AuthGuard>
-  );
-}
-
-function ApprovalsListContent() {
   const { user, firebaseUser } = useAuth();
   const [items, setItems] = useState<ApplicationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -254,23 +245,11 @@ function ApprovalsListContent() {
   const approvedCount = error ? null : items.filter((i) => i.status === 'approved').length;
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-50">
-        <Header />
-        <div className="flex items-center justify-center py-20">
-          <div className="flex flex-col items-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
-            <p className="text-sm text-zinc-500">読み込み中...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <Loading text="読み込み中..." />;
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <Header />
-      <div className="max-w-2xl mx-auto px-4 py-6 safe-bottom">
+    <div className="max-w-2xl mx-auto px-4 py-6 safe-bottom">
         {/* Page Title */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -509,10 +488,9 @@ function ApprovalsListContent() {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="mt-6 text-center text-xs text-zinc-400">
-          <p>自動更新: 60秒ごと</p>
-        </div>
+      {/* Footer */}
+      <div className="mt-6 text-center text-xs text-zinc-400">
+        <p>自動更新: 60秒ごと</p>
       </div>
     </div>
   );

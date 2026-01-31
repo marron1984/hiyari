@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Select, Input } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import {
@@ -55,14 +53,6 @@ import { ProspectDocuments } from '@/components/ProspectDocuments';
 import type { ProspectDocument } from '@/types/prospect';
 
 export default function ProspectDetailPage() {
-  return (
-    <AuthGuard>
-      <ProspectDetailContent />
-    </AuthGuard>
-  );
-}
-
-function ProspectDetailContent() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
@@ -389,22 +379,14 @@ function ProspectDetailContent() {
   };
 
   if (loading) {
-    return (
-      <>
-        <Header />
-        <Loading text="読み込み中..." />
-      </>
-    );
+    return <Loading text="読み込み中..." />;
   }
 
   if (!prospect) {
     return (
-      <>
-        <Header />
-        <div className="max-w-4xl mx-auto px-4 py-6 text-center">
-          <p className="text-gray-500">入居希望者が見つかりません</p>
-        </div>
-      </>
+      <div className="max-w-4xl mx-auto px-4 py-6 text-center">
+        <p className="text-gray-500">入居希望者が見つかりません</p>
+      </div>
     );
   }
 
@@ -412,11 +394,9 @@ function ProspectDetailContent() {
   const daysElapsed = calculateDaysElapsed(prospect.receivedAt);
 
   return (
-    <>
-      <Header />
-      <main className="pb-20 md:pb-8">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          {/* 戻るボタン */}
+    <main className="pb-20 md:pb-8">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* 戻るボタン */}
           <Link href="/dashboard/prospects" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4">
             <ArrowLeft className="w-4 h-4 mr-1" />
             一覧に戻る
@@ -922,9 +902,8 @@ function ProspectDetailContent() {
               </div>
             </div>
           </div>
-        )}
-      </main>
-    </>
+      )}
+    </main>
   );
 }
 

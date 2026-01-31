@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, Select } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import {
@@ -37,14 +35,6 @@ import {
 } from 'lucide-react';
 
 export default function DocumentsPage() {
-  return (
-    <AuthGuard>
-      <DocumentsContent />
-    </AuthGuard>
-  );
-}
-
-function DocumentsContent() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -89,18 +79,11 @@ function DocumentsContent() {
   }, [fetchData]);
 
   if (loading) {
-    return (
-      <>
-        <Header />
-        <Loading text="読み込み中..." />
-      </>
-    );
+    return <Loading text="読み込み中..." />;
   }
 
   return (
-    <>
-      <Header />
-      <main className="pb-20 md:pb-8">
+    <main className="pb-8">
         <div className="max-w-6xl mx-auto px-4 py-6">
           {/* ヘッダー */}
           <div className="flex items-center justify-between mb-6">
@@ -311,8 +294,7 @@ function DocumentsContent() {
               )}
             </CardContent>
           </Card>
-        </div>
-      </main>
-    </>
+      </div>
+    </main>
   );
 }
