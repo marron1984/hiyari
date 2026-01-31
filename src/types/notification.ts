@@ -4,6 +4,8 @@ export type NotificationType =
   | 'overtime_request'      // 残業申請通知
   | 'overtime_approved'     // 残業申請承認
   | 'overtime_rejected'     // 残業申請却下
+  | 'overtime_check_ng'     // 残業突合NG（申請漏れ）
+  | 'overtime_check_warn'   // 残業突合WARN（差異あり）
   | 'shift_published'       // シフト公開
   | 'shift_changed'         // シフト変更
   | 'missing_clock'         // 打刻漏れ警告
@@ -51,6 +53,11 @@ export interface Notification {
     reportId?: string;
     reportDate?: string;
     alertLevel?: 'normal' | 'attention' | 'warning' | 'priority';
+    // overtime_check_ng / overtime_check_warn
+    overtimeCheckId?: string;
+    workDate?: string;
+    actualOvertimeMinutes?: number;
+    diffMinutes?: number;
   };
 }
 

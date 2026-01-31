@@ -20,6 +20,8 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   overtime_request: { icon: FileText, color: 'text-amber-600', bg: 'bg-amber-50' },
   overtime_approved: { icon: Check, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   overtime_rejected: { icon: X, color: 'text-red-600', bg: 'bg-red-50' },
+  overtime_check_ng: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+  overtime_check_warn: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
   shift_published: { icon: Calendar, color: 'text-purple-600', bg: 'bg-purple-50' },
   shift_changed: { icon: Calendar, color: 'text-orange-600', bg: 'bg-orange-50' },
   missing_clock: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },

@@ -203,3 +203,53 @@ export interface ShiftImportResult {
   importedRows: number;
   errors: { row: number; message: string }[];
 }
+
+// ======== 残業突合 ========
+
+// 突合結果ステータス
+export type OvertimeCheckStatus = 'OK' | 'WARN' | 'NG';
+
+// 突合結果
+export interface OvertimeCheck {
+  id: string;
+  tenantId: string;
+  branchId: string;
+  userId: string;
+  userName: string;
+  employeeCode: string;
+  workDate: string;               // YYYY-MM-DD（突合対象日）
+
+  // 勤怠実績
+  timeEntryId?: string;           // 打刻記録ID
+  actualWorkMinutes: number;      // 実労働時間（分）
+  actualOvertimeMinutes: number;  // 実績残業時間（分）= 実労働時間 - 所定労働時間(480)
+
+  // 残業申請
+  applicationId?: string;         // 残業申請ID
+  requestedMinutes: number;       // 申請残業時間（分）
+  applicationStatus?: string;     // 申請ステータス
+
+  // 突合結果
+  status: OvertimeCheckStatus;    // OK / WARN / NG
+  diffMinutes: number;            // 差分（分）= 実績残業 - 申請残業
+  message: string;                // 結果メッセージ
+
+  // 通知
+  notified: boolean;              // 通知済みフラグ
+  notifiedAt?: Date;              // 通知日時
+
+  // メタ
+  checkedAt: Date;                // 突合実行日時
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+// 所定労働時間（分）
+export const STANDARD_WORK_MINUTES = 480; // 8時間 = 480分
+
+// 突合閾値
+export const OVERTIME_CHECK_THRESHOLDS = {
+  OK_DIFF: 15,        // ±15分以内 → OK
+  WARN_DIFF: 60,      // 15〜60分 → WARN
+  NG_NO_REQUEST: 30,  // 実績残業30分超で申請なし → NG
+} as const;
