@@ -15,6 +15,7 @@ export type NotificationType =
   | 'application_rejected'  // 申請却下（申請者向け）
   | 'application_returned'  // 申請差戻し（申請者向け）
   | 'ai_anomaly_report'     // AI副社長・日次違和感レポート
+  | 'ai_organization_health' // AI副社長・組織温度レポート
   | 'system';               // システム通知
 
 // 通知

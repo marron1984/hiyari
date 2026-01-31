@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, X, Check, Clock, FileText, AlertTriangle, Calendar, MessageSquare, ClipboardCheck, RotateCcw, Brain } from 'lucide-react';
+import { Bell, X, Check, Clock, FileText, AlertTriangle, Calendar, MessageSquare, ClipboardCheck, RotateCcw, Brain, Heart } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Notification, NotificationType } from '@/types/notification';
 import {
@@ -33,6 +33,7 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   application_returned: { icon: RotateCcw, color: 'text-orange-600', bg: 'bg-orange-50' },
   // AI副社長
   ai_anomaly_report: { icon: Brain, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+  ai_organization_health: { icon: Heart, color: 'text-pink-600', bg: 'bg-pink-50' },
   system: { icon: Bell, color: 'text-zinc-600', bg: 'bg-zinc-50' },
 };
 
