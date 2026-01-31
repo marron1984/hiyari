@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/sync-sheets",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/daily-anomaly-report",
+      "schedule": "30 23 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-organization-health",
+      "schedule": "0 0 * * 1"
     }
   ]
 }
