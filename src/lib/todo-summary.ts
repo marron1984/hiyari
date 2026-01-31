@@ -51,6 +51,101 @@ const SOURCE_LABELS: Record<TodoSource, string> = {
   PROSPECT: '入居対応',
 };
 
+// ======== AI入力形式 ========
+
+/**
+ * AI要約用のアイテム形式
+ */
+interface AiSummaryItem {
+  priority: TodoPriority;
+  facts: string;   // 事実（何が起きているか）
+  action: string;  // アクション（何をするか）
+}
+
+/**
+ * AI入力形式
+ */
+interface AiInputFormat {
+  role: TodoRole;
+  items: AiSummaryItem[];
+}
+
+/**
+ * TODOからAI入力形式に変換
+ */
+function buildAiInput(todos: TodoItem[], role: TodoRole): AiInputFormat {
+  const items: AiSummaryItem[] = todos
+    .filter((t) => !t.isCompleted)
+    .sort((a, b) => {
+      const priorityOrder: Record<TodoPriority, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    })
+    .slice(0, 5)
+    .map((todo) => ({
+      priority: todo.priority,
+      facts: buildFacts(todo),
+      action: buildAction(todo),
+    }));
+
+  return { role, items };
+}
+
+/**
+ * 事実を生成（何が起きているか）
+ */
+function buildFacts(todo: TodoItem): string {
+  const source = SOURCE_LABELS[todo.source];
+
+  switch (todo.source) {
+    case 'OVERTIME':
+      if (todo.title.includes('NG')) {
+        return '未申請残業が1件';
+      }
+      return `勤怠異常が1件（${todo.title}）`;
+
+    case 'APPROVAL':
+      const days = todo.staleDays ? `${todo.staleDays}日滞留` : '';
+      return `承認待ちが1件${days ? `（${days}）` : ''}`;
+
+    case 'SALES':
+      return `営業案件が${todo.staleDays || 7}日以上停滞`;
+
+    case 'DOCUMENT':
+      return `未提出書類が1件`;
+
+    case 'PROSPECT':
+      return `入居対応が1件`;
+
+    default:
+      return todo.title;
+  }
+}
+
+/**
+ * アクションを生成（何をするか）
+ */
+function buildAction(todo: TodoItem): string {
+  switch (todo.source) {
+    case 'OVERTIME':
+      return '本人への確認';
+
+    case 'APPROVAL':
+      return '承認対応';
+
+    case 'SALES':
+      return 'フォローアップ確認';
+
+    case 'DOCUMENT':
+      return '提出依頼';
+
+    case 'PROSPECT':
+      return '進捗確認';
+
+    default:
+      return '対応確認';
+  }
+}
+
 // ======== 構造化データ作成 ========
 
 /**
@@ -186,9 +281,34 @@ export function generateRuleBasedSummary(input: TodoSummaryInput): string {
 // ======== AI要約生成 ========
 
 /**
- * AI用プロンプトを生成
+ * AI用プロンプトを生成（新形式：facts/action）
  */
-function buildAiPrompt(input: TodoSummaryInput): string {
+function buildAiPrompt(aiInput: AiInputFormat, stats: { total: number; high: number }): string {
+  // アイテムをJSON形式で表示
+  const itemsJson = JSON.stringify(aiInput, null, 2);
+
+  return `あなたは業務アシスタントです。
+以下の業務一覧を、重要度の高い順に、
+3文以内の自然な日本語で要約してください。
+
+・事実を正確に
+・行動が分かる表現で
+・命令口調や過度な敬語は使わない
+・判断や推測はしない
+
+${itemsJson}
+
+【補足】
+- 全${stats.total}件中、緊急（HIGH）が${stats.high}件
+- 対象者: ${aiInput.role === 'exec' ? '経営層' : aiInput.role === 'manager' ? 'マネージャー' : 'スタッフ'}
+
+要約:`;
+}
+
+/**
+ * 旧形式のAIプロンプト（フォールバック用）
+ */
+function buildAiPromptLegacy(input: TodoSummaryInput): string {
   const tone = ROLE_TONE_CONFIG[input.role];
 
   const roleDescription = {
@@ -237,9 +357,12 @@ ${input.highlights.length === 0
 }
 
 /**
- * AIで要約を生成
+ * AIで要約を生成（新形式）
  */
-async function generateAiSummary(input: TodoSummaryInput): Promise<TodoSummaryResult> {
+async function generateAiSummary(
+  input: TodoSummaryInput,
+  todos: TodoItem[]
+): Promise<TodoSummaryResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
@@ -251,9 +374,24 @@ async function generateAiSummary(input: TodoSummaryInput): Promise<TodoSummaryRe
     };
   }
 
+  // TODOがない場合はルールベース
+  if (todos.length === 0 || input.stats.total === 0) {
+    return {
+      success: true,
+      summary: generateRuleBasedSummary(input),
+      generatedBy: 'rule',
+    };
+  }
+
   try {
     const client = new Anthropic({ apiKey });
-    const prompt = buildAiPrompt(input);
+
+    // 新形式の入力を構築
+    const aiInput = buildAiInput(todos, input.role);
+    const prompt = buildAiPrompt(aiInput, {
+      total: input.stats.total,
+      high: input.stats.high,
+    });
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -270,7 +408,7 @@ async function generateAiSummary(input: TodoSummaryInput): Promise<TodoSummaryRe
 
     // 要約が長すぎる場合はルールベースにフォールバック
     const sentences = response.split(/[。！？]/).filter(Boolean);
-    if (sentences.length > 3) {
+    if (sentences.length > 4) {
       console.warn('AI summary too long, using rule-based fallback');
       return {
         success: true,
@@ -315,8 +453,8 @@ export async function generateAndSaveSummaries(
     // 構造化データを作成
     const input = buildSummaryInput(roleTodos, role, date);
 
-    // AI要約を生成
-    const summaryResult = await generateAiSummary(input);
+    // AI要約を生成（todosも渡す）
+    const summaryResult = await generateAiSummary(input, roleTodos);
 
     const summary: TodoSummary = {
       tenantId: DEFAULT_TENANT_ID,
