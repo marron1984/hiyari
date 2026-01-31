@@ -90,8 +90,9 @@ export async function POST(
     await sendReply(input, user.uid, user.name);
 
     // 判断ログに保存（チェックボックスがONの場合）
-    // 判断ログは「正解の記録」ではない。
-    // 判断がどのように行われたかを残し、次の判断を楽にするためのOS資産である。
+    // decision_logs は評価・査定のためのテーブルではない。
+    // 判断がどのように行われたかを記録し、
+    // 次の判断を楽にするためのAA.OS.HUBのOS資産である。
     let decisionLogId: string | undefined;
     if (body.saveToDecisionLog) {
       const decisionLog = await createDecisionLogFromQuestion(
@@ -99,7 +100,7 @@ export async function POST(
         body.replyContent,
         body.replyNote,
         user.uid,
-        user.name
+        user.role  // 個人名を前に出さず「役割」を残す思想
       );
       decisionLogId = decisionLog.id;
       console.log('[API] 判断ログ保存完了', { questionId: id, decisionLogId });

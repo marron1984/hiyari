@@ -18,7 +18,8 @@ import type {
   CreateFukushaQuestionInput,
   SendFukushaReplyInput,
   DecisionLog,
-  CreateDecisionLogInput,
+  DecisionCategory,
+  CreateDecisionLogFromAskInput,
   DecisionLogFilter,
 } from '@/types/fukusha-ask';
 
@@ -410,37 +411,86 @@ export async function archiveQuestion(questionId: string): Promise<void> {
 
 // ======== 判断ログ ========
 //
-// 判断ログは「正解の記録」ではない。
-// 判断がどのように行われたかを残し、次の判断を楽にするためのOS資産である。
+// decision_logs は評価・査定のためのテーブルではない。
+// 判断がどのように行われたかを記録し、
+// 次の判断を楽にするためのAA.OS.HUBのOS資産である。
+//
 // 現場に判断を背負わせない。管理職に孤独を背負わせない。失敗を人のせいにしない。
 
 /**
- * 判断ログを作成
- *
- * 質問→AI整理→人の判断という流れを組織の資産として記録する
+ * 質問カテゴリを判断カテゴリにマッピング
  */
-export async function createDecisionLog(
-  tenantId: string,
-  decisionMakerUserId: string,
-  decisionMakerName: string,
-  input: CreateDecisionLogInput
+function mapQuestionCategoryToDecisionCategory(
+  questionCategory: FukushaQuestionCategory
+): DecisionCategory {
+  const mapping: Record<FukushaQuestionCategory, DecisionCategory> = {
+    work: 'operation',
+    career: 'human',
+    workplace: 'operation',
+    suggestion: 'other',
+    other: 'other',
+  };
+  return mapping[questionCategory] || 'other';
+}
+
+/**
+ * 質問から判断ログを作成
+ *
+ * 返信時に呼び出され、質問とAI整理結果と最終判断をまとめて保存
+ * 評価・査定のためではなく、判断を属人化させないためのOS資産
+ */
+export async function createDecisionLogFromQuestion(
+  question: FukushaQuestion,
+  replyContent: string,
+  replyNote: string | undefined,
+  decidedByUserId: string,
+  decidedByRole: string
 ): Promise<DecisionLog> {
   const db = getAdminDb();
   const now = new Date();
 
+  // 質問内容とAI要約を「何が起きたか」としてまとめる
+  const situation = [
+    `【質問内容】`,
+    question.content,
+    '',
+    question.aiSummary ? `【AI要約】${question.aiSummary}` : '',
+    question.aiKeyPoints?.length
+      ? `【論点】\n${question.aiKeyPoints.map((p) => `・${p}`).join('\n')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
   const log: Omit<DecisionLog, 'id'> = {
-    tenantId,
-    sourceQuestionId: input.sourceQuestionId,
+    tenantId: question.tenantId,
+
+    // 判断主体（個人名を前に出さず「役割」を残す思想）
+    decidedByUserId,
+    decidedByRole,
+
+    // 判断カテゴリ
+    category: mapQuestionCategoryToDecisionCategory(question.category),
+
+    // 判断の中身（OSの心臓）
+    situation,                    // 何が起きたか（事実）
+    decision: replyContent,       // 何を決めたか
+    reason: replyNote || '',      // なぜそう判断したか
+
+    // 参照情報
+    referenceSource: question.aiSummary ? 'ai_summary' : 'none',
+
+    // 元質問との紐付け
     sourceType: 'fukusha_ask',
-    questionContent: input.questionContent,
-    questionCategory: input.questionCategory,
-    questionCreatedAt: input.questionCreatedAt,
-    aiSummary: input.aiSummary,
-    aiKeyPoints: input.aiKeyPoints,
-    decisionContent: input.decisionContent,
-    decisionMakerUserId,
-    decisionMakerName,
-    decisionNote: input.decisionNote,
+    sourceId: question.id,
+
+    // 承認・責任の扱い
+    approvalStatus: 'none',
+
+    // 共有範囲（デフォルトは管理者）
+    visibility: 'managers',
+
+    // タイムスタンプ
     createdAt: now,
     updatedAt: now,
   };
@@ -450,41 +500,12 @@ export async function createDecisionLog(
 
   console.log('[DecisionLog] 判断ログ作成', {
     id: docRef.id,
-    sourceQuestionId: input.sourceQuestionId,
-    category: input.questionCategory,
-    decisionMaker: decisionMakerName,
+    sourceId: question.id,
+    category: log.category,
+    decidedByRole,
   });
 
   return { ...log, id: docRef.id };
-}
-
-/**
- * 質問から判断ログを作成
- *
- * 返信時に呼び出され、質問とAI整理結果と最終判断をまとめて保存
- */
-export async function createDecisionLogFromQuestion(
-  question: FukushaQuestion,
-  replyContent: string,
-  replyNote: string | undefined,
-  decisionMakerUserId: string,
-  decisionMakerName: string
-): Promise<DecisionLog> {
-  return createDecisionLog(
-    question.tenantId,
-    decisionMakerUserId,
-    decisionMakerName,
-    {
-      sourceQuestionId: question.id,
-      questionContent: question.content,
-      questionCategory: question.category,
-      questionCreatedAt: question.createdAt,
-      aiSummary: question.aiSummary || '',
-      aiKeyPoints: question.aiKeyPoints || [],
-      decisionContent: replyContent,
-      decisionNote: replyNote,
-    }
-  );
 }
 
 /**
@@ -500,11 +521,19 @@ export async function getDecisionLogs(
     .where('tenantId', '==', tenantId);
 
   if (filter.category) {
-    query = query.where('questionCategory', '==', filter.category);
+    query = query.where('category', '==', filter.category);
   }
 
-  if (filter.decisionMakerUserId) {
-    query = query.where('decisionMakerUserId', '==', filter.decisionMakerUserId);
+  if (filter.decidedByUserId) {
+    query = query.where('decidedByUserId', '==', filter.decidedByUserId);
+  }
+
+  if (filter.sourceType) {
+    query = query.where('sourceType', '==', filter.sourceType);
+  }
+
+  if (filter.visibility) {
+    query = query.where('visibility', '==', filter.visibility);
   }
 
   query = query.orderBy('createdAt', 'desc');
@@ -520,7 +549,6 @@ export async function getDecisionLogs(
     return {
       ...data,
       id: doc.id,
-      questionCreatedAt: data.questionCreatedAt?.toDate() || new Date(),
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
     } as DecisionLog;
@@ -542,7 +570,6 @@ export async function getDecisionLog(
   return {
     ...data,
     id: doc.id,
-    questionCreatedAt: data.questionCreatedAt?.toDate() || new Date(),
     createdAt: data.createdAt?.toDate() || new Date(),
     updatedAt: data.updatedAt?.toDate() || new Date(),
   } as DecisionLog;
