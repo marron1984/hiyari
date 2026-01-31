@@ -17,7 +17,14 @@ import {
   Shield,
   AlertTriangle,
   RefreshCw,
+  MessageSquare,
+  BookOpen,
+  ExternalLink,
+  HelpCircle,
 } from 'lucide-react';
+
+// NotebookLM URL
+const NOTEBOOKLM_URL = 'https://notebooklm.google.com/notebook/6ca2fe2f-2716-4add-8ea2-3faeb5c6750e';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -80,8 +87,54 @@ export default function DashboardPage() {
     );
   }
 
+  // NotebookLMを開く
+  const handleOpenNotebookLM = () => {
+    window.open(NOTEBOOKLM_URL, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
+      {/* 判断に迷ったらここ（最上段固定導線） */}
+      <Card className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-sm">
+        <CardContent className="p-5">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-blue-100 rounded-xl flex-shrink-0">
+              <HelpCircle className="w-6 h-6 text-blue-600" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-zinc-800 mb-2">
+                判断に迷ったら、止めてここを押してください
+              </h2>
+              <p className="text-sm text-zinc-600 mb-4 leading-relaxed">
+                AAでは一人で判断しないことが正解です。<br />
+                止める・相談する行動は正しい業務遂行として評価されます。
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={handleOpenNotebookLM}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  公式知識に質問する（NotebookLM）
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+                <Link href="/dashboard/knowledge">
+                  <button className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-zinc-50 text-zinc-700 font-medium rounded-lg border border-zinc-300 transition-colors">
+                    <BookOpen className="w-4 h-4" />
+                    判断のルールを見る
+                  </button>
+                </Link>
+              </div>
+              <div className="mt-4 pt-3 border-t border-blue-100">
+                <p className="text-xs text-zinc-500">
+                  迷った状態で進めることはNGです。止めて相談した人が評価されます。
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* 支援目的の注意文 */}
       <Card className="mb-6 bg-zinc-50 border-zinc-200">
         <CardContent className="p-4">
