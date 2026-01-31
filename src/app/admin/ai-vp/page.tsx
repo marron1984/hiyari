@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
-import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, Button } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { isAiVpOwner } from '@/lib/auth';
 import { getExtractions, getIngestions } from '@/lib/ai-vp';
@@ -24,9 +24,160 @@ import {
   RefreshCw,
   Sparkles,
   Gavel,
-  ClipboardCheck,
   Activity,
+  Users,
+  Heart,
+  Calculator,
+  BookOpen,
+  Inbox,
+  Building2,
+  ListTodo,
+  Shield,
+  TrendingUp,
+  MessageSquare,
 } from 'lucide-react';
+
+// メニュー定義
+interface MenuItem {
+  href: string;
+  icon: typeof Brain;
+  title: string;
+  description: string;
+  bgColor: string;
+  iconColor: string;
+  highlight?: boolean;
+}
+
+interface MenuCategory {
+  title: string;
+  description: string;
+  items: MenuItem[];
+}
+
+const MENU_CATEGORIES: MenuCategory[] = [
+  {
+    title: '承認・管理',
+    description: 'AIレビューの最終確認と抽出管理',
+    items: [
+      {
+        href: '/admin/ai-vp/approval',
+        icon: Gavel,
+        title: '最終決裁',
+        description: 'AIレビュー済み案件の承認',
+        bgColor: 'bg-green-100',
+        iconColor: 'text-green-600',
+        highlight: true,
+      },
+      {
+        href: '/admin/ai-vp/new',
+        icon: Plus,
+        title: '新規抽出',
+        description: 'テキストや音声から情報抽出',
+        bgColor: 'bg-blue-100',
+        iconColor: 'text-blue-600',
+      },
+      {
+        href: '/admin/ai-vp/history',
+        icon: History,
+        title: '抽出履歴',
+        description: '過去の抽出結果一覧',
+        bgColor: 'bg-gray-100',
+        iconColor: 'text-gray-600',
+      },
+    ],
+  },
+  {
+    title: '予測・分析',
+    description: '人材・組織の健康状態をモニタリング',
+    items: [
+      {
+        href: '/dashboard/ai-vp/human-risk',
+        icon: Users,
+        title: '人材リスク予測',
+        description: '離職・メンタル不調の早期検知',
+        bgColor: 'bg-red-100',
+        iconColor: 'text-red-600',
+        highlight: true,
+      },
+      {
+        href: '/dashboard/ai/organization-health',
+        icon: Heart,
+        title: '組織健康モニタリング',
+        description: 'チームの健康度を可視化',
+        bgColor: 'bg-pink-100',
+        iconColor: 'text-pink-600',
+      },
+      {
+        href: '/admin/ai-vp/condition',
+        icon: Activity,
+        title: 'コンディション管理',
+        description: 'スタッフの日々の状態を把握',
+        bgColor: 'bg-emerald-100',
+        iconColor: 'text-emerald-600',
+      },
+    ],
+  },
+  {
+    title: '意思決定支援',
+    description: 'AIによる判断・説明のサポート',
+    items: [
+      {
+        href: '/dashboard/ai-vp/simulation',
+        icon: Calculator,
+        title: 'シミュレーション',
+        description: '採用・離職の影響を予測',
+        bgColor: 'bg-indigo-100',
+        iconColor: 'text-indigo-600',
+      },
+      {
+        href: '/dashboard/ai-vp/yoshida-learning',
+        icon: BookOpen,
+        title: '吉田式学習',
+        description: '意思決定パターンをAIが学習',
+        bgColor: 'bg-amber-100',
+        iconColor: 'text-amber-600',
+      },
+      {
+        href: '/dashboard/ai-vp/explanation',
+        icon: MessageSquare,
+        title: 'AI説明文作成',
+        description: '金融・医療・行政向け説明生成',
+        bgColor: 'bg-cyan-100',
+        iconColor: 'text-cyan-600',
+      },
+    ],
+  },
+  {
+    title: 'コミュニケーション',
+    description: 'AIによるメッセージ・タスク管理',
+    items: [
+      {
+        href: '/dashboard/ai/inbox',
+        icon: Inbox,
+        title: 'AI受信箱',
+        description: 'LWメッセージのAI返信管理',
+        bgColor: 'bg-violet-100',
+        iconColor: 'text-violet-600',
+      },
+      {
+        href: '/dashboard/ai/todos',
+        icon: ListTodo,
+        title: 'AIタスク',
+        description: 'AIからの提案タスク一覧',
+        bgColor: 'bg-orange-100',
+        iconColor: 'text-orange-600',
+      },
+      {
+        href: '/dashboard/ai/policies',
+        icon: Shield,
+        title: 'ポリシー管理',
+        description: 'AI動作ルールの設定',
+        bgColor: 'bg-slate-100',
+        iconColor: 'text-slate-600',
+      },
+    ],
+  },
+];
 
 export default function AiVpPage() {
   return (
@@ -115,36 +266,16 @@ function AiVpContent() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold">AI副社長</h1>
-                <p className="text-sm text-gray-500">情報抽出・タスク生成アシスタント</p>
+                <p className="text-sm text-gray-500">経営判断支援・業務自動化アシスタント</p>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={fetchData}>
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-              <Link href="/admin/ai-vp/approval">
-                <Button variant="secondary" className="bg-green-50 text-green-700 hover:bg-green-100">
-                  <Gavel className="w-4 h-4 mr-1" />
-                  最終決裁
-                </Button>
-              </Link>
-              <Link href="/admin/ai-vp/history">
-                <Button variant="secondary">
-                  <History className="w-4 h-4 mr-1" />
-                  履歴
-                </Button>
-              </Link>
-              <Link href="/admin/ai-vp/new">
-                <Button>
-                  <Plus className="w-4 h-4 mr-1" />
-                  新規抽出
-                </Button>
-              </Link>
-            </div>
+            <Button variant="secondary" onClick={fetchData}>
+              <RefreshCw className="w-4 h-4" />
+            </Button>
           </div>
 
           {/* 統計カード */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <Card className="p-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -191,68 +322,54 @@ function AiVpContent() {
             </Card>
           </div>
 
-          {/* クイックアクション */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-lg">クイックスタート</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Link href="/admin/ai-vp/approval" className="block">
-                  <div className="p-4 border-2 border-green-200 rounded-lg hover:bg-green-50 transition-colors bg-green-50/50">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-100 rounded-lg">
-                        <Gavel className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-green-700">最終決裁</h3>
-                        <p className="text-sm text-green-600">AIレビュー済みを承認</p>
-                      </div>
-                    </div>
+          {/* メニューカテゴリ */}
+          <div className="space-y-8 mb-8">
+            {MENU_CATEGORIES.map((category) => (
+              <Card key={category.title}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">{category.title}</CardTitle>
+                  <p className="text-sm text-gray-500">{category.description}</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {category.items.map((item) => (
+                      <Link key={item.href} href={item.href} className="block">
+                        <div
+                          className={`p-4 border rounded-lg hover:shadow-md transition-all ${
+                            item.highlight
+                              ? 'border-2 border-green-200 bg-green-50/50 hover:bg-green-50'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`p-2 ${item.bgColor} rounded-lg flex-shrink-0`}>
+                              <item.icon className={`w-5 h-5 ${item.iconColor}`} />
+                            </div>
+                            <div className="min-w-0">
+                              <h3
+                                className={`font-medium ${
+                                  item.highlight ? 'text-green-700' : 'text-gray-900'
+                                }`}
+                              >
+                                {item.title}
+                              </h3>
+                              <p
+                                className={`text-sm ${
+                                  item.highlight ? 'text-green-600' : 'text-gray-500'
+                                }`}
+                              >
+                                {item.description}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
                   </div>
-                </Link>
-                <Link href="/admin/ai-vp/new?source=text" className="block">
-                  <div className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 rounded-lg">
-                        <FileText className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium">テキスト入力</h3>
-                        <p className="text-sm text-gray-500">文字起こしやメモから抽出</p>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-                <Link href="/requests" className="block">
-                  <div className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-purple-100 rounded-lg">
-                        <ClipboardCheck className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium">申請管理</h3>
-                        <p className="text-sm text-gray-500">全申請の一覧・レビュー</p>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-                <Link href="/admin/ai-vp/condition" className="block">
-                  <div className="p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-emerald-100 rounded-lg">
-                        <Activity className="w-5 h-5 text-emerald-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium">コンディション</h3>
-                        <p className="text-sm text-gray-500">スタッフ健康管理</p>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
           {/* 最近の抽出 */}
           <Card>
