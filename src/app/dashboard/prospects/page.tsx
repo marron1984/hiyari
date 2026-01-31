@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, Select } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import {
@@ -37,14 +35,6 @@ import {
 } from 'lucide-react';
 
 export default function ProspectsPage() {
-  return (
-    <AuthGuard>
-      <ProspectsContent />
-    </AuthGuard>
-  );
-}
-
-function ProspectsContent() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -138,18 +128,11 @@ function ProspectsContent() {
   const facilities = [...new Set(prospects.map((p) => p.desiredFacility).filter(Boolean))];
 
   if (loading) {
-    return (
-      <>
-        <Header />
-        <Loading text="読み込み中..." />
-      </>
-    );
+    return <Loading text="読み込み中..." />;
   }
 
   return (
-    <>
-      <Header />
-      <main className="pb-20 md:pb-8">
+    <main className="pb-20 md:pb-8">
         <div className="max-w-7xl mx-auto px-4 py-6">
           {/* スコープ通知 */}
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
@@ -435,6 +418,5 @@ function ProspectsContent() {
           )}
         </div>
       </main>
-    </>
   );
 }

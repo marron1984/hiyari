@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { getDocument, getDocumentEvents } from '@/lib/document';
@@ -32,14 +30,6 @@ import {
 } from 'lucide-react';
 
 export default function DocumentDetailPage() {
-  return (
-    <AuthGuard>
-      <DocumentDetailContent />
-    </AuthGuard>
-  );
-}
-
-function DocumentDetailContent() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
@@ -121,32 +111,24 @@ function DocumentDetailContent() {
   };
 
   if (loading) {
-    return (
-      <>
-        <Header />
-        <Loading text="読み込み中..." />
-      </>
-    );
+    return <Loading text="読み込み中..." />;
   }
 
   if (!document) {
     return (
-      <>
-        <Header />
-        <main className="pb-20 md:pb-8">
-          <div className="max-w-4xl mx-auto px-4 py-6">
-            <div className="text-center py-12 text-gray-500">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-              <p>書類が見つかりません</p>
-              <Link href="/dashboard/docs">
-                <Button variant="secondary" className="mt-4">
-                  書類一覧に戻る
-                </Button>
-              </Link>
-            </div>
+      <main className="pb-20 md:pb-8">
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="text-center py-12 text-gray-500">
+            <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+            <p>書類が見つかりません</p>
+            <Link href="/dashboard/docs">
+              <Button variant="secondary" className="mt-4">
+                書類一覧に戻る
+              </Button>
+            </Link>
           </div>
-        </main>
-      </>
+        </div>
+      </main>
     );
   }
 
@@ -154,11 +136,9 @@ function DocumentDetailContent() {
   const ownerConfig = DOCUMENT_OWNER_TYPE_CONFIG[document.ownerType];
 
   return (
-    <>
-      <Header />
-      <main className="pb-20 md:pb-8">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          {/* ヘッダー */}
+    <main className="pb-20 md:pb-8">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* ヘッダー */}
           <div className="flex items-center justify-between mb-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -351,8 +331,7 @@ function DocumentDetailContent() {
               )}
             </CardContent>
           </Card>
-        </div>
-      </main>
-    </>
+      </div>
+    </main>
   );
 }

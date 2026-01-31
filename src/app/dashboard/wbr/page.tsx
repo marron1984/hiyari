@@ -3,8 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { PreviewBadge } from '@/components/PreviewBadge';
@@ -46,14 +44,6 @@ import {
 } from 'lucide-react';
 
 export default function WbrPage() {
-  return (
-    <AuthGuard>
-      <WbrContent />
-    </AuthGuard>
-  );
-}
-
-function WbrContent() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -201,12 +191,7 @@ function WbrContent() {
   };
 
   if (loading) {
-    return (
-      <>
-        <Header />
-        <Loading text="WBRデータを読み込み中..." />
-      </>
-    );
+    return <Loading text="WBRデータを読み込み中..." />;
   }
 
   const isFinalized = currentReport?.status === 'finalized';
@@ -214,7 +199,6 @@ function WbrContent() {
 
   return (
     <>
-      <Header />
       <PreviewBadge />
       <main className="pb-8">
         <div className="max-w-5xl mx-auto px-4 py-6">

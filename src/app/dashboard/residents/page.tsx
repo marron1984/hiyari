@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input, Select } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { getResidentsWithDocStats, getResidentSummary } from '@/lib/resident';
@@ -30,14 +28,6 @@ import {
 } from 'lucide-react';
 
 export default function ResidentsPage() {
-  return (
-    <AuthGuard>
-      <ResidentsContent />
-    </AuthGuard>
-  );
-}
-
-function ResidentsContent() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [residents, setResidents] = useState<ResidentWithDocStats[]>([]);
@@ -129,18 +119,11 @@ function ResidentsContent() {
   }, [residents]);
 
   if (loading) {
-    return (
-      <>
-        <Header />
-        <Loading text="読み込み中..." />
-      </>
-    );
+    return <Loading text="読み込み中..." />;
   }
 
   return (
-    <>
-      <Header />
-      <main className="pb-20 md:pb-8">
+    <main className="pb-20 md:pb-8">
         <div className="max-w-6xl mx-auto px-4 py-6">
           {/* ヘッダー */}
           <div className="flex items-center justify-between mb-6">
@@ -363,6 +346,5 @@ function ResidentsContent() {
           </Card>
         </div>
       </main>
-    </>
   );
 }

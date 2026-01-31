@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Card, CardContent, Button, Badge } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import {
@@ -69,14 +67,6 @@ const LEVEL_CONFIG = {
 };
 
 export default function OrganizationHealthPage() {
-  return (
-    <AuthGuard>
-      <OrganizationHealthContent />
-    </AuthGuard>
-  );
-}
-
-function OrganizationHealthContent() {
   const { user, firebaseUser, isAdmin } = useAuth();
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,25 +141,20 @@ function OrganizationHealthContent() {
 
   if (!isLeaderOrAbove) {
     return (
-      <div className="min-h-screen bg-zinc-50">
-        <Header />
-        <main className="max-w-4xl mx-auto px-4 py-6">
-          <div className="text-center py-12">
-            <p className="text-zinc-600">このページはリーダー以上のみアクセスできます</p>
-          </div>
-        </main>
-      </div>
+      <main className="max-w-4xl mx-auto px-4 py-6">
+        <div className="text-center py-12">
+          <p className="text-zinc-600">このページはリーダー以上のみアクセスできます</p>
+        </div>
+      </main>
     );
   }
 
   if (loading) {
-    return <Loading />;
+    return <Loading text="読み込み中..." />;
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <Header />
-      <main className="max-w-4xl mx-auto px-4 py-6 safe-bottom">
+    <main className="max-w-4xl mx-auto px-4 py-6 safe-bottom">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -400,6 +385,5 @@ function OrganizationHealthContent() {
           </>
         )}
       </main>
-    </div>
   );
 }

@@ -4,9 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Card, CardContent, Button, Badge, Input, Select } from '@/components/ui';
+import { Loading } from '@/components/Loading';
 import {
   ArrowLeft,
   Send,
@@ -79,14 +78,6 @@ interface AuditLog {
 }
 
 export default function ApplicationDetailPage() {
-  return (
-    <AuthGuard>
-      <ApplicationDetailContent />
-    </AuthGuard>
-  );
-}
-
-function ApplicationDetailContent() {
   const params = useParams();
   const router = useRouter();
   const { user, firebaseUser } = useAuth();
@@ -245,32 +236,19 @@ function ApplicationDetailContent() {
   );
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-50">
-        <Header />
-        <div className="flex items-center justify-center py-20">
-          <div className="flex flex-col items-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
-            <p className="text-sm text-zinc-500">読み込み中...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <Loading text="読み込み中..." />;
   }
 
   if (error || !application) {
     return (
-      <div className="min-h-screen bg-zinc-50">
-        <Header />
-        <div className="max-w-2xl mx-auto px-4 py-6">
-          <Card className="p-8 text-center">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
-            <p className="text-zinc-700">{error || '申請が見つかりません'}</p>
-            <Link href="/dashboard/applications" className="mt-4 inline-block">
-              <Button variant="secondary">一覧に戻る</Button>
-            </Link>
-          </Card>
-        </div>
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <Card className="p-8 text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+          <p className="text-zinc-700">{error || '申請が見つかりません'}</p>
+          <Link href="/dashboard/applications" className="mt-4 inline-block">
+            <Button variant="secondary">一覧に戻る</Button>
+          </Link>
+        </Card>
       </div>
     );
   }
@@ -278,9 +256,7 @@ function ApplicationDetailContent() {
   const colors = APPLICATION_STATUS_COLORS[application.status];
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <Header />
-      <div className="max-w-2xl mx-auto px-4 py-6 safe-bottom">
+    <div className="max-w-2xl mx-auto px-4 py-6 safe-bottom">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
           <Link href="/dashboard/applications">
@@ -569,7 +545,6 @@ function ApplicationDetailContent() {
             </Card>
           </div>
         )}
-      </div>
     </div>
   );
 }

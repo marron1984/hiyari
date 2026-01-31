@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { PreviewBadge } from '@/components/PreviewBadge';
@@ -87,14 +85,6 @@ const DUMMY_TEMPLATE: AiTemplate = {
 };
 
 export default function AiReplyDetailPage() {
-  return (
-    <AuthGuard>
-      <AiReplyDetailContent />
-    </AuthGuard>
-  );
-}
-
-function AiReplyDetailContent() {
   const { user } = useAuth();
   const params = useParams();
   const router = useRouter();
@@ -244,46 +234,35 @@ function AiReplyDetailContent() {
   };
 
   if (loading) {
-    return (
-      <>
-        <Header />
-        <Loading text="返信データを読み込み中..." />
-      </>
-    );
+    return <Loading text="返信データを読み込み中..." />;
   }
 
   if (!canAccess) {
     return (
-      <>
-        <Header />
-        <main className="pb-8">
-          <div className="max-w-4xl mx-auto px-4 py-12 text-center">
-            <Shield className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-            <h1 className="text-xl font-bold text-gray-900 mb-2">アクセス権限がありません</h1>
-            <p className="text-gray-500">AI副社長機能は吉田のみアクセス可能です。</p>
-          </div>
-        </main>
-      </>
+      <main className="pb-8">
+        <div className="max-w-4xl mx-auto px-4 py-12 text-center">
+          <Shield className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+          <h1 className="text-xl font-bold text-gray-900 mb-2">アクセス権限がありません</h1>
+          <p className="text-gray-500">AI副社長機能は吉田のみアクセス可能です。</p>
+        </div>
+      </main>
     );
   }
 
   if (!message || !reply) {
     return (
-      <>
-        <Header />
-        <main className="pb-8">
-          <div className="max-w-4xl mx-auto px-4 py-12 text-center">
-            <MessageSquare className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-            <h1 className="text-xl font-bold text-gray-900 mb-2">返信が見つかりません</h1>
-            <Link href="/dashboard/ai/inbox">
-              <Button variant="outline">
-                <ArrowLeft className="w-4 h-4 mr-1" />
-                インボックスに戻る
-              </Button>
-            </Link>
-          </div>
-        </main>
-      </>
+      <main className="pb-8">
+        <div className="max-w-4xl mx-auto px-4 py-12 text-center">
+          <MessageSquare className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+          <h1 className="text-xl font-bold text-gray-900 mb-2">返信が見つかりません</h1>
+          <Link href="/dashboard/ai/inbox">
+            <Button variant="outline">
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              インボックスに戻る
+            </Button>
+          </Link>
+        </div>
+      </main>
     );
   }
 
@@ -293,7 +272,6 @@ function AiReplyDetailContent() {
 
   return (
     <>
-      <Header />
       <PreviewBadge />
       <main className="pb-8">
         <div className="max-w-4xl mx-auto px-4 py-6">

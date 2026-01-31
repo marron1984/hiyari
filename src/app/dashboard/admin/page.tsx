@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
+import { Loading } from '@/components/Loading';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
+import { hasMinRole } from '@/lib/auth';
 import {
   Shield,
   Activity,
@@ -100,16 +101,15 @@ interface QuickHealth {
 }
 
 export default function AdminDashboardPage() {
-  return (
-    <AuthGuard requireAdmin>
-      <AdminDashboardContent />
-    </AuthGuard>
-  );
-}
-
-function AdminDashboardContent() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [health, setHealth] = useState<QuickHealth>({ status: 'loading', message: '確認中...' });
+
+  // 権限チェック - admin以上でなければリダイレクト
+  useEffect(() => {
+    if (!authLoading && user && !hasMinRole(user.role, 'admin')) {
+      redirect('/dashboard');
+    }
+  }, [authLoading, user]);
 
   // 簡易ヘルスチェック
   useEffect(() => {
@@ -168,10 +168,13 @@ function AdminDashboardContent() {
     }
   };
 
+  // 認証ローディング中または権限チェック中
+  if (authLoading || !user || !hasMinRole(user.role, 'admin')) {
+    return <Loading text="読み込み中..." />;
+  }
+
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <Header />
-      <div className="max-w-4xl mx-auto px-4 py-6 safe-bottom">
+    <div className="max-w-4xl mx-auto px-4 py-6 safe-bottom">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -283,10 +286,9 @@ function AdminDashboardContent() {
           </CardContent>
         </Card>
 
-        {/* Footer */}
-        <div className="mt-6 text-center text-xs text-zinc-400">
-          <p>管理画面へのアクセスには admin 以上の権限が必要です</p>
-        </div>
+      {/* Footer */}
+      <div className="mt-6 text-center text-xs text-zinc-400">
+        <p>管理画面へのアクセスには admin 以上の権限が必要です</p>
       </div>
     </div>
   );

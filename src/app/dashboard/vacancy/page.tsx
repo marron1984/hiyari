@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthGuard } from '@/components/AuthGuard';
-import { Header } from '@/components/Header';
 import { Button, Card, Badge } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { hasMinRole } from '@/lib/auth';
@@ -830,15 +828,11 @@ export default function VacancyPage() {
   };
 
   if (loading) {
-    return <Loading />;
+    return <Loading text="読み込み中..." />;
   }
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-gray-50">
-        <Header />
-
-        <main className="max-w-6xl mx-auto px-4 py-6">
+    <main className="max-w-6xl mx-auto px-4 py-6">
           {/* ヘッダー */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div>
@@ -982,37 +976,35 @@ export default function VacancyPage() {
           <div className="mt-8 text-center text-xs text-gray-400">
             <p>自動更新: 60秒ごと</p>
           </div>
-        </main>
 
-        {/* 施設詳細ドロワー */}
-        <FacilityDrawer
-          facility={selectedFacility}
-          rooms={rooms}
-          isOpen={!!selectedFacility}
-          onClose={() => setSelectedFacility(null)}
-          onAddRoom={() => setShowAddRoomModal(true)}
-          onStatusChange={handleStatusChange}
-          canAddRoom={isAdmin}
-          canChangeStatus={isLeader}
-        />
-
-        {/* 施設追加モーダル */}
-        <AddFacilityModal
-          isOpen={showAddFacilityModal}
-          onClose={() => setShowAddFacilityModal(false)}
-          onSubmit={handleAddFacility}
-        />
-
-        {/* 部屋追加モーダル */}
-        {selectedFacility && (
-          <AddRoomModal
-            isOpen={showAddRoomModal}
-            onClose={() => setShowAddRoomModal(false)}
-            onSubmit={handleAddRoom}
-            facilityName={selectedFacility.name}
+          {/* 施設詳細ドロワー */}
+          <FacilityDrawer
+            facility={selectedFacility}
+            rooms={rooms}
+            isOpen={!!selectedFacility}
+            onClose={() => setSelectedFacility(null)}
+            onAddRoom={() => setShowAddRoomModal(true)}
+            onStatusChange={handleStatusChange}
+            canAddRoom={isAdmin}
+            canChangeStatus={isLeader}
           />
-        )}
-      </div>
-    </AuthGuard>
+
+          {/* 施設追加モーダル */}
+          <AddFacilityModal
+            isOpen={showAddFacilityModal}
+            onClose={() => setShowAddFacilityModal(false)}
+            onSubmit={handleAddFacility}
+          />
+
+          {/* 部屋追加モーダル */}
+          {selectedFacility && (
+            <AddRoomModal
+              isOpen={showAddRoomModal}
+              onClose={() => setShowAddRoomModal(false)}
+              onSubmit={handleAddRoom}
+              facilityName={selectedFacility.name}
+            />
+          )}
+        </main>
   );
 }
