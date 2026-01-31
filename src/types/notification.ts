@@ -14,6 +14,7 @@ export type NotificationType =
   | 'application_approved'  // 申請承認（申請者向け）
   | 'application_rejected'  // 申請却下（申請者向け）
   | 'application_returned'  // 申請差戻し（申請者向け）
+  | 'ai_anomaly_report'     // AI副社長・日次違和感レポート
   | 'system';               // システム通知
 
 // 通知
@@ -45,6 +46,10 @@ export interface Notification {
     applicationId?: string;
     applicationType?: 'RINGI' | 'EXPENSE' | 'OVERTIME';
     reason?: string;
+    // ai_anomaly_report
+    reportId?: string;
+    reportDate?: string;
+    alertLevel?: 'normal' | 'attention' | 'warning' | 'priority';
   };
 }
 
