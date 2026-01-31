@@ -166,9 +166,86 @@ export interface HRImportAuditLog {
   createdAt: Date;
 }
 
+// ======== dry_run差分プレビュー ========
+export interface HRImportDiff {
+  employeeCode: string;
+  name: string;
+  action: 'create' | 'update' | 'skip';
+
+  // 変更内容（updateの場合）
+  changes?: Array<{
+    field: string;
+    fieldLabel: string;
+    before: string | number | boolean | null;
+    after: string | number | boolean | null;
+  }>;
+
+  // ステータス変更
+  statusChange?: {
+    before: EmployeeStatus | null;
+    after: EmployeeStatus;
+    eventType?: 'hire' | 'leave' | 'rehire';
+  };
+
+  // フラグ変更
+  flagChanges?: {
+    isAttendanceTarget?: { before: boolean; after: boolean };
+    isApprovalTarget?: { before: boolean; after: boolean };
+    isPaymentTarget?: { before: boolean; after: boolean };
+  };
+}
+
+// ======== dry_run結果 ========
+export interface HRImportDryRunResult {
+  success: boolean;
+  source: HRImportSource;
+  isDryRun: true;
+
+  // 差分プレビュー
+  diffs: HRImportDiff[];
+
+  // 件数サマリ
+  summary: {
+    total: number;
+    toCreate: number;
+    toUpdate: number;
+    toSkip: number;
+    hireCount: number;
+    leaveCount: number;
+  };
+
+  // 処理日時
+  previewedAt: Date;
+}
+
+// ======== インポート実行ログ ========
+export interface HRImportRun {
+  id: string;
+  tenantId: string;
+  source: HRImportSource;
+
+  // 実行モード
+  mode: 'dry_run' | 'execute';
+
+  // 結果
+  result: HRImportResult | HRImportDryRunResult;
+
+  // 実行者
+  executedBy?: string;
+  executedByName?: string;
+
+  // 環境
+  environment: 'production' | 'preview' | 'development';
+
+  // タイムスタンプ
+  startedAt: Date;
+  completedAt: Date;
+}
+
 // ======== 定数 ========
 export const EMPLOYEES_COLLECTION = 'employees';
 export const HR_IMPORT_AUDIT_COLLECTION = 'hr_import_audits';
+export const HR_IMPORT_RUNS_COLLECTION = 'hr_import_runs';
 
 // ステータス変換マップ
 export const FREEE_STATUS_MAP: Record<string, EmployeeStatus> = {

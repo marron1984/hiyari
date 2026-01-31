@@ -3,25 +3,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   importFromFreee,
-  importFromCSV,
   listEmployees,
   listHRImportAuditLogs,
+  listHRImportRuns,
+  isPreviewEnvironment,
+  shouldForceDryRun,
 } from '@/lib/hr-import';
-import type { HRImportSource } from '@/types/hr-import';
+import type { HRImportSource, HRImportDryRunResult } from '@/types/hr-import';
 
 /**
  * GET /api/admin/hr/import
- * 従業員一覧またはインポート履歴を取得
+ * 従業員一覧 / インポート履歴 / 実行ログを取得
+ *
+ * Query Parameters:
+ * - type: 'employees' | 'history' | 'runs'
+ * - tenantId: string (default: 'default')
+ * - status: 'ACTIVE' | 'INACTIVE' (type=employees の場合)
+ * - limit: number
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get('tenantId') || 'default';
     const type = searchParams.get('type') || 'employees';
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
 
     if (type === 'history') {
-      // インポート履歴
-      const limit = parseInt(searchParams.get('limit') || '20', 10);
+      // 監査ログ（audit_logs）
       const logs = await listHRImportAuditLogs(tenantId, limit);
 
       return NextResponse.json({
@@ -37,13 +45,26 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    if (type === 'runs') {
+      // 実行ログ（hr_import_runs）
+      const runs = await listHRImportRuns(tenantId, limit);
+
+      return NextResponse.json({
+        success: true,
+        runs: runs.map((run) => ({
+          ...run,
+          startedAt: run.startedAt.toISOString(),
+          completedAt: run.completedAt.toISOString(),
+        })),
+      });
+    }
+
     // 従業員一覧
     const status = searchParams.get('status') as 'ACTIVE' | 'INACTIVE' | null;
-    const limit = parseInt(searchParams.get('limit') || '100', 10);
 
     const employees = await listEmployees(tenantId, {
       status: status || undefined,
-      limit,
+      limit: limit || 100,
     });
 
     return NextResponse.json({
@@ -71,15 +92,30 @@ export async function GET(request: NextRequest) {
  * POST /api/admin/hr/import
  * 従業員をインポート
  *
+ * Query Parameters:
+ * - source: 'freee' | 'csv' | 'sheets' （またはBodyで指定）
+ *
  * Request Body:
- * - source: 'freee' | 'csv' | 'sheets'
+ * - source: 'freee' | 'csv' | 'sheets' （query parameterでも可）
+ * - dryRun: boolean (true で差分プレビューのみ)
  * - csvData: string (source=csv の場合)
- * - sheetsId: string (source=sheets の場合)
+ * - tenantId: string (default: 'default')
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { source, csvData, sheetsId, tenantId = 'default' } = body;
+    const { searchParams } = new URL(request.url);
+    const querySource = searchParams.get('source');
+
+    const body = await request.json().catch(() => ({}));
+    const {
+      source: bodySource,
+      dryRun: requestedDryRun,
+      csvData,
+      tenantId = 'default',
+    } = body;
+
+    // source はクエリパラメータ優先
+    const source = querySource || bodySource;
 
     // ソースバリデーション
     const validSources: HRImportSource[] = ['csv', 'sheets', 'freee'];
@@ -93,24 +129,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // dry_run判定（プレビュー環境では強制）
+    const forcedDryRun = shouldForceDryRun();
+    const dryRun = requestedDryRun === true || forcedDryRun;
+
+    // プレビュー環境での実行は警告
+    if (forcedDryRun && requestedDryRun === false) {
+      console.warn('[HR/Import] プレビュー環境ではdry_runが強制されます');
+    }
+
     let result;
 
     switch (source) {
       case 'freee':
         // freeeからインポート
-        result = await importFromFreee(tenantId);
+        result = await importFromFreee({
+          tenantId,
+          dryRun,
+        });
         break;
 
       case 'csv':
-        // CSVからインポート
+        // CSVからインポート（未対応のdry_run）
         if (!csvData || typeof csvData !== 'string') {
           return NextResponse.json(
             { success: false, error: 'csvData は必須です' },
             { status: 400 }
           );
         }
-        result = await importFromCSV(tenantId, csvData);
-        break;
+        // TODO: CSVインポートもdry_run対応
+        return NextResponse.json(
+          { success: false, error: 'CSVインポートはdry_run未対応です。freeeを使用してください。' },
+          { status: 501 }
+        );
 
       case 'sheets':
         // Google Sheetsからインポート（未実装）
@@ -126,11 +177,31 @@ export async function POST(request: NextRequest) {
         );
     }
 
+    // レスポンス整形
+    const isDryRunResult = 'isDryRun' in result && result.isDryRun === true;
+
+    if (isDryRunResult) {
+      const dryRunResult = result as HRImportDryRunResult;
+      return NextResponse.json({
+        success: dryRunResult.success,
+        isDryRun: true,
+        forcedDryRun,
+        isPreviewEnvironment: isPreviewEnvironment(),
+        result: {
+          ...dryRunResult,
+          previewedAt: dryRunResult.previewedAt.toISOString(),
+        },
+      });
+    }
+
+    // 実行結果（HRImportResult）
+    const importResult = result as import('@/types/hr-import').HRImportResult;
     return NextResponse.json({
-      success: result.success,
+      success: importResult.success,
+      isDryRun: false,
       result: {
-        ...result,
-        importedAt: result.importedAt.toISOString(),
+        ...importResult,
+        importedAt: importResult.importedAt.toISOString(),
       },
     });
   } catch (error) {

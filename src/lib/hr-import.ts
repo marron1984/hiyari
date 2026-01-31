@@ -9,20 +9,59 @@ import type {
   HRImportResult,
   HREvent,
   HRImportAuditLog,
+  HRImportDiff,
+  HRImportDryRunResult,
+  HRImportRun,
   Employee,
   EmployeeStatus,
   EmploymentType,
-  FreeeEmployee,
 } from '@/types/hr-import';
 import {
   EMPLOYEES_COLLECTION,
   HR_IMPORT_AUDIT_COLLECTION,
-  FREEE_STATUS_MAP,
+  HR_IMPORT_RUNS_COLLECTION,
   EMPLOYMENT_TYPE_MAP,
   DEFAULT_EMPLOYMENT_TYPE,
 } from '@/types/hr-import';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
+
+// ======== 環境検出 ========
+
+type Environment = 'production' | 'preview' | 'development';
+
+/**
+ * 現在の環境を検出
+ */
+function detectEnvironment(): Environment {
+  // Vercel環境変数
+  const vercelEnv = process.env.VERCEL_ENV;
+  if (vercelEnv === 'production') return 'production';
+  if (vercelEnv === 'preview') return 'preview';
+
+  // NODE_ENV
+  if (process.env.NODE_ENV === 'production') {
+    // Vercel以外の本番環境
+    return 'production';
+  }
+
+  return 'development';
+}
+
+/**
+ * プレビュー環境かどうか
+ */
+export function isPreviewEnvironment(): boolean {
+  return detectEnvironment() === 'preview';
+}
+
+/**
+ * dry_runを強制するかどうか
+ */
+export function shouldForceDryRun(): boolean {
+  // プレビュー環境では外部実行をdry_runに強制
+  return isPreviewEnvironment();
+}
 
 // ======== ヘルパー ========
 
@@ -133,44 +172,58 @@ export async function listEmployees(
   });
 }
 
+// ======== インポートオプション ========
+
+export interface HRImportOptions {
+  tenantId?: string;
+  dryRun?: boolean;
+  executedBy?: string;
+  executedByName?: string;
+}
+
 // ======== インポート処理 ========
 
 /**
- * freeeから従業員をインポート
+ * freeeから従業員をインポート（dry_run対応）
  */
 export async function importFromFreee(
-  tenantId: string = DEFAULT_TENANT_ID,
-  executedBy?: string,
-  executedByName?: string
-): Promise<HRImportResult> {
-  console.log('[HRImport] freeeからインポート開始');
+  options: HRImportOptions = {}
+): Promise<HRImportResult | HRImportDryRunResult> {
+  const {
+    tenantId = DEFAULT_TENANT_ID,
+    executedBy,
+    executedByName,
+  } = options;
 
-  const result: HRImportResult = {
-    success: false,
-    source: 'freee',
-    totalCount: 0,
-    createdCount: 0,
-    updatedCount: 0,
-    skippedCount: 0,
-    errorCount: 0,
-    hireEvents: [],
-    leaveEvents: [],
-    errors: [],
-    importedAt: new Date(),
-    importedBy: executedBy,
-    importedByName: executedByName,
-  };
+  // プレビュー環境ではdry_runを強制
+  const dryRun = options.dryRun ?? shouldForceDryRun();
+  const environment = detectEnvironment();
+
+  console.log('[HRImport] freeeからインポート開始', { dryRun, environment });
+
+  const startedAt = new Date();
 
   try {
     // freeeから従業員取得
     const freeeResult = await fetchFreeeEmployees();
 
     if (!freeeResult.success) {
-      result.errors.push({
-        row: 0,
-        message: freeeResult.error || 'freee従業員取得に失敗しました',
-      });
-      return result;
+      const errorResult: HRImportResult = {
+        success: false,
+        source: 'freee',
+        totalCount: 0,
+        createdCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+        errorCount: 1,
+        hireEvents: [],
+        leaveEvents: [],
+        errors: [{ row: 0, message: freeeResult.error || 'freee従業員取得に失敗しました' }],
+        importedAt: new Date(),
+        importedBy: executedBy,
+        importedByName: executedByName,
+      };
+      return errorResult;
     }
 
     // freee従業員データをインポート行に変換
@@ -189,18 +242,174 @@ export async function importFromFreee(
       freeeEmployeeId: emp.id,
     }));
 
-    // インポート実行
+    if (dryRun) {
+      // dry_run: 差分プレビューを生成
+      const dryRunResult = await generateDryRunPreview(tenantId, 'freee', rows);
+
+      // 実行ログ保存
+      await saveImportRun(tenantId, 'freee', 'dry_run', dryRunResult, environment, startedAt, executedBy, executedByName);
+
+      return dryRunResult;
+    }
+
+    // 実行モード: インポート実行
     const importResult = await importRows(tenantId, 'freee', rows, executedBy, executedByName);
+
+    // 実行ログ保存
+    await saveImportRun(tenantId, 'freee', 'execute', importResult, environment, startedAt, executedBy, executedByName);
 
     return importResult;
   } catch (error) {
     console.error('[HRImport] freeeインポートエラー:', error);
-    result.errors.push({
-      row: 0,
-      message: error instanceof Error ? error.message : 'インポートに失敗しました',
-    });
-    return result;
+    const errorResult: HRImportResult = {
+      success: false,
+      source: 'freee',
+      totalCount: 0,
+      createdCount: 0,
+      updatedCount: 0,
+      skippedCount: 0,
+      errorCount: 1,
+      hireEvents: [],
+      leaveEvents: [],
+      errors: [{ row: 0, message: error instanceof Error ? error.message : 'インポートに失敗しました' }],
+      importedAt: new Date(),
+      importedBy: executedBy,
+      importedByName: executedByName,
+    };
+    return errorResult;
   }
+}
+
+/**
+ * dry_run差分プレビューを生成
+ */
+async function generateDryRunPreview(
+  tenantId: string,
+  source: HRImportSource,
+  rows: HRImportRow[]
+): Promise<HRImportDryRunResult> {
+  console.log('[HRImport] dry_run: 差分プレビュー生成', { rowCount: rows.length });
+
+  const diffs: HRImportDiff[] = [];
+  let toCreate = 0;
+  let toUpdate = 0;
+  let toSkip = 0;
+  let hireCount = 0;
+  let leaveCount = 0;
+
+  for (const row of rows) {
+    const existing = await getEmployeeByCode(tenantId, row.employeeCode);
+    const newStatus = determineStatus(row.joinDate, row.leaveDate);
+
+    const diff: HRImportDiff = {
+      employeeCode: row.employeeCode,
+      name: row.name,
+      action: 'skip',
+    };
+
+    if (!existing) {
+      // 新規作成
+      diff.action = 'create';
+      toCreate++;
+
+      if (newStatus === 'ACTIVE') {
+        diff.statusChange = {
+          before: null,
+          after: 'ACTIVE',
+          eventType: 'hire',
+        };
+        hireCount++;
+
+        // 入社時: 勤怠ON、承認/支払いOFF
+        diff.flagChanges = {
+          isAttendanceTarget: { before: false, after: true },
+          isApprovalTarget: { before: false, after: false },
+          isPaymentTarget: { before: false, after: false },
+        };
+      }
+    } else {
+      // 更新
+      const changes: HRImportDiff['changes'] = [];
+
+      // 各フィールドの変更をチェック
+      if (existing.name !== row.name) {
+        changes.push({ field: 'name', fieldLabel: '氏名', before: existing.name, after: row.name });
+      }
+      if (existing.nameKana !== row.nameKana) {
+        changes.push({ field: 'nameKana', fieldLabel: 'フリガナ', before: existing.nameKana || null, after: row.nameKana || null });
+      }
+      if (existing.email !== row.email) {
+        changes.push({ field: 'email', fieldLabel: 'メール', before: existing.email || null, after: row.email || null });
+      }
+      if (existing.departmentName !== row.departmentName) {
+        changes.push({ field: 'departmentName', fieldLabel: '部門', before: existing.departmentName || null, after: row.departmentName || null });
+      }
+      if (existing.position !== row.position) {
+        changes.push({ field: 'position', fieldLabel: '役職', before: existing.position || null, after: row.position || null });
+      }
+      if (existing.joinDate !== row.joinDate) {
+        changes.push({ field: 'joinDate', fieldLabel: '入社日', before: existing.joinDate || null, after: row.joinDate || null });
+      }
+      if (existing.leaveDate !== row.leaveDate) {
+        changes.push({ field: 'leaveDate', fieldLabel: '退社日', before: existing.leaveDate || null, after: row.leaveDate || null });
+      }
+
+      // ステータス変更チェック
+      if (existing.status !== newStatus) {
+        diff.statusChange = {
+          before: existing.status,
+          after: newStatus,
+        };
+
+        if (existing.status === 'ACTIVE' && newStatus === 'INACTIVE') {
+          diff.statusChange.eventType = 'leave';
+          leaveCount++;
+
+          diff.flagChanges = {
+            isAttendanceTarget: { before: existing.isAttendanceTarget, after: false },
+            isApprovalTarget: { before: existing.isApprovalTarget, after: false },
+            isPaymentTarget: { before: existing.isPaymentTarget, after: false },
+          };
+        } else if (existing.status === 'INACTIVE' && newStatus === 'ACTIVE') {
+          diff.statusChange.eventType = 'rehire';
+          hireCount++;
+
+          // 再入社時も勤怠ON、承認/支払いOFF
+          diff.flagChanges = {
+            isAttendanceTarget: { before: existing.isAttendanceTarget, after: true },
+            isApprovalTarget: { before: existing.isApprovalTarget, after: false },
+            isPaymentTarget: { before: existing.isPaymentTarget, after: false },
+          };
+        }
+      }
+
+      if (changes.length > 0 || diff.statusChange) {
+        diff.action = 'update';
+        diff.changes = changes.length > 0 ? changes : undefined;
+        toUpdate++;
+      } else {
+        toSkip++;
+      }
+    }
+
+    diffs.push(diff);
+  }
+
+  return {
+    success: true,
+    source,
+    isDryRun: true,
+    diffs,
+    summary: {
+      total: rows.length,
+      toCreate,
+      toUpdate,
+      toSkip,
+      hireCount,
+      leaveCount,
+    },
+    previewedAt: new Date(),
+  };
 }
 
 /**
@@ -428,6 +637,11 @@ async function importRows(
       }
 
       // 従業員データを準備
+      // 入社時: 勤怠ON、承認/支払いは初期OFF（管理者が手動で有効化する想定）
+      // 退社時: 全てOFF
+      const isNewHire = !existing && newStatus === 'ACTIVE';
+      const isRehire = existing && existing.status === 'INACTIVE' && newStatus === 'ACTIVE';
+
       const employeeData: Partial<Employee> = {
         tenantId,
         employeeCode: row.employeeCode,
@@ -443,9 +657,12 @@ async function importRows(
         joinDate: row.joinDate,
         leaveDate: row.leaveDate,
         status: newStatus,
-        isAttendanceTarget: newStatus === 'ACTIVE',
-        isApprovalTarget: newStatus === 'ACTIVE',
-        isPaymentTarget: newStatus === 'ACTIVE',
+        // 入社/再入社: 勤怠ON、承認/支払いOFF
+        // 退社: 全てOFF
+        // 更新のみ: 既存値維持（ステータス変更がない場合）
+        isAttendanceTarget: (isNewHire || isRehire) ? true : (newStatus === 'ACTIVE' ? (existing?.isAttendanceTarget ?? true) : false),
+        isApprovalTarget: (isNewHire || isRehire) ? false : (newStatus === 'ACTIVE' ? (existing?.isApprovalTarget ?? false) : false),
+        isPaymentTarget: (isNewHire || isRehire) ? false : (newStatus === 'ACTIVE' ? (existing?.isPaymentTarget ?? false) : false),
         freeeEmployeeId: row.freeeEmployeeId,
         lastSyncSource: source,
         lastSyncAt: new Date(),
@@ -519,37 +736,38 @@ async function importRows(
 
 /**
  * 入社時の連動処理
+ * 入社時: 勤怠ON、承認/支払いは初期OFF（管理者が手動で有効化する想定）
  */
 async function executeHireActions(employeeId: string, event: HREvent): Promise<void> {
   console.log('[HRImport] 入社連動処理', { employeeId, employeeName: event.employeeName });
 
   const db = getAdminDb();
 
-  // 1. 勤怠・承認・支払い対象 ON
+  // 1. 勤怠対象ON、承認/支払い対象は初期OFF
   try {
     await db.collection(EMPLOYEES_COLLECTION).doc(employeeId).update({
       isAttendanceTarget: true,
-      isApprovalTarget: true,
-      isPaymentTarget: true,
+      isApprovalTarget: false, // 管理者が手動で有効化
+      isPaymentTarget: false,  // 管理者が手動で有効化
       status: 'ACTIVE',
       updatedAt: FieldValue.serverTimestamp(),
     });
-    event.linkedActions.push({ action: '勤怠・承認・支払い対象を有効化', success: true });
+    event.linkedActions.push({ action: '勤怠対象を有効化（承認/支払いは手動設定待ち）', success: true });
   } catch (error) {
     event.linkedActions.push({
-      action: '勤怠・承認・支払い対象を有効化',
+      action: '勤怠対象を有効化',
       success: false,
       error: error instanceof Error ? error.message : 'エラー',
     });
   }
 
-  // 2. 管理者に通知
+  // 2. 管理者・役員に通知
   try {
     await createHRNotification('hire', event);
-    event.linkedActions.push({ action: '管理者に入社通知を送信', success: true });
+    event.linkedActions.push({ action: '管理者・役員に入社通知を送信', success: true });
   } catch (error) {
     event.linkedActions.push({
-      action: '管理者に入社通知を送信',
+      action: '管理者・役員に入社通知を送信',
       success: false,
       error: error instanceof Error ? error.message : 'エラー',
     });
@@ -616,7 +834,7 @@ async function executeLeaveActions(employeeId: string, event: HREvent): Promise<
 }
 
 /**
- * 人事通知を作成
+ * 人事通知を作成（管理者・役員に送信）
  */
 async function createHRNotification(
   type: 'hire' | 'leave',
@@ -629,16 +847,16 @@ async function createHRNotification(
     : `退社通知: ${event.employeeName}`;
 
   const body = type === 'hire'
-    ? `${event.employeeName}さん（${event.employeeCode}）が${event.eventDate}に入社しました。勤怠・承認・支払い対象として登録されました。`
-    : `${event.employeeName}さん（${event.employeeCode}）が${event.eventDate}に退社しました。勤怠・承認・支払い対象から除外されました。`;
+    ? `${event.employeeName}さん（${event.employeeCode}）が${event.eventDate}に入社しました。\n勤怠対象として登録されました。承認・支払い対象の設定は管理者が行ってください。`
+    : `${event.employeeName}さん（${event.employeeCode}）が${event.eventDate}に退社しました。\n勤怠・承認・支払い対象から除外されました。`;
 
-  // 管理者ユーザーを取得
+  // 管理者・役員ユーザーを取得（exec, admin, system_admin）
   const adminsSnapshot = await db
     .collection('users')
     .where('role', 'in', ['admin', 'system_admin'])
     .get();
 
-  // 各管理者に通知を作成
+  // 各管理者・役員に通知を作成
   const batch = db.batch();
   for (const adminDoc of adminsSnapshot.docs) {
     const notifRef = db.collection('notifications').doc();
@@ -660,7 +878,72 @@ async function createHRNotification(
   }
 
   await batch.commit();
-  console.log('[HRImport] 通知送信完了', { type, adminCount: adminsSnapshot.size });
+  console.log('[HRImport] 通知送信完了', { type, recipientCount: adminsSnapshot.size });
+}
+
+// ======== 実行ログ保存 ========
+
+/**
+ * hr_import_runsにログを保存
+ */
+async function saveImportRun(
+  tenantId: string,
+  source: HRImportSource,
+  mode: 'dry_run' | 'execute',
+  result: HRImportResult | HRImportDryRunResult,
+  environment: Environment,
+  startedAt: Date,
+  executedBy?: string,
+  executedByName?: string
+): Promise<void> {
+  const db = getAdminDb();
+
+  const run: Omit<HRImportRun, 'id'> = {
+    tenantId,
+    source,
+    mode,
+    result,
+    executedBy,
+    executedByName,
+    environment,
+    startedAt,
+    completedAt: new Date(),
+  };
+
+  await db.collection(HR_IMPORT_RUNS_COLLECTION).add({
+    ...run,
+    startedAt: Timestamp.fromDate(startedAt),
+    completedAt: FieldValue.serverTimestamp(),
+  });
+
+  console.log('[HRImport] 実行ログ保存完了', { mode, source, environment });
+}
+
+/**
+ * 実行ログ一覧を取得
+ */
+export async function listHRImportRuns(
+  tenantId: string,
+  limit: number = 20
+): Promise<HRImportRun[]> {
+  const db = getAdminDb();
+
+  const snapshot = await db
+    .collection(HR_IMPORT_RUNS_COLLECTION)
+    .where('tenantId', '==', tenantId)
+    .orderBy('completedAt', 'desc')
+    .limit(limit)
+    .get();
+
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      startedAt: toDate(data.startedAt) || new Date(),
+      completedAt: toDate(data.completedAt) || new Date(),
+    } as HRImportRun;
+  });
 }
 
 // ======== 監査ログ ========
