@@ -35,6 +35,7 @@ import {
   Shield,
   TrendingUp,
   MessageSquare,
+  Map,
 } from 'lucide-react';
 
 // メニュー定義
@@ -55,6 +56,29 @@ interface MenuCategory {
 }
 
 const MENU_CATEGORIES: MenuCategory[] = [
+  {
+    title: '経営OS（司令塔）',
+    description: '全体把握と意思決定の中枢',
+    items: [
+      {
+        href: '/dashboard/os-map',
+        icon: Map,
+        title: 'OSマップ',
+        description: 'AA-HUB全機能の可視化（運用中・開発中・未着手）',
+        bgColor: 'bg-indigo-100',
+        iconColor: 'text-indigo-600',
+        highlight: true,
+      },
+      {
+        href: '/dashboard/os/decision',
+        icon: Shield,
+        title: '判断と責任のOS',
+        description: '判断フローと責任の可視化',
+        bgColor: 'bg-blue-100',
+        iconColor: 'text-blue-600',
+      },
+    ],
+  },
   {
     title: '承認・管理',
     description: 'AIレビューの最終確認と抽出管理',

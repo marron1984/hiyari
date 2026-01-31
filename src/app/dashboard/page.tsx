@@ -230,6 +230,10 @@ export default function DashboardPage() {
           {role === 'exec' && (
             <>
               <span>・</span>
+              <Link href="/dashboard/os-map" className="hover:text-zinc-600">
+                OSマップ
+              </Link>
+              <span>・</span>
               <Link href="/admin/ai-vp" className="hover:text-zinc-600">
                 AI副社長
               </Link>
