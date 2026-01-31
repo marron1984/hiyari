@@ -22,9 +22,10 @@ import {
   Zap,
   Calendar,
   CircleDot,
+  Bot,
 } from 'lucide-react';
 import type { TodoItem, TodoPriority, TodoSource, TodoDashboardSummary } from '@/types/todo';
-import { MessageSquare, Bot } from 'lucide-react';
+import { MobilePageHeader, WarningBanner } from '@/components/navigation';
 
 // AI要約の型
 interface AiSummary {
@@ -47,6 +48,7 @@ function TodoDashboardContent() {
   const [summary, setSummary] = useState<TodoDashboardSummary | null>(null);
   const [aiSummary, setAiSummary] = useState<AiSummary | null>(null);
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [filter, setFilter] = useState<{
     priority?: TodoPriority;
     source?: TodoSource;
@@ -60,6 +62,8 @@ function TodoDashboardContent() {
   // データ取得
   const fetchData = useCallback(async () => {
     if (!firebaseUser) return;
+
+    const collectedWarnings: string[] = [];
 
     try {
       const token = await firebaseUser.getIdToken();
@@ -83,15 +87,29 @@ function TodoDashboardContent() {
         if (data.aiSummary) {
           setAiSummary(data.aiSummary);
         }
+        // 警告を収集
+        if (data.warnings) {
+          collectedWarnings.push(...data.warnings);
+        }
+      } else {
+        collectedWarnings.push('サマリーの取得に失敗しました');
       }
 
       if (todosRes.ok) {
         const data = await todosRes.json();
-        setTodos(data.todos);
+        setTodos(data.todos || []);
+        // 警告を収集
+        if (data.warnings) {
+          collectedWarnings.push(...data.warnings);
+        }
+      } else {
+        collectedWarnings.push('TODO一覧の取得に失敗しました');
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
+      collectedWarnings.push('データの取得中にエラーが発生しました');
     } finally {
+      setWarnings(collectedWarnings);
       setLoading(false);
     }
   }, [firebaseUser, filter]);
@@ -219,30 +237,32 @@ function TodoDashboardContent() {
     <>
       <Header />
       <main className="pb-20 md:pb-8">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          {/* ヘッダー */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Zap className="w-6 h-6 text-purple-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">今日のTODO</h1>
-                <p className="text-sm text-gray-500">AI副社長が自動生成した優先タスク</p>
-              </div>
-            </div>
+        <div className="max-w-4xl mx-auto px-4 py-4 md:py-6">
+          {/* ヘッダー（モバイル最適化） */}
+          <MobilePageHeader
+            icon={<Zap className="w-5 h-5 md:w-6 md:h-6 text-purple-600" />}
+            title="今日のTODO"
+            description="AI副社長が自動生成した優先タスク"
+            actions={
+              isAdmin && (
+                <Button onClick={handleGenerate} disabled={generating} variant="outline" size="sm">
+                  {generating ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  <span className="hidden sm:inline ml-1">再生成</span>
+                </Button>
+              )
+            }
+          />
 
-            {isAdmin && (
-              <Button onClick={handleGenerate} disabled={generating} variant="outline">
-                {generating ? (
-                  <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4 mr-1" />
-                )}
-                再生成
-              </Button>
-            )}
-          </div>
+          {/* 警告バナー（必要時のみ） */}
+          <WarningBanner
+            warnings={warnings}
+            isAdmin={isAdmin}
+            adminMessage="Firestoreのインデックス設定を確認してください。表示されているデータは取得できた範囲のものです。"
+          />
 
           {/* サマリーカード */}
           {summary && (

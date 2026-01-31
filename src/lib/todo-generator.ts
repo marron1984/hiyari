@@ -646,47 +646,30 @@ export async function generateDailyTodos(): Promise<TodoGenerationResult> {
 
 /**
  * TODOを取得
+ * 注意: Firestoreの複合インデックス制限を回避するため、
+ * 最小限のwhere条件でクエリし、JS側でフィルタリング・ソートを実施
  */
 export async function getTodos(options: GetTodosOptions = {}): Promise<TodoItem[]> {
   const db = getAdminDb();
+
+  // 最小限のwhere条件でクエリ（インデックス要件を削減）
   let query = db.collection('todoItems').where('tenantId', '==', DEFAULT_TENANT_ID);
 
+  // userIdは頻繁に使われるため、where条件に追加
   if (options.userId) {
     query = query.where('userId', '==', options.userId);
   }
 
-  if (options.role) {
-    query = query.where('userRole', '==', options.role);
-  }
+  // orderByは1つに限定（createdAt降順のみ）
+  query = query.orderBy('createdAt', 'desc');
 
-  if (options.priority) {
-    query = query.where('priority', '==', options.priority);
-  }
-
-  if (options.source) {
-    query = query.where('source', '==', options.source);
-  }
-
-  if (!options.includeCompleted) {
-    query = query.where('isCompleted', '==', false);
-  }
-
-  if (options.date) {
-    const startOfDay = new Date(options.date);
-    const endOfDay = new Date(options.date);
-    endOfDay.setDate(endOfDay.getDate() + 1);
-    query = query.where('generatedAt', '>=', startOfDay).where('generatedAt', '<', endOfDay);
-  }
-
-  query = query.orderBy('priority', 'asc').orderBy('createdAt', 'desc');
-
-  if (options.limit) {
-    query = query.limit(options.limit);
-  }
+  // 件数を多めに取得してJS側でフィルタ（上限500）
+  const fetchLimit = Math.min((options.limit || 50) * 3, 500);
+  query = query.limit(fetchLimit);
 
   const snapshot = await query.get();
 
-  return snapshot.docs.map((doc) => {
+  let results = snapshot.docs.map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -698,6 +681,48 @@ export async function getTodos(options: GetTodosOptions = {}): Promise<TodoItem[
       completedAt: data.completedAt ? toDate(data.completedAt) : undefined,
     } as TodoItem;
   });
+
+  // JS側でフィルタリング
+  if (options.role) {
+    results = results.filter((t) => t.userRole === options.role);
+  }
+
+  if (options.priority) {
+    results = results.filter((t) => t.priority === options.priority);
+  }
+
+  if (options.source) {
+    results = results.filter((t) => t.source === options.source);
+  }
+
+  if (!options.includeCompleted) {
+    results = results.filter((t) => !t.isCompleted);
+  }
+
+  if (options.date) {
+    const startOfDay = new Date(options.date);
+    const endOfDay = new Date(options.date);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+    results = results.filter((t) => {
+      const gen = t.generatedAt;
+      return gen >= startOfDay && gen < endOfDay;
+    });
+  }
+
+  // JS側でソート（優先度順 → 作成日時降順）
+  const priorityOrder: Record<TodoPriority, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+  results.sort((a, b) => {
+    const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+    if (priorityDiff !== 0) return priorityDiff;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+
+  // 指定件数に制限
+  if (options.limit) {
+    results = results.slice(0, options.limit);
+  }
+
+  return results;
 }
 
 /**
