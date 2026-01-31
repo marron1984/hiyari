@@ -26,6 +26,7 @@ import {
   Save,
 } from 'lucide-react';
 import { AiApprovalCommentCard } from '@/components/applications/AiApprovalCommentCard';
+import { AccountingAICheck } from '@/components/applications/AccountingAICheck';
 import {
   ApplicationType,
   APPLICATION_TYPE_LABELS,
@@ -413,6 +414,15 @@ function ApplicationDetailContent() {
             </div>
           </CardContent>
         </Card>
+
+        {/* AI Accounting Check (支払い依頼・承認者のみ表示) */}
+        {canApprove && firebaseUser && (
+          <AccountingAICheck
+            applicationId={applicationId}
+            applicationType={application.type}
+            getToken={() => firebaseUser.getIdToken()}
+          />
+        )}
 
         {/* AI VP Comment (承認者のみ表示) */}
         {canApprove && firebaseUser && (
