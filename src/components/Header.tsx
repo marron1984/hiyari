@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Menu, X, Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity, Bot, Inbox } from 'lucide-react';
+import { Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity, Bot } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
@@ -13,7 +13,6 @@ import { isAiVpOwner } from '@/lib/auth';
 export function Header() {
   const { user, isLeaderOrAbove, signOut } = useAuth();
   const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -192,7 +191,7 @@ export function Header() {
             {/* Notification Bell */}
             <NotificationBell />
 
-            {/* User Menu (Desktop) */}
+            {/* User Menu (Desktop only - mobile uses bottom nav) */}
             <div className="hidden md:block relative" ref={userMenuRef}>
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -231,131 +230,9 @@ export function Header() {
                 </div>
               )}
             </div>
-
-            {/* Mobile menu button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl text-zinc-600 hover:bg-zinc-100 transition-colors"
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
           </div>
         </div>
       </div>
-
-      {/* Mobile Navigation */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-t border-zinc-100 bg-white animate-slide-down safe-bottom">
-          <nav className="px-4 py-3 space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors',
-                    isActive
-                      ? 'bg-zinc-900 text-white'
-                      : 'text-zinc-600 hover:bg-zinc-100'
-                  )}
-                >
-                  <Icon className="w-5 h-5" />
-                  {item.label}
-                </Link>
-              );
-            })}
-
-            {isLeaderOrAbove && (
-              <>
-                <div className="border-t border-zinc-100 my-3" />
-                <p className="px-4 py-1 text-xs font-medium text-zinc-400 uppercase tracking-wider">管理</p>
-                {adminItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname.startsWith(item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={cn(
-                        'flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors',
-                        isActive
-                          ? 'bg-zinc-900 text-white'
-                          : 'text-zinc-600 hover:bg-zinc-100'
-                      )}
-                    >
-                      <Icon className="w-5 h-5" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </>
-            )}
-
-            {/* AI副社長 (吉田専用) - Mobile */}
-            {isAiVpOwner(user?.email) && (
-              <>
-                <div className="border-t border-zinc-100 my-3" />
-                <p className="px-4 py-1 text-xs font-medium text-zinc-400 uppercase tracking-wider">AI副社長</p>
-                <Link
-                  href="/dashboard/ai/inbox"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors',
-                    pathname.startsWith('/dashboard/ai')
-                      ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white'
-                      : 'bg-gradient-to-r from-indigo-100 to-blue-100 text-indigo-700'
-                  )}
-                >
-                  <Bot className="w-5 h-5" />
-                  AI受信箱
-                </Link>
-                <Link
-                  href="/admin/ai-vp"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn(
-                    'flex items-center gap-3 px-4 py-3 rounded-xl text-base font-medium transition-colors',
-                    pathname.startsWith('/admin/ai-vp')
-                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
-                      : 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700'
-                  )}
-                >
-                  <Brain className="w-5 h-5" />
-                  AI抽出
-                </Link>
-              </>
-            )}
-
-            <div className="border-t border-zinc-100 my-3" />
-
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-3 mb-4">
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt={user.name} className="w-10 h-10 rounded-xl object-cover" />
-                ) : (
-                  <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-white text-sm font-medium">
-                    {user.name.charAt(0)}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-900 truncate">{user.name}</p>
-                  <p className="text-xs text-zinc-500 truncate">{user.email}</p>
-                </div>
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="w-full flex items-center justify-center gap-2 h-11 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                ログアウト
-              </button>
-            </div>
-          </nav>
-        </div>
-      )}
     </header>
   );
 }

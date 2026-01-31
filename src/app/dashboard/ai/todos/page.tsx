@@ -22,9 +22,10 @@ import {
   Zap,
   Calendar,
   CircleDot,
+  Bot,
 } from 'lucide-react';
 import type { TodoItem, TodoPriority, TodoSource, TodoDashboardSummary } from '@/types/todo';
-import { MessageSquare, Bot } from 'lucide-react';
+import { MobilePageHeader, WarningBanner } from '@/components/navigation';
 
 // AI要約の型
 interface AiSummary {
@@ -236,52 +237,32 @@ function TodoDashboardContent() {
     <>
       <Header />
       <main className="pb-20 md:pb-8">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          {/* ヘッダー */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Zap className="w-6 h-6 text-purple-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">今日のTODO</h1>
-                <p className="text-sm text-gray-500">AI副社長が自動生成した優先タスク</p>
-              </div>
-            </div>
-
-            {isAdmin && (
-              <Button onClick={handleGenerate} disabled={generating} variant="outline">
-                {generating ? (
-                  <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4 mr-1" />
-                )}
-                再生成
-              </Button>
-            )}
-          </div>
-
-          {/* 警告バナー */}
-          {warnings.length > 0 && (
-            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-medium text-yellow-800">一部のデータ取得に問題があります</p>
-                  <ul className="mt-1 text-sm text-yellow-700 list-disc list-inside">
-                    {warnings.map((warning, index) => (
-                      <li key={index}>{warning}</li>
-                    ))}
-                  </ul>
-                  {isAdmin && (
-                    <p className="mt-2 text-xs text-yellow-600">
-                      管理者様へ: Firestoreのインデックス設定を確認してください。表示されているデータは取得できた範囲のものです。
-                    </p>
+        <div className="max-w-4xl mx-auto px-4 py-4 md:py-6">
+          {/* ヘッダー（モバイル最適化） */}
+          <MobilePageHeader
+            icon={<Zap className="w-5 h-5 md:w-6 md:h-6 text-purple-600" />}
+            title="今日のTODO"
+            description="AI副社長が自動生成した優先タスク"
+            actions={
+              isAdmin && (
+                <Button onClick={handleGenerate} disabled={generating} variant="outline" size="sm">
+                  {generating ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
                   )}
-                </div>
-              </div>
-            </div>
-          )}
+                  <span className="hidden sm:inline ml-1">再生成</span>
+                </Button>
+              )
+            }
+          />
+
+          {/* 警告バナー（必要時のみ） */}
+          <WarningBanner
+            warnings={warnings}
+            isAdmin={isAdmin}
+            adminMessage="Firestoreのインデックス設定を確認してください。表示されているデータは取得できた範囲のものです。"
+          />
 
           {/* サマリーカード */}
           {summary && (
