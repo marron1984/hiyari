@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { generateDailyTodos } from '@/lib/todo-generator';
+import { generateAndSaveSummaries } from '@/lib/todo-summary';
 
 /**
  * Vercel Cronからのリクエストを認証
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
   console.log('[Cron] Starting daily TODO generation...');
 
   try {
+    // TODO生成
     const result = await generateDailyTodos();
 
     console.log('[Cron] TODO generation completed:', {
@@ -44,9 +46,33 @@ export async function GET(request: NextRequest) {
       errors: result.errors.length,
     });
 
+    // 要約生成（TODOが生成された場合のみ）
+    let summaries: { role: string; summary: { summary: string; generatedBy: string } }[] = [];
+    if (result.success && result.todos.length > 0) {
+      try {
+        console.log('[Cron] Generating TODO summaries...');
+        const summaryResults = await generateAndSaveSummaries(result.todos, result.date);
+        summaries = summaryResults.map((s) => ({
+          role: s.role,
+          summary: {
+            summary: s.summary.summary,
+            generatedBy: s.summary.generatedBy,
+          },
+        }));
+        console.log('[Cron] TODO summaries generated:', summaries.length);
+      } catch (summaryError) {
+        console.error('[Cron] Summary generation error:', summaryError);
+        result.errors.push(`要約生成エラー: ${summaryError instanceof Error ? summaryError.message : 'Unknown'}`);
+      }
+    }
+
     return NextResponse.json({
       success: result.success,
-      result,
+      result: {
+        ...result,
+        todos: undefined, // レスポンスサイズ削減
+      },
+      summaries,
     });
   } catch (error) {
     console.error('[Cron] TODO generation error:', error);

@@ -24,6 +24,14 @@ import {
   CircleDot,
 } from 'lucide-react';
 import type { TodoItem, TodoPriority, TodoSource, TodoDashboardSummary } from '@/types/todo';
+import { MessageSquare, Bot } from 'lucide-react';
+
+// AI要約の型
+interface AiSummary {
+  text: string;
+  generatedBy: 'ai' | 'rule';
+  role: string;
+}
 
 export default function TodoDashboardPage() {
   return (
@@ -37,6 +45,7 @@ function TodoDashboardContent() {
   const { user, firebaseUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<TodoDashboardSummary | null>(null);
+  const [aiSummary, setAiSummary] = useState<AiSummary | null>(null);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [filter, setFilter] = useState<{
     priority?: TodoPriority;
@@ -71,6 +80,9 @@ function TodoDashboardContent() {
       if (summaryRes.ok) {
         const data = await summaryRes.json();
         setSummary(data.summary);
+        if (data.aiSummary) {
+          setAiSummary(data.aiSummary);
+        }
       }
 
       if (todosRes.ok) {
@@ -272,6 +284,30 @@ function TodoDashboardContent() {
                 </CardContent>
               </Card>
             </div>
+          )}
+
+          {/* AI要約カード */}
+          {aiSummary && (
+            <Card className="mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-white">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-purple-100 rounded-full shrink-0">
+                    <Bot className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-medium text-purple-700">AI副社長より</span>
+                      <Badge variant={aiSummary.generatedBy === 'ai' ? 'info' : 'default'}>
+                        {aiSummary.generatedBy === 'ai' ? 'AI生成' : 'ルールベース'}
+                      </Badge>
+                    </div>
+                    <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                      {aiSummary.text}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* フィルター */}

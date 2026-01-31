@@ -413,5 +413,13 @@ service cloud.firestore {
       // サーバーサイドからのみ書き込み
       allow write: if false;
     }
+
+    // TODO要約コレクション
+    match /todoSummaries/{summaryId} {
+      // 認証済みユーザーは読み取り可能（ロール別要約）
+      allow read: if isAuthenticated();
+      // サーバーサイドからのみ書き込み
+      allow write: if false;
+    }
   }
 }

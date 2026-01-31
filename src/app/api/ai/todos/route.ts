@@ -12,8 +12,34 @@ import {
   getLatestGenerationLog,
   generateDailyTodos,
 } from '@/lib/todo-generator';
+import { getTodoSummary, getAllTodoSummaries } from '@/lib/todo-summary';
 import type { TodoPriority, TodoSource, TodoRole } from '@/types/todo';
 import type { UserRole } from '@/types';
+
+/**
+ * UserRoleをTodoRoleにマッピング
+ */
+function mapUserRoleToTodoRole(userRole: string): TodoRole {
+  switch (userRole) {
+    case 'system_admin':
+    case 'admin':
+      return 'exec';
+    case 'leader':
+      return 'manager';
+    default:
+      return 'staff';
+  }
+}
+
+/**
+ * 今日の日付を取得（YYYY-MM-DD形式、JST）
+ */
+function getTodayString(): string {
+  const now = new Date();
+  const jstOffset = 9 * 60 * 60 * 1000;
+  const jst = new Date(now.getTime() + jstOffset);
+  return jst.toISOString().split('T')[0];
+}
 
 /**
  * 認証チェック
@@ -94,9 +120,47 @@ export async function GET(request: NextRequest) {
           date || undefined
         );
 
+        // AI要約を取得（ロール別）
+        const userTodoRole = mapUserRoleToTodoRole(authResult.userRole);
+        const aiSummary = await getTodoSummary(date || getTodayString(), userTodoRole);
+
         return NextResponse.json({
           success: true,
           summary,
+          aiSummary: aiSummary ? {
+            text: aiSummary.summary,
+            generatedBy: aiSummary.generatedBy,
+            role: aiSummary.role,
+          } : null,
+        });
+      }
+
+      case 'ai-summaries': {
+        // 全ロールのAI要約を取得（管理者向け）
+        const date = searchParams.get('date') || getTodayString();
+
+        const summaries = await getAllTodoSummaries(date);
+
+        return NextResponse.json({
+          success: true,
+          date,
+          summaries: {
+            exec: summaries.exec ? {
+              text: summaries.exec.summary,
+              generatedBy: summaries.exec.generatedBy,
+              stats: summaries.exec.stats,
+            } : null,
+            manager: summaries.manager ? {
+              text: summaries.manager.summary,
+              generatedBy: summaries.manager.generatedBy,
+              stats: summaries.manager.stats,
+            } : null,
+            staff: summaries.staff ? {
+              text: summaries.staff.summary,
+              generatedBy: summaries.staff.generatedBy,
+              stats: summaries.staff.stats,
+            } : null,
+          },
         });
       }
 

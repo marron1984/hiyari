@@ -502,6 +502,8 @@ export async function generateDailyTodos(): Promise<TodoGenerationResult> {
   const result: TodoGenerationResult = {
     success: false,
     generatedAt: now,
+    date: today,
+    todos: [],
     summary: {
       total: 0,
       byPriority: { HIGH: 0, MEDIUM: 0, LOW: 0 },
@@ -624,11 +626,16 @@ export async function generateDailyTodos(): Promise<TodoGenerationResult> {
       tenantId: DEFAULT_TENANT_ID,
       type: 'daily-batch',
       generatedAt: now,
-      result,
+      result: {
+        ...result,
+        todos: [], // ログには todos を含めない（サイズ削減）
+      },
       highPriorityNotifications: highPriorityTodos.length,
       createdAt: FieldValue.serverTimestamp(),
     });
 
+    // 結果に todos を設定
+    result.todos = allTodos;
     result.success = true;
   } catch (error) {
     result.errors.push(error instanceof Error ? error.message : 'Unknown error');

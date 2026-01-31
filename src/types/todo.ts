@@ -50,6 +50,8 @@ export interface TodoItem {
 export interface TodoGenerationResult {
   success: boolean;
   generatedAt: Date;
+  date: string;               // YYYY-MM-DD形式
+  todos: TodoItem[];          // 生成されたTODOリスト
   summary: {
     total: number;
     byPriority: {
@@ -172,4 +174,72 @@ export interface TodoDashboardSummary {
   };
   bySource: Record<TodoSource, { total: number; completed: number }>;
   recentTodos: TodoItem[];
+}
+
+// ======== AI要約 ========
+
+/**
+ * AI要約生成用の構造化データ
+ */
+export interface TodoSummaryInput {
+  date: string;
+  role: TodoRole;
+  stats: {
+    total: number;
+    high: number;
+    medium: number;
+    low: number;
+    completed: number;
+  };
+  highlights: TodoHighlight[];
+}
+
+/**
+ * 要約用ハイライト（重要事項抽出）
+ */
+export interface TodoHighlight {
+  priority: TodoPriority;
+  source: TodoSource;
+  title: string;
+  urgencyReason?: string;  // 緊急性の理由（例：「残業NG」「滞留3日」）
+}
+
+/**
+ * TODO要約
+ */
+export interface TodoSummary {
+  id?: string;
+  tenantId: string;
+  date: string;             // YYYY-MM-DD
+  role: TodoRole;
+  userId?: string;          // 個人向け要約の場合
+  summary: string;          // AI生成要約（3文以内）
+  generatedBy: 'ai' | 'rule';  // 生成方法
+  stats: {
+    total: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  createdAt: Date;
+}
+
+/**
+ * ロール別トーン設定
+ */
+export interface RoleToneConfig {
+  greeting: string;
+  urgentPrefix: string;
+  normalPrefix: string;
+  closingPhrase: string;
+}
+
+/**
+ * 要約生成結果
+ */
+export interface TodoSummaryResult {
+  success: boolean;
+  summary: string;
+  generatedBy: 'ai' | 'rule';
+  error?: string;
 }
