@@ -14,6 +14,8 @@ export type NotificationType =
   | 'application_approved'  // 申請承認（申請者向け）
   | 'application_rejected'  // 申請却下（申請者向け）
   | 'application_returned'  // 申請差戻し（申請者向け）
+  | 'payment_completed'     // 支払い完了（申請者向け）
+  | 'payment_failed'        // 支払い失敗（申請者・管理者向け）
   | 'ai_anomaly_report'     // AI副社長・日次違和感レポート
   | 'ai_organization_health' // AI副社長・組織温度レポート
   | 'ai_todo_high'          // AI副社長・HIGH優先度TODO
@@ -46,8 +48,13 @@ export interface Notification {
     incidentId?: string;
     // application (approval_pending, application_approved, etc.)
     applicationId?: string;
-    applicationType?: 'RINGI' | 'EXPENSE' | 'OVERTIME';
+    applicationType?: 'RINGI' | 'EXPENSE' | 'OVERTIME' | 'PAYMENT_REQUEST';
     reason?: string;
+    // payment (payment_completed, payment_failed)
+    paymentId?: string;
+    paymentAmount?: number;
+    payeeName?: string;
+    errorMessage?: string;
     // ai_anomaly_report
     reportId?: string;
     reportDate?: string;

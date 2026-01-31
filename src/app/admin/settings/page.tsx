@@ -9,7 +9,7 @@ import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input, Select } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { Settings, ScoringRule, DEFAULT_SCORING_RULES } from '@/types';
-import { Save, RefreshCw, Settings as SettingsIcon, AlertTriangle } from 'lucide-react';
+import { Save, RefreshCw, Settings as SettingsIcon, AlertTriangle, Link2, ChevronRight, BookOpen } from 'lucide-react';
 
 export default function AdminSettingsPage() {
   return (
@@ -266,6 +266,48 @@ function AdminSettingsContent() {
                   ※ 空白の場合は制限なし。MVPでは設定のみ、実際の制限は今後実装予定です。
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* 外部連携 */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Link2 className="w-5 h-5 text-blue-500 mr-2" />
+                外部サービス連携
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <a
+                href="/admin/settings/freee"
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                    <span className="text-blue-600 font-bold text-sm">freee</span>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">freee会計</p>
+                    <p className="text-sm text-gray-500">支払い依頼の自動連携</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+              </a>
+              <a
+                href="/admin/accounting-templates"
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-center">
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                    <BookOpen className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">仕訳テンプレート</p>
+                    <p className="text-sm text-gray-500">freee自動仕訳のルール設定</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+              </a>
             </CardContent>
           </Card>
 

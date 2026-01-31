@@ -1,5 +1,6 @@
 // /api/applications/[id]/approve - 申請承認API
 // submitted → approved への状態遷移
+// PAYMENT_REQUEST の場合は自動支払い実行
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
@@ -7,7 +8,8 @@ import { hasMinRole } from '@/lib/auth';
 import { Timestamp } from 'firebase-admin/firestore';
 import { normalizeForFirestore } from '@/lib/firestore/normalize';
 import { notifyApplicationApproved } from '@/lib/notifications-server';
-import { ApplicationType } from '@/types/application';
+import { ApplicationType, PaymentRequestPayload } from '@/types/application';
+import { createPayment, executePayment } from '@/lib/payment';
 
 const COLLECTION_NAME = 'applications';
 const AUDIT_LOG_COLLECTION = 'applicationAuditLogs';
@@ -131,11 +133,53 @@ export async function POST(
       // 通知失敗は承認処理を失敗させない
     }
 
+    // PAYMENT_REQUEST の場合は自動支払いを実行
+    let paymentResult = null;
+    if (data.type === 'PAYMENT_REQUEST') {
+      try {
+        const payload = data.payload as PaymentRequestPayload;
+
+        // 支払いを作成
+        const payment = await createPayment({
+          applicationId: id,
+          applicationTitle: data.title,
+          amount: payload.amount,
+          payeeName: payload.payeeName,
+          payeeEmail: payload.payeeEmail,
+          paymentMethod: payload.paymentMethod,
+          bankAccount: payload.bankAccount,
+          createdBy: data.authorId,
+          createdByName: data.authorName,
+        });
+
+        console.log(`[Payment] 支払い作成完了: ${payment.id}`);
+
+        // 支払いを実行
+        const executionResult = await executePayment(payment.id);
+        paymentResult = {
+          paymentId: payment.id,
+          success: executionResult.success,
+          transactionId: executionResult.transactionId,
+          errorMessage: executionResult.errorMessage,
+        };
+
+        console.log(`[Payment] 支払い実行結果:`, paymentResult);
+      } catch (paymentError) {
+        console.error('[Payment] 自動支払い処理エラー:', paymentError);
+        paymentResult = {
+          success: false,
+          errorMessage: paymentError instanceof Error ? paymentError.message : '支払い処理中にエラーが発生しました',
+        };
+        // 支払いエラーは承認処理を失敗させない（後でリトライ）
+      }
+    }
+
     return NextResponse.json({
       success: true,
       id,
       status: 'approved',
       approvedBy: userData.name,
+      payment: paymentResult,
     });
   } catch (error) {
     console.error('Application approve API error:', error);

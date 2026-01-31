@@ -1,22 +1,25 @@
 // ======== 共通申請モジュール 型定義 ========
-// 稟議（RINGI）・経費申請（EXPENSE）・残業申請（OVERTIME）の共通基盤
+// 稟議（RINGI）・経費申請（EXPENSE）・残業申請（OVERTIME）・支払い依頼（PAYMENT_REQUEST）の共通基盤
 
 import { UserRole } from './index';
-import { RingiStatus, RingiCategory, PaymentMethod, ApproverType, ApproverRole } from './ringi';
+import { RingiStatus, RingiCategory, ApproverType, ApproverRole } from './ringi';
+import { PaymentMethod as PaymentMethodType, BankAccount } from './payment';
 
 // ======== 申請種別 ========
-export type ApplicationType = 'RINGI' | 'EXPENSE' | 'OVERTIME';
+export type ApplicationType = 'RINGI' | 'EXPENSE' | 'OVERTIME' | 'PAYMENT_REQUEST';
 
 export const APPLICATION_TYPE_LABELS: Record<ApplicationType, string> = {
   RINGI: '稟議',
   EXPENSE: '経費申請',
   OVERTIME: '残業申請',
+  PAYMENT_REQUEST: '支払い依頼',
 };
 
 export const APPLICATION_TYPE_ICONS: Record<ApplicationType, string> = {
   RINGI: '📋',
   EXPENSE: '💰',
   OVERTIME: '⏰',
+  PAYMENT_REQUEST: '🏦',
 };
 
 // ======== 経費申請 Payload ========
@@ -126,6 +129,51 @@ export interface OvertimeFormData {
   isNightShift: boolean;
 }
 
+// ======== 支払い依頼 Payload ========
+export interface PaymentRequestPayload {
+  // 支払い先情報
+  payeeName: string;          // 支払い先名
+  payeeEmail?: string;        // 支払い先メール
+  // 銀行口座（振込の場合）
+  bankAccount?: BankAccount;
+  // 支払い情報
+  amount: number;
+  paymentMethod: PaymentMethodType;
+  dueDate: string;            // 支払い期限 YYYY-MM-DD
+  // 請求内容
+  invoiceNumber?: string;     // 請求書番号
+  invoiceDate?: string;       // 請求書日付
+  description: string;        // 支払い内容
+  purpose: string;            // 支払い目的
+  // 添付ファイル（請求書必須）
+  invoiceUrls: string[];      // 請求書ファイル
+  // オプション
+  projectCode?: string;       // プロジェクトコード
+  notes?: string;             // 備考
+}
+
+export interface PaymentRequestFormData {
+  payeeName: string;
+  payeeEmail?: string;
+  bankName?: string;
+  bankCode?: string;
+  branchName?: string;
+  branchCode?: string;
+  accountType?: 'ordinary' | 'checking';
+  accountNumber?: string;
+  accountHolder?: string;
+  amount: number | '';
+  paymentMethod: PaymentMethodType | '';
+  dueDate: string;
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  description: string;
+  purpose: string;
+  invoiceUrls: string[];
+  projectCode?: string;
+  notes?: string;
+}
+
 // ======== 共通申請データ ========
 export interface Application<T = unknown> {
   id: string;
@@ -183,6 +231,9 @@ export type ExpenseApplication = Application<ExpensePayload>;
 
 // 残業申請型
 export type OvertimeApplication = Application<OvertimePayload>;
+
+// 支払い依頼型
+export type PaymentRequestApplication = Application<PaymentRequestPayload>;
 
 // ======== 承認フロー（共通）========
 
@@ -365,6 +416,77 @@ export function validateOvertime(data: OvertimeFormData): ApplicationValidationR
 }
 
 /**
+ * 支払い依頼のバリデーション
+ */
+export function validatePaymentRequest(data: PaymentRequestFormData): ApplicationValidationResult {
+  const errors: ApplicationValidationError[] = [];
+  const warnings: string[] = [];
+
+  // 必須項目チェック
+  if (!data.payeeName?.trim()) {
+    errors.push({ field: 'payeeName', message: '支払い先名は必須です' });
+  }
+  if (data.amount === '' || data.amount === undefined || data.amount === null) {
+    errors.push({ field: 'amount', message: '金額は必須です' });
+  } else if (data.amount <= 0) {
+    errors.push({ field: 'amount', message: '金額は1円以上で入力してください' });
+  }
+  if (data.paymentMethod === '' || !data.paymentMethod) {
+    errors.push({ field: 'paymentMethod', message: '支払い方法は必須です' });
+  }
+  if (!data.dueDate) {
+    errors.push({ field: 'dueDate', message: '支払い期限は必須です' });
+  }
+  if (!data.description?.trim()) {
+    errors.push({ field: 'description', message: '支払い内容は必須です' });
+  }
+  if (!data.purpose?.trim()) {
+    errors.push({ field: 'purpose', message: '支払い目的は必須です' });
+  }
+
+  // 請求書は必須
+  if (!data.invoiceUrls || data.invoiceUrls.length === 0) {
+    errors.push({ field: 'invoiceUrls', message: '請求書の添付は必須です' });
+  }
+
+  // 銀行振込の場合は口座情報必須
+  if (data.paymentMethod === 'bank_transfer') {
+    if (!data.bankName?.trim()) {
+      errors.push({ field: 'bankName', message: '銀行名は必須です' });
+    }
+    if (!data.branchName?.trim()) {
+      errors.push({ field: 'branchName', message: '支店名は必須です' });
+    }
+    if (!data.accountNumber?.trim()) {
+      errors.push({ field: 'accountNumber', message: '口座番号は必須です' });
+    }
+    if (!data.accountHolder?.trim()) {
+      errors.push({ field: 'accountHolder', message: '口座名義は必須です' });
+    }
+  }
+
+  // 高額の場合は警告
+  if (typeof data.amount === 'number' && data.amount >= 1000000) {
+    warnings.push('100万円以上の支払いです。承認に時間がかかる場合があります');
+  }
+
+  // 支払い期限チェック
+  if (data.dueDate) {
+    const dueDate = new Date(data.dueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysUntilDue < 0) {
+      errors.push({ field: 'dueDate', message: '支払い期限が過去の日付です' });
+    } else if (daysUntilDue <= 3) {
+      warnings.push('支払い期限が3日以内です。早めの承認が必要です');
+    }
+  }
+
+  return { isValid: errors.length === 0, errors, warnings };
+}
+
+/**
  * 残業時間を計算
  */
 export function calculateOvertimeHours(startTime: string, endTime: string): number {
@@ -435,7 +557,7 @@ export function canApproveApplication(
  */
 export function generateApplicationTitle(
   type: ApplicationType,
-  payload: ExpensePayload | OvertimePayload,
+  payload: ExpensePayload | OvertimePayload | PaymentRequestPayload,
   authorName: string
 ): string {
   switch (type) {
@@ -446,6 +568,10 @@ export function generateApplicationTitle(
     case 'OVERTIME': {
       const op = payload as OvertimePayload;
       return `【残業】${op.date} ${op.hours}h（${authorName}）`;
+    }
+    case 'PAYMENT_REQUEST': {
+      const pp = payload as PaymentRequestPayload;
+      return `【支払い】${pp.payeeName} ${pp.amount.toLocaleString()}円（${authorName}）`;
     }
     default:
       return `【申請】${authorName}`;
