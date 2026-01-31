@@ -2,9 +2,11 @@
  * @jest-environment node
  */
 import {
-  PROSPECT_MIN_INTERNAL_NO,
-  isProspectActiveByInternalNo,
-  isProspectActive,
+  PROSPECTS_ACTIVE_FROM,
+  isActiveProspectByTime,
+  applyProspectTimeScope,
+  isProspectInFullScope,
+  applyFullProspectScope,
 } from '../src/lib/prospect';
 import { Prospect, ProspectStatus } from '../src/types/prospect';
 
@@ -16,127 +18,190 @@ function createMockProspect(overrides: Partial<Prospect> = {}): Prospect {
     status: '新規受付' as ProspectStatus,
     receivedAt: new Date('2026-01-15'),
     createdAt: new Date('2026-01-15'),
-    internalNo: 300, // デフォルトは有効な番号
     ...overrides,
   };
 }
 
-describe('prospect-scope', () => {
-  describe('PROSPECT_MIN_INTERNAL_NO', () => {
-    it('最小有効社内Noが252であること', () => {
-      expect(PROSPECT_MIN_INTERNAL_NO).toBe(252);
+describe('prospect-scope（時間ベース）', () => {
+  describe('PROSPECTS_ACTIVE_FROM', () => {
+    it('有効データ開始日時が2026-01-12 04:49 UTC (JST 13:49)であること', () => {
+      expect(PROSPECTS_ACTIVE_FROM.toISOString()).toBe('2026-01-12T04:49:00.000Z');
     });
   });
 
-  describe('isProspectActiveByInternalNo', () => {
-    it('internalNo >= 252 は有効', () => {
-      const prospect = createMockProspect({ internalNo: 252 });
-      expect(isProspectActiveByInternalNo(prospect)).toBe(true);
+  describe('isActiveProspectByTime', () => {
+    it('receivedAt >= 2026-01-12 13:49 JST は有効', () => {
+      const prospect = createMockProspect({
+        receivedAt: new Date('2026-01-12T04:50:00.000Z'), // 2026-01-12 13:50 JST
+      });
+      expect(isActiveProspectByTime(prospect)).toBe(true);
     });
 
-    it('internalNo = 252 のちょうど境界値は有効', () => {
-      const prospect = createMockProspect({ internalNo: 252 });
-      expect(isProspectActiveByInternalNo(prospect)).toBe(true);
+    it('receivedAt = 2026-01-12 04:49 UTC のちょうど境界値は有効', () => {
+      const prospect = createMockProspect({
+        receivedAt: new Date('2026-01-12T04:49:00.000Z'),
+      });
+      expect(isActiveProspectByTime(prospect)).toBe(true);
     });
 
-    it('internalNo > 252 は有効', () => {
-      const prospect = createMockProspect({ internalNo: 1000 });
-      expect(isProspectActiveByInternalNo(prospect)).toBe(true);
+    it('receivedAt > 境界日時 は有効', () => {
+      const prospect = createMockProspect({
+        receivedAt: new Date('2026-01-15T00:00:00.000Z'),
+      });
+      expect(isActiveProspectByTime(prospect)).toBe(true);
     });
 
-    it('internalNo = 251 は無効', () => {
-      const prospect = createMockProspect({ internalNo: 251 });
-      expect(isProspectActiveByInternalNo(prospect)).toBe(false);
+    it('receivedAt < 境界日時 は無効', () => {
+      const prospect = createMockProspect({
+        receivedAt: new Date('2026-01-12T04:48:59.999Z'), // 境界の1秒前
+      });
+      expect(isActiveProspectByTime(prospect)).toBe(false);
     });
 
-    it('internalNo < 252 は無効', () => {
-      const prospect = createMockProspect({ internalNo: 100 });
-      expect(isProspectActiveByInternalNo(prospect)).toBe(false);
+    it('receivedAt = 2026-01-01 は無効', () => {
+      const prospect = createMockProspect({
+        receivedAt: new Date('2026-01-01T00:00:00.000Z'),
+      });
+      expect(isActiveProspectByTime(prospect)).toBe(false);
     });
 
-    it('internalNo = 1 は無効', () => {
-      const prospect = createMockProspect({ internalNo: 1 });
-      expect(isProspectActiveByInternalNo(prospect)).toBe(false);
-    });
-
-    it('internalNo = 0 は無効', () => {
-      const prospect = createMockProspect({ internalNo: 0 });
-      expect(isProspectActiveByInternalNo(prospect)).toBe(false);
-    });
-
-    it('internalNo = null は無効', () => {
-      const prospect = createMockProspect({ internalNo: null });
-      expect(isProspectActiveByInternalNo(prospect)).toBe(false);
-    });
-
-    it('internalNo = undefined は無効', () => {
-      const prospect = createMockProspect({ internalNo: undefined });
-      expect(isProspectActiveByInternalNo(prospect)).toBe(false);
+    it('2025年のデータは無効', () => {
+      const prospect = createMockProspect({
+        receivedAt: new Date('2025-12-31T23:59:59.999Z'),
+      });
+      expect(isActiveProspectByTime(prospect)).toBe(false);
     });
   });
 
-  describe('isProspectActive', () => {
-    it('internalNo >= 252 は有効', () => {
-      const prospect = createMockProspect({ internalNo: 300 });
-      expect(isProspectActive(prospect)).toBe(true);
+  describe('inquiryDateフォールバック', () => {
+    it('receivedAtがなくinquiryDateが有効範囲内なら有効', () => {
+      const prospect = createMockProspect({
+        receivedAt: undefined as unknown as Date,
+        inquiryDate: '2026-01-15',
+        createdAt: new Date('2026-01-01'),
+      });
+      expect(isActiveProspectByTime(prospect)).toBe(true);
     });
 
-    it('internalNo < 252 は無効', () => {
-      const prospect = createMockProspect({ internalNo: 200 });
-      expect(isProspectActive(prospect)).toBe(false);
-    });
-
-    it('internalNo = null は無効', () => {
-      const prospect = createMockProspect({ internalNo: null });
-      expect(isProspectActive(prospect)).toBe(false);
-    });
-
-    it('internalNo = undefined は無効', () => {
-      const prospect = createMockProspect({ internalNo: undefined });
-      expect(isProspectActive(prospect)).toBe(false);
+    it('receivedAtがなくinquiryDateが範囲外なら無効', () => {
+      const prospect = createMockProspect({
+        receivedAt: undefined as unknown as Date,
+        inquiryDate: '2026-01-01',
+        createdAt: new Date('2026-01-01'),
+      });
+      expect(isActiveProspectByTime(prospect)).toBe(false);
     });
   });
 
-  describe('境界値テスト', () => {
-    it('internalNo = 252 は有効（境界値）', () => {
-      const prospect = createMockProspect({ internalNo: 252 });
-      expect(isProspectActive(prospect)).toBe(true);
+  describe('createdAtフォールバック', () => {
+    it('receivedAt/inquiryDateがなくcreatedAtが有効範囲内なら有効', () => {
+      const prospect = createMockProspect({
+        receivedAt: undefined as unknown as Date,
+        inquiryDate: undefined,
+        createdAt: new Date('2026-01-15'),
+      });
+      expect(isActiveProspectByTime(prospect)).toBe(true);
+    });
+  });
+
+  describe('applyProspectTimeScope', () => {
+    it('空配列は空配列を返す', () => {
+      const result = applyProspectTimeScope([]);
+      expect(result).toEqual([]);
     });
 
-    it('internalNo = 251 は無効（境界値-1）', () => {
-      const prospect = createMockProspect({ internalNo: 251 });
-      expect(isProspectActive(prospect)).toBe(false);
+    it('有効な日時のもののみをフィルタリング', () => {
+      const prospects = [
+        createMockProspect({ id: '1', receivedAt: new Date('2026-01-01') }),
+        createMockProspect({ id: '2', receivedAt: new Date('2026-01-10') }),
+        createMockProspect({ id: '3', receivedAt: new Date('2026-01-12T04:49:00.000Z') }),
+        createMockProspect({ id: '4', receivedAt: new Date('2026-01-15') }),
+      ];
+
+      const result = applyProspectTimeScope(prospects);
+
+      expect(result.length).toBe(2);
+      expect(result.map(p => p.id)).toEqual(['3', '4']);
     });
 
-    it('internalNo = 253 は有効（境界値+1）', () => {
-      const prospect = createMockProspect({ internalNo: 253 });
-      expect(isProspectActive(prospect)).toBe(true);
+    it('全て有効な場合はすべて返す', () => {
+      const prospects = [
+        createMockProspect({ receivedAt: new Date('2026-01-15') }),
+        createMockProspect({ receivedAt: new Date('2026-01-20') }),
+        createMockProspect({ receivedAt: new Date('2026-02-01') }),
+      ];
+
+      const result = applyProspectTimeScope(prospects);
+
+      expect(result.length).toBe(3);
+    });
+
+    it('全て無効な場合は空配列を返す', () => {
+      const prospects = [
+        createMockProspect({ receivedAt: new Date('2025-12-01') }),
+        createMockProspect({ receivedAt: new Date('2026-01-01') }),
+        createMockProspect({ receivedAt: new Date('2026-01-10') }),
+      ];
+
+      const result = applyProspectTimeScope(prospects);
+
+      expect(result.length).toBe(0);
     });
   });
 
   describe('ステータスとの組み合わせ', () => {
-    it('クローズでも internalNo >= 252 なら表示対象', () => {
+    it('クローズでも有効な日時なら時間スコープ内', () => {
       const prospect = createMockProspect({
-        internalNo: 300,
+        receivedAt: new Date('2026-01-15'),
         status: 'クローズ' as ProspectStatus,
       });
-      expect(isProspectActive(prospect)).toBe(true);
+      expect(isActiveProspectByTime(prospect)).toBe(true);
     });
 
-    it('入居決定でも internalNo < 252 なら非表示', () => {
+    it('入居決定でも範囲外日時なら時間スコープ外', () => {
       const prospect = createMockProspect({
-        internalNo: 100,
+        receivedAt: new Date('2026-01-01'),
         status: '入居決定' as ProspectStatus,
       });
-      expect(isProspectActive(prospect)).toBe(false);
+      expect(isActiveProspectByTime(prospect)).toBe(false);
     });
 
-    it('新規受付で internalNo >= 252 なら有効', () => {
+    it('新規受付で有効日時なら時間スコープ内', () => {
       const prospect = createMockProspect({
-        internalNo: 500,
+        receivedAt: new Date('2026-01-15'),
         status: '新規受付' as ProspectStatus,
       });
-      expect(isProspectActive(prospect)).toBe(true);
+      expect(isActiveProspectByTime(prospect)).toBe(true);
     });
+  });
+});
+
+describe('isProspectInFullScope', () => {
+  it('時間スコープ内のProspectは完全スコープ内', () => {
+    const prospect = createMockProspect({
+      receivedAt: new Date('2026-01-15'),
+    });
+    expect(isProspectInFullScope(prospect)).toBe(true);
+  });
+
+  it('時間スコープ外のProspectは完全スコープ外', () => {
+    const prospect = createMockProspect({
+      receivedAt: new Date('2026-01-01'),
+    });
+    expect(isProspectInFullScope(prospect)).toBe(false);
+  });
+});
+
+describe('applyFullProspectScope', () => {
+  it('時間スコープのみでフィルタリング', () => {
+    const prospects = [
+      createMockProspect({ id: '1', receivedAt: new Date('2026-01-01') }),
+      createMockProspect({ id: '2', receivedAt: new Date('2026-01-15') }),
+    ];
+
+    const result = applyFullProspectScope(prospects);
+
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe('2');
   });
 });

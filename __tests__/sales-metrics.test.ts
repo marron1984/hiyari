@@ -101,11 +101,16 @@ describe('KPIスコープとの統合', () => {
     expect(cvRate).toBeNull();
   });
 
-  test('internal_no >= 251のみがKPI対象', () => {
-    // 250以下は対象外
-    const KPI_MIN_INTERNAL_NO = 251;
-    expect(250 >= KPI_MIN_INTERNAL_NO).toBe(false);
-    expect(251 >= KPI_MIN_INTERNAL_NO).toBe(true);
-    expect(300 >= KPI_MIN_INTERNAL_NO).toBe(true);
+  test('KPIスコープは2026-01-12 13:49 JST以降が対象', () => {
+    // 時間ベーススコープを使用
+    // 2026-01-12 04:49 UTC = 2026-01-12 13:49 JST
+    const ACTIVE_FROM = new Date('2026-01-12T04:49:00.000Z');
+    const beforeBoundary = new Date('2026-01-12T04:48:59.999Z');
+    const atBoundary = new Date('2026-01-12T04:49:00.000Z');
+    const afterBoundary = new Date('2026-01-15T00:00:00.000Z');
+
+    expect(beforeBoundary >= ACTIVE_FROM).toBe(false);
+    expect(atBoundary >= ACTIVE_FROM).toBe(true);
+    expect(afterBoundary >= ACTIVE_FROM).toBe(true);
   });
 });

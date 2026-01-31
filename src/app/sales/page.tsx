@@ -241,15 +241,18 @@ function SalesDashboardContent() {
             </div>
           )}
 
-          {/* 警告バナー */}
-          {metrics?.warnings && metrics.warnings.length > 0 && (
-            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-center gap-2 text-yellow-700 text-sm">
-                <AlertCircle className="w-4 h-4" />
-                <span>一部のデータ取得で問題が発生しました</span>
+          {/* 警告バナー（エラーがある場合のみ） */}
+          {(() => {
+            const errors = metrics?.warnings?.filter(w => w.code === 'FETCH_ERROR') || [];
+            return errors.length > 0 ? (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center gap-2 text-yellow-700 text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>一部のデータ取得で問題が発生しました: {errors.map(e => e.label).join(', ')}</span>
+                </div>
               </div>
-            </div>
-          )}
+            ) : null;
+          })()}
 
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -339,7 +342,6 @@ function SalesDashboardContent() {
                 <h2 className="font-semibold text-gray-900 mb-4 flex items-center">
                   <Users className="w-5 h-5 mr-2 text-indigo-600" />
                   入居希望パイプライン
-                  <span className="text-xs text-gray-400 ml-2">（No.252以上のみ）</span>
                 </h2>
                 <div className="grid grid-cols-4 gap-4">
                   <div className="text-center p-4 bg-white rounded-xl shadow-sm">

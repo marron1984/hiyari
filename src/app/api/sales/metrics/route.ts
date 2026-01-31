@@ -138,6 +138,7 @@ export async function GET(request: NextRequest) {
         }
       });
     } catch (err) {
+      console.error('[sales/metrics] deals取得失敗:', err);
       warnings.push({
         label: 'deals',
         code: 'FETCH_ERROR',
@@ -239,6 +240,7 @@ export async function GET(request: NextRequest) {
       prospectsData.expectedMoveIns = Math.round(prospectsData.expectedMoveIns * 10) / 10;
 
     } catch (err) {
+      console.error('[sales/metrics] prospects取得失敗:', err);
       warnings.push({
         label: 'prospects',
         code: 'FETCH_ERROR',

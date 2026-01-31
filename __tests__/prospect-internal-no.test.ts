@@ -1,177 +1,194 @@
 /**
- * 入居希望者 internal_no 自動付番・KPIスコープのUnit test
+ * 入居希望者 時間ベーススコープのUnit test
  *
  * テスト対象:
- * 1. isKpiTargetInternalNo: internal_noがKPI対象（251以上）かの判定
- * 2. isProspectKpiTarget: ProspectがKPI対象かの判定
- * 3. applyProspectKpiScope: Prospect配列にKPIスコープを適用
+ * 1. isActiveProspectByTime: Prospectが時間スコープ内かの判定
+ * 2. getProspectBaseDate: 基準日時を取得（receivedAt > inquiryDate > createdAt）
+ * 3. applyProspectTimeScope: Prospect配列に時間スコープを適用
+ *
+ * 注意: internal_no によるスコープは廃止され、
+ * 2026-01-12 13:49 JST 以降の時間ベーススコープのみを使用
  */
 
 import {
-  isKpiTargetInternalNo,
-  isProspectKpiTarget,
-  applyProspectKpiScope,
-  KPI_MIN_INTERNAL_NO,
+  PROSPECTS_ACTIVE_FROM,
+  isActiveProspectByTime,
+  getProspectBaseDate,
+  applyProspectTimeScope,
 } from '@/lib/prospect';
 import type { Prospect, ProspectStatus } from '@/types/prospect';
 
 // テスト用のProspectを作成するヘルパー
-function createMockProspect(internalNo: string | number | undefined | null): Prospect {
+function createMockProspect(overrides: Partial<Prospect> = {}): Prospect {
   return {
     id: 'test-id',
     tenantId: 'defaultTenant',
     status: '新規受付' as ProspectStatus,
-    receivedAt: new Date(),
-    createdAt: new Date(),
-    internalNo: internalNo as string | undefined,
+    receivedAt: new Date('2026-01-15'),
+    createdAt: new Date('2026-01-15'),
+    ...overrides,
   } as Prospect;
 }
 
-describe('KPI_MIN_INTERNAL_NO', () => {
-  test('KPI_MIN_INTERNAL_NOは251', () => {
-    expect(KPI_MIN_INTERNAL_NO).toBe(251);
+describe('PROSPECTS_ACTIVE_FROM', () => {
+  test('有効データ開始日時は2026-01-12 04:49 UTC', () => {
+    expect(PROSPECTS_ACTIVE_FROM.toISOString()).toBe('2026-01-12T04:49:00.000Z');
+  });
+
+  test('JSTでは2026-01-12 13:49', () => {
+    // UTCから9時間加算でJST
+    const jstHour = PROSPECTS_ACTIVE_FROM.getUTCHours() + 9;
+    expect(jstHour).toBe(13);
+    expect(PROSPECTS_ACTIVE_FROM.getUTCMinutes()).toBe(49);
   });
 });
 
-describe('isKpiTargetInternalNo', () => {
-  test('undefined はKPI対象外', () => {
-    expect(isKpiTargetInternalNo(undefined)).toBe(false);
+describe('getProspectBaseDate', () => {
+  test('receivedAtが最優先', () => {
+    const prospect = createMockProspect({
+      receivedAt: new Date('2026-01-20'),
+      inquiryDate: '2026-01-15',
+      createdAt: new Date('2026-01-10'),
+    });
+    const baseDate = getProspectBaseDate(prospect);
+    expect(baseDate.toISOString()).toBe('2026-01-20T00:00:00.000Z');
   });
 
-  test('null はKPI対象外', () => {
-    expect(isKpiTargetInternalNo(null)).toBe(false);
+  test('receivedAtがなければinquiryDateを使用', () => {
+    const prospect = createMockProspect({
+      receivedAt: undefined as unknown as Date,
+      inquiryDate: '2026-01-15',
+      createdAt: new Date('2026-01-10'),
+    });
+    const baseDate = getProspectBaseDate(prospect);
+    expect(baseDate.toISOString().startsWith('2026-01-15')).toBe(true);
   });
 
-  test('空文字 はKPI対象外', () => {
-    expect(isKpiTargetInternalNo('')).toBe(false);
-  });
-
-  test('250 はKPI対象外', () => {
-    expect(isKpiTargetInternalNo(250)).toBe(false);
-    expect(isKpiTargetInternalNo('250')).toBe(false);
-  });
-
-  test('251 はKPI対象', () => {
-    expect(isKpiTargetInternalNo(251)).toBe(true);
-    expect(isKpiTargetInternalNo('251')).toBe(true);
-  });
-
-  test('100 はKPI対象外', () => {
-    expect(isKpiTargetInternalNo(100)).toBe(false);
-    expect(isKpiTargetInternalNo('100')).toBe(false);
-  });
-
-  test('0 はKPI対象外', () => {
-    expect(isKpiTargetInternalNo(0)).toBe(false);
-    expect(isKpiTargetInternalNo('0')).toBe(false);
-  });
-
-  test('252 はKPI対象', () => {
-    expect(isKpiTargetInternalNo(252)).toBe(true);
-    expect(isKpiTargetInternalNo('252')).toBe(true);
-  });
-
-  test('500 はKPI対象', () => {
-    expect(isKpiTargetInternalNo(500)).toBe(true);
-    expect(isKpiTargetInternalNo('500')).toBe(true);
-  });
-
-  test('数値でない文字列 はKPI対象外', () => {
-    expect(isKpiTargetInternalNo('abc')).toBe(false);
-    expect(isKpiTargetInternalNo('IMPORT-123')).toBe(false);
+  test('receivedAt/inquiryDateがなければcreatedAtを使用', () => {
+    const prospect = createMockProspect({
+      receivedAt: undefined as unknown as Date,
+      inquiryDate: undefined,
+      createdAt: new Date('2026-01-10'),
+    });
+    const baseDate = getProspectBaseDate(prospect);
+    expect(baseDate.toISOString()).toBe('2026-01-10T00:00:00.000Z');
   });
 });
 
-describe('isProspectKpiTarget', () => {
-  test('internal_no=251 のProspectはKPI対象', () => {
-    const prospect = createMockProspect('251');
-    expect(isProspectKpiTarget(prospect)).toBe(true);
+describe('isActiveProspectByTime', () => {
+  test('境界日時ちょうどは有効', () => {
+    const prospect = createMockProspect({
+      receivedAt: new Date('2026-01-12T04:49:00.000Z'),
+    });
+    expect(isActiveProspectByTime(prospect)).toBe(true);
   });
 
-  test('internal_no=252 のProspectはKPI対象', () => {
-    const prospect = createMockProspect('252');
-    expect(isProspectKpiTarget(prospect)).toBe(true);
+  test('境界日時の1ms後は有効', () => {
+    const prospect = createMockProspect({
+      receivedAt: new Date('2026-01-12T04:49:00.001Z'),
+    });
+    expect(isActiveProspectByTime(prospect)).toBe(true);
   });
 
-  test('internal_no=250 のProspectはKPI対象外', () => {
-    const prospect = createMockProspect('250');
-    expect(isProspectKpiTarget(prospect)).toBe(false);
+  test('境界日時の1ms前は無効', () => {
+    const prospect = createMockProspect({
+      receivedAt: new Date('2026-01-12T04:48:59.999Z'),
+    });
+    expect(isActiveProspectByTime(prospect)).toBe(false);
   });
 
-  test('internal_no=undefined のProspectはKPI対象外', () => {
-    const prospect = createMockProspect(undefined);
-    expect(isProspectKpiTarget(prospect)).toBe(false);
+  test('2025年のデータは無効', () => {
+    const prospect = createMockProspect({
+      receivedAt: new Date('2025-12-31'),
+    });
+    expect(isActiveProspectByTime(prospect)).toBe(false);
+  });
+
+  test('2026-01-01のデータは無効（境界日時より前）', () => {
+    const prospect = createMockProspect({
+      receivedAt: new Date('2026-01-01'),
+    });
+    expect(isActiveProspectByTime(prospect)).toBe(false);
+  });
+
+  test('2026-01-15のデータは有効', () => {
+    const prospect = createMockProspect({
+      receivedAt: new Date('2026-01-15'),
+    });
+    expect(isActiveProspectByTime(prospect)).toBe(true);
+  });
+
+  test('2026-02-01のデータは有効', () => {
+    const prospect = createMockProspect({
+      receivedAt: new Date('2026-02-01'),
+    });
+    expect(isActiveProspectByTime(prospect)).toBe(true);
   });
 });
 
-describe('applyProspectKpiScope', () => {
+describe('applyProspectTimeScope', () => {
   test('空配列は空配列を返す', () => {
-    const result = applyProspectKpiScope([]);
+    const result = applyProspectTimeScope([]);
     expect(result).toEqual([]);
   });
 
-  test('KPI対象のみをフィルタリング', () => {
+  test('有効なProspectのみをフィルタリング', () => {
     const prospects = [
-      createMockProspect('249'),
-      createMockProspect('250'),
-      createMockProspect('251'),
-      createMockProspect('252'),
-      createMockProspect(undefined),
+      createMockProspect({ id: 'old-1', receivedAt: new Date('2026-01-01') }),
+      createMockProspect({ id: 'old-2', receivedAt: new Date('2026-01-10') }),
+      createMockProspect({ id: 'new-1', receivedAt: new Date('2026-01-15') }),
+      createMockProspect({ id: 'new-2', receivedAt: new Date('2026-01-20') }),
     ];
 
-    const result = applyProspectKpiScope(prospects);
+    const result = applyProspectTimeScope(prospects);
 
     expect(result.length).toBe(2);
-    expect(result[0].internalNo).toBe('251');
-    expect(result[1].internalNo).toBe('252');
+    expect(result.map(p => p.id)).toEqual(['new-1', 'new-2']);
   });
 
-  test('全てKPI対象の場合はすべて返す', () => {
+  test('全て有効な場合はすべて返す', () => {
     const prospects = [
-      createMockProspect('251'),
-      createMockProspect('300'),
-      createMockProspect('500'),
+      createMockProspect({ receivedAt: new Date('2026-01-15') }),
+      createMockProspect({ receivedAt: new Date('2026-01-20') }),
+      createMockProspect({ receivedAt: new Date('2026-02-01') }),
     ];
 
-    const result = applyProspectKpiScope(prospects);
+    const result = applyProspectTimeScope(prospects);
 
     expect(result.length).toBe(3);
   });
 
-  test('全てKPI対象外の場合は空配列を返す', () => {
+  test('全て無効な場合は空配列を返す', () => {
     const prospects = [
-      createMockProspect('100'),
-      createMockProspect('200'),
-      createMockProspect('250'),
-      createMockProspect(undefined),
+      createMockProspect({ receivedAt: new Date('2025-12-01') }),
+      createMockProspect({ receivedAt: new Date('2026-01-01') }),
+      createMockProspect({ receivedAt: new Date('2026-01-10') }),
     ];
 
-    const result = applyProspectKpiScope(prospects);
+    const result = applyProspectTimeScope(prospects);
 
     expect(result.length).toBe(0);
   });
 
   test('元の配列は変更されない（イミュータブル）', () => {
     const prospects = [
-      createMockProspect('250'),
-      createMockProspect('251'),
+      createMockProspect({ receivedAt: new Date('2026-01-01') }),
+      createMockProspect({ receivedAt: new Date('2026-01-15') }),
     ];
     const originalLength = prospects.length;
 
-    applyProspectKpiScope(prospects);
+    applyProspectTimeScope(prospects);
 
     expect(prospects.length).toBe(originalLength);
   });
 });
 
-describe('自動付番ルール', () => {
-  test('KPI_MIN_INTERNAL_NO - 1 = 250 が境界値', () => {
-    // カウンタが250以下なら、次は251から開始する
-    expect(KPI_MIN_INTERNAL_NO - 1).toBe(250);
-  });
+describe('KPI対象判定（時間ベース）', () => {
+  test('境界日時以降のデータのみがKPI対象', () => {
+    const oldProspect = createMockProspect({ receivedAt: new Date('2026-01-01') });
+    const newProspect = createMockProspect({ receivedAt: new Date('2026-01-15') });
 
-  test('251が最初のKPI対象番号', () => {
-    expect(isKpiTargetInternalNo(KPI_MIN_INTERNAL_NO)).toBe(true);
-    expect(isKpiTargetInternalNo(KPI_MIN_INTERNAL_NO - 1)).toBe(false);
+    expect(isActiveProspectByTime(oldProspect)).toBe(false);
+    expect(isActiveProspectByTime(newProspect)).toBe(true);
   });
 });

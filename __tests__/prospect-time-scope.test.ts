@@ -4,8 +4,10 @@
  * テスト対象:
  * 1. isActiveProspectByTime: 受信日時が2026-01-12 13:49以降かの判定
  * 2. applyProspectTimeScope: 時間スコープを配列に適用
- * 3. isProspectInFullScope: 時間 + internal_no の完全スコープ判定
+ * 3. isProspectInFullScope: 完全スコープ判定（時間ベースのみ）
  * 4. applyFullProspectScope: 完全スコープを配列に適用
+ *
+ * 注意: internal_no によるスコープは廃止され、時間ベースのみを使用
  */
 
 import {
@@ -151,8 +153,8 @@ describe('applyProspectTimeScope', () => {
   });
 });
 
-describe('isProspectInFullScope', () => {
-  test('時間スコープ内 + internal_no >= 251 は有効', () => {
+describe('isProspectInFullScope（時間ベースのみ）', () => {
+  test('時間スコープ内は有効（internal_noに関係なく）', () => {
     const prospect = createMockProspectWithDate(
       new Date('2026-01-15T00:00:00Z'),
       '251'
@@ -160,15 +162,14 @@ describe('isProspectInFullScope', () => {
     expect(isProspectInFullScope(prospect)).toBe(true);
   });
 
-  test('時間スコープ内 + internal_no < 251 は無効', () => {
+  test('時間スコープ内でinternal_noなしでも有効', () => {
     const prospect = createMockProspectWithDate(
-      new Date('2026-01-15T00:00:00Z'),
-      '250'
+      new Date('2026-01-15T00:00:00Z')
     );
-    expect(isProspectInFullScope(prospect)).toBe(false);
+    expect(isProspectInFullScope(prospect)).toBe(true);
   });
 
-  test('時間スコープ外 + internal_no >= 251 は無効', () => {
+  test('時間スコープ外は無効（internal_noに関係なく）', () => {
     const prospect = createMockProspectWithDate(
       new Date('2026-01-01T00:00:00Z'),
       '251'
@@ -176,49 +177,40 @@ describe('isProspectInFullScope', () => {
     expect(isProspectInFullScope(prospect)).toBe(false);
   });
 
-  test('時間スコープ外 + internal_no未設定 は無効', () => {
+  test('時間スコープ外でinternal_noなしも無効', () => {
     const prospect = createMockProspectWithDate(
       new Date('2026-01-01T00:00:00Z')
     );
     expect(isProspectInFullScope(prospect)).toBe(false);
   });
-
-  test('時間スコープ内 + internal_no未設定 は無効', () => {
-    const prospect = createMockProspectWithDate(
-      new Date('2026-01-15T00:00:00Z')
-    );
-    expect(isProspectInFullScope(prospect)).toBe(false);
-  });
 });
 
-describe('applyFullProspectScope', () => {
+describe('applyFullProspectScope（時間ベースのみ）', () => {
   test('空配列は空配列を返す', () => {
     const result = applyFullProspectScope([]);
     expect(result).toEqual([]);
   });
 
-  test('完全スコープを適用', () => {
+  test('時間スコープのみで判定（internal_noは無視）', () => {
     const prospects = [
-      // 時間外 + 番号OK → 無効
+      // 時間外 → 無効
       createMockProspectWithDate(new Date('2026-01-01T00:00:00Z'), '251'),
-      // 時間OK + 番号NG → 無効
+      // 時間OK → 有効
       createMockProspectWithDate(new Date('2026-01-15T00:00:00Z'), '250'),
-      // 時間OK + 番号OK → 有効
+      // 時間OK → 有効
       createMockProspectWithDate(new Date('2026-01-15T00:00:00Z'), '251'),
-      // 時間OK + 番号OK → 有効
+      // 時間OK → 有効
       createMockProspectWithDate(new Date('2026-01-20T00:00:00Z'), '300'),
-      // 時間OK + 番号なし → 無効
+      // 時間OK + 番号なし → 有効
       createMockProspectWithDate(new Date('2026-01-15T00:00:00Z')),
     ];
 
     const result = applyFullProspectScope(prospects);
 
-    expect(result.length).toBe(2);
-    expect(result[0].internalNo).toBe('251');
-    expect(result[1].internalNo).toBe('300');
+    expect(result.length).toBe(4); // 時間内のすべて
   });
 
-  test('全て完全スコープ対象の場合はすべて返す', () => {
+  test('全て時間スコープ内の場合はすべて返す', () => {
     const prospects = [
       createMockProspectWithDate(new Date('2026-01-15T00:00:00Z'), '251'),
       createMockProspectWithDate(new Date('2026-01-20T00:00:00Z'), '252'),
@@ -230,11 +222,11 @@ describe('applyFullProspectScope', () => {
     expect(result.length).toBe(3);
   });
 
-  test('全てスコープ外の場合は空配列を返す', () => {
+  test('全て時間スコープ外の場合は空配列を返す', () => {
     const prospects = [
       createMockProspectWithDate(new Date('2026-01-01T00:00:00Z'), '251'),
-      createMockProspectWithDate(new Date('2026-01-15T00:00:00Z'), '100'),
-      createMockProspectWithDate(new Date('2026-01-05T00:00:00Z')),
+      createMockProspectWithDate(new Date('2026-01-05T00:00:00Z'), '100'),
+      createMockProspectWithDate(new Date('2026-01-10T00:00:00Z')),
     ];
 
     const result = applyFullProspectScope(prospects);
