@@ -91,6 +91,12 @@ export default function OSDashboardPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Link href="/dashboard/os/decision">
+              <Button variant="outline" size="sm">
+                <Shield className="w-4 h-4 mr-1" />
+                判断と責任のOS
+              </Button>
+            </Link>
             <Link href="/dashboard/os/checkin">
               <Button variant="outline" size="sm">
                 <Heart className="w-4 h-4 mr-1" />

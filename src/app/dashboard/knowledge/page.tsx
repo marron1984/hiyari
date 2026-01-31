@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import {
   BookOpen,
@@ -9,6 +10,8 @@ import {
   Users,
   Settings,
   Info,
+  ArrowRight,
+  Shield,
 } from 'lucide-react';
 
 // NotebookLM URL
@@ -131,6 +134,26 @@ export default function KnowledgeHubPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* 判断と責任のOS リンク */}
+        <Link href="/dashboard/os/decision">
+          <Card className="mb-6 bg-gradient-to-r from-zinc-50 to-blue-50 border-zinc-200 hover:border-blue-300 transition-colors cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Shield className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-zinc-900">判断と責任のOS</p>
+                    <p className="text-sm text-zinc-500">判断は下から上へ、責任は上で止まる</p>
+                  </div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-zinc-400" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* 知識カテゴリ */}
         <div className="space-y-6 mb-8">
