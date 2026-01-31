@@ -17,6 +17,7 @@ import {
   Clock,
   ArrowRight,
   Lock,
+  HelpCircle,
 } from 'lucide-react';
 
 // メニュー項目の型定義
@@ -108,6 +109,15 @@ const MENU_CATEGORIES: MenuCategory[] = [
     title: 'コミュニケーション',
     description: 'AIによるメッセージ・タスク管理',
     items: [
+      {
+        href: '/dashboard/ai-vp/ask',
+        icon: HelpCircle,
+        title: 'ふくしゃに聞く',
+        description: '副社長への質問・相談',
+        bgColor: 'bg-purple-100',
+        iconColor: 'text-purple-600',
+        status: 'available',
+      },
       {
         href: '/dashboard/ai/inbox',
         icon: Inbox,
