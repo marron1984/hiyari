@@ -16,6 +16,7 @@ export type NotificationType =
   | 'application_returned'  // 申請差戻し（申請者向け）
   | 'ai_anomaly_report'     // AI副社長・日次違和感レポート
   | 'ai_organization_health' // AI副社長・組織温度レポート
+  | 'ai_todo_high'          // AI副社長・HIGH優先度TODO
   | 'system';               // システム通知
 
 // 通知
@@ -51,6 +52,9 @@ export interface Notification {
     reportId?: string;
     reportDate?: string;
     alertLevel?: 'normal' | 'attention' | 'warning' | 'priority';
+    // ai_todo_high
+    todoId?: string;
+    todoSource?: 'OVERTIME' | 'APPROVAL' | 'SALES' | 'DOCUMENT' | 'PROSPECT';
   };
 }
 
