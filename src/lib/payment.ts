@@ -2,7 +2,7 @@
 
 import { getAdminDb } from './firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { getPaymentProvider } from './payment-provider';
+import { getPaymentProviderAsync } from './payment-provider';
 import { createNotificationServer } from './notifications-server';
 import type {
   Payment,
@@ -257,8 +257,8 @@ export async function executePayment(paymentId: string): Promise<PaymentExecutio
   await updatePaymentStatus(paymentId, 'processing');
 
   try {
-    // プロバイダーで実行
-    const provider = getPaymentProvider();
+    // プロバイダーで実行（freee連携チェック含む）
+    const provider = await getPaymentProviderAsync();
     const result = await provider.execute(payment);
 
     if (result.success) {

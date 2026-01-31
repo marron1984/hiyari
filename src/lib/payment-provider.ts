@@ -1,5 +1,5 @@
 // ======== 支払いプロバイダー ========
-// ダミー実装（ログ出力のみ）
+// ダミー実装（ログ出力のみ）またはfreee連携
 
 import type {
   Payment,
@@ -7,6 +7,8 @@ import type {
   PaymentExecutionResult,
   PaymentProviderInterface,
 } from '@/types/payment';
+import { getFreeePaymentProvider } from './freee-provider';
+import { getFreeeIntegration } from './freee-token';
 
 /**
  * ダミー支払いプロバイダー
@@ -76,12 +78,35 @@ export class DummyPaymentProvider implements PaymentProviderInterface {
 }
 
 /**
- * デフォルトの支払いプロバイダーを取得
+ * デフォルトの支払いプロバイダーを取得（同期版）
+ * freee連携チェックなし、常にDummyを返す
  */
 export function getPaymentProvider(): PaymentProviderInterface {
-  // TODO: 環境変数で切り替え可能に
+  return new DummyPaymentProvider();
+}
+
+/**
+ * 支払いプロバイダーを取得（非同期版）
+ * freee連携が有効な場合はfreeeプロバイダーを返す
+ */
+export async function getPaymentProviderAsync(): Promise<PaymentProviderInterface> {
+  try {
+    // freee連携チェック
+    const freeeIntegration = await getFreeeIntegration();
+
+    if (freeeIntegration?.connected && freeeIntegration.accessToken && freeeIntegration.companyId) {
+      console.log('[PaymentProvider] freee連携有効、freeeプロバイダー使用');
+      return await getFreeePaymentProvider();
+    }
+  } catch (error) {
+    console.error('[PaymentProvider] freee連携チェック失敗', error);
+  }
+
+  // 環境変数での切り替え
   // if (process.env.PAYMENT_PROVIDER === 'bank_api') {
   //   return new BankApiPaymentProvider();
   // }
+
+  console.log('[PaymentProvider] ダミープロバイダー使用');
   return new DummyPaymentProvider();
 }

@@ -37,7 +37,7 @@ export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 ];
 
 // ======== 支払いプロバイダー ========
-export type PaymentProviderType = 'dummy' | 'bank_api' | 'stripe';
+export type PaymentProviderType = 'dummy' | 'freee' | 'bank_api' | 'stripe';
 
 // ======== 銀行口座情報 ========
 export interface BankAccount {
@@ -75,6 +75,11 @@ export interface Payment {
   // 処理情報
   providerType: PaymentProviderType;
   providerTransactionId?: string;
+
+  // freee連携情報
+  freeePaymentRequestId?: number;
+  freeeTransferId?: number;
+  freeePartnerId?: number;
 
   // 失敗情報
   errorCode?: string;
