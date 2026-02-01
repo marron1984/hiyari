@@ -12,7 +12,8 @@ export type AlertType =
   | 'approval_backlog'  // 承認滞留
   | 'deadline_overdue'  // 期限超過
   | 'system_error'      // システムエラー
-  | 'handover_urgent';  // 重要申し送り
+  | 'handover_urgent'   // 重要申し送り
+  | 'ticket_backlog';   // チケット滞留
 
 /**
  * アラート重要度
@@ -107,6 +108,7 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   deadline_overdue: '期限超過',
   system_error: 'システム',
   handover_urgent: '重要申し送り',
+  ticket_backlog: 'チケット滞留',
 };
 
 /**

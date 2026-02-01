@@ -1,67 +1,130 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Card, CardHeader, CardTitle, CardContent, Badge } from '@/components/ui';
+import { Card, CardContent, Badge } from '@/components/ui';
 import {
   Ticket,
-  Calendar,
-  TrendingUp,
-  Clock,
-  ChevronRight,
-  Download,
+  Plus,
   Filter,
-  Bot,
+  Search,
   User,
-  Users,
-  ExternalLink,
-  Copy,
-  Check,
-  Zap,
+  Clock,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  ChevronRight,
+  Calendar,
 } from 'lucide-react';
+import type {
+  Ticket as TicketType,
+  TicketStatus,
+  TicketPriority,
+  TicketCategory,
+  TicketStats,
+} from '@/lib/tickets/types';
 import {
-  generateTickets,
-  getTicketCountByPhase,
-  exportToGitHubIssue,
-  exportTicketsToMarkdown,
-  TICKET_PHASES,
-  EFFORT_CONFIG,
-  type DevTicket,
-  type TicketPhase,
-} from '@/lib/generateTickets';
+  TICKET_STATUS_CONFIG,
+  TICKET_PRIORITY_CONFIG,
+  TICKET_CATEGORY_CONFIG,
+} from '@/lib/tickets/types';
+
+type TabType = 'my_assigned' | 'my_requested' | 'open' | 'overdue';
+
+const TABS: { id: TabType; label: string; icon: React.ReactNode; myFilter?: string; statusFilter?: string; overdueFilter?: boolean }[] = [
+  { id: 'my_assigned', label: '自分の担当', icon: <User className="w-4 h-4" />, myFilter: 'assigned' },
+  { id: 'my_requested', label: '自分の起票', icon: <Ticket className="w-4 h-4" />, myFilter: 'requested' },
+  { id: 'open', label: 'オープン', icon: <RefreshCw className="w-4 h-4" /> },
+  { id: 'overdue', label: '期限超過', icon: <AlertTriangle className="w-4 h-4" />, overdueFilter: true },
+];
 
 export default function TicketsPage() {
-  const [selectedPhase, setSelectedPhase] = useState<TicketPhase | 'all'>('all');
-  const [copiedTicketId, setCopiedTicketId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('my_assigned');
+  const [tickets, setTickets] = useState<TicketType[]>([]);
+  const [stats, setStats] = useState<TicketStats | null>(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  // チケットを生成
-  const allTickets = useMemo(() => generateTickets(), []);
-  const phaseCounts = useMemo(() => getTicketCountByPhase(), []);
+  // フィルタ
+  const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
+  const [priorityFilter, setPriorityFilter] = useState<TicketPriority | ''>('');
+  const [categoryFilter, setCategoryFilter] = useState<TicketCategory | ''>('');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // フィルター適用
-  const filteredTickets = useMemo(() => {
-    if (selectedPhase === 'all') return allTickets;
-    return allTickets.filter((t) => t.phase === selectedPhase);
-  }, [allTickets, selectedPhase]);
+  const fetchTickets = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
 
-  // GitHub Issue形式でコピー
-  const handleCopyTicket = async (ticket: DevTicket) => {
-    const issueContent = exportToGitHubIssue(ticket);
-    await navigator.clipboard.writeText(issueContent);
-    setCopiedTicketId(ticket.id);
-    setTimeout(() => setCopiedTicketId(null), 2000);
+      // タブによるフィルタ
+      const tab = TABS.find(t => t.id === activeTab);
+      if (tab?.myFilter) {
+        params.append('my', tab.myFilter);
+      }
+      if (tab?.overdueFilter) {
+        params.append('overdue', 'true');
+      }
+
+      // オープンタブの場合、open/in_progress/waitingのみ
+      if (activeTab === 'open' && !statusFilter) {
+        // status filter will be applied in the display logic
+      }
+
+      // 追加フィルタ
+      if (statusFilter) params.append('status', statusFilter);
+      if (priorityFilter) params.append('priority', priorityFilter);
+      if (categoryFilter) params.append('category', categoryFilter);
+      if (searchQuery) params.append('q', searchQuery);
+
+      const res = await fetch(`/api/tickets?${params.toString()}`);
+      const data = await res.json();
+
+      let items = data.items || [];
+
+      // オープンタブの場合、ステータスでフィルタ
+      if (activeTab === 'open' && !statusFilter) {
+        items = items.filter((t: TicketType) => ['open', 'in_progress', 'waiting'].includes(t.status));
+      }
+
+      setTickets(items);
+      setTotalCount(data.totalCount || 0);
+    } catch (error) {
+      console.error('Failed to fetch tickets:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeTab, statusFilter, priorityFilter, categoryFilter, searchQuery]);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tickets/stats');
+      const data = await res.json();
+      setStats(data);
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTickets();
+    fetchStats();
+  }, [fetchTickets, fetchStats]);
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('ja-JP', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
-  // 全チケットをMarkdownでダウンロード
-  const handleDownloadAll = () => {
-    const markdown = exportTicketsToMarkdown(allTickets);
-    const blob = new Blob([markdown], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tickets-${new Date().toISOString().split('T')[0]}.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const isOverdue = (ticket: TicketType) => {
+    if (!ticket.dueAt) return false;
+    if (['resolved', 'closed', 'archived'].includes(ticket.status)) return false;
+    return new Date(ticket.dueAt) < new Date();
   };
 
   return (
@@ -70,291 +133,228 @@ export default function TicketsPage() {
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg">
+            <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
               <Ticket className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-zinc-900">開発チケット</h1>
+              <h1 className="text-2xl font-bold text-zinc-900">チケット管理</h1>
               <p className="text-sm text-zinc-500">
-                OSマップから自動生成（{allTickets.length}件）
+                問い合わせ・対応チケット
               </p>
             </div>
           </div>
-          <button
-            onClick={handleDownloadAll}
-            className="flex items-center gap-2 px-4 py-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors"
+          <Link
+            href="/dashboard/tickets/new"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            <Download className="w-4 h-4" />
-            Markdown出力
-          </button>
+            <Plus className="w-4 h-4" />
+            新規作成
+          </Link>
         </div>
 
-        {/* 説明カード */}
-        <Card className="mb-6 bg-violet-50 border-violet-200">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Zap className="w-5 h-5 text-violet-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-violet-800">
-                <p className="font-medium mb-1">ロードマップ連動チケット</p>
-                <p className="text-violet-700">
-                  OSマップの経営優先度スコアに基づき、開発チケットを自動生成しています。
-                  GitHub Issue / Backlog / Notion にそのまま転記可能です。
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* 統計カード */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-blue-700">{stats.open}</div>
+                <div className="text-xs text-blue-600">オープン</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-red-50 border-red-200">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-red-700">{stats.urgentOpen}</div>
+                <div className="text-xs text-red-600">緊急</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-amber-50 border-amber-200">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-amber-700">{stats.overdue}</div>
+                <div className="text-xs text-amber-600">期限超過</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-indigo-50 border-indigo-200">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-indigo-700">{stats.myAssignedOpen}</div>
+                <div className="text-xs text-indigo-600">自分の担当</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-green-50 border-green-200">
+              <CardContent className="p-4 text-center">
+                <div className="text-2xl font-bold text-green-700">{stats.resolvedThisWeek}</div>
+                <div className="text-xs text-green-600">今週解決</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-        {/* フェーズフィルター */}
+        {/* タブ */}
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+              {tab.id === 'overdue' && stats && stats.overdue > 0 && (
+                <Badge className="bg-red-500 text-white text-xs ml-1">
+                  {stats.overdue}
+                </Badge>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* フィルタ */}
         <Card className="mb-6">
           <CardContent className="p-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <div className="flex items-center gap-2 text-sm text-zinc-600">
                 <Filter className="w-4 h-4" />
-                <span className="font-medium">フェーズ:</span>
+                <span className="font-medium">フィルタ:</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setSelectedPhase('all')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                    selectedPhase === 'all'
-                      ? 'bg-zinc-800 text-white'
-                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                  }`}
-                >
-                  全て
-                  <Badge className="bg-white/80 text-zinc-700 text-xs ml-1">
-                    {allTickets.length}
-                  </Badge>
-                </button>
-                {(['thisMonth', 'nextMonth', 'thisQuarter'] as const).map((phase) => {
-                  const config = TICKET_PHASES[phase];
-                  const count = phaseCounts[phase];
-                  const isSelected = selectedPhase === phase;
 
-                  return (
-                    <button
-                      key={phase}
-                      onClick={() => setSelectedPhase(phase)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                        isSelected
-                          ? `${config.bgColor} ${config.color} ring-2 ring-offset-1`
-                          : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                      }`}
-                    >
-                      <Calendar className="w-3.5 h-3.5" />
-                      {config.name}
-                      <Badge className="bg-white/80 text-zinc-700 text-xs ml-1">
-                        {count}
-                      </Badge>
-                    </button>
-                  );
-                })}
+              {/* ステータス */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as TicketStatus | '')}
+                className="px-3 py-1.5 border border-zinc-200 rounded-lg text-sm"
+              >
+                <option value="">全ステータス</option>
+                {Object.entries(TICKET_STATUS_CONFIG).map(([key, config]) => (
+                  <option key={key} value={key}>{config.label}</option>
+                ))}
+              </select>
+
+              {/* 優先度 */}
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value as TicketPriority | '')}
+                className="px-3 py-1.5 border border-zinc-200 rounded-lg text-sm"
+              >
+                <option value="">全優先度</option>
+                {Object.entries(TICKET_PRIORITY_CONFIG).map(([key, config]) => (
+                  <option key={key} value={key}>{config.emoji} {config.label}</option>
+                ))}
+              </select>
+
+              {/* カテゴリ */}
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value as TicketCategory | '')}
+                className="px-3 py-1.5 border border-zinc-200 rounded-lg text-sm"
+              >
+                <option value="">全カテゴリ</option>
+                {Object.entries(TICKET_CATEGORY_CONFIG).map(([key, config]) => (
+                  <option key={key} value={key}>{config.icon} {config.label}</option>
+                ))}
+              </select>
+
+              {/* 検索 */}
+              <div className="flex-1 min-w-[200px]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="タイトル・内容で検索..."
+                    className="w-full pl-10 pr-4 py-1.5 border border-zinc-200 rounded-lg text-sm"
+                  />
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* チケット一覧 */}
-        <div className="space-y-4">
-          {filteredTickets.map((ticket) => (
-            <TicketCard
-              key={ticket.id}
-              ticket={ticket}
-              onCopy={() => handleCopyTicket(ticket)}
-              isCopied={copiedTicketId === ticket.id}
-            />
-          ))}
-          {filteredTickets.length === 0 && (
-            <div className="text-center py-12 text-zinc-500">
-              該当するチケットがありません
-            </div>
-          )}
-        </div>
+        {loading ? (
+          <div className="text-center py-12 text-zinc-500">読み込み中...</div>
+        ) : tickets.length === 0 ? (
+          <div className="text-center py-12 text-zinc-500">
+            チケットがありません
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {tickets.map((ticket) => (
+              <Link key={ticket.id} href={`/dashboard/tickets/${ticket.id}`}>
+                <Card className={`hover:shadow-md transition-all cursor-pointer ${
+                  isOverdue(ticket) ? 'border-red-300 bg-red-50/30' : ''
+                }`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-4">
+                      {/* 優先度バッジ */}
+                      <div className={`w-10 h-10 flex items-center justify-center rounded-lg text-lg ${
+                        TICKET_PRIORITY_CONFIG[ticket.priority].bg
+                      }`}>
+                        {TICKET_PRIORITY_CONFIG[ticket.priority].emoji}
+                      </div>
 
-        {/* フッター */}
-        <div className="mt-8 text-center space-y-2">
-          <Link
-            href="/dashboard/os-map"
-            className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700"
-          >
-            OSマップで全機能を確認
-            <ExternalLink className="w-4 h-4" />
-          </Link>
+                      {/* メインコンテンツ */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <Badge className={`text-xs ${
+                            TICKET_STATUS_CONFIG[ticket.status].bg
+                          } ${TICKET_STATUS_CONFIG[ticket.status].color}`}>
+                            {TICKET_STATUS_CONFIG[ticket.status].label}
+                          </Badge>
+                          <Badge className="bg-zinc-100 text-zinc-600 text-xs">
+                            {TICKET_CATEGORY_CONFIG[ticket.category].icon}{' '}
+                            {TICKET_CATEGORY_CONFIG[ticket.category].label}
+                          </Badge>
+                          {isOverdue(ticket) && (
+                            <Badge className="bg-red-100 text-red-700 text-xs flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" />
+                              期限超過
+                            </Badge>
+                          )}
+                        </div>
+
+                        <h3 className="font-medium text-zinc-800 mb-1 truncate">
+                          {ticket.title}
+                        </h3>
+
+                        <div className="flex items-center gap-4 text-xs text-zinc-500">
+                          <span className="flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            {ticket.assigneeUserName || '未割当'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {formatDate(ticket.updatedAt)}
+                          </span>
+                          {ticket.dueAt && (
+                            <span className={`flex items-center gap-1 ${
+                              isOverdue(ticket) ? 'text-red-600 font-medium' : ''
+                            }`}>
+                              <Calendar className="w-3 h-3" />
+                              期限: {formatDate(ticket.dueAt)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 矢印 */}
+                      <ChevronRight className="w-5 h-5 text-zinc-400 flex-shrink-0" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {/* 件数表示 */}
+        <div className="mt-4 text-center text-sm text-zinc-500">
+          {totalCount}件中 {tickets.length}件表示
         </div>
       </div>
     </main>
-  );
-}
-
-/**
- * チケットカードコンポーネント
- */
-function TicketCard({
-  ticket,
-  onCopy,
-  isCopied,
-}: {
-  ticket: DevTicket;
-  onCopy: () => void;
-  isCopied: boolean;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const phaseConfig = TICKET_PHASES[ticket.phase];
-  const effortConfig = EFFORT_CONFIG[ticket.estimatedEffort];
-
-  return (
-    <Card className="overflow-hidden hover:shadow-md transition-all">
-      <CardContent className="p-0">
-        {/* メインエリア */}
-        <div className="p-4">
-          <div className="flex items-start gap-4">
-            {/* 左: スコアバッジ */}
-            <div className="flex flex-col items-center gap-1">
-              <div className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-orange-400 to-red-500 rounded-lg text-white font-bold text-lg">
-                {ticket.compositeScore}
-              </div>
-              <span className="text-xs text-zinc-400">/15</span>
-            </div>
-
-            {/* 中央: メインコンテンツ */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap mb-2">
-                <Badge className={`${phaseConfig.bgColor} ${phaseConfig.color} text-xs`}>
-                  {phaseConfig.name}
-                </Badge>
-                <Badge className="bg-zinc-100 text-zinc-600 text-xs">
-                  {ticket.categoryName}
-                </Badge>
-                <Badge className="bg-purple-100 text-purple-700 text-xs">
-                  {effortConfig.name} ({effortConfig.days})
-                </Badge>
-                {ticket.assignee === 'AI' && (
-                  <Badge className="bg-indigo-100 text-indigo-700 text-xs flex items-center gap-1">
-                    <Bot className="w-3 h-3" />
-                    AI担当
-                  </Badge>
-                )}
-              </div>
-
-              <h3 className="font-bold text-zinc-800 mb-1">{ticket.title}</h3>
-              <p className="text-sm text-zinc-500 mb-2">{ticket.description}</p>
-
-              <div className="flex items-center gap-4 text-xs text-zinc-400">
-                <span className="flex items-center gap-1">
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  優先度 {ticket.priority}/5
-                </span>
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  ROI {ticket.roi}/5
-                </span>
-                <span>リスク {ticket.risk}/5</span>
-              </div>
-            </div>
-
-            {/* 右: アクション */}
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={onCopy}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  isCopied
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-                }`}
-              >
-                {isCopied ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    コピー済
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    Issue形式
-                  </>
-                )}
-              </button>
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-zinc-100 text-zinc-600 hover:bg-zinc-200 transition-all"
-              >
-                <ChevronRight
-                  className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                />
-                詳細
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 展開エリア */}
-        {isExpanded && (
-          <div className="border-t border-zinc-100 bg-zinc-50 p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 受け入れ基準 */}
-              <div>
-                <h4 className="text-sm font-medium text-zinc-700 mb-2">受け入れ基準</h4>
-                <ul className="space-y-1">
-                  {ticket.acceptanceCriteria.map((criteria, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-zinc-600">
-                      <span className="w-4 h-4 flex items-center justify-center bg-zinc-200 rounded text-xs text-zinc-500 flex-shrink-0 mt-0.5">
-                        {i + 1}
-                      </span>
-                      {criteria}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* メタ情報 */}
-              <div>
-                <h4 className="text-sm font-medium text-zinc-700 mb-2">メタ情報</h4>
-                <dl className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <dt className="text-zinc-500">チケットID:</dt>
-                    <dd className="font-mono text-zinc-700">{ticket.id}</dd>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <dt className="text-zinc-500">関連パス:</dt>
-                    <dd className="font-mono text-zinc-700">
-                      <Link
-                        href={ticket.relatedPath}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {ticket.relatedPath}
-                      </Link>
-                    </dd>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <dt className="text-zinc-500">担当:</dt>
-                    <dd className="flex items-center gap-1">
-                      {ticket.assignee === 'AI' ? (
-                        <>
-                          <Bot className="w-4 h-4 text-indigo-600" />
-                          <span className="text-indigo-700">AI</span>
-                        </>
-                      ) : ticket.assignee === 'human' ? (
-                        <>
-                          <User className="w-4 h-4 text-green-600" />
-                          <span className="text-green-700">社内</span>
-                        </>
-                      ) : ticket.assignee === 'external' ? (
-                        <>
-                          <Users className="w-4 h-4 text-orange-600" />
-                          <span className="text-orange-700">外注</span>
-                        </>
-                      ) : (
-                        <span className="text-zinc-500">未割当</span>
-                      )}
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }

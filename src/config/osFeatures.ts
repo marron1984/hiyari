@@ -488,7 +488,7 @@ export const OS_FEATURES: OSFeature[] = [
     name: 'チケット管理',
     category: 'operation',
     status: 'active',
-    description: '開発チケットの自動生成・管理',
+    description: '問い合わせ・対応チケットの管理',
     path: '/dashboard/tickets',
     priority: 4,
     roi: 4,

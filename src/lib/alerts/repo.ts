@@ -206,6 +206,7 @@ export function getAlertStats(): AlertStats {
       deadline_overdue: 0,
       system_error: 0,
       handover_urgent: 0,
+      ticket_backlog: 0,
     },
   };
 
