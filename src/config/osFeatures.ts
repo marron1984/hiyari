@@ -163,6 +163,18 @@ export const OS_FEATURES: OSFeature[] = [
     risk: 5,
   },
   {
+    id: 'executive-summary',
+    name: '経営サマリー',
+    category: 'core',
+    status: 'active',
+    description: '経営会議用1枚サマリー自動生成',
+    path: '/dashboard/executive-summary',
+    owner: 'AI',
+    priority: 5,
+    roi: 5,
+    risk: 4,
+  },
+  {
     id: 'os-map',
     name: 'OSマップ（司令塔）',
     category: 'core',

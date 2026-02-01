@@ -380,7 +380,14 @@ export default function AiVpHubPage() {
           </Card>
 
           {/* クイックリンク */}
-          <div className="flex justify-center gap-6">
+          <div className="flex flex-wrap justify-center gap-6">
+            <Link
+              href="/dashboard/executive-summary"
+              className="inline-flex items-center gap-2 text-sm text-indigo-500 hover:text-indigo-700"
+            >
+              経営会議用サマリー
+              <ArrowRight className="w-4 h-4" />
+            </Link>
             <Link
               href="/dashboard/os-map"
               className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700"
