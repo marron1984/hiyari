@@ -379,13 +379,20 @@ export default function AiVpHubPage() {
             </CardContent>
           </Card>
 
-          {/* OSマップへのリンク */}
-          <div className="text-center">
+          {/* クイックリンク */}
+          <div className="flex justify-center gap-6">
             <Link
               href="/dashboard/os-map"
               className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700"
             >
               全機能の優先度を確認 → OSマップ
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              href="/dashboard/tickets"
+              className="inline-flex items-center gap-2 text-sm text-violet-500 hover:text-violet-700"
+            >
+              開発チケット一覧を確認
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
