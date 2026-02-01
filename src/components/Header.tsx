@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity, Bot } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { RoleSwitcher } from '@/components/navigation/RoleSwitcher';
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
 
@@ -188,6 +189,9 @@ export function Header() {
 
           {/* Right section */}
           <div className="flex items-center gap-2">
+            {/* Role Switcher (Admin only) */}
+            <RoleSwitcher />
+
             {/* Notification Bell */}
             <NotificationBell />
 

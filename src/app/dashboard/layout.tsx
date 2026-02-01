@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
 import { PreviewBadge } from '@/components/PreviewBadge';
+import { RolePreviewBanner } from '@/components/navigation/RolePreviewBanner';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <AuthGuard>
       <div className="min-h-screen bg-zinc-50">
         <Header />
+        <RolePreviewBanner />
         <PreviewBadge />
         <main className="pb-20 md:pb-8">
           {children}
