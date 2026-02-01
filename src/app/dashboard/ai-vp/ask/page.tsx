@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { getChaosViewLevel } from '@/lib/auth';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import {
@@ -15,9 +16,86 @@ import {
   Eye,
   EyeOff,
   ChevronRight,
+  Shield,
+  Heart,
+  FileText,
 } from 'lucide-react';
 import type { FukushaQuestion, FukushaQuestionCategory } from '@/types/fukusha-ask';
 import { FUKUSHA_CATEGORY_LABELS } from '@/types/fukusha-ask';
+
+/**
+ * ロール別メッセージ設定
+ *
+ * 思想：
+ * - 新人は「安心して聞ける」ことが最優先
+ * - 管理者は「一人で抱えない」ことが最優先
+ * - 経営は「判断が組織に残る」ことが最優先
+ */
+type UserRole = 'staff' | 'manager' | 'exec';
+
+interface RoleConfig {
+  headerTitle: string;
+  headerSubtitle: string;
+  descriptionTitle: string;
+  descriptionBody: string;
+  tips: string[];
+  placeholderText: string;
+  submitLabel: string;
+  bgGradient: string;
+  accentColor: string;
+  textColor: string;
+}
+
+const ROLE_CONFIG: Record<UserRole, RoleConfig> = {
+  staff: {
+    headerTitle: 'ふくしゃに聞く',
+    headerSubtitle: '安心して相談できる場所',
+    descriptionTitle: 'わからないことは、聞いて大丈夫。',
+    descriptionBody: '仕事のこと、職場のこと、迷ったらまずここで聞いてください。\nAIが質問を整理し、吉田さんが確認して返信します。',
+    tips: [
+      '質問は誰にも見られません（匿名も可能）',
+      '聞くことは正しい行動です。評価は下がりません',
+      'どんな小さな疑問でも大丈夫です',
+    ],
+    placeholderText: '気軽に質問を書いてください。どんな小さなことでも大丈夫です...',
+    submitLabel: '聞いてみる',
+    bgGradient: 'from-green-500 to-emerald-600',
+    accentColor: 'green',
+    textColor: 'text-green-800',
+  },
+  manager: {
+    headerTitle: 'ふくしゃに相談する',
+    headerSubtitle: '判断を一人で抱えない',
+    descriptionTitle: '迷ったら止めて、ここで相談。',
+    descriptionBody: '管理者でも判断に迷うことはあります。\n抱え込まず上位に返すことが、正しい責任の取り方です。',
+    tips: [
+      '相談した事実は評価を下げません',
+      '判断を抱え込むより、返すことが正解',
+      '経営と現場をつなぐ役割として',
+    ],
+    placeholderText: '判断に迷っていること、確認したいことを書いてください...',
+    submitLabel: '相談する',
+    bgGradient: 'from-blue-500 to-indigo-600',
+    accentColor: 'blue',
+    textColor: 'text-blue-800',
+  },
+  exec: {
+    headerTitle: '判断相談',
+    headerSubtitle: '判断を組織の資産にする',
+    descriptionTitle: '経営判断は、記録して残す。',
+    descriptionBody: '最終判断は経営の責任です。その判断プロセスを記録し、\n組織の知恵として残すことで、次の判断を助けます。',
+    tips: [
+      '判断ログは組織のOS資産になります',
+      '評価ではなく、知恵の蓄積です',
+      '現場からの相談はInboxで確認',
+    ],
+    placeholderText: '判断が必要な事項、検討中の内容を記録してください...',
+    submitLabel: '記録する',
+    bgGradient: 'from-purple-500 to-violet-600',
+    accentColor: 'purple',
+    textColor: 'text-purple-800',
+  },
+};
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof Clock }> = {
   pending: { label: '確認中', color: 'bg-yellow-100 text-yellow-700', icon: Clock },
@@ -39,6 +117,11 @@ export default function FukushaAskPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
+
+  // ロール判定
+  const viewLevel = user ? getChaosViewLevel(user.role, user.email) : 'self';
+  const userRole: UserRole = viewLevel === 'all' ? 'exec' : viewLevel === 'team' ? 'manager' : 'staff';
+  const roleConfig = ROLE_CONFIG[userRole];
 
   // 自分の質問を取得
   const fetchMyQuestions = useCallback(async () => {
@@ -113,34 +196,42 @@ export default function FukushaAskPage() {
     return <Loading text="読み込み中..." />;
   }
 
+  // アクセントカラー設定
+  const accentBg = userRole === 'staff' ? 'bg-green-50' : userRole === 'manager' ? 'bg-blue-50' : 'bg-purple-50';
+  const accentBorder = userRole === 'staff' ? 'border-green-200' : userRole === 'manager' ? 'border-blue-200' : 'border-purple-200';
+  const accentIcon = userRole === 'staff' ? 'text-green-600' : userRole === 'manager' ? 'text-blue-600' : 'text-purple-600';
+  const accentText = userRole === 'staff' ? 'text-green-700' : userRole === 'manager' ? 'text-blue-700' : 'text-purple-700';
+  const buttonBg = userRole === 'staff' ? 'bg-green-600 hover:bg-green-700' : userRole === 'manager' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700';
+  const focusRing = userRole === 'staff' ? 'focus:ring-green-500' : userRole === 'manager' ? 'focus:ring-blue-500' : 'focus:ring-purple-500';
+
   return (
     <main className="pb-8">
       <div className="max-w-2xl mx-auto px-4 py-6">
         {/* ヘッダー */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg">
+          <div className={`p-2 bg-gradient-to-br ${roleConfig.bgGradient} rounded-lg`}>
             <MessageCircle className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">ふくしゃに聞く</h1>
-            <p className="text-sm text-gray-500">判断相談（AI一次整理）</p>
+            <h1 className="text-2xl font-bold">{roleConfig.headerTitle}</h1>
+            <p className="text-sm text-gray-500">{roleConfig.headerSubtitle}</p>
           </div>
         </div>
 
         {/* 説明 */}
-        <Card className="mb-6 bg-purple-50 border-purple-200">
+        <Card className={`mb-6 ${accentBg} ${accentBorder}`}>
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
-              <MessageCircle className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-purple-800">
-                <p className="font-medium mb-2">判断は、ひとりで背負わない。</p>
-                <p className="text-purple-700 mb-2">
-                  仕事や職場のことで迷ったら、まずここで相談してください。
-                  AIが質問を整理し、吉田さんが確認して返信します。
+              <MessageCircle className={`w-5 h-5 ${accentIcon} mt-0.5 flex-shrink-0`} />
+              <div className={`text-sm ${roleConfig.textColor}`}>
+                <p className="font-medium mb-2">{roleConfig.descriptionTitle}</p>
+                <p className={`${accentText} mb-2 whitespace-pre-line`}>
+                  {roleConfig.descriptionBody}
                 </p>
-                <ul className="text-purple-700 space-y-1 text-xs">
-                  <li>・ 匿名での投稿も可能です</li>
-                  <li>・ AIが整理→吉田さんが判断→あなたに返信</li>
+                <ul className={`${accentText} space-y-1 text-xs`}>
+                  {roleConfig.tips.map((tip, i) => (
+                    <li key={i}>・ {tip}</li>
+                  ))}
                 </ul>
               </div>
             </div>
@@ -219,14 +310,14 @@ export default function FukushaAskPage() {
               {/* 質問内容 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  質問内容 <span className="text-red-500">*</span>
+                  {userRole === 'exec' ? '内容' : '質問内容'} <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder="気軽に質問や相談を書いてください..."
+                  placeholder={roleConfig.placeholderText}
                   rows={6}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 ${focusRing} focus:border-transparent resize-none`}
                   maxLength={2000}
                   required
                 />
@@ -261,20 +352,20 @@ export default function FukushaAskPage() {
               </div>
 
               {/* 送信ボタン */}
-              <Button
+              <button
                 type="submit"
                 disabled={submitting || content.trim().length < 10}
-                className="w-full"
+                className={`w-full py-3 px-4 ${buttonBg} text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
               >
                 {submitting ? (
                   '送信中...'
                 ) : (
                   <>
-                    <Send className="w-4 h-4 mr-2" />
-                    送信する
+                    <Send className="w-4 h-4" />
+                    {roleConfig.submitLabel}
                   </>
                 )}
-              </Button>
+              </button>
             </form>
           </CardContent>
         </Card>
