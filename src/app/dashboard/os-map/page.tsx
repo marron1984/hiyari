@@ -14,7 +14,7 @@ import {
   getCategorySummary,
   type OSFeatureStatus,
   type OSFeature,
-} from '@/types/os-features';
+} from '@/config/osFeatures';
 import {
   Map,
   Activity,
@@ -286,7 +286,7 @@ function FeatureRow({ feature }: { feature: OSFeature }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-zinc-800">{feature.name}</span>
-            {feature.assignee === 'AI' && (
+            {feature.owner === 'AI' && (
               <Badge className="bg-purple-100 text-purple-700 text-xs flex items-center gap-1">
                 <Bot className="w-3 h-3" />
                 AI
