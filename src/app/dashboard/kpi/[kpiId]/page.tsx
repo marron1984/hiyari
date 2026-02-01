@@ -15,6 +15,7 @@ import {
   Info,
   ExternalLink,
   RefreshCw,
+  BookOpen,
 } from 'lucide-react';
 
 // カテゴリ表示名
@@ -279,6 +280,12 @@ export default function KpiDetailPage({
               <RefreshCw className="w-4 h-4 mr-1" />
               更新
             </Button>
+            <Link href={`/dashboard/kpi-dictionary/${kpiId}`}>
+              <Button variant="outline" size="sm">
+                <BookOpen className="w-4 h-4 mr-1" />
+                辞書を見る
+              </Button>
+            </Link>
             {kpi.dashboardPath && (
               <Link href={kpi.dashboardPath}>
                 <Button variant="outline" size="sm">
@@ -462,6 +469,9 @@ export default function KpiDetailPage({
           <div className="flex justify-center gap-4 text-sm">
             <Link href="/dashboard/kpi" className="text-blue-500 hover:text-blue-700">
               ← KPI一覧
+            </Link>
+            <Link href="/dashboard/kpi-dictionary" className="text-emerald-500 hover:text-emerald-700">
+              KPI辞書
             </Link>
             <Link href="/dashboard/alerts" className="text-red-500 hover:text-red-700">
               アラート設定 →
