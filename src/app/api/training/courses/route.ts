@@ -1,0 +1,79 @@
+/**
+ * 研修コースAPI
+ *
+ * GET /api/training/courses - 一覧取得
+ * POST /api/training/courses - 新規作成
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { listCourses, createCourse } from '@/lib/training/repo';
+import { canManageTraining } from '@/lib/training/types';
+import type { AppRole } from '@/config/appRoles';
+import type { TrainingCategory } from '@/lib/training/types';
+
+// デモユーザー情報（本番ではセッションから取得）
+const DEMO_USER = {
+  id: 'user_003',
+  name: '鈴木花子',
+  role: 'manager' as AppRole,
+};
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+
+    const q = searchParams.get('q') ?? undefined;
+    const category = searchParams.get('category') as TrainingCategory | null;
+    const activeParam = searchParams.get('active');
+
+    const courses = listCourses({
+      q,
+      category: category ?? undefined,
+      active: activeParam === 'true' ? true : activeParam === 'false' ? false : undefined,
+    });
+
+    return NextResponse.json({ courses });
+  } catch (error) {
+    console.error('training courses GET error:', error);
+    return NextResponse.json(
+      { error: '研修コースの取得に失敗しました' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+
+    if (!canManageTraining(viewer)) {
+      return NextResponse.json(
+        { error: '研修コースを作成する権限がありません' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const { title, description, category, frequency, required, defaultDueDays } = body;
+
+    if (!title) {
+      return NextResponse.json(
+        { error: 'タイトルは必須です' },
+        { status: 400 }
+      );
+    }
+
+    const course = createCourse(
+      { title, description, category, frequency, required, defaultDueDays },
+      DEMO_USER.id
+    );
+
+    return NextResponse.json({ course }, { status: 201 });
+  } catch (error) {
+    console.error('training courses POST error:', error);
+    return NextResponse.json(
+      { error: '研修コースの作成に失敗しました' },
+      { status: 500 }
+    );
+  }
+}

@@ -544,7 +544,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'training',
     name: '研修管理',
     category: 'education',
-    status: 'planned',
+    status: 'active',
     description: '研修の計画と実施管理',
     path: '/dashboard/training',
     priority: 4,
