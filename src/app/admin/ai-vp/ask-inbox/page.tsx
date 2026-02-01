@@ -25,6 +25,7 @@ import {
   Inbox,
   Loader2,
   X,
+  BookOpen,
 } from 'lucide-react';
 import type { FukushaQuestion } from '@/types/fukusha-ask';
 import { FUKUSHA_CATEGORY_LABELS } from '@/types/fukusha-ask';
@@ -135,8 +136,8 @@ function AskInboxContent() {
                   <Inbox className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold">ふくしゃに聞く Inbox</h1>
-                  <p className="text-sm text-gray-500">質問の確認と返信</p>
+                  <h1 className="text-2xl font-bold">ふくしゃに聞く</h1>
+                  <p className="text-sm text-gray-500">判断相談（AI一次整理）</p>
                 </div>
               </div>
             </div>
@@ -318,6 +319,7 @@ function QuestionDetailPanel({
 }) {
   const [replyContent, setReplyContent] = useState(question.aiDraftReply || '');
   const [replyNote, setReplyNote] = useState('');
+  const [saveToDecisionLog, setSaveToDecisionLog] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -325,6 +327,7 @@ function QuestionDetailPanel({
   useEffect(() => {
     setReplyContent(question.aiDraftReply || '');
     setReplyNote('');
+    setSaveToDecisionLog(false);
     setError(null);
   }, [question.id, question.aiDraftReply]);
 
@@ -348,6 +351,7 @@ function QuestionDetailPanel({
         body: JSON.stringify({
           replyContent: replyContent.trim(),
           replyNote: replyNote.trim() || undefined,
+          saveToDecisionLog,
         }),
       });
 
@@ -503,6 +507,28 @@ function QuestionDetailPanel({
                 placeholder="対応メモなど..."
                 className="w-full mt-1 p-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
               />
+            </div>
+
+            {/* 判断ログ連携チェックボックス */}
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={saveToDecisionLog}
+                  onChange={(e) => setSaveToDecisionLog(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-amber-600 border-amber-300 rounded focus:ring-amber-500"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 text-amber-800 font-medium">
+                    <BookOpen className="w-4 h-4" />
+                    この判断を「判断ログ」に記録する
+                  </div>
+                  <p className="text-xs text-amber-700 mt-1">
+                    判断ログは「正解の記録」ではありません。
+                    判断がどのように行われたかを残し、次の判断を楽にするためのOS資産です。
+                  </p>
+                </div>
+              </label>
             </div>
 
             {error && (

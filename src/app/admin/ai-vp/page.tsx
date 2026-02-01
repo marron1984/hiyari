@@ -35,6 +35,7 @@ import {
   Shield,
   TrendingUp,
   MessageSquare,
+  Map,
 } from 'lucide-react';
 
 // メニュー定義
@@ -55,6 +56,29 @@ interface MenuCategory {
 }
 
 const MENU_CATEGORIES: MenuCategory[] = [
+  {
+    title: '経営OS（司令塔）',
+    description: '全体把握と意思決定の中枢',
+    items: [
+      {
+        href: '/dashboard/os-map',
+        icon: Map,
+        title: 'OSマップ',
+        description: 'AA-HUB全機能の可視化（運用中・開発中・未着手）',
+        bgColor: 'bg-indigo-100',
+        iconColor: 'text-indigo-600',
+        highlight: true,
+      },
+      {
+        href: '/dashboard/os/decision',
+        icon: Shield,
+        title: '判断と責任のOS',
+        description: '判断フローと責任の可視化',
+        bgColor: 'bg-blue-100',
+        iconColor: 'text-blue-600',
+      },
+    ],
+  },
   {
     title: '承認・管理',
     description: 'AIレビューの最終確認と抽出管理',
@@ -154,8 +178,8 @@ const MENU_CATEGORIES: MenuCategory[] = [
       {
         href: '/admin/ai-vp/ask-inbox',
         icon: MessageSquare,
-        title: 'ふくしゃに聞く Inbox',
-        description: 'スタッフからの質問・相談受信箱',
+        title: 'ふくしゃに聞く',
+        description: '判断相談Inbox（AI一次整理→あなたの判断）',
         bgColor: 'bg-purple-100',
         iconColor: 'text-purple-600',
         highlight: true,
@@ -183,6 +207,14 @@ const MENU_CATEGORIES: MenuCategory[] = [
         description: 'AI動作ルールの設定',
         bgColor: 'bg-slate-100',
         iconColor: 'text-slate-600',
+      },
+      {
+        href: '/dashboard/knowledge',
+        icon: BookOpen,
+        title: '知識ハブ',
+        description: '公式ドキュメント・AI参照（NotebookLM連携）',
+        bgColor: 'bg-blue-100',
+        iconColor: 'text-blue-600',
       },
     ],
   },

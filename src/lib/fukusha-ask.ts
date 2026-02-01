@@ -1,4 +1,11 @@
-// ======== ふくしゃに聞く（AI副社長 質問箱）ライブラリ ========
+// ======== ふくしゃに聞く（判断相談・AI一次整理）ライブラリ ========
+//
+// 【AA.OS.HUB ブランド思想】
+// 判断は、ひとりで背負わない。責任は、最後まで引き受ける。
+// AAは、判断と責任のOSである。
+//
+// この機能は「質問→整理→人の判断→組織に残る」流れを実現する。
+// 判断を個人に背負わせないための"仕組み（OS）"の一部である。
 
 import { getAdminDb } from './firebase-admin';
 import type {
@@ -10,9 +17,14 @@ import type {
   FukushaQuestionStats,
   CreateFukushaQuestionInput,
   SendFukushaReplyInput,
+  DecisionLog,
+  DecisionCategory,
+  CreateDecisionLogFromAskInput,
+  DecisionLogFilter,
 } from '@/types/fukusha-ask';
 
 const COLLECTION = 'fukusha_questions';
+const DECISION_LOG_COLLECTION = 'decision_logs';
 
 // ======== 質問投稿 ========
 
@@ -395,4 +407,170 @@ export async function archiveQuestion(questionId: string): Promise<void> {
     status: 'archived',
     updatedAt: new Date(),
   });
+}
+
+// ======== 判断ログ ========
+//
+// decision_logs は評価・査定のためのテーブルではない。
+// 判断がどのように行われたかを記録し、
+// 次の判断を楽にするためのAA.OS.HUBのOS資産である。
+//
+// 現場に判断を背負わせない。管理職に孤独を背負わせない。失敗を人のせいにしない。
+
+/**
+ * 質問カテゴリを判断カテゴリにマッピング
+ */
+function mapQuestionCategoryToDecisionCategory(
+  questionCategory: FukushaQuestionCategory
+): DecisionCategory {
+  const mapping: Record<FukushaQuestionCategory, DecisionCategory> = {
+    work: 'operation',
+    career: 'human',
+    workplace: 'operation',
+    suggestion: 'other',
+    other: 'other',
+  };
+  return mapping[questionCategory] || 'other';
+}
+
+/**
+ * 質問から判断ログを作成
+ *
+ * 返信時に呼び出され、質問とAI整理結果と最終判断をまとめて保存
+ * 評価・査定のためではなく、判断を属人化させないためのOS資産
+ */
+export async function createDecisionLogFromQuestion(
+  question: FukushaQuestion,
+  replyContent: string,
+  replyNote: string | undefined,
+  decidedByUserId: string,
+  decidedByRole: string
+): Promise<DecisionLog> {
+  const db = getAdminDb();
+  const now = new Date();
+
+  // 質問内容とAI要約を「何が起きたか」としてまとめる
+  const situation = [
+    `【質問内容】`,
+    question.content,
+    '',
+    question.aiSummary ? `【AI要約】${question.aiSummary}` : '',
+    question.aiKeyPoints?.length
+      ? `【論点】\n${question.aiKeyPoints.map((p) => `・${p}`).join('\n')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const log: Omit<DecisionLog, 'id'> = {
+    tenantId: question.tenantId,
+
+    // 判断主体（個人名を前に出さず「役割」を残す思想）
+    decidedByUserId,
+    decidedByRole,
+
+    // 判断カテゴリ
+    category: mapQuestionCategoryToDecisionCategory(question.category),
+
+    // 判断の中身（OSの心臓）
+    situation,                    // 何が起きたか（事実）
+    decision: replyContent,       // 何を決めたか
+    reason: replyNote || '',      // なぜそう判断したか
+
+    // 参照情報
+    referenceSource: question.aiSummary ? 'ai_summary' : 'none',
+
+    // 元質問との紐付け
+    sourceType: 'fukusha_ask',
+    sourceId: question.id,
+
+    // 承認・責任の扱い
+    approvalStatus: 'none',
+
+    // 共有範囲（デフォルトは管理者）
+    visibility: 'managers',
+
+    // タイムスタンプ
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const docRef = db.collection(DECISION_LOG_COLLECTION).doc();
+  await docRef.set(log);
+
+  console.log('[DecisionLog] 判断ログ作成', {
+    id: docRef.id,
+    sourceId: question.id,
+    category: log.category,
+    decidedByRole,
+  });
+
+  return { ...log, id: docRef.id };
+}
+
+/**
+ * 判断ログ一覧を取得
+ */
+export async function getDecisionLogs(
+  tenantId: string,
+  filter: DecisionLogFilter = {}
+): Promise<DecisionLog[]> {
+  const db = getAdminDb();
+  let query: FirebaseFirestore.Query = db
+    .collection(DECISION_LOG_COLLECTION)
+    .where('tenantId', '==', tenantId);
+
+  if (filter.category) {
+    query = query.where('category', '==', filter.category);
+  }
+
+  if (filter.decidedByUserId) {
+    query = query.where('decidedByUserId', '==', filter.decidedByUserId);
+  }
+
+  if (filter.sourceType) {
+    query = query.where('sourceType', '==', filter.sourceType);
+  }
+
+  if (filter.visibility) {
+    query = query.where('visibility', '==', filter.visibility);
+  }
+
+  query = query.orderBy('createdAt', 'desc');
+
+  if (filter.limit) {
+    query = query.limit(filter.limit);
+  }
+
+  const snapshot = await query.get();
+
+  return snapshot.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date(),
+    } as DecisionLog;
+  });
+}
+
+/**
+ * 判断ログ詳細を取得
+ */
+export async function getDecisionLog(
+  logId: string
+): Promise<DecisionLog | null> {
+  const db = getAdminDb();
+  const doc = await db.collection(DECISION_LOG_COLLECTION).doc(logId).get();
+
+  if (!doc.exists) return null;
+
+  const data = doc.data()!;
+  return {
+    ...data,
+    id: doc.id,
+    createdAt: data.createdAt?.toDate() || new Date(),
+    updatedAt: data.updatedAt?.toDate() || new Date(),
+  } as DecisionLog;
 }
