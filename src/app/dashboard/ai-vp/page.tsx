@@ -1,7 +1,8 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, Badge } from '@/components/ui';
 import {
   Brain,
   Users,
@@ -10,7 +11,6 @@ import {
   BookOpen,
   MessageSquare,
   Inbox,
-  Building2,
   ListTodo,
   Shield,
   Activity,
@@ -18,7 +18,19 @@ import {
   ArrowRight,
   Lock,
   HelpCircle,
+  AlertTriangle,
+  TrendingUp,
+  Zap,
+  Target,
+  Flame,
+  Calendar,
+  ChevronRight,
 } from 'lucide-react';
+import {
+  OS_FEATURES,
+  calculateCompositeScore,
+  type OSFeature,
+} from '@/config/osFeatures';
 
 // メニュー項目の型定義
 interface MenuItem {
@@ -149,7 +161,59 @@ const MENU_CATEGORIES: MenuCategory[] = [
   },
 ];
 
+// 推奨アクションを判定
+function getRecommendedAction(feature: OSFeature): { action: string; color: string } {
+  const score = calculateCompositeScore(feature);
+  if (score >= 14) return { action: '放置不可', color: 'text-red-600' };
+  if (score >= 12) return { action: '今週着手', color: 'text-orange-600' };
+  if (feature.roi && feature.roi >= 4) return { action: '短期効果大', color: 'text-green-600' };
+  if (feature.priority && feature.priority >= 4) return { action: '要設計', color: 'text-blue-600' };
+  return { action: '計画検討', color: 'text-zinc-600' };
+}
+
+// リスク種別を判定
+function getRiskType(feature: OSFeature): string {
+  const category = feature.category;
+  if (category === 'risk') return '事故・炎上リスク';
+  if (category === 'people') return '属人化リスク';
+  if (category === 'document') return 'コンプライアンスリスク';
+  if (category === 'finance') return '財務リスク';
+  if (category === 'communication') return '情報伝達不全リスク';
+  if (category === 'approval') return 'ガバナンスリスク';
+  return '業務停滞リスク';
+}
+
+// 推奨期限を判定
+function getRecommendedDeadline(feature: OSFeature): string {
+  const risk = feature.risk ?? 0;
+  if (risk >= 5) return '今週中';
+  if (risk >= 4) return '今月中';
+  return '今四半期';
+}
+
 export default function AiVpHubPage() {
+  // 意思決定サマリーの計算
+  const decisionSummary = useMemo(() => {
+    // 今週やるべきTop3（planned or developing、スコア高い順）
+    const actionableFeatures = OS_FEATURES
+      .filter((f) => f.status === 'planned' || f.status === 'developing')
+      .sort((a, b) => calculateCompositeScore(b) - calculateCompositeScore(a));
+    const top3 = actionableFeatures.slice(0, 3);
+
+    // 放置リスク警告（risk >= 4、status !== active）
+    const riskWarnings = OS_FEATURES
+      .filter((f) => (f.risk ?? 0) >= 4 && f.status !== 'active')
+      .sort((a, b) => (b.risk ?? 0) - (a.risk ?? 0));
+
+    // 次スプリント候補（ROI高い順、priority >= 3）
+    const sprintCandidates = OS_FEATURES
+      .filter((f) => (f.priority ?? 0) >= 3 && f.status === 'planned')
+      .sort((a, b) => (b.roi ?? 0) - (a.roi ?? 0))
+      .slice(0, 5);
+
+    return { top3, riskWarnings, sprintCandidates };
+  }, []);
+
   return (
     <main className="pb-8">
       <div className="max-w-4xl mx-auto px-4 py-6">
@@ -161,6 +225,169 @@ export default function AiVpHubPage() {
           <div>
             <h1 className="text-2xl font-bold">AI副社長</h1>
             <p className="text-sm text-gray-500">経営判断支援・業務自動化アシスタント</p>
+          </div>
+        </div>
+
+        {/* ===== 意思決定サマリー ===== */}
+        <div className="mb-8 space-y-4">
+          {/* セクション①：今週のTop3 */}
+          <Card className="border-2 border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-orange-500 rounded-lg">
+                  <Target className="w-4 h-4 text-white" />
+                </div>
+                <CardTitle className="text-lg text-orange-800">今週やるべき Top3</CardTitle>
+              </div>
+              <p className="text-sm text-orange-600 mt-1">
+                経営優先度スコアに基づき、今週着手すべき機能を提示します
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-3">
+                {decisionSummary.top3.map((feature, index) => {
+                  const score = calculateCompositeScore(feature);
+                  const action = getRecommendedAction(feature);
+                  return (
+                    <Link
+                      key={feature.id}
+                      href={feature.path}
+                      className="block p-3 bg-white rounded-lg border border-orange-100 hover:shadow-md transition-all"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm ${
+                          index === 0 ? 'bg-yellow-400 text-yellow-900' :
+                          index === 1 ? 'bg-zinc-300 text-zinc-700' :
+                          'bg-orange-300 text-orange-800'
+                        }`}>
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-bold text-zinc-800">{feature.name}</h4>
+                            <Badge className="bg-orange-100 text-orange-700 text-xs">
+                              {score}/15
+                            </Badge>
+                            <span className={`text-xs font-medium ${action.color}`}>
+                              {action.action}
+                            </span>
+                          </div>
+                          <p className="text-sm text-zinc-600 mt-1">
+                            優先度{feature.priority} / ROI{feature.roi} / リスク{feature.risk}
+                            {' — '}{feature.description}
+                          </p>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-orange-400 flex-shrink-0" />
+                      </div>
+                    </Link>
+                  );
+                })}
+                {decisionSummary.top3.length === 0 && (
+                  <div className="text-center py-4 text-orange-600">
+                    現在、未着手の高優先機能はありません
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* セクション②：放置リスク警告 */}
+          {decisionSummary.riskWarnings.length > 0 && (
+            <Card className="border-2 border-red-200 bg-gradient-to-r from-red-50 to-rose-50">
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-red-500 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-white" />
+                  </div>
+                  <CardTitle className="text-lg text-red-800">放置リスク警告</CardTitle>
+                  <Badge className="bg-red-100 text-red-700">
+                    {decisionSummary.riskWarnings.length}件
+                  </Badge>
+                </div>
+                <p className="text-sm text-red-600 mt-1">
+                  放置すると経営リスクにつながる可能性のある機能です
+                </p>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-2">
+                  {decisionSummary.riskWarnings.slice(0, 5).map((feature) => (
+                    <Link
+                      key={feature.id}
+                      href={feature.path}
+                      className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-100 hover:shadow-md transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Flame className="w-4 h-4 text-red-500" />
+                        <div>
+                          <span className="font-medium text-zinc-800">{feature.name}</span>
+                          <span className="text-sm text-red-600 ml-2">
+                            — {getRiskType(feature)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-red-100 text-red-700 text-xs flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {getRecommendedDeadline(feature)}
+                        </Badge>
+                        <ChevronRight className="w-4 h-4 text-red-400" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* セクション③：次スプリント候補 */}
+          <Card className="border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-blue-500 rounded-lg">
+                  <Zap className="w-4 h-4 text-white" />
+                </div>
+                <CardTitle className="text-lg text-blue-800">次スプリント候補</CardTitle>
+              </div>
+              <p className="text-sm text-blue-600 mt-1">
+                ROIが高く、短期効果が見込める機能です
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {decisionSummary.sprintCandidates.map((feature) => (
+                  <Link
+                    key={feature.id}
+                    href={feature.path}
+                    className="flex items-center gap-3 p-3 bg-white rounded-lg border border-blue-100 hover:shadow-md transition-all"
+                  >
+                    <TrendingUp className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-zinc-800 truncate">{feature.name}</div>
+                      <div className="text-xs text-blue-600">
+                        ROI {feature.roi}/5 — {feature.description.slice(0, 20)}...
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                  </Link>
+                ))}
+                {decisionSummary.sprintCandidates.length === 0 && (
+                  <div className="col-span-2 text-center py-4 text-blue-600">
+                    現在、候補となる機能はありません
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* OSマップへのリンク */}
+          <div className="text-center">
+            <Link
+              href="/dashboard/os-map"
+              className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-700"
+            >
+              全機能の優先度を確認 → OSマップ
+              <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         </div>
 
