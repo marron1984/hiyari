@@ -55,6 +55,18 @@ export interface OSFeature {
   description: string;
   path: string;
   owner?: string; // 担当（人 or AI）
+  // 経営優先度スコア（1-5）
+  priority?: number; // 経営優先度：経営への影響度
+  roi?: number; // 投資対効果：開発工数に対するリターン
+  risk?: number; // 放置リスク：未実装のまま放置した場合の損失
+}
+
+// 複合スコア計算（priority + roi + risk の合計、最大15）
+export function calculateCompositeScore(feature: OSFeature): number {
+  const p = feature.priority ?? 0;
+  const r = feature.roi ?? 0;
+  const k = feature.risk ?? 0;
+  return p + r + k;
 }
 
 // カテゴリ定義
@@ -90,6 +102,9 @@ export const OS_FEATURES: OSFeature[] = [
     description: 'KPIサマリーとAI副社長の概要を表示',
     path: '/dashboard',
     owner: 'AI',
+    priority: 5,
+    roi: 5,
+    risk: 5,
   },
   {
     id: 'wbr',
@@ -98,6 +113,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '週次ビジネスレビュー',
     path: '/dashboard/wbr',
+    priority: 5,
+    roi: 5,
+    risk: 4,
   },
   {
     id: 'kpi-dictionary',
@@ -106,6 +124,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: 'KPI定義と計算ロジックの一覧',
     path: '/dashboard/kpi-dictionary',
+    priority: 4,
+    roi: 4,
+    risk: 3,
   },
   {
     id: 'business-summary',
@@ -114,6 +135,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '事業ごとの業績サマリー',
     path: '/dashboard/business-summary',
+    priority: 5,
+    roi: 4,
+    risk: 3,
   },
   {
     id: 'alert-center',
@@ -122,6 +146,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '全アラートの一元管理',
     path: '/dashboard/alerts',
+    priority: 5,
+    roi: 5,
+    risk: 5,
   },
   {
     id: 'ai-vp',
@@ -131,6 +158,9 @@ export const OS_FEATURES: OSFeature[] = [
     description: 'AI副社長による経営支援',
     path: '/admin/ai-vp',
     owner: 'AI',
+    priority: 5,
+    roi: 5,
+    risk: 5,
   },
   {
     id: 'os-map',
@@ -139,6 +169,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '全機能の可視化マップ',
     path: '/dashboard/os-map',
+    priority: 4,
+    roi: 4,
+    risk: 3,
   },
   {
     id: 'decision-os',
@@ -147,6 +180,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '判断フローと責任の可視化',
     path: '/dashboard/os/decision',
+    priority: 5,
+    roi: 4,
+    risk: 4,
   },
   {
     id: 'knowledge-hub',
@@ -155,6 +191,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '公式ドキュメント・AI参照',
     path: '/dashboard/knowledge',
+    priority: 4,
+    roi: 5,
+    risk: 3,
   },
 
   // ========== 文書・契約 ==========
@@ -165,6 +204,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '書類の一元管理',
     path: '/dashboard/docs',
+    priority: 4,
+    roi: 4,
+    risk: 4,
   },
   {
     id: 'contracts',
@@ -173,6 +215,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '契約書の管理と期限アラート',
     path: '/dashboard/contracts',
+    priority: 5,
+    roi: 4,
+    risk: 5,
   },
   {
     id: 'consent-forms',
@@ -181,6 +226,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '同意書の取得状況管理',
     path: '/dashboard/consent',
+    priority: 4,
+    roi: 3,
+    risk: 5,
   },
   {
     id: 'doc-templates',
@@ -189,6 +237,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '文書テンプレートの管理',
     path: '/dashboard/docs/templates',
+    priority: 3,
+    roi: 4,
+    risk: 2,
   },
   {
     id: 'esign-log',
@@ -197,6 +248,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '電子署名の履歴管理',
     path: '/dashboard/esign-log',
+    priority: 2,
+    roi: 2,
+    risk: 2,
   },
 
   // ========== 人・権限 ==========
@@ -207,6 +261,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: 'ユーザーアカウントの管理',
     path: '/admin/users',
+    priority: 5,
+    roi: 4,
+    risk: 5,
   },
   {
     id: 'roles',
@@ -215,6 +272,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '権限とロールの設定',
     path: '/admin/roles',
+    priority: 4,
+    roi: 3,
+    risk: 4,
   },
   {
     id: 'org-tree',
@@ -223,6 +283,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '組織構造の可視化',
     path: '/admin/org-tree',
+    priority: 3,
+    roi: 3,
+    risk: 2,
   },
   {
     id: 'external-accounts',
@@ -231,6 +294,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '外部関係者のアクセス管理',
     path: '/admin/external-accounts',
+    priority: 2,
+    roi: 2,
+    risk: 3,
   },
   {
     id: 'employees',
@@ -239,6 +305,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '従業員情報の管理',
     path: '/admin/employees',
+    priority: 5,
+    roi: 4,
+    risk: 5,
   },
 
   // ========== 周知・コミュニケーション ==========
@@ -249,6 +318,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '全体周知の管理',
     path: '/dashboard/announcements',
+    priority: 4,
+    roi: 4,
+    risk: 4,
   },
   {
     id: 'read-status',
@@ -257,6 +329,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '既読状況の追跡',
     path: '/dashboard/read-status',
+    priority: 3,
+    roi: 3,
+    risk: 3,
   },
   {
     id: 'handover',
@@ -265,6 +340,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: 'シフト間の申し送り',
     path: '/dashboard/handover',
+    priority: 5,
+    roi: 4,
+    risk: 5,
   },
   {
     id: 'notification-center',
@@ -273,6 +351,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '全通知の一元管理',
     path: '/dashboard/notifications',
+    priority: 3,
+    roi: 3,
+    risk: 2,
   },
   {
     id: 'fukusha-ask',
@@ -282,6 +363,9 @@ export const OS_FEATURES: OSFeature[] = [
     description: 'AI副社長への質問箱',
     path: '/dashboard/ai-vp/ask',
     owner: 'AI',
+    priority: 5,
+    roi: 5,
+    risk: 4,
   },
 
   // ========== 申請・稟議 ==========
@@ -292,6 +376,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '経費精算の申請',
     path: '/dashboard/applications/expense/new',
+    priority: 4,
+    roi: 4,
+    risk: 3,
   },
   {
     id: 'overtime',
@@ -300,6 +387,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '残業の事前申請',
     path: '/dashboard/applications/overtime/new',
+    priority: 4,
+    roi: 3,
+    risk: 4,
   },
   {
     id: 'ringi',
@@ -308,6 +398,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '稟議の申請と承認',
     path: '/dashboard/approvals',
+    priority: 5,
+    roi: 4,
+    risk: 5,
   },
   {
     id: 'approval-routes',
@@ -316,6 +409,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '承認フローの設定',
     path: '/admin/approval-routes',
+    priority: 4,
+    roi: 3,
+    risk: 4,
   },
   {
     id: 'approval-log',
@@ -324,6 +420,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '承認履歴の管理',
     path: '/dashboard/approval-log',
+    priority: 3,
+    roi: 3,
+    risk: 3,
   },
   {
     id: 'return-management',
@@ -332,6 +431,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '差戻し案件の管理',
     path: '/dashboard/returns',
+    priority: 3,
+    roi: 2,
+    risk: 3,
   },
 
   // ========== 業務管理 ==========
@@ -343,6 +445,9 @@ export const OS_FEATURES: OSFeature[] = [
     description: 'AIからの提案タスク',
     path: '/dashboard/ai/todos',
     owner: 'AI',
+    priority: 4,
+    roi: 5,
+    risk: 3,
   },
   {
     id: 'tickets',
@@ -351,6 +456,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '業務チケットの管理',
     path: '/dashboard/tickets',
+    priority: 3,
+    roi: 3,
+    risk: 2,
   },
   {
     id: 'repair-tickets',
@@ -359,6 +467,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '修繕依頼の管理',
     path: '/dashboard/repair-tickets',
+    priority: 3,
+    roi: 3,
+    risk: 3,
   },
   {
     id: 'inventory',
@@ -367,6 +478,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '備品の在庫管理',
     path: '/dashboard/inventory',
+    priority: 2,
+    roi: 2,
+    risk: 2,
   },
   {
     id: 'checkin',
@@ -375,6 +489,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: 'コンディションチェックイン',
     path: '/dashboard/os/checkin',
+    priority: 4,
+    roi: 4,
+    risk: 4,
   },
   {
     id: 'team-condition',
@@ -383,6 +500,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: 'チームの状態可視化',
     path: '/dashboard/os/team',
+    priority: 4,
+    roi: 4,
+    risk: 4,
   },
 
   // ========== 教育・ガバナンス ==========
@@ -393,6 +513,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '研修の計画と実施管理',
     path: '/dashboard/training',
+    priority: 4,
+    roi: 3,
+    risk: 4,
   },
   {
     id: 'certifications',
@@ -401,6 +524,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '資格の取得状況管理',
     path: '/dashboard/certifications',
+    priority: 3,
+    roi: 2,
+    risk: 4,
   },
   {
     id: 'committees',
@@ -409,6 +535,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '委員会の運営管理',
     path: '/dashboard/committees',
+    priority: 3,
+    roi: 2,
+    risk: 3,
   },
   {
     id: 'meeting-minutes',
@@ -417,6 +546,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '会議議事録の管理',
     path: '/dashboard/meeting-minutes',
+    priority: 2,
+    roi: 2,
+    risk: 2,
   },
   {
     id: 'training-reports',
@@ -425,6 +557,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '研修実施の報告管理',
     path: '/dashboard/training-reports',
+    priority: 2,
+    roi: 2,
+    risk: 3,
   },
   {
     id: 'yoshida-learning',
@@ -434,6 +569,9 @@ export const OS_FEATURES: OSFeature[] = [
     description: 'ケーススタディ学習',
     path: '/dashboard/ai-vp/yoshida-learning',
     owner: 'AI',
+    priority: 4,
+    roi: 5,
+    risk: 3,
   },
 
   // ========== リスク・品質 ==========
@@ -444,6 +582,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '事故の報告と管理',
     path: '/admin/incidents',
+    priority: 5,
+    roi: 4,
+    risk: 5,
   },
   {
     id: 'hiyari',
@@ -452,6 +593,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: 'ヒヤリハット報告',
     path: '/admin/incidents',
+    priority: 5,
+    roi: 5,
+    risk: 5,
   },
   {
     id: 'complaints',
@@ -460,6 +604,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: 'クレームの記録と対応',
     path: '/dashboard/complaints',
+    priority: 5,
+    roi: 4,
+    risk: 5,
   },
   {
     id: 'corrective-actions',
@@ -468,6 +615,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '是正措置の追跡',
     path: '/dashboard/corrective-actions',
+    priority: 4,
+    roi: 4,
+    risk: 5,
   },
   {
     id: 'human-risk',
@@ -477,6 +627,9 @@ export const OS_FEATURES: OSFeature[] = [
     description: '人的リスクの分析',
     path: '/dashboard/ai-vp/human-risk',
     owner: 'AI',
+    priority: 5,
+    roi: 5,
+    risk: 5,
   },
 
   // ========== 利用者・家族 ==========
@@ -487,6 +640,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '家族への連絡履歴',
     path: '/dashboard/family-contact',
+    priority: 4,
+    roi: 3,
+    risk: 4,
   },
   {
     id: 'key-person',
@@ -495,6 +651,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: 'キーパーソンの情報管理',
     path: '/dashboard/key-person',
+    priority: 4,
+    roi: 3,
+    risk: 4,
   },
   {
     id: 'contact-history',
@@ -503,6 +662,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '全連絡の履歴管理',
     path: '/dashboard/contact-history',
+    priority: 3,
+    roi: 2,
+    risk: 3,
   },
   {
     id: 'residents',
@@ -511,6 +673,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '入居者情報の管理',
     path: '/dashboard/residents',
+    priority: 5,
+    roi: 5,
+    risk: 5,
   },
   {
     id: 'prospects',
@@ -519,6 +684,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '見学予約と問合せ管理',
     path: '/dashboard/prospects',
+    priority: 5,
+    roi: 5,
+    risk: 4,
   },
 
   // ========== 未収・財務補助 ==========
@@ -529,6 +697,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '未収金の管理',
     path: '/dashboard/receivables',
+    priority: 5,
+    roi: 5,
+    risk: 5,
   },
   {
     id: 'collection-flow',
@@ -537,6 +708,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '回収プロセスの管理',
     path: '/dashboard/collection-flow',
+    priority: 4,
+    roi: 4,
+    risk: 4,
   },
   {
     id: 'dunning-history',
@@ -545,6 +719,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'planned',
     description: '督促の履歴管理',
     path: '/dashboard/dunning-history',
+    priority: 3,
+    roi: 3,
+    risk: 3,
   },
   {
     id: 'financial-ai',
@@ -554,6 +731,9 @@ export const OS_FEATURES: OSFeature[] = [
     description: 'AIによる財務分析',
     path: '/admin/financial-ai',
     owner: 'AI',
+    priority: 5,
+    roi: 5,
+    risk: 4,
   },
   {
     id: 'accounting-templates',
@@ -562,6 +742,9 @@ export const OS_FEATURES: OSFeature[] = [
     status: 'active',
     description: '会計仕訳のテンプレート',
     path: '/admin/accounting-templates',
+    priority: 3,
+    roi: 4,
+    risk: 2,
   },
 ];
 
@@ -594,4 +777,14 @@ export function getCategorySummary(categoryId: string): Record<OSFeatureStatus, 
 // 未実装（planned）の機能一覧を取得
 export function getPlannedFeatures(): OSFeature[] {
   return OS_FEATURES.filter((f) => f.status === 'planned');
+}
+
+// 経営優先度スコアで並び替え（高い順）
+export function getFeaturesSortedByPriority(features: OSFeature[]): OSFeature[] {
+  return [...features].sort((a, b) => calculateCompositeScore(b) - calculateCompositeScore(a));
+}
+
+// 未着手機能を経営優先度順で取得（開発優先順位リスト）
+export function getPlannedFeaturesByPriority(): OSFeature[] {
+  return getFeaturesSortedByPriority(getPlannedFeatures());
 }
