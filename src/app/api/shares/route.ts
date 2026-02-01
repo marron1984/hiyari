@@ -32,6 +32,7 @@ export async function GET() {
       name: s.name,
       description: s.description,
       status: s.status,
+      templateId: s.templateId,
       createdAt: s.createdAt,
       createdByUserName: s.createdByUserName,
       expiresAt: s.expiresAt,
@@ -71,6 +72,8 @@ export async function POST(request: NextRequest) {
         name: body.name.trim(),
         description: body.description?.trim(),
         expiresInDays: body.expiresInDays,
+        templateId: body.templateId,
+        notes: body.notes?.trim(),
       },
       'admin', // TODO: 実際のユーザーIDを取得
       '管理者' // TODO: 実際のユーザー名を取得

@@ -68,8 +68,11 @@ export function createSharePackage(
   const expiresAt = new Date(now);
   expiresAt.setDate(expiresAt.getDate() + request.expiresInDays);
 
-  // スナップショット生成（凍結）
-  const snapshot = generateExternalSnapshot();
+  // テンプレートIDを取得（デフォルトは銀行向け）
+  const templateId = request.templateId ?? 'bank';
+
+  // スナップショット生成（凍結、テンプレートに基づく）
+  const snapshot = generateExternalSnapshot(templateId, request.notes);
 
   const sharePackage: SharePackage = {
     id: shareId,
@@ -81,6 +84,7 @@ export function createSharePackage(
     createdByUserId,
     createdByUserName,
     expiresAt: expiresAt.toISOString(),
+    templateId,
     snapshot,
     accessCount: 0,
   };
@@ -225,20 +229,21 @@ export function getShareStats(): {
 export function createDemoShares(): void {
   if (shareStore.size > 0) return;
 
-  // サンプル1
-  const demo1 = createSharePackage(
+  // サンプル1: 銀行向け
+  createSharePackage(
     {
       name: '〇〇銀行向け 2026年2月 共有',
       description: '融資審査用の経営状況レポート',
       expiresInDays: 30,
+      templateId: 'bank',
     },
     'admin',
     '吉田太郎'
   );
 
-  // サンプル2（期限切れ）
+  // サンプル2（投資家向け・期限切れ）
   const demo2Id = generateId();
-  const demo2Snapshot = generateExternalSnapshot();
+  const demo2Snapshot = generateExternalSnapshot('investor');
   const expiredShare: SharePackage = {
     id: demo2Id,
     tokenHash: hashToken('expired_token_demo'),
@@ -246,15 +251,16 @@ export function createDemoShares(): void {
     status: 'expired',
     createdAt: '2025-12-01T09:00:00Z',
     expiresAt: '2025-12-31T23:59:59Z',
+    templateId: 'investor',
     snapshot: demo2Snapshot,
     accessCount: 5,
     lastAccessedAt: '2025-12-28T14:30:00Z',
   };
   shareStore.set(demo2Id, expiredShare);
 
-  // サンプル3（失効済み）
+  // サンプル3（監査向け・失効済み）
   const demo3Id = generateId();
-  const demo3Snapshot = generateExternalSnapshot();
+  const demo3Snapshot = generateExternalSnapshot('audit');
   const revokedShare: SharePackage = {
     id: demo3Id,
     tokenHash: hashToken('revoked_token_demo'),
@@ -262,6 +268,7 @@ export function createDemoShares(): void {
     status: 'revoked',
     createdAt: '2026-01-15T10:00:00Z',
     expiresAt: '2026-02-15T23:59:59Z',
+    templateId: 'audit',
     snapshot: demo3Snapshot,
     accessCount: 2,
   };

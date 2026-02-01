@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input } from '@/components/ui';
 import type { SharePackage } from '@/lib/shares/types';
 import {
+  type ExternalTemplateId,
+  EXTERNAL_SHARE_TEMPLATES,
+} from '@/config/externalShareTemplates';
+import {
   Share2,
   Plus,
   Copy,
@@ -16,6 +20,9 @@ import {
   Trash2,
   Shield,
   Link as LinkIcon,
+  Building2,
+  TrendingUp,
+  ClipboardCheck,
 } from 'lucide-react';
 
 type ShareListItem = {
@@ -23,6 +30,7 @@ type ShareListItem = {
   name: string;
   description?: string;
   status: 'active' | 'revoked' | 'expired';
+  templateId?: ExternalTemplateId;
   createdAt: string;
   createdByUserName?: string;
   expiresAt: string;
@@ -50,6 +58,8 @@ export default function AdminSharesPage() {
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newExpiresInDays, setNewExpiresInDays] = useState(30);
+  const [newTemplateId, setNewTemplateId] = useState<ExternalTemplateId>('bank');
+  const [newNotes, setNewNotes] = useState('');
   const [creating, setCreating] = useState(false);
 
   // 共有一覧を取得
@@ -85,6 +95,8 @@ export default function AdminSharesPage() {
           name: newName,
           description: newDescription,
           expiresInDays: newExpiresInDays,
+          templateId: newTemplateId,
+          notes: newNotes || undefined,
         }),
       });
       const data = await response.json();
@@ -165,8 +177,22 @@ export default function AdminSharesPage() {
     setNewName('');
     setNewDescription('');
     setNewExpiresInDays(30);
+    setNewTemplateId('bank');
+    setNewNotes('');
     setNewShareToken(null);
     setNewShareUrl(null);
+  };
+
+  // テンプレートアイコン
+  const getTemplateIcon = (templateId: ExternalTemplateId) => {
+    switch (templateId) {
+      case 'bank':
+        return <Building2 className="w-4 h-4" />;
+      case 'investor':
+        return <TrendingUp className="w-4 h-4" />;
+      case 'audit':
+        return <ClipboardCheck className="w-4 h-4" />;
+    }
   };
 
   return (
@@ -385,6 +411,35 @@ export default function AdminSharesPage() {
               ) : (
                 <div>
                   <div className="space-y-4">
+                    {/* テンプレート選択 */}
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-700 mb-2">
+                        テンプレート <span className="text-red-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {EXTERNAL_SHARE_TEMPLATES.map((template) => (
+                          <button
+                            key={template.id}
+                            type="button"
+                            onClick={() => setNewTemplateId(template.id)}
+                            className={`p-3 rounded-lg border text-left transition-all ${
+                              newTemplateId === template.id
+                                ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
+                                : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              {getTemplateIcon(template.id)}
+                              <span className="font-medium text-sm">{template.label}</span>
+                            </div>
+                            <p className="text-xs text-zinc-500 line-clamp-2">
+                              {template.description}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-zinc-700 mb-1">
                         共有名 <span className="text-red-500">*</span>
@@ -420,6 +475,18 @@ export default function AdminSharesPage() {
                         <option value={60}>60日間</option>
                         <option value={90}>90日間</option>
                       </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-zinc-700 mb-1">
+                        補足メモ（任意）
+                      </label>
+                      <textarea
+                        className="w-full border border-zinc-300 rounded-lg px-3 py-2 text-sm resize-none"
+                        rows={3}
+                        placeholder="外部共有先への補足事項があれば記載してください"
+                        value={newNotes}
+                        onChange={(e) => setNewNotes(e.target.value)}
+                      />
                     </div>
                   </div>
 

@@ -5,6 +5,8 @@
  * セキュリティ原則：最小権限・最小情報・監査可能
  */
 
+import type { ExternalTemplateId } from '@/config/externalShareTemplates';
+
 // 共有ステータス
 export type SharePackageStatus = 'active' | 'revoked' | 'expired';
 
@@ -23,6 +25,9 @@ export type SharePackage = {
   createdByUserName?: string;
   expiresAt: string; // ISO
 
+  // テンプレートID（銀行/投資家/監査）
+  templateId: ExternalTemplateId;
+
   // スナップショット内容（凍結データ）
   snapshot: ExternalSnapshot;
 
@@ -35,6 +40,9 @@ export type SharePackage = {
 export type ExternalSnapshot = {
   generatedAt: string; // ISO
 
+  // テンプレートID
+  templateId: ExternalTemplateId;
+
   // A. Executive Summary
   executiveSummary: ExternalExecutiveSummary;
 
@@ -46,6 +54,41 @@ export type ExternalSnapshot = {
 
   // D. ロードマップ
   roadmap: ExternalRoadmap;
+
+  // E. WBR証跡（監査向け）
+  wbrProof?: ExternalWBRProof;
+
+  // F. アラートサマリー
+  alertsSummary?: ExternalAlertsSummary;
+
+  // G. 補足メモ
+  notes?: string;
+};
+
+// E. WBR証跡（監査向け詳細）
+export type ExternalWBRProof = {
+  records: {
+    weekLabel: string;
+    executedAt: string;
+    attendeeCount?: number;
+    decisionsCount: number;
+    issuesCount: number;
+  }[];
+  totalExecuted: number;
+  executionRate: number; // %
+};
+
+// F. アラートサマリー
+export type ExternalAlertsSummary = {
+  period: string;
+  totalRaised: number;
+  resolved: number;
+  pending: number;
+  avgResolutionDays: number;
+  categories: {
+    category: string;
+    count: number;
+  }[];
 };
 
 // A. Executive Summary（外部向け）
@@ -148,6 +191,8 @@ export type CreateShareRequest = {
   name: string;
   description?: string;
   expiresInDays: number; // 有効期限（日数）
+  templateId?: ExternalTemplateId; // デフォルトは'bank'
+  notes?: string; // 補足メモ
 };
 
 // 共有作成レスポンス
