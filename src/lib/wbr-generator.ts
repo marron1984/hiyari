@@ -18,6 +18,7 @@ import {
   TICKET_PHASES,
   type DevTicket,
 } from '@/lib/generateTickets';
+import { getWeeklyAlertSummary } from '@/lib/alerts/repo';
 
 // WBRレポート型
 export interface WBRReport {
@@ -72,9 +73,16 @@ export interface RiskAlertItem {
   daysIgnored: number;
 }
 
+export interface AlertSummaryForWBR {
+  newAlerts: number;
+  criticalOpen: number;
+  topCriticals: { title: string; type: string }[];
+}
+
 export interface RiskAlertSection {
   persistentRisks: RiskAlertItem[]; // 放置されている項目
   newRisks: RiskAlertItem[]; // 新たに顕在化したリスク
+  alertSummary?: AlertSummaryForWBR; // アラートセンターからのサマリー
 }
 
 // ⑤ 来週のアクション
@@ -317,7 +325,10 @@ function generateRiskAlerts(): RiskAlertSection {
     });
   }
 
-  return { persistentRisks, newRisks };
+  // アラートセンターからのサマリー
+  const alertSummary = getWeeklyAlertSummary();
+
+  return { persistentRisks, newRisks, alertSummary };
 }
 
 function getRiskDescription(feature: OSFeature): string {

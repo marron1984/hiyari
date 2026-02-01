@@ -154,7 +154,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'alert-center',
     name: 'アラートセンター',
     category: 'core',
-    status: 'planned',
+    status: 'active',
     description: '全アラートの一元管理',
     path: '/dashboard/alerts',
     priority: 5,
