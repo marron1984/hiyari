@@ -437,6 +437,17 @@ export const OS_FEATURES: OSFeature[] = [
     risk: 4,
   },
   {
+    id: 'approval-flow',
+    name: '承認フロー管理',
+    category: 'approval',
+    status: 'active',
+    description: '承認フローの作成・編集・公開',
+    path: '/dashboard/approval-flow',
+    priority: 4,
+    roi: 4,
+    risk: 4,
+  },
+  {
     id: 'approval-log',
     name: '承認ログ',
     category: 'approval',
