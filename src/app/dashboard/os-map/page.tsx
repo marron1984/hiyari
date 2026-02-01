@@ -1,17 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
 import { AuthGuard } from '@/components/AuthGuard';
-import { Card, CardHeader, CardTitle, CardContent, Badge } from '@/components/ui';
+import { Card, CardContent, Badge } from '@/components/ui';
 import {
   OS_CATEGORIES,
   OS_FEATURES,
   OS_FEATURE_STATUS_CONFIG,
   getFeaturesByCategory,
   getFeatureCountByStatus,
-  getCategorySummary,
+  calculateCompositeScore,
+  getFeaturesSortedByPriority,
   type OSFeatureStatus,
   type OSFeature,
 } from '@/config/osFeatures';
@@ -28,11 +28,14 @@ import {
   Heart,
   Wallet,
   ExternalLink,
-  Filter,
   Bot,
-  ChevronRight,
   Info,
+  ArrowUpDown,
+  TrendingUp,
 } from 'lucide-react';
+
+// 並び替えモード
+type SortMode = 'category' | 'priority';
 
 // カテゴリアイコンマッピング
 const CATEGORY_ICONS: Record<string, typeof Activity> = {
@@ -54,37 +57,27 @@ function getCategoryIcon(iconName: string) {
 }
 
 export default function OSMapPage() {
-  const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState<OSFeatureStatus | 'all'>('all');
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(OS_CATEGORIES.map((c) => c.id))
-  );
+  const [sortMode, setSortMode] = useState<SortMode>('category');
 
   // 全体サマリー
   const totalCounts = getFeatureCountByStatus();
   const totalFeatures = OS_FEATURES.length;
 
   // フィルター適用
-  const filteredFeatures = statusFilter === 'all'
-    ? OS_FEATURES
-    : OS_FEATURES.filter((f) => f.status === statusFilter);
-
-  // カテゴリ展開/折りたたみ
-  const toggleCategory = (categoryId: string) => {
-    setExpandedCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(categoryId)) {
-        next.delete(categoryId);
-      } else {
-        next.add(categoryId);
-      }
-      return next;
-    });
+  const getFilteredFeatures = (categoryId: string) => {
+    const features = getFeaturesByCategory(categoryId);
+    if (statusFilter === 'all') return features;
+    return features.filter((f) => f.status === statusFilter);
   };
 
-  // 全展開/全折りたたみ
-  const expandAll = () => setExpandedCategories(new Set(OS_CATEGORIES.map((c) => c.id)));
-  const collapseAll = () => setExpandedCategories(new Set());
+  // 優先度順で並び替えた全機能リスト
+  const allFeaturesSortedByPriority = useMemo(() => {
+    let features = statusFilter === 'all'
+      ? OS_FEATURES
+      : OS_FEATURES.filter((f) => f.status === statusFilter);
+    return getFeaturesSortedByPriority(features);
+  }, [statusFilter]);
 
   return (
     <AuthGuard>
@@ -97,8 +90,8 @@ export default function OSMapPage() {
                 <Map className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-zinc-900">OSマップ（司令塔）</h1>
-                <p className="text-sm text-zinc-500">AA-HUB 全機能可視化</p>
+                <h1 className="text-2xl font-bold text-zinc-900">OSマップ</h1>
+                <p className="text-sm text-zinc-500">AA-HUB 全機能一覧（{totalFeatures}機能）</p>
               </div>
             </div>
           </div>
@@ -119,146 +112,139 @@ export default function OSMapPage() {
             </CardContent>
           </Card>
 
-          {/* 全体サマリー */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-            <Card className="p-3">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-zinc-800">{totalFeatures}</p>
-                <p className="text-xs text-zinc-500">全機能</p>
-              </div>
-            </Card>
-            {(['active', 'developing', 'planned', 'hidden'] as const).map((status) => {
-              const config = OS_FEATURE_STATUS_CONFIG[status];
-              return (
-                <Card
-                  key={status}
-                  className={`p-3 cursor-pointer transition-all ${
-                    statusFilter === status ? `ring-2 ring-offset-1 ${config.borderColor}` : ''
-                  } ${config.bgColor}`}
-                  onClick={() => setStatusFilter(statusFilter === status ? 'all' : status)}
-                >
-                  <div className="text-center">
-                    <p className={`text-2xl font-bold ${config.color}`}>
-                      {config.emoji} {totalCounts[status]}
-                    </p>
-                    <p className="text-xs text-zinc-600">{config.label}</p>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+          {/* ステータス凡例 & フィルター */}
+          <Card className="mb-6">
+            <CardContent className="p-4">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-2 text-sm text-zinc-600">
+                  <span className="font-medium">ステータス凡例:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(['all', 'active', 'developing', 'planned', 'hidden'] as const).map((status) => {
+                    const isAll = status === 'all';
+                    const config = isAll ? null : OS_FEATURE_STATUS_CONFIG[status];
+                    const count = isAll ? totalFeatures : totalCounts[status];
+                    const isSelected = statusFilter === status;
 
-          {/* フィルターバー */}
-          <div className="flex items-center justify-between mb-4">
+                    return (
+                      <button
+                        key={status}
+                        onClick={() => setStatusFilter(status)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                          isSelected
+                            ? isAll
+                              ? 'bg-zinc-800 text-white'
+                              : `${config?.bgColor} ${config?.color} ring-2 ring-offset-1 ${config?.borderColor}`
+                            : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                        }`}
+                      >
+                        {isAll ? (
+                          <>全て</>
+                        ) : (
+                          <>
+                            <span>{config?.emoji}</span>
+                            {config?.label}
+                          </>
+                        )}
+                        <Badge className="bg-white/80 text-zinc-700 text-xs ml-1">
+                          {count}
+                        </Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 並び替えトグル */}
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-zinc-400" />
-              <span className="text-sm text-zinc-600">
-                {statusFilter === 'all'
-                  ? `全${filteredFeatures.length}件を表示`
-                  : `${OS_FEATURE_STATUS_CONFIG[statusFilter].label}：${filteredFeatures.length}件`}
-              </span>
-              {statusFilter !== 'all' && (
-                <button
-                  onClick={() => setStatusFilter('all')}
-                  className="text-sm text-indigo-600 hover:underline"
-                >
-                  クリア
-                </button>
-              )}
+              <ArrowUpDown className="w-4 h-4 text-zinc-500" />
+              <span className="text-sm text-zinc-600">並び替え:</span>
             </div>
             <div className="flex gap-2">
               <button
-                onClick={expandAll}
-                className="text-xs text-zinc-500 hover:text-zinc-700"
+                onClick={() => setSortMode('category')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  sortMode === 'category'
+                    ? 'bg-zinc-800 text-white'
+                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                }`}
               >
-                すべて開く
+                カテゴリ別
               </button>
-              <span className="text-zinc-300">|</span>
               <button
-                onClick={collapseAll}
-                className="text-xs text-zinc-500 hover:text-zinc-700"
+                onClick={() => setSortMode('priority')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+                  sortMode === 'priority'
+                    ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                }`}
               >
-                すべて閉じる
+                <TrendingUp className="w-3.5 h-3.5" />
+                経営優先度順
               </button>
             </div>
           </div>
 
-          {/* カテゴリ別機能リスト */}
-          <div className="space-y-4">
-            {OS_CATEGORIES.map((category) => {
-              const CategoryIcon = getCategoryIcon(category.icon);
-              const features = getFeaturesByCategory(category.id);
-              const filteredCategoryFeatures = statusFilter === 'all'
-                ? features
-                : features.filter((f) => f.status === statusFilter);
-              const summary = getCategorySummary(category.id);
-              const isExpanded = expandedCategories.has(category.id);
+          {/* 機能リスト（カテゴリ別 or 優先度順） */}
+          {sortMode === 'category' ? (
+            // カテゴリ別表示
+            <div className="space-y-8">
+              {OS_CATEGORIES.map((category) => {
+                const CategoryIcon = getCategoryIcon(category.icon);
+                const features = getFilteredFeatures(category.id);
 
-              // フィルター時に該当機能がない場合はカテゴリを非表示
-              if (statusFilter !== 'all' && filteredCategoryFeatures.length === 0) {
-                return null;
-              }
+                // フィルター時に該当機能がない場合はカテゴリを非表示
+                if (features.length === 0) return null;
 
-              return (
-                <Card key={category.id} className="overflow-hidden">
-                  {/* カテゴリヘッダー */}
-                  <button
-                    onClick={() => toggleCategory(category.id)}
-                    className="w-full p-4 flex items-center justify-between bg-zinc-50 hover:bg-zinc-100 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-white rounded-lg border border-zinc-200">
+                return (
+                  <section key={category.id}>
+                    {/* カテゴリヘッダー */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-zinc-100 rounded-lg">
                         <CategoryIcon className="w-5 h-5 text-zinc-600" />
                       </div>
-                      <div className="text-left">
-                        <h2 className="font-semibold text-zinc-800">{category.name}</h2>
-                        <p className="text-xs text-zinc-500">{category.description}</p>
+                      <div>
+                        <h2 className="text-lg font-bold text-zinc-800">{category.name}</h2>
+                        <p className="text-sm text-zinc-500">{category.description}</p>
                       </div>
+                      <Badge className="ml-auto bg-zinc-100 text-zinc-600">
+                        {features.length}機能
+                      </Badge>
                     </div>
-                    <div className="flex items-center gap-3">
-                      {/* ミニサマリー */}
-                      <div className="flex gap-1">
-                        {summary.active > 0 && (
-                          <Badge className="bg-green-100 text-green-700 text-xs">
-                            {summary.active}
-                          </Badge>
-                        )}
-                        {summary.developing > 0 && (
-                          <Badge className="bg-yellow-100 text-yellow-700 text-xs">
-                            {summary.developing}
-                          </Badge>
-                        )}
-                        {summary.planned > 0 && (
-                          <Badge className="bg-red-100 text-red-700 text-xs">
-                            {summary.planned}
-                          </Badge>
-                        )}
-                      </div>
-                      <ChevronRight
-                        className={`w-5 h-5 text-zinc-400 transition-transform ${
-                          isExpanded ? 'rotate-90' : ''
-                        }`}
-                      />
-                    </div>
-                  </button>
 
-                  {/* 機能リスト */}
-                  {isExpanded && (
-                    <CardContent className="p-0">
-                      <div className="divide-y divide-zinc-100">
-                        {filteredCategoryFeatures.map((feature) => (
-                          <FeatureRow key={feature.id} feature={feature} />
-                        ))}
-                      </div>
-                    </CardContent>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
+                    {/* 機能カードグリッド */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {features.map((feature) => (
+                        <FeatureCard key={feature.id} feature={feature} showScore={false} />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            // 優先度順表示
+            <div>
+              <div className="mb-4 p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border border-orange-200">
+                <div className="flex items-center gap-2 text-orange-800 text-sm">
+                  <TrendingUp className="w-4 h-4" />
+                  <span className="font-medium">経営優先度スコア</span>
+                  <span className="text-orange-600">= 経営優先度 + 投資対効果 + 放置リスク（各1-5、最大15）</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {allFeaturesSortedByPriority.map((feature, index) => (
+                  <FeatureCard key={feature.id} feature={feature} showScore={true} rank={index + 1} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* フッター */}
-          <div className="mt-8 text-center text-sm text-zinc-400">
+          <div className="mt-12 text-center text-sm text-zinc-400">
             <p>AA.OS.HUB — 全体を見渡し、一つずつ前へ。</p>
           </div>
         </div>
@@ -267,56 +253,106 @@ export default function OSMapPage() {
   );
 }
 
-// 機能行コンポーネント
-function FeatureRow({ feature }: { feature: OSFeature }) {
-  const config = OS_FEATURE_STATUS_CONFIG[feature.status];
-  const isClickable = feature.status === 'active' || feature.status === 'developing';
-
-  const content = (
-    <div
-      className={`px-4 py-3 flex items-center justify-between ${
-        isClickable ? 'hover:bg-zinc-50 cursor-pointer' : 'opacity-75'
-      } transition-colors`}
-    >
-      <div className="flex items-center gap-3 flex-1 min-w-0">
-        {/* ステータスインジケーター */}
-        <span className="text-lg flex-shrink-0">{config.emoji}</span>
-
-        {/* 機能情報 */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-zinc-800">{feature.name}</span>
-            {feature.owner === 'AI' && (
-              <Badge className="bg-purple-100 text-purple-700 text-xs flex items-center gap-1">
-                <Bot className="w-3 h-3" />
-                AI
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-zinc-500 truncate">{feature.description}</p>
-        </div>
+/**
+ * スコアバー表示コンポーネント
+ */
+function ScoreBar({ value, max = 5, label }: { value: number; max?: number; label: string }) {
+  const percentage = (value / max) * 100;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-zinc-500 w-16">{label}</span>
+      <div className="flex-1 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-gradient-to-r from-orange-400 to-red-500 rounded-full transition-all"
+          style={{ width: `${percentage}%` }}
+        />
       </div>
-
-      {/* ステータスバッジとリンク */}
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <Badge className={`${config.bgColor} ${config.color} text-xs`}>
-          {config.label}
-        </Badge>
-        {isClickable && (
-          <ExternalLink className="w-4 h-4 text-zinc-400" />
-        )}
-      </div>
+      <span className="text-xs font-medium text-zinc-600 w-4 text-right">{value}</span>
     </div>
   );
+}
 
-  if (isClickable) {
-    return (
-      <Link href={feature.path} className="block">
-        {content}
-      </Link>
-    );
-  }
+/**
+ * 機能カードコンポーネント
+ */
+function FeatureCard({
+  feature,
+  showScore = false,
+  rank,
+}: {
+  feature: OSFeature;
+  showScore?: boolean;
+  rank?: number;
+}) {
+  const config = OS_FEATURE_STATUS_CONFIG[feature.status];
+  const isClickable = feature.status === 'active' || feature.status === 'developing';
+  const compositeScore = calculateCompositeScore(feature);
 
-  // 未実装の場合はプレースホルダ表示（リンクなし）
-  return content;
+  const cardContent = (
+    <Card className={`h-full transition-all ${isClickable ? 'hover:shadow-md hover:border-zinc-300 cursor-pointer' : 'opacity-80'} ${rank && rank <= 3 ? 'ring-2 ring-orange-300' : ''}`}>
+      <CardContent className="p-4">
+        {/* ランキングバッジ（優先度順時のみ） */}
+        {rank && (
+          <div className="flex items-center justify-between mb-2">
+            <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold ${
+              rank === 1 ? 'bg-yellow-100 text-yellow-700' :
+              rank === 2 ? 'bg-zinc-200 text-zinc-600' :
+              rank === 3 ? 'bg-orange-100 text-orange-700' :
+              'bg-zinc-100 text-zinc-500'
+            }`}>
+              #{rank}
+            </div>
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-orange-100 to-red-100 rounded text-xs font-bold text-orange-700">
+              <TrendingUp className="w-3 h-3" />
+              {compositeScore}/15
+            </div>
+          </div>
+        )}
+
+        {/* ステータスバッジ */}
+        <div className="flex items-center justify-between mb-3">
+          <Badge className={`${config.bgColor} ${config.color} text-xs`}>
+            <span className="mr-1">{config.emoji}</span>
+            {config.label}
+          </Badge>
+          {feature.owner === 'AI' && (
+            <Badge className="bg-purple-100 text-purple-700 text-xs flex items-center gap-1">
+              <Bot className="w-3 h-3" />
+              AI
+            </Badge>
+          )}
+        </div>
+
+        {/* 機能名 */}
+        <h3 className="font-bold text-zinc-800 mb-2">{feature.name}</h3>
+
+        {/* 説明 */}
+        <p className="text-sm text-zinc-500 mb-3 line-clamp-2">{feature.description}</p>
+
+        {/* スコア表示（showScore=true時） */}
+        {showScore && (feature.priority || feature.roi || feature.risk) && (
+          <div className="space-y-1.5 mb-3 p-2 bg-zinc-50 rounded-lg">
+            <ScoreBar value={feature.priority ?? 0} label="優先度" />
+            <ScoreBar value={feature.roi ?? 0} label="ROI" />
+            <ScoreBar value={feature.risk ?? 0} label="リスク" />
+          </div>
+        )}
+
+        {/* 開くボタン */}
+        <div className="flex items-center justify-end">
+          <span className={`text-sm font-medium flex items-center gap-1 ${isClickable ? 'text-blue-600' : 'text-zinc-400'}`}>
+            開く
+            <ExternalLink className="w-3.5 h-3.5" />
+          </span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // 全てのパスにリンク（active/developing以外はプレースホルダページへ遷移）
+  return (
+    <Link href={feature.path} className="block">
+      {cardContent}
+    </Link>
+  );
 }
