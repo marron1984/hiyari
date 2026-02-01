@@ -7,7 +7,7 @@
 /**
  * エンティティタイプ
  */
-export type EntityType = 'announcement' | 'document' | 'training';
+export type EntityType = 'announcement' | 'document' | 'training' | 'handover';
 
 /**
  * 既読レシート

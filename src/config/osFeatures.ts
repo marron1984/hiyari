@@ -360,7 +360,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'handover',
     name: '申し送り',
     category: 'communication',
-    status: 'planned',
+    status: 'active',
     description: 'シフト間の申し送り',
     path: '/dashboard/handover',
     priority: 5,
