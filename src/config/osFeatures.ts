@@ -566,7 +566,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'committees',
     name: '委員会管理',
     category: 'education',
-    status: 'planned',
+    status: 'active',
     description: '委員会の運営管理',
     path: '/dashboard/committees',
     priority: 3,

@@ -208,6 +208,7 @@ export function getAlertStats(): AlertStats {
       handover_urgent: 0,
       ticket_backlog: 0,
       training_overdue: 0,
+      committee_risk: 0,
     },
   };
 
