@@ -21,6 +21,8 @@ import {
   MessageSquare,
   RotateCcw,
   Ban,
+  ClipboardList,
+  ExternalLink,
 } from 'lucide-react';
 import type {
   ApprovalRequest,
@@ -454,6 +456,20 @@ export default function ApprovalRequestDetailPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            </Card>
+
+            {/* 承認ログリンク */}
+            <Card>
+              <div className="p-4">
+                <Link
+                  href={`/dashboard/approval-log?requestId=${request.id}`}
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  承認ログで表示
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
               </div>
             </Card>
 
