@@ -15,8 +15,11 @@ export const KPI_METADATA: KPIMetadata[] = [
     unit: '%',
     category: 'sales',
     direction: 'higher_is_better',
+    frequency: 'daily',
+    isExternalAllowed: true,
     thresholds: { warning: 85, critical: 80 },
     dashboardPath: '/dashboard/vacancy',
+    createdAt: '2024-01-01T00:00:00Z',
   },
   {
     id: 'prospect_conversion',
@@ -25,8 +28,11 @@ export const KPI_METADATA: KPIMetadata[] = [
     unit: '%',
     category: 'sales',
     direction: 'higher_is_better',
+    frequency: 'weekly',
+    isExternalAllowed: true,
     thresholds: { warning: 15, critical: 10 },
     dashboardPath: '/dashboard/prospects',
+    createdAt: '2024-01-01T00:00:00Z',
   },
   {
     id: 'inquiry_count',
@@ -35,8 +41,11 @@ export const KPI_METADATA: KPIMetadata[] = [
     unit: '件',
     category: 'sales',
     direction: 'higher_is_better',
+    frequency: 'weekly',
+    isExternalAllowed: true,
     thresholds: { warning: 10, critical: 5 },
     dashboardPath: '/dashboard/prospects',
+    createdAt: '2024-01-01T00:00:00Z',
   },
   {
     id: 'incident_count',
@@ -45,8 +54,11 @@ export const KPI_METADATA: KPIMetadata[] = [
     unit: '件',
     category: 'risk',
     direction: 'lower_is_better',
+    frequency: 'weekly',
+    isExternalAllowed: true,
     thresholds: { warning: 5, critical: 10 },
     dashboardPath: '/admin/incidents',
+    createdAt: '2024-01-01T00:00:00Z',
   },
   {
     id: 'hiyari_count',
@@ -55,8 +67,11 @@ export const KPI_METADATA: KPIMetadata[] = [
     unit: '件',
     category: 'risk',
     direction: 'higher_is_better', // 報告が多いほど良い（気づきの文化）
+    frequency: 'weekly',
+    isExternalAllowed: false, // 内部向け指標
     thresholds: { warning: 5, critical: 3 },
     dashboardPath: '/admin/incidents',
+    createdAt: '2024-01-01T00:00:00Z',
   },
   {
     id: 'pending_approvals',
@@ -65,8 +80,11 @@ export const KPI_METADATA: KPIMetadata[] = [
     unit: '件',
     category: 'operation',
     direction: 'lower_is_better',
+    frequency: 'daily',
+    isExternalAllowed: false, // 内部向け指標
     thresholds: { warning: 10, critical: 20 },
     dashboardPath: '/dashboard/approvals',
+    createdAt: '2024-01-01T00:00:00Z',
   },
   {
     id: 'avg_fatigue',
@@ -75,8 +93,11 @@ export const KPI_METADATA: KPIMetadata[] = [
     unit: 'pt',
     category: 'people',
     direction: 'lower_is_better',
+    frequency: 'weekly',
+    isExternalAllowed: false, // 内部向け指標
     thresholds: { warning: 3.5, critical: 4.0 },
     dashboardPath: '/dashboard/os/team',
+    createdAt: '2024-01-01T00:00:00Z',
   },
   {
     id: 'turnover_risk_count',
@@ -85,8 +106,11 @@ export const KPI_METADATA: KPIMetadata[] = [
     unit: '人',
     category: 'people',
     direction: 'lower_is_better',
+    frequency: 'weekly',
+    isExternalAllowed: false, // 内部向け指標
     thresholds: { warning: 3, critical: 5 },
     dashboardPath: '/dashboard/ai-vp/human-risk',
+    createdAt: '2024-01-01T00:00:00Z',
   },
   {
     id: 'uncollected_amount',
@@ -95,8 +119,11 @@ export const KPI_METADATA: KPIMetadata[] = [
     unit: '万円',
     category: 'finance',
     direction: 'lower_is_better',
+    frequency: 'weekly',
+    isExternalAllowed: true,
     thresholds: { warning: 100, critical: 200 },
     dashboardPath: '/dashboard/receivables',
+    createdAt: '2024-01-01T00:00:00Z',
   },
   {
     id: 'overdue_contracts',
@@ -105,8 +132,11 @@ export const KPI_METADATA: KPIMetadata[] = [
     unit: '件',
     category: 'operation',
     direction: 'lower_is_better',
+    frequency: 'weekly',
+    isExternalAllowed: false, // 内部向け指標
     thresholds: { warning: 3, critical: 5 },
     dashboardPath: '/dashboard/contracts',
+    createdAt: '2024-01-01T00:00:00Z',
   },
 ];
 

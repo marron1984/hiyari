@@ -21,7 +21,8 @@ import {
 } from '@/config/externalShareTemplates';
 import { generateTickets } from '@/lib/generateTickets';
 import { generateWBRHistory } from '@/lib/wbr-generator';
-import { getMockKPITimeSeries, getDefaultAlertConfigs, getKPIMetadata } from '@/lib/kpi/mock-data';
+import { getDefaultAlertConfigs } from '@/lib/kpi/mock-data';
+import { listKpiDefinitions, getKpiTimeSeries, getKpiHighlights } from '@/lib/kpi/kpi-store';
 import { detectAllAnomalies } from '@/lib/kpi/anomaly-detector';
 import type {
   ExternalSnapshot,
@@ -125,20 +126,28 @@ function generateExternalExecutiveSummary(
 function generateExternalKPIHighlights(
   template: ExternalShareTemplate
 ): ExternalKPIHighlights {
-  const timeSeries = getMockKPITimeSeries();
+  // kpi-storeから定義一覧を取得
+  const definitions = listKpiDefinitions({ externalOnly: true });
   const configs = getDefaultAlertConfigs();
-  const anomalies = detectAllAnomalies(timeSeries, configs);
+
+  // 時系列データを収集
+  const timeSeriesData = definitions.map((def) => {
+    const ts = getKpiTimeSeries(def.id);
+    return ts ? { kpiId: def.id, points: ts.points } : null;
+  }).filter((ts): ts is { kpiId: string; points: { date: string; value: number | null }[] } => ts !== null);
+
+  const anomalies = detectAllAnomalies(timeSeriesData, configs);
 
   // テンプレートのallowlistに基づいてフィルタリング
   const maxItems = template.sectionConfig.kpiHighlights?.maxItems ?? 5;
   const allowedKpis = template.kpiAllowlist.slice(0, maxItems);
 
   const kpis = allowedKpis.map((kpiId) => {
-    const series = timeSeries.find((ts) => ts.kpiId === kpiId);
-    const metadata = getKPIMetadata(kpiId);
+    const series = timeSeriesData.find((ts) => ts.kpiId === kpiId);
+    const definition = definitions.find((d) => d.id === kpiId);
     const displayConfig = EXTERNAL_KPI_DISPLAY_CONFIG.find((c) => c.kpiId === kpiId);
 
-    if (!series || !metadata) {
+    if (!series || !definition) {
       return {
         name: kpiId,
         currentValue: 'N/A',
@@ -170,16 +179,16 @@ function generateExternalKPIHighlights(
     }
 
     // 表示値（テンプレートの表示モードに応じて）
-    const isHigherBetter = !['avg_fatigue', 'turnover_risk_count'].includes(kpiId);
+    const isHigherBetter = definition.direction === 'higher_is_better';
     const displayValue = formatKpiValueByTemplate(
       currentValue,
-      metadata.unit,
+      definition.unit,
       template.kpiDisplayMode,
       isHigherBetter
     );
 
     return {
-      name: displayConfig?.displayName ?? metadata.name,
+      name: displayConfig?.displayName ?? definition.name,
       currentValue: displayValue,
       trend,
       status,
@@ -300,9 +309,17 @@ function generateExternalWBRProof(
 function generateExternalAlertsSummary(
   template: ExternalShareTemplate
 ): ExternalAlertsSummary {
-  const timeSeries = getMockKPITimeSeries();
+  // kpi-storeから定義一覧を取得
+  const definitions = listKpiDefinitions();
   const configs = getDefaultAlertConfigs();
-  const anomalies = detectAllAnomalies(timeSeries, configs);
+
+  // 時系列データを収集
+  const timeSeriesData = definitions.map((def) => {
+    const ts = getKpiTimeSeries(def.id);
+    return ts ? { kpiId: def.id, points: ts.points } : null;
+  }).filter((ts): ts is { kpiId: string; points: { date: string; value: number | null }[] } => ts !== null);
+
+  const anomalies = detectAllAnomalies(timeSeriesData, configs);
 
   const now = new Date();
   const period = `${now.getFullYear()}年${now.getMonth() + 1}月`;

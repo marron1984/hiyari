@@ -16,6 +16,9 @@ export type KPITimeSeries = {
   points: KPIDataPoint[]; // 昇順
 };
 
+// KPI計測頻度
+export type KPIFrequency = 'daily' | 'weekly';
+
 // KPIメタデータ
 export type KPIMetadata = {
   id: string;
@@ -24,6 +27,8 @@ export type KPIMetadata = {
   unit: string; // %, 件, 人, 円 など
   category: KPICategory;
   direction: 'higher_is_better' | 'lower_is_better';
+  frequency: KPIFrequency;
+  isExternalAllowed: boolean; // 外部共有で表示可能か
   // 閾値設定
   thresholds?: {
     warning?: number;
@@ -31,6 +36,29 @@ export type KPIMetadata = {
   };
   // ダッシュボードリンク
   dashboardPath?: string;
+  createdAt?: string;
+};
+
+// KPIハイライト（ダッシュボード用）
+export type KPIHighlight = {
+  kpiId: string;
+  name: string;
+  currentValue: number | null;
+  previousValue: number | null;
+  unit: string;
+  changePercent: number | null;
+  trend: 'up' | 'down' | 'flat';
+  status: 'good' | 'warning' | 'critical' | 'neutral';
+  category: KPICategory;
+  dashboardPath?: string;
+};
+
+// KPIサマリー統計
+export type KPISummary = {
+  total: number;
+  withData: number;
+  externalAllowed: number;
+  byCategory: Record<string, number>;
 };
 
 // KPIカテゴリ
