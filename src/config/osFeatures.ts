@@ -314,7 +314,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'external-accounts',
     name: '外部関係者アカウント',
     category: 'people',
-    status: 'planned',
+    status: 'active',
     description: '外部関係者のアクセス管理',
     path: '/admin/external-accounts',
     priority: 2,
