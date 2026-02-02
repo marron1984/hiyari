@@ -682,7 +682,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'key-person',
     name: 'キーパーソン管理',
     category: 'family',
-    status: 'planned',
+    status: 'active',
     description: 'キーパーソンの情報管理',
     path: '/dashboard/key-person',
     priority: 4,
