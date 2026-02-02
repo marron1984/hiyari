@@ -3,19 +3,26 @@
  *
  * 金融機関・投資家向けのセキュアな共有機能
  * セキュリティ原則：最小権限・最小情報・監査可能
+ * Task 040: 承認フロー追加
  */
 
 import type { ExternalTemplateId } from '@/config/externalShareTemplates';
 
-// 共有ステータス
-export type SharePackageStatus = 'active' | 'revoked' | 'expired';
+// 共有ステータス（Task 040: 承認フロー対応）
+export type SharePackageStatus =
+  | 'draft'              // 下書き（承認前）
+  | 'pending_approval'   // 承認待ち
+  | 'issued'             // 発行済み（URL有効）
+  | 'revoked'            // 失効
+  | 'expired';           // 期限切れ
 
 // 共有パッケージ
 export type SharePackage = {
   id: string;
 
   // 外部URLのトークン（DBにはハッシュのみ保存）
-  tokenHash: string;
+  // Task 040: 承認前はnull、issued時にのみ生成
+  tokenHash: string | null;
 
   name: string; // 例：「〇〇銀行向け 2026年2月 共有」
   description?: string;
@@ -23,17 +30,24 @@ export type SharePackage = {
   createdAt: string; // ISO
   createdByUserId?: string; // 内部ユーザー
   createdByUserName?: string;
-  expiresAt: string; // ISO
+  expiresAt: string; // ISO（発行後の有効期限）
 
   // テンプレートID（銀行/投資家/監査）
   templateId: ExternalTemplateId;
 
   // スナップショット内容（凍結データ）
-  snapshot: ExternalSnapshot;
+  // Task 040: issued時に生成（draft時はnull可）
+  snapshot: ExternalSnapshot | null;
 
   // 監査補助
   lastAccessedAt?: string; // ISO
   accessCount: number;
+
+  // Task 040: 承認フロー関連
+  approvalRequestId?: string | null;   // 承認申請ID（approvals連携）
+  issuedAt?: string | null;            // 発行日時
+  issuedByUserId?: string | null;      // 発行者（承認者）
+  issuedByUserName?: string | null;    // 発行者名
 };
 
 // 外部公開用スナップショット（サニタイズ済みデータ）
@@ -195,11 +209,35 @@ export type CreateShareRequest = {
   notes?: string; // 補足メモ
 };
 
-// 共有作成レスポンス
+// 共有作成レスポンス（Task 040: draft作成時はtoken無し）
 export type CreateShareResponse = {
   shareId: string;
   shareUrl: string;
   token: string; // 一度だけ表示（以後は取得不可）
+  expiresAt: string;
+};
+
+// Task 040: 下書き作成レスポンス（承認前）
+export type CreateShareDraftResponse = {
+  shareId: string;
+  status: 'draft';
+  expiresAt: string;  // 発行後の有効期限予定
+};
+
+// Task 040: 承認依頼レスポンス
+export type RequestApprovalResponse = {
+  shareId: string;
+  approvalRequestId: string;
+  status: 'pending_approval';
+};
+
+// Task 040: 発行レスポンス（承認後）
+export type IssueShareResponse = {
+  shareId: string;
+  shareUrl: string;
+  token: string; // 一度だけ表示
+  status: 'issued';
+  issuedAt: string;
   expiresAt: string;
 };
 

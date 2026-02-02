@@ -21,6 +21,7 @@ import {
   Briefcase,
   Settings,
   Play,
+  Share2,
 } from 'lucide-react';
 import type { ApprovalFlow, FlowStatus, RequestType } from '@/lib/approvals/types';
 
@@ -48,6 +49,7 @@ const REQUEST_TYPE_CONFIG: Record<RequestType, { label: string; icon: React.Reac
   expense: { label: '経費申請', icon: <FileText className="w-4 h-4" /> },
   overtime: { label: '残業申請', icon: <Clock className="w-4 h-4" /> },
   generic: { label: '汎用', icon: <Briefcase className="w-4 h-4" /> },
+  share_issue: { label: '外部共有', icon: <Share2 className="w-4 h-4" /> }, // Task 040
 };
 
 export default function ApprovalFlowPage() {

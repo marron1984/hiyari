@@ -184,6 +184,47 @@ function initializeStore(): void {
   genericFlow.steps = [step5, step6];
   flowsStore.set(genericFlow.id, genericFlow);
 
+  // Task 040: 外部共有発行承認フロー
+  const shareIssueFlow: ApprovalFlow = {
+    id: generateFlowId(),
+    name: '外部共有発行承認フロー',
+    requestType: 'share_issue',
+    status: 'published',
+    version: 1,
+    description: '外部共有リンクの発行承認。マネージャー→役員の2段階承認。',
+    conditionJson: null,
+    steps: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const shareStep1: ApprovalFlowStep = {
+    id: generateStepId(),
+    flowId: shareIssueFlow.id,
+    stepOrder: 1,
+    approverType: 'role',
+    approverRole: 'manager',
+    approverUserId: null,
+    required: 'any',
+    createdAt: now,
+    updatedAt: now,
+  };
+  const shareStep2: ApprovalFlowStep = {
+    id: generateStepId(),
+    flowId: shareIssueFlow.id,
+    stepOrder: 2,
+    approverType: 'role',
+    approverRole: 'executive',
+    approverUserId: null,
+    required: 'any',
+    createdAt: now,
+    updatedAt: now,
+  };
+  stepsStore.set(shareStep1.id, shareStep1);
+  stepsStore.set(shareStep2.id, shareStep2);
+  shareIssueFlow.steps = [shareStep1, shareStep2];
+  flowsStore.set(shareIssueFlow.id, shareIssueFlow);
+
   isInitialized = true;
 }
 

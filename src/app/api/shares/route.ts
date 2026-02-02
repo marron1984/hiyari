@@ -2,12 +2,14 @@
  * 外部共有管理API
  *
  * GET  /api/shares - 一覧取得
- * POST /api/shares - 新規作成
+ * POST /api/shares - 新規作成（下書き）
+ *
+ * Task 040: 承認フロー対応
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  createSharePackage,
+  createShareDraft,
   listShares,
   getShareStats,
   createDemoShares,
@@ -17,6 +19,7 @@ import type { CreateShareRequest } from '@/lib/shares/types';
 /**
  * GET /api/shares
  * 共有一覧を取得
+ * Task 040: 承認フロー関連フィールド追加
  */
 export async function GET() {
   // デモ用：サンプルデータを初期化
@@ -38,6 +41,10 @@ export async function GET() {
       expiresAt: s.expiresAt,
       accessCount: s.accessCount,
       lastAccessedAt: s.lastAccessedAt,
+      // Task 040: 承認フロー関連
+      approvalRequestId: s.approvalRequestId,
+      issuedAt: s.issuedAt,
+      issuedByUserName: s.issuedByUserName,
     })),
     stats,
   });
@@ -45,7 +52,8 @@ export async function GET() {
 
 /**
  * POST /api/shares
- * 新規共有を作成
+ * 新規共有を下書きとして作成
+ * Task 040: 承認フロー対応 - トークンは発行しない
  */
 export async function POST(request: NextRequest) {
   try {
@@ -66,8 +74,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 共有作成
-    const result = createSharePackage(
+    // Task 040: 下書きとして作成（トークン無し）
+    const result = createShareDraft(
       {
         name: body.name.trim(),
         description: body.description?.trim(),
@@ -82,10 +90,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       shareId: result.shareId,
-      shareUrl: result.shareUrl,
-      token: result.token, // 一度だけ表示
+      status: result.status,
       expiresAt: result.expiresAt,
-      message: 'このトークンは一度だけ表示されます。安全に保管してください。',
+      message: '下書きが作成されました。承認依頼を行うとURLが発行されます。',
     });
   } catch (error) {
     console.error('Failed to create share:', error);
