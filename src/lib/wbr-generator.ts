@@ -25,6 +25,8 @@ import type { UnclassifiedCounts } from '@/lib/scope/types';
 import { getKPIDictionaryEntry } from '@/lib/kpiDictionary/repo';
 // Task 042: AI VP Business Top3
 import { generateWBRBusinessTop3Summary } from '@/lib/aiVp/businessTop3';
+// Task 043: AI VP Generated Tickets
+import { getGeneratedTicketsThisWeek } from '@/lib/aiVp/ticketGenerator';
 import type { ViewerContext } from '@/lib/business/types';
 
 // WBRレポート型
@@ -41,6 +43,7 @@ export interface WBRReport {
   nextActions: NextActionsSection;
   aiComment: AICommentSection;
   businessTop3?: BusinessTop3Section;  // Task 042: 事業別Top3
+  generatedTickets?: GeneratedTicketsSection;  // Task 043: 今週生成されたチケット
 }
 
 // ① 週次サマリー
@@ -118,6 +121,19 @@ export interface AICommentSection {
 export interface BusinessTop3Section {
   topBusinessRisks: { name: string; riskLevel: string; topAction: string | null }[];
   globalTopActions: string[];
+}
+
+// ⑧ 今週生成されたAI-VPチケット（Task 043）
+export interface GeneratedTicketsSection {
+  tickets: {
+    id: string;
+    title: string;
+    priority: string;
+    businessUnitId: string | null;
+    status: string;
+    dueAt: string | null;
+  }[];
+  totalCount: number;
 }
 
 /**
@@ -479,6 +495,25 @@ export function generateWBR(date: Date = new Date(), viewer?: ViewerContext): WB
     businessTop3 = generateWBRBusinessTop3Summary(viewer);
   }
 
+  // Task 043: 今週生成されたAI-VPチケットを取得
+  let generatedTickets: GeneratedTicketsSection | undefined;
+  if (viewer) {
+    const tickets = getGeneratedTicketsThisWeek(viewer);
+    if (tickets.length > 0) {
+      generatedTickets = {
+        tickets: tickets.map((t) => ({
+          id: t.id,
+          title: t.title,
+          priority: t.priority,
+          businessUnitId: t.businessUnitId,
+          status: t.status,
+          dueAt: t.dueAt,
+        })),
+        totalCount: tickets.length,
+      };
+    }
+  }
+
   const formatDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -495,6 +530,7 @@ export function generateWBR(date: Date = new Date(), viewer?: ViewerContext): WB
     nextActions,
     aiComment,
     businessTop3,
+    generatedTickets,
   };
 }
 
@@ -623,6 +659,21 @@ export function exportWBRToText(report: WBRReport): string {
         lines.push(`  ${i + 1}. ${a}`);
       });
     }
+    lines.push('');
+  }
+
+  // Task 043: 今週生成されたAI-VPチケット
+  if (report.generatedTickets && report.generatedTickets.totalCount > 0) {
+    lines.push('■ 4.6. 今週生成されたAI-VPチケット（Task 043）');
+    lines.push('──────────────────────────────────────────────────────────────');
+    lines.push(`  合計 ${report.generatedTickets.totalCount}件 のチケットがAI副社長により自動生成されました`);
+    lines.push('');
+    report.generatedTickets.tickets.forEach((t, i) => {
+      const priorityIcon = t.priority === 'urgent' ? '🔴' : t.priority === 'high' ? '🟠' : '🔵';
+      const statusText = t.status === 'open' ? '未着手' : t.status === 'in_progress' ? '対応中' : t.status;
+      lines.push(`  ${i + 1}. ${priorityIcon} ${t.title}`);
+      lines.push(`     ステータス: ${statusText} / 期限: ${t.dueAt?.slice(0, 10) ?? '未設定'}`);
+    });
     lines.push('');
   }
 
@@ -916,6 +967,29 @@ export function exportWBRToHTML(report: WBRReport): string {
   `
       : ''
   }
+  `
+      : ''
+  }
+
+  ${
+    report.generatedTickets && report.generatedTickets.totalCount > 0
+      ? `
+  <h2>4.6. 今週生成されたAI-VPチケット（Task 043）</h2>
+  <p>合計 <strong>${report.generatedTickets.totalCount}件</strong> のチケットがAI副社長により自動生成されました</p>
+  <div>
+    ${report.generatedTickets.tickets
+      .map((t, i) => {
+        const priorityIcon = t.priority === 'urgent' ? '🔴' : t.priority === 'high' ? '🟠' : '🔵';
+        const statusText = t.status === 'open' ? '未着手' : t.status === 'in_progress' ? '対応中' : t.status;
+        return `
+      <div class="progress-item">
+        ${priorityIcon} <strong>${i + 1}. ${t.title}</strong><br>
+        ステータス: ${statusText} / 期限: ${t.dueAt?.slice(0, 10) ?? '未設定'}
+      </div>
+    `;
+      })
+      .join('')}
+  </div>
   `
       : ''
   }

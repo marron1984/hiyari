@@ -20,6 +20,10 @@ import * as alertsRepo from '@/lib/alerts/repo';
 
 export type ActionSeverity = 'info' | 'warning' | 'critical';
 
+// Task 043: チケット生成用のデフォルト設定
+export type ActionPriority = 'normal' | 'high' | 'urgent';
+export type ActionCategory = 'ops' | 'facility' | 'compliance' | 'hr' | 'general';
+
 export interface ActionCandidate {
   key: string;               // unique identifier
   businessUnitId: string;
@@ -31,6 +35,14 @@ export interface ActionCandidate {
   severity: ActionSeverity;
   domain: string;            // tickets/repairs/correctiveActions/licenses/alerts
   count: number;             // 対象件数
+
+  // Task 043: チケット自動生成用フィールド
+  templateKey: string;              // 例: "licenses_expired"
+  fingerprint: string;              // 冪等キー: `ai_vp:${businessUnitId}:${templateKey}:${YYYY-WW}`
+  defaultPriority: ActionPriority;  // チケットの優先度
+  defaultCategory: ActionCategory;  // チケットのカテゴリ
+  defaultDueDays: number;           // 期限（現在から何日後）
+  suggestedAssigneeRole?: string;   // 推奨担当ロール
 }
 
 export interface BusinessTop3Result {
@@ -89,6 +101,28 @@ function determineRiskLevel(totalScore: number): 'low' | 'medium' | 'high' | 'cr
   return 'low';
 }
 
+/**
+ * Task 043: 現在の週を YYYY-WW 形式で取得
+ */
+export function getCurrentWeekId(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const firstDay = new Date(year, 0, 1);
+  const pastDays = (date.getTime() - firstDay.getTime()) / 86400000;
+  const week = Math.ceil((pastDays + firstDay.getDay() + 1) / 7);
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * Task 043: 冪等キー（fingerprint）を生成
+ */
+function generateFingerprint(
+  businessUnitId: string,
+  templateKey: string,
+  weekId: string = getCurrentWeekId()
+): string {
+  return `ai_vp:${businessUnitId}:${templateKey}:${weekId}`;
+}
+
 // ========== アクション候補生成 ==========
 
 /**
@@ -109,6 +143,7 @@ function generateActionCandidates(
   );
 
   if (ticketStats.urgentOpen > 0) {
+    const templateKey = 'tickets_urgent';
     const score = ticketStats.urgentOpen * SCORING_WEIGHTS.tickets_urgentOpen;
     candidates.push({
       key: `${businessUnitId}:tickets:urgent`,
@@ -121,10 +156,17 @@ function generateActionCandidates(
       severity: determineSeverity(score),
       domain: 'tickets',
       count: ticketStats.urgentOpen,
+      templateKey,
+      fingerprint: generateFingerprint(businessUnitId, templateKey),
+      defaultPriority: 'urgent',
+      defaultCategory: 'ops',
+      defaultDueDays: 1,
+      suggestedAssigneeRole: 'manager',
     });
   }
 
   if (ticketStats.overdue > 0) {
+    const templateKey = 'tickets_overdue';
     const score = ticketStats.overdue * SCORING_WEIGHTS.tickets_overdue;
     candidates.push({
       key: `${businessUnitId}:tickets:overdue`,
@@ -137,6 +179,12 @@ function generateActionCandidates(
       severity: determineSeverity(score),
       domain: 'tickets',
       count: ticketStats.overdue,
+      templateKey,
+      fingerprint: generateFingerprint(businessUnitId, templateKey),
+      defaultPriority: 'high',
+      defaultCategory: 'ops',
+      defaultDueDays: 3,
+      suggestedAssigneeRole: 'leader',
     });
   }
 
@@ -147,6 +195,7 @@ function generateActionCandidates(
   );
 
   if (repairStats.highRiskOpen > 0) {
+    const templateKey = 'repairs_highRisk';
     const score = repairStats.highRiskOpen * SCORING_WEIGHTS.repairs_highRiskOpen;
     candidates.push({
       key: `${businessUnitId}:repairs:highRisk`,
@@ -159,10 +208,17 @@ function generateActionCandidates(
       severity: determineSeverity(score),
       domain: 'repairs',
       count: repairStats.highRiskOpen,
+      templateKey,
+      fingerprint: generateFingerprint(businessUnitId, templateKey),
+      defaultPriority: 'urgent',
+      defaultCategory: 'facility',
+      defaultDueDays: 2,
+      suggestedAssigneeRole: 'manager',
     });
   }
 
   if (repairStats.overdue > 0) {
+    const templateKey = 'repairs_overdue';
     const score = repairStats.overdue * SCORING_WEIGHTS.repairs_overdue;
     candidates.push({
       key: `${businessUnitId}:repairs:overdue`,
@@ -175,6 +231,12 @@ function generateActionCandidates(
       severity: determineSeverity(score),
       domain: 'repairs',
       count: repairStats.overdue,
+      templateKey,
+      fingerprint: generateFingerprint(businessUnitId, templateKey),
+      defaultPriority: 'high',
+      defaultCategory: 'facility',
+      defaultDueDays: 5,
+      suggestedAssigneeRole: 'leader',
     });
   }
 
@@ -185,6 +247,7 @@ function generateActionCandidates(
   );
 
   if (caStats.criticalOpen > 0) {
+    const templateKey = 'ca_critical';
     const score = caStats.criticalOpen * SCORING_WEIGHTS.correctiveActions_criticalOpen;
     candidates.push({
       key: `${businessUnitId}:ca:critical`,
@@ -197,10 +260,17 @@ function generateActionCandidates(
       severity: determineSeverity(score),
       domain: 'correctiveActions',
       count: caStats.criticalOpen,
+      templateKey,
+      fingerprint: generateFingerprint(businessUnitId, templateKey),
+      defaultPriority: 'urgent',
+      defaultCategory: 'compliance',
+      defaultDueDays: 3,
+      suggestedAssigneeRole: 'manager',
     });
   }
 
   if (caStats.overdue > 0) {
+    const templateKey = 'ca_overdue';
     const score = caStats.overdue * SCORING_WEIGHTS.correctiveActions_overdue;
     candidates.push({
       key: `${businessUnitId}:ca:overdue`,
@@ -213,6 +283,12 @@ function generateActionCandidates(
       severity: determineSeverity(score),
       domain: 'correctiveActions',
       count: caStats.overdue,
+      templateKey,
+      fingerprint: generateFingerprint(businessUnitId, templateKey),
+      defaultPriority: 'high',
+      defaultCategory: 'compliance',
+      defaultDueDays: 5,
+      suggestedAssigneeRole: 'leader',
     });
   }
 
@@ -225,6 +301,7 @@ function generateActionCandidates(
   );
 
   if (licenseStats && licenseStats.expired > 0) {
+    const templateKey = 'licenses_expired';
     const score = licenseStats.expired * SCORING_WEIGHTS.licenses_expired;
     candidates.push({
       key: `${businessUnitId}:licenses:expired`,
@@ -237,10 +314,17 @@ function generateActionCandidates(
       severity: 'critical',
       domain: 'licenses',
       count: licenseStats.expired,
+      templateKey,
+      fingerprint: generateFingerprint(businessUnitId, templateKey),
+      defaultPriority: 'urgent',
+      defaultCategory: 'hr',
+      defaultDueDays: 1,
+      suggestedAssigneeRole: 'manager',
     });
   }
 
   if (licenseStats && licenseStats.expiring30 > 0) {
+    const templateKey = 'licenses_expiring30';
     const score = licenseStats.expiring30 * SCORING_WEIGHTS.licenses_expiring30;
     candidates.push({
       key: `${businessUnitId}:licenses:expiring30`,
@@ -253,6 +337,12 @@ function generateActionCandidates(
       severity: determineSeverity(score),
       domain: 'licenses',
       count: licenseStats.expiring30,
+      templateKey,
+      fingerprint: generateFingerprint(businessUnitId, templateKey),
+      defaultPriority: 'normal',
+      defaultCategory: 'hr',
+      defaultDueDays: 14,
+      suggestedAssigneeRole: 'leader',
     });
   }
 
@@ -347,6 +437,7 @@ export function getAlertTop3(viewer: ViewerContext): ActionCandidate[] {
   const candidates: ActionCandidate[] = [];
 
   if (alertStats.criticalOpen > 0) {
+    const templateKey = 'alerts_critical';
     const score = alertStats.criticalOpen * SCORING_WEIGHTS.alerts_criticalOpen;
     candidates.push({
       key: 'global:alerts:critical',
@@ -359,11 +450,18 @@ export function getAlertTop3(viewer: ViewerContext): ActionCandidate[] {
       severity: 'critical',
       domain: 'alerts',
       count: alertStats.criticalOpen,
+      templateKey,
+      fingerprint: generateFingerprint('global', templateKey),
+      defaultPriority: 'urgent',
+      defaultCategory: 'ops',
+      defaultDueDays: 1,
+      suggestedAssigneeRole: 'admin',
     });
   }
 
   const warningOpen = alertStats.open - alertStats.criticalOpen;
   if (warningOpen > 0) {
+    const templateKey = 'alerts_warning';
     const score = warningOpen * SCORING_WEIGHTS.alerts_warningOpen;
     candidates.push({
       key: 'global:alerts:warning',
@@ -376,6 +474,12 @@ export function getAlertTop3(viewer: ViewerContext): ActionCandidate[] {
       severity: determineSeverity(score),
       domain: 'alerts',
       count: warningOpen,
+      templateKey,
+      fingerprint: generateFingerprint('global', templateKey),
+      defaultPriority: 'normal',
+      defaultCategory: 'ops',
+      defaultDueDays: 7,
+      suggestedAssigneeRole: 'manager',
     });
   }
 

@@ -42,6 +42,7 @@ export type TicketRelatedType =
   | 'incident'
   | 'approval'
   | 'alert'
+  | 'ai_vp'      // Task 043: AI VP Business Top3 generated tickets
   | null;
 
 /**

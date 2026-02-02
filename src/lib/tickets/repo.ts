@@ -215,6 +215,14 @@ export function getTicketById(
   return { success: true, ticket };
 }
 
+/**
+ * Task 043: チケット取得（内部用、権限チェックなし）
+ * AI-VPチケット生成などシステム処理で使用
+ */
+export function getTicketByIdInternal(id: string): Ticket | null {
+  return ticketsStore.get(id) ?? null;
+}
+
 // ========== チケット作成 ==========
 
 export function createTicket(
