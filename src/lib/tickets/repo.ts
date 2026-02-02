@@ -118,6 +118,17 @@ export function listTickets(
     tickets = tickets.filter((t) => canViewTicket(t, viewer));
   }
 
+  // Task 030: 事業単位フィルタ
+  if (filter.businessUnitId !== undefined) {
+    if (filter.businessUnitId === null) {
+      // 未分類（businessUnitId = null）のみ
+      tickets = tickets.filter((t) => t.businessUnitId === null);
+    } else {
+      // 特定の事業単位
+      tickets = tickets.filter((t) => t.businessUnitId === filter.businessUnitId);
+    }
+  }
+
   // ステータスフィルタ
   if (filter.status) {
     tickets = tickets.filter((t) => t.status === filter.status);
@@ -218,6 +229,7 @@ export function createTicket(
     status: 'open',
     priority: input.priority ?? 'normal',
     category: input.category ?? 'general',
+    businessUnitId: input.businessUnitId ?? null,  // Task 030
     requesterUserId: actorUserId,
     requesterUserName: getUserName(actorUserId),
     assigneeUserId: null,
@@ -241,6 +253,7 @@ export function createTicket(
     title: ticket.title,
     priority: ticket.priority,
     category: ticket.category,
+    businessUnitId: ticket.businessUnitId,  // Task 030
   }, null);
 
   // requesterを自動watch
@@ -515,12 +528,31 @@ export function getWatchers(ticketId: string): string[] {
 
 // ========== 統計 ==========
 
-export function getTicketStats(viewer: ViewerContext): TicketStats {
+/**
+ * チケット統計オプション（Task 030）
+ */
+export interface TicketStatsOptions {
+  businessUnitId?: string | null;
+}
+
+export function getTicketStats(
+  viewer: ViewerContext,
+  options?: TicketStatsOptions
+): TicketStats {
   let tickets = Array.from(ticketsStore.values());
 
   // RBAC適用
   if (!['manager', 'executive', 'admin', 'auditor'].includes(viewer.role)) {
     tickets = tickets.filter((t) => canViewTicket(t, viewer));
+  }
+
+  // Task 030: 事業単位フィルタ
+  if (options?.businessUnitId !== undefined) {
+    if (options.businessUnitId === null) {
+      tickets = tickets.filter((t) => t.businessUnitId === null);
+    } else {
+      tickets = tickets.filter((t) => t.businessUnitId === options.businessUnitId);
+    }
   }
 
   const weekStart = getWeekStart();
@@ -588,6 +620,7 @@ export function seedTicketData(): void {
       status: 'open',
       priority: 'urgent',
       category: 'ops',
+      businessUnitId: 'bu_001',        // Task 030: 西淀川
       requesterUserId: 'user_001',
       requesterUserName: '山田太郎',
       assigneeUserId: 'user_003',
@@ -607,6 +640,7 @@ export function seedTicketData(): void {
       status: 'in_progress',
       priority: 'high',
       category: 'facility',
+      businessUnitId: 'bu_003',        // Task 030: サ高住
       requesterUserId: 'user_002',
       requesterUserName: '佐藤次郎',
       assigneeUserId: 'user_004',
@@ -626,6 +660,7 @@ export function seedTicketData(): void {
       status: 'open',
       priority: 'normal',
       category: 'hr',
+      businessUnitId: 'bu_corp',       // Task 030: 法人本部
       requesterUserId: 'user_003',
       requesterUserName: '鈴木花子',
       assigneeUserId: null,
@@ -645,6 +680,7 @@ export function seedTicketData(): void {
       status: 'waiting',
       priority: 'high',
       category: 'it',
+      businessUnitId: 'bu_002',        // Task 030: 東淀川
       requesterUserId: 'user_005',
       requesterUserName: '田中美咲',
       assigneeUserId: 'user_003',
@@ -664,6 +700,7 @@ export function seedTicketData(): void {
       status: 'resolved',
       priority: 'normal',
       category: 'client',
+      businessUnitId: 'bu_001',        // Task 030: 西淀川
       requesterUserId: 'user_001',
       requesterUserName: '山田太郎',
       assigneeUserId: 'user_002',
@@ -683,6 +720,7 @@ export function seedTicketData(): void {
       status: 'closed',
       priority: 'low',
       category: 'general',
+      businessUnitId: null,            // Task 030: 未分類
       requesterUserId: 'user_004',
       requesterUserName: '高橋三郎',
       assigneeUserId: 'user_003',

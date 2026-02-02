@@ -28,6 +28,12 @@ import * as receivablesRepo from '@/lib/receivables/repo';
 import * as collectionRepo from '@/lib/collection/repo';
 import * as agreementsRepo from '@/lib/agreements/repo';
 
+// Task 030: 新ドメイン（スコープ対応済み）
+import * as ticketsRepo from '@/lib/tickets/repo';
+import * as repairsRepo from '@/lib/repairs/repo';
+import * as correctiveActionsRepo from '@/lib/correctiveActions/repo';
+import * as licensesRepo from '@/lib/licenses/repo';
+
 // スコープ (Task 030)
 import type { Scope, DomainCoverage, AppRole } from '@/lib/access/scope';
 import {
@@ -76,6 +82,7 @@ export function createBusinessUnit(
     name: input.name,
     type: input.type,
     locationHint: input.locationHint ?? null,
+    orgUnitId: input.orgUnitId ?? null,   // Task 030
     isActive: true,
     ownerUserId: input.ownerUserId ?? null,
     ownerName: null, // 後でUserから取得
@@ -143,6 +150,7 @@ export function generateBusinessSummary(
 
 /**
  * 各ドメインからハイライトを集計
+ * Task 030: businessUnitId によるスコープ対応
  */
 function collectHighlights(
   viewer: ViewerContext,
@@ -180,6 +188,28 @@ function collectHighlights(
   const agreementViewer = { userId: viewer.userId, role: viewer.role };
   const agreementStats = agreementsRepo.getStats(agreementViewer);
 
+  // ========== Task 030: チケット（スコープ対応） ==========
+  const ticketViewer = { userId: viewer.userId, role: viewer.role };
+  const ticketStats = ticketsRepo.getTicketStats(ticketViewer, { businessUnitId });
+
+  // ========== Task 030: 修繕（スコープ対応） ==========
+  const repairViewer = { userId: viewer.userId, role: viewer.role };
+  const repairStats = repairsRepo.getStats(repairViewer, { businessUnitId });
+
+  // ========== Task 030: 是正措置（スコープ対応） ==========
+  const caViewer = { userId: viewer.userId, role: viewer.role };
+  const caStats = correctiveActionsRepo.getStats(caViewer, { businessUnitId });
+
+  // ========== Task 030: 資格（orgUnitIdベースでスコープ） ==========
+  // businessUnitId -> orgUnitId を解決してスコープ
+  const businessUnit = businessUnitId ? getBusinessUnitById(businessUnitId) : null;
+  const orgUnitIds = businessUnit?.orgUnitId ? [businessUnit.orgUnitId] : undefined;
+  const licenseViewer = { userId: viewer.userId, role: viewer.role };
+  const licenseStats = licensesRepo.getStats(licenseViewer, { orgUnitIds });
+
+  // URL生成ヘルパー
+  const buQuery = businessUnitId ? `?businessUnitId=${businessUnitId}` : '';
+
   return {
     kpi: {
       keyMetrics: [
@@ -216,15 +246,15 @@ function collectHighlights(
       url: '/dashboard/alerts',
     },
     tickets: {
-      open: 5,         // 仮データ（ticketsリポジトリから取得）
-      overdue: 1,
-      urgentOpen: 2,
-      url: '/dashboard/tickets',
+      open: ticketStats.open,
+      overdue: ticketStats.overdue,
+      urgentOpen: ticketStats.urgentOpen,
+      url: `/dashboard/tickets${buQuery}`,
     },
     repairs: {
-      highRiskOpen: 0, // 未実装
-      overdue: 0,
-      url: '/dashboard/repair-tickets',
+      highRiskOpen: repairStats.highRiskOpen,
+      overdue: repairStats.overdue,
+      url: `/dashboard/repairs${buQuery}`,
     },
     complaints: {
       highOpen: highComplaints.length,
@@ -233,19 +263,19 @@ function collectHighlights(
       url: '/dashboard/complaints',
     },
     correctiveActions: {
-      open: 0,         // 未実装
-      criticalOpen: 0,
-      overdue: 0,
-      url: '/dashboard/corrective-actions',
+      open: caStats.open,
+      criticalOpen: caStats.criticalOpen,
+      overdue: caStats.overdue,
+      url: `/dashboard/corrective-actions${buQuery}`,
     },
     training: {
       overdue: overdueTraining.length,
       url: '/dashboard/training',
     },
     licenses: {
-      expired: 0,      // 未実装
-      expiring30: 0,
-      url: '/dashboard/certifications',
+      expired: licenseStats?.expired ?? 0,
+      expiring30: licenseStats?.expiring30 ?? 0,
+      url: orgUnitIds ? `/dashboard/licenses?orgUnitId=${orgUnitIds[0]}` : '/dashboard/licenses',
     },
     receivables: {
       overdueTotal: receivableStats?.overdueTotal ?? 0,
@@ -566,6 +596,7 @@ function initDemoData(): void {
       name: '西淀川 ええかいご',
       type: 'homecare',
       locationHint: '大阪市西淀川区',
+      orgUnitId: 'org_nishi',         // Task 030: 組織ツリーとの紐付け
       isActive: true,
       ownerUserId: 'user_manager',
       ownerName: '田中管理者',
@@ -577,6 +608,7 @@ function initDemoData(): void {
       name: '東淀川 訪問介護',
       type: 'homecare',
       locationHint: '大阪市東淀川区',
+      orgUnitId: 'org_higashi',       // Task 030
       isActive: true,
       ownerUserId: 'user_leader',
       ownerName: '山田リーダー',
@@ -588,6 +620,7 @@ function initDemoData(): void {
       name: 'サ高住 さくら',
       type: 'housing',
       locationHint: '大阪市淀川区',
+      orgUnitId: 'org_sakura',        // Task 030
       isActive: true,
       ownerUserId: 'user_manager',
       ownerName: '田中管理者',
@@ -599,6 +632,7 @@ function initDemoData(): void {
       name: '老人ホーム 71床',
       type: 'facility',
       locationHint: '大阪市北区',
+      orgUnitId: 'org_facility',      // Task 030
       isActive: true,
       ownerUserId: 'user_executive',
       ownerName: '佐藤部長',
@@ -610,6 +644,7 @@ function initDemoData(): void {
       name: '訪問看護ステーション',
       type: 'nursing',
       locationHint: '大阪市中央区',
+      orgUnitId: null,                // 未紐付け
       isActive: true,
       ownerUserId: null,
       ownerName: null,
@@ -621,6 +656,7 @@ function initDemoData(): void {
       name: '法人本部',
       type: 'corp',
       locationHint: null,
+      orgUnitId: 'org_corp',          // Task 030
       isActive: true,
       ownerUserId: 'user_executive',
       ownerName: '佐藤部長',
