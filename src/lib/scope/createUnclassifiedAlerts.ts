@@ -2,6 +2,8 @@
  * Unclassified Scope Alert Creation
  *
  * Implementation Ticket 033: 未分類ガードレールと監視アラート
+ * Implementation Ticket 038: 未分類アラート type 名の統一
+ *
  * 未分類レコードが検出された場合にアラートを作成する
  */
 
@@ -10,6 +12,7 @@ import type { CreateAlertRequest, AlertSeverity } from '@/lib/alerts/types';
 import { generateFingerprint } from '@/lib/alerts/types';
 import { createAlert, createAlertsFromScan } from '@/lib/alerts/repo';
 import { getUnclassifiedCounts, ENTITY_TYPE_LABELS } from './detectUnclassifiedBusinessUnit';
+import { ALERT_TYPE_BUSINESS_SCOPE_UNCLASSIFIED } from '@/lib/alerts/constants';
 
 /**
  * Threshold for unclassified count to trigger warning severity
@@ -41,12 +44,12 @@ function createAlertRequestForEntityType(
   const severity = determineSeverity(count);
 
   return {
-    type: 'unclassified_scope',
+    type: ALERT_TYPE_BUSINESS_SCOPE_UNCLASSIFIED,  // Task 038: 正式名称を使用
     sourceId: entityType,
     title: `${entityLabel}に未分類レコードがあります`,
     message: `${entityLabel}で businessUnitId が未設定のレコードが ${count} 件あります。未分類管理画面から事業単位を割り当ててください。`,
     severity,
-    fingerprint: generateFingerprint('unclassified_scope', entityType),
+    fingerprint: generateFingerprint(ALERT_TYPE_BUSINESS_SCOPE_UNCLASSIFIED, entityType),
     assignedRole: 'admin',
     meta: {
       entityType,
@@ -115,12 +118,12 @@ export function createUnclassifiedSummaryAlert(): { alert: ReturnType<typeof cre
   const severity = determineSeverity(counts.total);
 
   const request: CreateAlertRequest = {
-    type: 'unclassified_scope',
+    type: ALERT_TYPE_BUSINESS_SCOPE_UNCLASSIFIED,  // Task 038: 正式名称を使用
     sourceId: 'summary',
     title: `未分類レコード: 計 ${counts.total} 件`,
     message: `businessUnitId が未設定のレコードがあります: ${parts.join('、')}。Scope Backfill を使用して事業単位を割り当ててください。`,
     severity,
-    fingerprint: generateFingerprint('unclassified_scope', 'summary'),
+    fingerprint: generateFingerprint(ALERT_TYPE_BUSINESS_SCOPE_UNCLASSIFIED, 'summary'),
     assignedRole: 'admin',
     meta: {
       ...counts,
