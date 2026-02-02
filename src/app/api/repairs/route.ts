@@ -4,6 +4,9 @@
  * GET /api/repairs - 修繕一覧取得
  * GET /api/repairs?businessUnitId=xxx - 事業単位でフィルタ（Task 030）
  * POST /api/repairs - 修繕作成
+ *
+ * Task 033: ガードレール検証
+ * Task 035: staff 向け businessUnitId 自動推定
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,6 +14,7 @@ import { listRepairs, createRepair } from '@/lib/repairs/repo';
 import type { RepairStatus, RepairCategory, SafetyRisk } from '@/lib/repairs/types';
 import type { AppRole } from '@/config/appRoles';
 import { validateApiGuardrail } from '@/lib/scope/guardrail';
+import { processStaffCreation, requiresInference } from '@/lib/scope/inferBusinessUnit';
 
 // デモユーザー情報（本番ではセッションから取得）
 const DEMO_USER = {
@@ -92,13 +96,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Task 035: staff 向け businessUnitId 自動推定
+    let finalBusinessUnitId = businessUnitId;
+    if (requiresInference(DEMO_USER.role)) {
+      const inferResult = processStaffCreation(
+        DEMO_USER.id,
+        DEMO_USER.role,
+        'repairs',
+        businessUnitId,
+        { location }  // ヒント: locationで推定精度向上
+      );
+
+      if (inferResult.needsSelection) {
+        return NextResponse.json(
+          {
+            error: inferResult.reason,
+            needsSelection: true,
+            candidates: inferResult.candidates,
+          },
+          { status: 422 }
+        );
+      }
+
+      finalBusinessUnitId = inferResult.businessUnitId;
+    }
+
     const repair = createRepair(
       {
         title,
         description,
         category,
         safetyRisk,
-        businessUnitId,            // Task 030
+        businessUnitId: finalBusinessUnitId,  // Task 035: 推定結果を使用
         location,
         dueAt,
       },

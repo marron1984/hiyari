@@ -5,6 +5,8 @@
  * POST /api/corrective-actions      - 新規作成
  *
  * Task 030: businessUnitId フィルタ対応
+ * Task 033: ガードレール検証
+ * Task 035: staff 向け businessUnitId 自動推定（source継承対応）
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -19,6 +21,9 @@ import type {
 } from '@/lib/correctiveActions/types';
 import type { AppRole } from '@/config/appRoles';
 import { validateApiGuardrail } from '@/lib/scope/guardrail';
+import { processStaffCreation, requiresInference } from '@/lib/scope/inferBusinessUnit';
+import { getTicketById } from '@/lib/tickets/repo';
+import { getRepairById } from '@/lib/repairs/repo';
 
 // デモユーザー情報（本番ではセッションから取得）
 const DEMO_USER = {
@@ -104,6 +109,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Task 035: staff 向け businessUnitId 自動推定（source継承対応）
+    let finalBusinessUnitId = businessUnitId;
+    if (requiresInference(DEMO_USER.role)) {
+      // sourceからbusinessUnitIdを継承
+      let sourceBusinessUnitId: string | null = null;
+      if (sourceType && sourceId) {
+        const adminViewer = { userId: 'system', role: 'admin' as AppRole };
+        if (sourceType === 'ticket') {
+          const ticketResult = getTicketById(sourceId, adminViewer);
+          if (ticketResult.success) {
+            sourceBusinessUnitId = ticketResult.ticket.businessUnitId ?? null;
+          }
+        } else if (sourceType === 'repair') {
+          const repairResult = getRepairById(sourceId, adminViewer);
+          if (repairResult.success) {
+            sourceBusinessUnitId = repairResult.repair.businessUnitId ?? null;
+          }
+        }
+      }
+
+      const inferResult = processStaffCreation(
+        DEMO_USER.id,
+        DEMO_USER.role,
+        'correctiveActions',
+        businessUnitId,
+        { sourceBusinessUnitId }  // ヒント: source継承
+      );
+
+      if (inferResult.needsSelection) {
+        return NextResponse.json(
+          {
+            error: inferResult.reason,
+            needsSelection: true,
+            candidates: inferResult.candidates,
+          },
+          { status: 422 }
+        );
+      }
+
+      finalBusinessUnitId = inferResult.businessUnitId;
+    }
+
     const ca = create(
       {
         title,
@@ -111,7 +158,7 @@ export async function POST(request: NextRequest) {
         severity,
         sourceType,
         sourceId,
-        businessUnitId: businessUnitId ?? null,  // Task 030
+        businessUnitId: finalBusinessUnitId ?? null,  // Task 035: 推定結果を使用
         rootCause,
         actionPlan,
         ownerUserId,

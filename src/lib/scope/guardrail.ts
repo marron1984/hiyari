@@ -50,13 +50,16 @@ export function validateBusinessUnitGuardrail(
 
 /**
  * Check if role can create without businessUnitId
- * (admin/executive can create unclassified for flexibility, staff creates in own context)
+ * (admin/executive can create unclassified for flexibility)
+ *
+ * Task 035: staff は推定必須（422誘導）となったため除外
  */
 export function canCreateUnclassified(role: AppRole): boolean {
   // admin/executive: 柔軟性のために許可（ただし通常は選択を推奨）
-  // staff: 自部署コンテキストで作成（後からmanagerが分類）
+  // staff: Task 035により推定必須（422誘導）
+  // manager/leader: ガードレール（400）
   // auditor: 作成権限なし
-  return ['admin', 'executive', 'staff'].includes(role);
+  return ['admin', 'executive'].includes(role);
 }
 
 /**
