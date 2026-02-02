@@ -10,7 +10,8 @@ import { createAlertsFromScan } from '@/lib/alerts/repo';
 import { scanKpiAnomalies } from '@/lib/alerts/scanners/kpi-scanner';
 import { scanApprovalBacklog } from '@/lib/alerts/scanners/approval-scanner';
 import { scanDeadlines } from '@/lib/alerts/scanners/deadline-scanner';
-import { createUnclassifiedAlerts } from '@/lib/scope/createUnclassifiedAlerts';
+import { createUnclassifiedAlerts, getUnclassifiedCounts } from '@/lib/scope/createUnclassifiedAlerts';
+import { createUnclassifiedScopeNotification } from '@/lib/notifications/repo';
 import type { CreateAlertRequest } from '@/lib/alerts/types';
 
 export async function POST() {
@@ -34,6 +35,14 @@ export async function POST() {
   // Task 033: 未分類スコープスキャン（別fingerprint管理のため別処理）
   const unclassifiedResult = createUnclassifiedAlerts();
 
+  // Task 033: 未分類通知も作成
+  let notificationCreated = false;
+  if (unclassifiedResult.created > 0) {
+    const counts = getUnclassifiedCounts();
+    const notification = createUnclassifiedScopeNotification(counts);
+    notificationCreated = notification !== null;
+  }
+
   return NextResponse.json({
     success: true,
     scanned: {
@@ -44,6 +53,7 @@ export async function POST() {
     },
     created: result.created + unclassifiedResult.created,
     skipped: result.skipped + unclassifiedResult.skipped,
+    notificationCreated,
     message: `${result.created + unclassifiedResult.created}件の新規アラートを作成しました（${result.skipped + unclassifiedResult.skipped}件は重複スキップ）`,
   });
 }

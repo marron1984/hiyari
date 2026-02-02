@@ -70,6 +70,8 @@ export interface Notification {
       correctiveActions: number;
       total: number;
     };
+    targetRole?: 'admin' | 'manager' | 'leader';
+    detectedAt?: string;
   };
 }
 
