@@ -303,7 +303,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'org-tree',
     name: '組織ツリー',
     category: 'people',
-    status: 'planned',
+    status: 'active',
     description: '組織構造の可視化',
     path: '/admin/org-tree',
     priority: 3,
