@@ -246,7 +246,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'consent-forms',
     name: '同意書管理',
     category: 'document',
-    status: 'planned',
+    status: 'active',
     description: '同意書の取得状況管理',
     path: '/dashboard/consent',
     priority: 4,
