@@ -18,7 +18,8 @@ export type AlertType =
   | 'committee_risk'    // 委員会リスク
   | 'complaint_risk'    // クレームリスク
   | 'receivable_risk'   // 未収リスク
-  | 'collection_flow_risk';  // 回収フローリスク
+  | 'collection_flow_risk'   // 回収フローリスク
+  | 'agreement_risk';        // 同意書リスク
 
 /**
  * アラート重要度
@@ -119,6 +120,7 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   complaint_risk: 'クレームリスク',
   receivable_risk: '未収リスク',
   collection_flow_risk: '回収フロー超過',
+  agreement_risk: '同意書リスク',
 };
 
 /**

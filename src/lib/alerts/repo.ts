@@ -212,6 +212,7 @@ export function getAlertStats(): AlertStats {
       complaint_risk: 0,
       receivable_risk: 0,
       collection_flow_risk: 0,
+      agreement_risk: 0,
     },
   };
 
