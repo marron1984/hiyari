@@ -179,8 +179,8 @@ export function createUnclassifiedScopeNotification(
     userId: 'user_manager', // manager/admin向け通知
     type: 'unclassified_scope',
     title: '未分類レコードの検出',
-    message: `businessUnitId 未設定: ${parts.join('、')}（計 ${counts.total}件）。Scope Backfill で対応してください。`,
-    actionUrl: '/dashboard/admin/scope-backfill',
+    message: `businessUnitId 未設定: ${parts.join('、')}（計 ${counts.total}件）。未分類管理画面で対応してください。`,
+    actionUrl: '/dashboard/admin/unclassified',  // Task 034: 新しい未分類管理画面へ誘導
     metadata: {
       targetRole: 'manager', // manager以上に表示
       unclassifiedCounts: counts,

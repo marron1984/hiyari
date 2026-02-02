@@ -44,7 +44,7 @@ function createAlertRequestForEntityType(
     type: 'unclassified_scope',
     sourceId: entityType,
     title: `${entityLabel}に未分類レコードがあります`,
-    message: `${entityLabel}で businessUnitId が未設定のレコードが ${count} 件あります。Scope Backfill を使用して事業単位を割り当ててください。`,
+    message: `${entityLabel}で businessUnitId が未設定のレコードが ${count} 件あります。未分類管理画面から事業単位を割り当ててください。`,
     severity,
     fingerprint: generateFingerprint('unclassified_scope', entityType),
     assignedRole: 'admin',
@@ -52,6 +52,7 @@ function createAlertRequestForEntityType(
       entityType,
       count,
       detectedAt: new Date().toISOString(),
+      url: '/dashboard/admin/unclassified',  // Task 034: 新しい未分類管理画面へ誘導
     },
   };
 }
