@@ -665,6 +665,17 @@ export const OS_FEATURES: OSFeature[] = [
     roi: 5,
     risk: 5,
   },
+  {
+    id: 'quality-risk',
+    name: '品質・リスク横断レポート',
+    category: 'risk',
+    status: 'active',
+    description: '全ドメインの品質・リスク状況を一望',
+    path: '/dashboard/quality-risk',
+    priority: 5,
+    roi: 5,
+    risk: 5,
+  },
 
   // ========== 利用者・家族 ==========
   {
