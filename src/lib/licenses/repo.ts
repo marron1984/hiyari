@@ -2,145 +2,205 @@
  * 資格管理（Licenses）リポジトリ
  *
  * インメモリストア実装
- * Task 030: orgUnitIds によるスコープ対応（ユーザー所属ベース）
+ * Task 030: orgUnitIds によるスコープ対応（user_org_memberships経由）
  */
 
 import type {
-  License,
-  LicenseCategory,
-  LicenseStatus,
-  LicenseListFilter,
+  LicenseType,
+  LicenseCategoryType,
+  UserLicense,
+  UserLicenseStatus,
+  LicenseRenewalEvent,
+  LicenseListFilters,
+  LicenseListItem,
   LicenseStats,
-  CreateLicenseRequest,
-  UpdateLicenseRequest,
+  CreateUserLicenseRequest,
+  UpdateUserLicenseRequest,
+  RenewLicenseRequest,
   ViewerContext,
+  Pagination,
 } from './types';
-import { canViewLicense, canManageLicense, canViewAllStats } from './types';
+import { canViewLicense, canManageLicense, canViewLicenseStats } from './types';
 
 // ========== ストレージ ==========
 
-const licensesStore = new Map<string, License>();
-let idCounter = 1;
+const licenseTypesStore = new Map<string, LicenseType>();
+const userLicensesStore = new Map<string, UserLicense>();
+const renewalEventsStore = new Map<string, LicenseRenewalEvent>();
+
+// ユーザー情報（user_org_memberships相当）
+interface UserInfo {
+  id: string;
+  name: string | null;
+  orgUnitId: string | null;  // primaryOrgUnitId
+}
+const usersStore = new Map<string, UserInfo>();
+
+let licenseIdCounter = 1;
+let renewalIdCounter = 1;
 
 // ========== ユーティリティ ==========
 
-function generateId(): string {
-  return `lic_${String(idCounter++).padStart(4, '0')}`;
+function generateLicenseId(): string {
+  return `ul_${String(licenseIdCounter++).padStart(4, '0')}`;
+}
+
+function generateRenewalId(): string {
+  return `lre_${String(renewalIdCounter++).padStart(4, '0')}`;
 }
 
 function now(): string {
   return new Date().toISOString();
 }
 
-const DEMO_USERS: Record<string, { name: string; orgUnitId: string }> = {
-  user_001: { name: '山田太郎', orgUnitId: 'org_nishi' },
-  user_002: { name: '佐藤次郎', orgUnitId: 'org_nishi' },
-  user_003: { name: '鈴木花子', orgUnitId: 'org_higashi' },
-  user_004: { name: '高橋三郎', orgUnitId: 'org_sakura' },
-  user_005: { name: '田中美咲', orgUnitId: 'org_sakura' },
-};
-
-function getUserInfo(userId: string): { name: string; orgUnitId: string | null } {
-  const info = DEMO_USERS[userId];
-  return info ?? { name: userId, orgUnitId: null };
+function today(): string {
+  return new Date().toISOString().split('T')[0];
 }
 
-function calculateStatus(license: License): LicenseStatus {
-  if (!license.expiresAt) return 'valid';
+/**
+ * expiresAt から status を自動計算
+ */
+function calculateStatus(expiresAt: string | null): UserLicenseStatus {
+  if (!expiresAt) return 'active';  // 無期限は active
+  const expDate = new Date(expiresAt);
+  const todayDate = new Date(today());
+  if (expDate < todayDate) return 'expired';
+  return 'active';
+}
 
-  const expiresDate = new Date(license.expiresAt);
-  const today = new Date();
-  const daysUntilExpiry = Math.ceil(
-    (expiresDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
+/**
+ * 期限切れまでの日数を計算
+ */
+function daysUntilExpiry(expiresAt: string | null): number | null {
+  if (!expiresAt) return null;
+  const expDate = new Date(expiresAt);
+  const todayDate = new Date(today());
+  return Math.ceil((expDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+}
 
-  if (daysUntilExpiry < 0) return 'expired';
-  if (daysUntilExpiry <= 30) return 'expiring';
-  return 'valid';
+// ========== 資格種別マスタ ==========
+
+export function listLicenseTypes(): LicenseType[] {
+  return Array.from(licenseTypesStore.values()).filter((lt) => lt.isActive);
+}
+
+export function getLicenseTypeById(id: string): LicenseType | null {
+  return licenseTypesStore.get(id) ?? null;
 }
 
 // ========== 一覧取得 ==========
 
 export function listLicenses(
   viewer: ViewerContext,
-  filter: LicenseListFilter
-): { licenses: License[]; total: number } {
-  let licenses = Array.from(licensesStore.values());
-
-  // RBAC: staff/leaderは自分のみ
+  filters: LicenseListFilters,
+  pagination?: Pagination
+): { items: LicenseListItem[]; total: number } {
+  // staff/leader は myOnly 強制
+  const effectiveFilters = { ...filters };
   if (!['manager', 'executive', 'admin', 'auditor'].includes(viewer.role)) {
-    licenses = licenses.filter((l) => canViewLicense(l, viewer));
+    effectiveFilters.myOnly = true;
   }
 
-  // Task 030: 組織スコープ（ユーザーの所属組織でフィルタ）
-  if (filter.orgUnitIds && filter.orgUnitIds.length > 0) {
-    licenses = licenses.filter(
-      (l) => l.userOrgUnitId && filter.orgUnitIds!.includes(l.userOrgUnitId)
-    );
-  }
+  let items: LicenseListItem[] = [];
 
-  // ユーザーフィルタ
-  if (filter.userId) {
-    licenses = licenses.filter((l) => l.userId === filter.userId);
-  }
+  for (const ul of userLicensesStore.values()) {
+    const user = usersStore.get(ul.userId);
+    if (!user) continue;
 
-  // カテゴリフィルタ
-  if (filter.category) {
-    licenses = licenses.filter((l) => l.category === filter.category);
-  }
+    const lt = licenseTypesStore.get(ul.licenseTypeId);
+    if (!lt || !lt.isActive) continue;
 
-  // ステータスフィルタ
-  if (filter.status) {
-    licenses = licenses.filter((l) => l.status === filter.status);
-  }
+    // RBAC / スコープチェック
+    if (!canViewLicense(ul, user, viewer)) continue;
 
-  // 期限間近フィルタ
-  if (filter.expiringWithinDays !== undefined) {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() + filter.expiringWithinDays);
-    licenses = licenses.filter((l) => {
-      if (!l.expiresAt) return false;
-      const expiresDate = new Date(l.expiresAt);
-      return expiresDate <= cutoffDate && l.status !== 'expired';
+    // myOnly フィルタ
+    if (effectiveFilters.myOnly && ul.userId !== viewer.userId) continue;
+
+    // orgUnitIds フィルタ（manager以上）
+    if (effectiveFilters.orgUnitIds && effectiveFilters.orgUnitIds.length > 0) {
+      if (!user.orgUnitId || !effectiveFilters.orgUnitIds.includes(user.orgUnitId)) {
+        continue;
+      }
+    }
+
+    // userId フィルタ
+    if (effectiveFilters.userId && ul.userId !== effectiveFilters.userId) continue;
+
+    // status フィルタ
+    const currentStatus = calculateStatus(ul.expiresAt);
+    const effectiveStatus = ul.status === 'suspended' ? 'suspended' : currentStatus;
+    if (effectiveFilters.status && effectiveFilters.status.length > 0) {
+      if (!effectiveFilters.status.includes(effectiveStatus)) continue;
+    }
+
+    // licenseTypeId フィルタ
+    if (effectiveFilters.licenseTypeId && ul.licenseTypeId !== effectiveFilters.licenseTypeId) continue;
+
+    // category フィルタ
+    if (effectiveFilters.category && lt.category !== effectiveFilters.category) continue;
+
+    // expired フィルタ
+    if (effectiveFilters.expired === true && effectiveStatus !== 'expired') continue;
+    if (effectiveFilters.expired === false && effectiveStatus === 'expired') continue;
+
+    // expiringWithinDays フィルタ
+    if (effectiveFilters.expiringWithinDays !== undefined) {
+      const days = daysUntilExpiry(ul.expiresAt);
+      if (days === null || days < 0 || days > effectiveFilters.expiringWithinDays) continue;
+    }
+
+    // q 検索
+    if (effectiveFilters.q) {
+      const q = effectiveFilters.q.toLowerCase();
+      const matchUser = user.name?.toLowerCase().includes(q);
+      const matchLicense = lt.name.toLowerCase().includes(q);
+      if (!matchUser && !matchLicense) continue;
+    }
+
+    items.push({
+      userLicense: { ...ul, status: effectiveStatus },
+      licenseType: {
+        id: lt.id,
+        name: lt.name,
+        category: lt.category,
+        requiresRenewal: lt.requiresRenewal,
+        defaultWarnDays: lt.defaultWarnDays,
+      },
+      user: {
+        id: user.id,
+        name: user.name,
+        orgUnitId: user.orgUnitId,
+      },
     });
   }
 
-  // 検索
-  if (filter.q) {
-    const q = filter.q.toLowerCase();
-    licenses = licenses.filter(
-      (l) =>
-        l.licenseName.toLowerCase().includes(q) ||
-        (l.userName && l.userName.toLowerCase().includes(q)) ||
-        (l.licenseNumber && l.licenseNumber.toLowerCase().includes(q))
-    );
-  }
-
-  // ソート: status (expired/expiring優先) → expiresAt昇順
-  const statusOrder: Record<LicenseStatus, number> = {
-    expired: 0,
-    expiring: 1,
-    pending: 2,
-    valid: 3,
-  };
-  licenses.sort((a, b) => {
-    const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+  // ソート: expired/expiring優先 → expiresAt昇順
+  items.sort((a, b) => {
+    const statusOrder: Record<UserLicenseStatus, number> = {
+      expired: 0,
+      suspended: 1,
+      active: 2,
+      unknown: 3,
+    };
+    const statusDiff = statusOrder[a.userLicense.status] - statusOrder[b.userLicense.status];
     if (statusDiff !== 0) return statusDiff;
-    // expiresAtで昇順ソート（期限が近い順）
-    if (a.expiresAt && b.expiresAt) {
-      return new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime();
+
+    const daysA = daysUntilExpiry(a.userLicense.expiresAt);
+    const daysB = daysUntilExpiry(b.userLicense.expiresAt);
+    if (daysA !== null && daysB !== null) {
+      return daysA - daysB;
     }
     return 0;
   });
 
-  const total = licenses.length;
+  const total = items.length;
 
   // ページネーション
-  const limit = filter.limit ?? 50;
-  const offset = filter.offset ?? 0;
-  licenses = licenses.slice(offset, offset + limit);
+  const limit = pagination?.limit ?? 50;
+  const offset = pagination?.offset ?? 0;
+  items = items.slice(offset, offset + limit);
 
-  return { licenses, total };
+  return { items, total };
 }
 
 // ========== 詳細取得 ==========
@@ -148,76 +208,148 @@ export function listLicenses(
 export function getById(
   id: string,
   viewer: ViewerContext
-): { success: true; license: License } | { success: false; error: string } {
-  const license = licensesStore.get(id);
-  if (!license) {
+): { success: true; item: LicenseListItem } | { success: false; error: string } {
+  const ul = userLicensesStore.get(id);
+  if (!ul) {
     return { success: false, error: '資格が見つかりません' };
   }
-  if (!canViewLicense(license, viewer)) {
+
+  const user = usersStore.get(ul.userId);
+  if (!user) {
+    return { success: false, error: 'ユーザー情報が見つかりません' };
+  }
+
+  if (!canViewLicense(ul, user, viewer)) {
     return { success: false, error: '閲覧権限がありません' };
   }
-  return { success: true, license };
+
+  const lt = licenseTypesStore.get(ul.licenseTypeId);
+  if (!lt) {
+    return { success: false, error: '資格種別が見つかりません' };
+  }
+
+  const currentStatus = calculateStatus(ul.expiresAt);
+  const effectiveStatus = ul.status === 'suspended' ? 'suspended' : currentStatus;
+
+  return {
+    success: true,
+    item: {
+      userLicense: { ...ul, status: effectiveStatus },
+      licenseType: {
+        id: lt.id,
+        name: lt.name,
+        category: lt.category,
+        requiresRenewal: lt.requiresRenewal,
+        defaultWarnDays: lt.defaultWarnDays,
+      },
+      user: {
+        id: user.id,
+        name: user.name,
+        orgUnitId: user.orgUnitId,
+      },
+    },
+  };
 }
 
 // ========== 作成 ==========
 
 export function create(
-  input: CreateLicenseRequest,
+  input: CreateUserLicenseRequest,
   actorUserId: string
-): License {
-  const timestamp = now();
-  const userInfo = getUserInfo(input.userId);
+): { success: true; item: UserLicense } | { success: false; error: string } {
+  const lt = licenseTypesStore.get(input.licenseTypeId);
+  if (!lt || !lt.isActive) {
+    return { success: false, error: '無効な資格種別です' };
+  }
 
-  const license: License = {
-    id: generateId(),
+  const user = usersStore.get(input.userId);
+  if (!user) {
+    return { success: false, error: 'ユーザーが見つかりません' };
+  }
+
+  const timestamp = now();
+  const ul: UserLicense = {
+    id: generateLicenseId(),
     userId: input.userId,
-    userName: userInfo.name,
-    userOrgUnitId: userInfo.orgUnitId,
-    licenseName: input.licenseName,
+    licenseTypeId: input.licenseTypeId,
     licenseNumber: input.licenseNumber ?? null,
-    category: input.category ?? 'other',
     issuedAt: input.issuedAt ?? null,
     expiresAt: input.expiresAt ?? null,
-    issuingAuthority: input.issuingAuthority ?? null,
-    status: 'valid',
+    status: calculateStatus(input.expiresAt ?? null),
     notes: input.notes ?? null,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
 
-  // ステータス計算
-  license.status = calculateStatus(license);
-
-  licensesStore.set(license.id, license);
-  return license;
+  userLicensesStore.set(ul.id, ul);
+  return { success: true, item: ul };
 }
 
 // ========== 更新 ==========
 
 export function update(
   id: string,
-  patch: UpdateLicenseRequest,
+  patch: UpdateUserLicenseRequest,
   viewer: ViewerContext
-): { success: true; license: License } | { success: false; error: string } {
-  const license = licensesStore.get(id);
-  if (!license) {
+): { success: true; item: UserLicense } | { success: false; error: string } {
+  const ul = userLicensesStore.get(id);
+  if (!ul) {
     return { success: false, error: '資格が見つかりません' };
   }
-  if (!canManageLicense(viewer) && license.userId !== viewer.userId) {
+
+  if (!canManageLicense(viewer)) {
     return { success: false, error: '更新権限がありません' };
   }
 
-  const updated: License = {
-    ...license,
+  const updated: UserLicense = {
+    ...ul,
     ...patch,
+    status: patch.status ?? calculateStatus(patch.expiresAt ?? ul.expiresAt),
     updatedAt: now(),
   };
 
-  // ステータス再計算
-  updated.status = calculateStatus(updated);
+  userLicensesStore.set(id, updated);
+  return { success: true, item: updated };
+}
 
-  licensesStore.set(id, updated);
-  return { success: true, license: updated };
+// ========== 更新 (renew) ==========
+
+export function renew(
+  id: string,
+  input: RenewLicenseRequest,
+  viewer: ViewerContext
+): { success: true; item: UserLicense; event: LicenseRenewalEvent } | { success: false; error: string } {
+  const ul = userLicensesStore.get(id);
+  if (!ul) {
+    return { success: false, error: '資格が見つかりません' };
+  }
+
+  if (!canManageLicense(viewer)) {
+    return { success: false, error: '更新権限がありません' };
+  }
+
+  const oldExpiresAt = ul.expiresAt;
+  const timestamp = now();
+
+  // 更新イベント記録
+  const event: LicenseRenewalEvent = {
+    id: generateRenewalId(),
+    userLicenseId: ul.id,
+    oldExpiresAt,
+    newExpiresAt: input.newExpiresAt,
+    renewedAt: timestamp,
+    actorUserId: viewer.userId,
+    note: input.note ?? null,
+    createdAt: timestamp,
+  };
+  renewalEventsStore.set(event.id, event);
+
+  // 資格更新
+  ul.expiresAt = input.newExpiresAt;
+  ul.status = calculateStatus(input.newExpiresAt);
+  ul.updatedAt = timestamp;
+
+  return { success: true, item: ul, event };
 }
 
 // ========== 削除 ==========
@@ -226,15 +358,16 @@ export function remove(
   id: string,
   viewer: ViewerContext
 ): { success: true } | { success: false; error: string } {
-  const license = licensesStore.get(id);
-  if (!license) {
+  const ul = userLicensesStore.get(id);
+  if (!ul) {
     return { success: false, error: '資格が見つかりません' };
   }
+
   if (!canManageLicense(viewer)) {
     return { success: false, error: '削除権限がありません' };
   }
 
-  licensesStore.delete(id);
+  userLicensesStore.delete(id);
   return { success: true };
 }
 
@@ -248,192 +381,340 @@ export function getStats(
   viewer: ViewerContext,
   options?: LicenseStatsOptions
 ): LicenseStats | null {
-  if (!canViewAllStats(viewer)) {
+  if (!canViewLicenseStats(viewer)) {
     return null;
   }
 
-  let licenses = Array.from(licensesStore.values());
+  let userLicenses = Array.from(userLicensesStore.values());
 
-  // Task 030: 組織スコープ
+  // orgUnitIds スコープ
   if (options?.orgUnitIds && options.orgUnitIds.length > 0) {
-    licenses = licenses.filter(
-      (l) => l.userOrgUnitId && options.orgUnitIds!.includes(l.userOrgUnitId)
-    );
+    userLicenses = userLicenses.filter((ul) => {
+      const user = usersStore.get(ul.userId);
+      return user?.orgUnitId && options.orgUnitIds!.includes(user.orgUnitId);
+    });
   }
 
-  // ステータス再計算して集計
   const stats: LicenseStats = {
-    total: licenses.length,
-    valid: 0,
     expired: 0,
     expiring30: 0,
-    pending: 0,
+    expiring90: 0,
+    totalActive: 0,
   };
 
-  for (const license of licenses) {
-    const status = calculateStatus(license);
-    switch (status) {
-      case 'valid':
-        stats.valid++;
-        break;
-      case 'expired':
-        stats.expired++;
-        break;
-      case 'expiring':
-        stats.expiring30++;
-        break;
-      case 'pending':
-        stats.pending++;
-        break;
+  const todayStr = today();
+
+  for (const ul of userLicenses) {
+    if (ul.status === 'suspended') continue;
+
+    const currentStatus = calculateStatus(ul.expiresAt);
+    const days = daysUntilExpiry(ul.expiresAt);
+
+    if (currentStatus === 'expired') {
+      stats.expired++;
+    } else if (currentStatus === 'active') {
+      stats.totalActive++;
+      if (days !== null) {
+        if (days <= 30) stats.expiring30++;
+        if (days <= 90) stats.expiring90++;
+      }
     }
   }
 
   return stats;
 }
 
-// ========== 期限切れ/期限間近スキャン ==========
+// ========== スキャン ==========
 
-export function scanExpired(): License[] {
-  return Array.from(licensesStore.values()).filter(
-    (l) => calculateStatus(l) === 'expired'
-  );
+export function scanExpired(): LicenseListItem[] {
+  const items: LicenseListItem[] = [];
+
+  for (const ul of userLicensesStore.values()) {
+    if (ul.status === 'suspended') continue;
+    if (calculateStatus(ul.expiresAt) !== 'expired') continue;
+
+    const user = usersStore.get(ul.userId);
+    const lt = licenseTypesStore.get(ul.licenseTypeId);
+    if (!user || !lt) continue;
+
+    items.push({
+      userLicense: { ...ul, status: 'expired' },
+      licenseType: {
+        id: lt.id,
+        name: lt.name,
+        category: lt.category,
+        requiresRenewal: lt.requiresRenewal,
+        defaultWarnDays: lt.defaultWarnDays,
+      },
+      user: {
+        id: user.id,
+        name: user.name,
+        orgUnitId: user.orgUnitId,
+      },
+    });
+  }
+
+  return items;
 }
 
-export function scanExpiring(withinDays: number = 30): License[] {
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() + withinDays);
+export function scanExpiring(withinDays: number = 30): LicenseListItem[] {
+  const items: LicenseListItem[] = [];
 
-  return Array.from(licensesStore.values()).filter((l) => {
-    if (!l.expiresAt) return false;
-    const expiresDate = new Date(l.expiresAt);
-    const today = new Date();
-    return expiresDate > today && expiresDate <= cutoffDate;
-  });
+  for (const ul of userLicensesStore.values()) {
+    if (ul.status === 'suspended') continue;
+
+    const days = daysUntilExpiry(ul.expiresAt);
+    if (days === null || days < 0 || days > withinDays) continue;
+
+    const user = usersStore.get(ul.userId);
+    const lt = licenseTypesStore.get(ul.licenseTypeId);
+    if (!user || !lt) continue;
+
+    items.push({
+      userLicense: { ...ul, status: 'active' },
+      licenseType: {
+        id: lt.id,
+        name: lt.name,
+        category: lt.category,
+        requiresRenewal: lt.requiresRenewal,
+        defaultWarnDays: lt.defaultWarnDays,
+      },
+      user: {
+        id: user.id,
+        name: user.name,
+        orgUnitId: user.orgUnitId,
+      },
+    });
+  }
+
+  return items;
 }
 
 // ========== ユーザーの資格一覧 ==========
 
-export function getByUserId(userId: string): License[] {
-  return Array.from(licensesStore.values())
-    .filter((l) => l.userId === userId)
-    .map((l) => ({ ...l, status: calculateStatus(l) }));
+export function getByUserId(userId: string): LicenseListItem[] {
+  const items: LicenseListItem[] = [];
+  const user = usersStore.get(userId);
+  if (!user) return items;
+
+  for (const ul of userLicensesStore.values()) {
+    if (ul.userId !== userId) continue;
+
+    const lt = licenseTypesStore.get(ul.licenseTypeId);
+    if (!lt || !lt.isActive) continue;
+
+    const currentStatus = calculateStatus(ul.expiresAt);
+    const effectiveStatus = ul.status === 'suspended' ? 'suspended' : currentStatus;
+
+    items.push({
+      userLicense: { ...ul, status: effectiveStatus },
+      licenseType: {
+        id: lt.id,
+        name: lt.name,
+        category: lt.category,
+        requiresRenewal: lt.requiresRenewal,
+        defaultWarnDays: lt.defaultWarnDays,
+      },
+      user: {
+        id: user.id,
+        name: user.name,
+        orgUnitId: user.orgUnitId,
+      },
+    });
+  }
+
+  return items;
+}
+
+// ========== 更新履歴 ==========
+
+export function getRenewalHistory(userLicenseId: string): LicenseRenewalEvent[] {
+  return Array.from(renewalEventsStore.values())
+    .filter((e) => e.userLicenseId === userLicenseId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 // ========== デモデータ ==========
 
 function initDemoData(): void {
-  if (licensesStore.size > 0) return;
+  if (licenseTypesStore.size > 0) return;
 
-  const now = new Date();
-  const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-  const twoWeeksLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-  const sixMonthsLater = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
-  const oneYearLater = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const timestamp = now();
 
-  const items: Omit<License, 'id' | 'createdAt' | 'updatedAt' | 'status'>[] = [
-    // user_001 (org_nishi)
+  // 資格種別マスタ
+  const licenseTypes: LicenseType[] = [
+    {
+      id: 'lt_care_worker',
+      name: '介護福祉士',
+      category: 'care',
+      requiresRenewal: false,
+      defaultRenewalMonths: null,
+      defaultWarnDays: null,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    {
+      id: 'lt_care_manager',
+      name: '介護支援専門員',
+      category: 'care',
+      requiresRenewal: true,
+      defaultRenewalMonths: 60,
+      defaultWarnDays: 90,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    {
+      id: 'lt_helper2',
+      name: 'ホームヘルパー2級',
+      category: 'care',
+      requiresRenewal: false,
+      defaultRenewalMonths: null,
+      defaultWarnDays: null,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    {
+      id: 'lt_rn',
+      name: '正看護師',
+      category: 'nursing',
+      requiresRenewal: false,
+      defaultRenewalMonths: null,
+      defaultWarnDays: null,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    {
+      id: 'lt_lpn',
+      name: '准看護師',
+      category: 'nursing',
+      requiresRenewal: false,
+      defaultRenewalMonths: null,
+      defaultWarnDays: null,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    {
+      id: 'lt_driver',
+      name: '普通自動車免許',
+      category: 'other',
+      requiresRenewal: true,
+      defaultRenewalMonths: 36,
+      defaultWarnDays: 60,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    {
+      id: 'lt_first_aid',
+      name: '救急救命講習修了',
+      category: 'other',
+      requiresRenewal: true,
+      defaultRenewalMonths: 36,
+      defaultWarnDays: 30,
+      isActive: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+  ];
+  licenseTypes.forEach((lt) => licenseTypesStore.set(lt.id, lt));
+
+  // ユーザー情報
+  const users: UserInfo[] = [
+    { id: 'user_001', name: '山田太郎', orgUnitId: 'org_nishi' },
+    { id: 'user_002', name: '佐藤次郎', orgUnitId: 'org_nishi' },
+    { id: 'user_003', name: '鈴木花子', orgUnitId: 'org_higashi' },
+    { id: 'user_004', name: '高橋三郎', orgUnitId: 'org_sakura' },
+    { id: 'user_005', name: '田中美咲', orgUnitId: 'org_sakura' },
+  ];
+  users.forEach((u) => usersStore.set(u.id, u));
+
+  // 日付計算
+  const nowDate = new Date();
+  const oneYearAgo = new Date(nowDate.getTime() - 365 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(nowDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const twoWeeksLater = new Date(nowDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const sixtyDaysLater = new Date(nowDate.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const oneYearLater = new Date(nowDate.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+  // ユーザー資格
+  const userLicenses: Omit<UserLicense, 'id' | 'createdAt' | 'updatedAt' | 'status'>[] = [
+    // user_001
     {
       userId: 'user_001',
-      userName: '山田太郎',
-      userOrgUnitId: 'org_nishi',
-      licenseName: '介護福祉士',
+      licenseTypeId: 'lt_care_worker',
       licenseNumber: 'CW-12345',
-      category: 'care',
-      issuedAt: oneYearAgo.toISOString(),
-      expiresAt: oneYearLater.toISOString(),
-      issuingAuthority: '厚生労働省',
+      issuedAt: oneYearAgo.toISOString().split('T')[0],
+      expiresAt: null,
       notes: null,
     },
     {
       userId: 'user_001',
-      userName: '山田太郎',
-      userOrgUnitId: 'org_nishi',
-      licenseName: '普通自動車免許',
+      licenseTypeId: 'lt_driver',
       licenseNumber: '012345678901',
-      category: 'driving',
-      issuedAt: threeMonthsAgo.toISOString(),
-      expiresAt: twoWeeksLater.toISOString(),  // 期限間近
-      issuingAuthority: '大阪府公安委員会',
+      issuedAt: oneYearAgo.toISOString().split('T')[0],
+      expiresAt: twoWeeksLater.toISOString().split('T')[0],  // 期限間近
       notes: '更新必要',
     },
-    // user_002 (org_nishi)
+    // user_002
     {
       userId: 'user_002',
-      userName: '佐藤次郎',
-      userOrgUnitId: 'org_nishi',
-      licenseName: 'ホームヘルパー2級',
+      licenseTypeId: 'lt_helper2',
       licenseNumber: 'HH-54321',
-      category: 'care',
-      issuedAt: oneYearAgo.toISOString(),
-      expiresAt: null,  // 期限なし
-      issuingAuthority: '大阪府',
+      issuedAt: oneYearAgo.toISOString().split('T')[0],
+      expiresAt: null,
       notes: null,
     },
-    // user_003 (org_higashi)
+    // user_003
     {
       userId: 'user_003',
-      userName: '鈴木花子',
-      userOrgUnitId: 'org_higashi',
-      licenseName: '介護支援専門員',
+      licenseTypeId: 'lt_care_manager',
       licenseNumber: 'CM-98765',
-      category: 'care',
-      issuedAt: oneYearAgo.toISOString(),
-      expiresAt: thirtyDaysAgo.toISOString(),  // 期限切れ
-      issuingAuthority: '大阪府',
+      issuedAt: oneYearAgo.toISOString().split('T')[0],
+      expiresAt: thirtyDaysAgo.toISOString().split('T')[0],  // 期限切れ
       notes: '更新手続き中',
     },
-    // user_004 (org_sakura)
+    // user_004
     {
       userId: 'user_004',
-      userName: '高橋三郎',
-      userOrgUnitId: 'org_sakura',
-      licenseName: '正看護師',
+      licenseTypeId: 'lt_rn',
       licenseNumber: 'RN-11111',
-      category: 'nursing',
-      issuedAt: oneYearAgo.toISOString(),
-      expiresAt: sixMonthsLater.toISOString(),
-      issuingAuthority: '厚生労働省',
+      issuedAt: oneYearAgo.toISOString().split('T')[0],
+      expiresAt: null,
       notes: null,
     },
     {
       userId: 'user_004',
-      userName: '高橋三郎',
-      userOrgUnitId: 'org_sakura',
-      licenseName: '救急救命講習修了',
+      licenseTypeId: 'lt_first_aid',
       licenseNumber: null,
-      category: 'safety',
-      issuedAt: threeMonthsAgo.toISOString(),
-      expiresAt: oneYearLater.toISOString(),
-      issuingAuthority: '日本赤十字社',
+      issuedAt: oneYearAgo.toISOString().split('T')[0],
+      expiresAt: sixtyDaysLater.toISOString().split('T')[0],  // 60日後
       notes: null,
     },
-    // user_005 (org_sakura)
+    // user_005
     {
       userId: 'user_005',
-      userName: '田中美咲',
-      userOrgUnitId: 'org_sakura',
-      licenseName: '准看護師',
+      licenseTypeId: 'lt_lpn',
       licenseNumber: 'LPN-22222',
-      category: 'nursing',
-      issuedAt: oneYearAgo.toISOString(),
-      expiresAt: oneYearLater.toISOString(),
-      issuingAuthority: '大阪府知事',
+      issuedAt: oneYearAgo.toISOString().split('T')[0],
+      expiresAt: null,
       notes: null,
     },
   ];
 
-  items.forEach((item) => {
-    const license: License = {
-      ...item,
-      id: generateId(),
-      status: 'valid',  // 後で再計算
+  userLicenses.forEach((ul) => {
+    const license: UserLicense = {
+      ...ul,
+      id: generateLicenseId(),
+      status: calculateStatus(ul.expiresAt),
       createdAt: oneYearAgo.toISOString(),
-      updatedAt: now.toISOString(),
+      updatedAt: timestamp,
     };
-    license.status = calculateStatus(license);
-    licensesStore.set(license.id, license);
+    userLicensesStore.set(license.id, license);
   });
 }
 
