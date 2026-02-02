@@ -739,7 +739,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'collection-flow',
     name: '回収フロー',
     category: 'finance',
-    status: 'planned',
+    status: 'active',
     description: '回収プロセスの管理',
     path: '/dashboard/collection-flow',
     priority: 4,

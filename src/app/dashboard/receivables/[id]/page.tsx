@@ -18,6 +18,8 @@ import {
   Plus,
   Edit2,
   History,
+  GitBranch,
+  Check,
 } from 'lucide-react';
 import type {
   Receivable,
@@ -40,6 +42,19 @@ import {
   calculateAgingDays,
   isOverdue,
 } from '@/lib/receivables/types';
+import type {
+  ReceivableFlowAssignment,
+  ReceivableFlowStepLog,
+  CollectionFlowTemplate,
+} from '@/lib/collection/types';
+import {
+  STEP_LOG_STATUS_LABELS,
+  STEP_LOG_STATUS_COLORS,
+  ASSIGNMENT_STATUS_LABELS,
+  ASSIGNMENT_STATUS_COLORS,
+  isStepOverdue,
+  calculateOverdueDays,
+} from '@/lib/collection/types';
 
 export default function ReceivableDetailPage() {
   const params = useParams();
@@ -48,6 +63,11 @@ export default function ReceivableDetailPage() {
 
   const [receivable, setReceivable] = useState<Receivable | null>(null);
   const [actions, setActions] = useState<ReceivableAction[]>([]);
+  const [flowInfo, setFlowInfo] = useState<{
+    assignment: ReceivableFlowAssignment | null;
+    template: CollectionFlowTemplate | null;
+    stepLogs: ReceivableFlowStepLog[];
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [showActionModal, setShowActionModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -57,9 +77,10 @@ export default function ReceivableDetailPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [recvRes, actionsRes] = await Promise.all([
+      const [recvRes, actionsRes, flowRes] = await Promise.all([
         fetch(`/api/receivables/${id}`),
         fetch(`/api/receivables/${id}/actions`),
+        fetch(`/api/collection/receivable/${id}`),
       ]);
 
       if (recvRes.ok) {
@@ -69,6 +90,10 @@ export default function ReceivableDetailPage() {
       if (actionsRes.ok) {
         const data = await actionsRes.json();
         setActions(data.actions);
+      }
+      if (flowRes.ok) {
+        const data = await flowRes.json();
+        setFlowInfo(data);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -306,6 +331,130 @@ export default function ReceivableDetailPage() {
               )}
             </dl>
           </div>
+
+          {/* 回収フロー進捗 */}
+          {flowInfo && flowInfo.assignment && (
+            <div className="rounded-lg border border-zinc-200 bg-white p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-zinc-900">
+                  <GitBranch className="h-5 w-5" />
+                  回収フロー進捗
+                </h2>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    ASSIGNMENT_STATUS_COLORS[flowInfo.assignment.status]
+                  }`}
+                >
+                  {ASSIGNMENT_STATUS_LABELS[flowInfo.assignment.status]}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-zinc-500">
+                テンプレート: {flowInfo.template?.name ?? '不明'}
+              </p>
+
+              {/* ステップ進捗バー */}
+              <div className="mt-4 flex items-center gap-2">
+                {flowInfo.stepLogs.map((log, index) => {
+                  const overdue = isStepOverdue(log);
+                  const overdueDays = overdue ? calculateOverdueDays(log.plannedDueAt) : 0;
+
+                  return (
+                    <div key={log.id} className="flex items-center">
+                      <div
+                        className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                          log.status === 'done'
+                            ? 'bg-green-500 text-white'
+                            : log.status === 'skipped'
+                            ? 'bg-yellow-500 text-white'
+                            : overdue
+                            ? 'bg-red-500 text-white'
+                            : 'bg-zinc-200 text-zinc-700'
+                        }`}
+                        title={
+                          log.status === 'done'
+                            ? '完了'
+                            : log.status === 'skipped'
+                            ? 'スキップ'
+                            : overdue
+                            ? `${overdueDays}日超過`
+                            : `期限: ${log.plannedDueAt}`
+                        }
+                      >
+                        {log.status === 'done' ? (
+                          <Check className="h-4 w-4" />
+                        ) : log.status === 'skipped' ? (
+                          '-'
+                        ) : overdue ? (
+                          <AlertTriangle className="h-4 w-4" />
+                        ) : (
+                          log.stepOrder
+                        )}
+                      </div>
+                      {index < flowInfo.stepLogs.length - 1 && (
+                        <div
+                          className={`h-0.5 w-6 ${
+                            log.status === 'done' ? 'bg-green-500' : 'bg-zinc-200'
+                          }`}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ステップ詳細リスト */}
+              <div className="mt-4 space-y-2">
+                {flowInfo.stepLogs.map((log) => {
+                  const overdue = isStepOverdue(log);
+                  return (
+                    <div
+                      key={log.id}
+                      className={`flex items-center justify-between rounded px-3 py-2 text-sm ${
+                        log.status === 'done'
+                          ? 'bg-green-50'
+                          : log.status === 'skipped'
+                          ? 'bg-yellow-50'
+                          : overdue
+                          ? 'bg-red-50'
+                          : 'bg-zinc-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          ステップ {log.stepOrder}
+                        </span>
+                        <span
+                          className={`rounded px-2 py-0.5 text-xs ${
+                            STEP_LOG_STATUS_COLORS[log.status]
+                          }`}
+                        >
+                          {STEP_LOG_STATUS_LABELS[log.status]}
+                        </span>
+                        {overdue && (
+                          <span className="text-xs text-red-600">
+                            {calculateOverdueDays(log.plannedDueAt)}日超過
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-zinc-500">
+                        期限: {log.plannedDueAt}
+                        {log.doneAt && ` / 完了: ${log.doneAt.split('T')[0]}`}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4">
+                <Link
+                  href="/dashboard/collection-flow?tab=progress"
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  回収フロー管理へ →
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* アクションログ */}
           <div className="rounded-lg border border-zinc-200 bg-white p-6">

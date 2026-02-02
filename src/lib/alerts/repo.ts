@@ -211,6 +211,7 @@ export function getAlertStats(): AlertStats {
       committee_risk: 0,
       complaint_risk: 0,
       receivable_risk: 0,
+      collection_flow_risk: 0,
     },
   };
 
