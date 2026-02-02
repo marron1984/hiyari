@@ -7,7 +7,7 @@
  * businessUnitId を高確率で自動付与する
  */
 
-import { createScope, getBusinessUnitIdsFromOrgIds } from '@/lib/access/scope';
+import { getBusinessUnitIdsFromOrgIds, computeUserScope } from '@/lib/access/scope';
 import { listBusinessUnits, getBusinessUnitById } from '@/lib/business/repo';
 import type { AppRole } from '@/config/appRoles';
 import type { BusinessUnit } from '@/lib/business/types';
@@ -91,9 +91,11 @@ export function inferBusinessUnit(
     }
   }
 
-  // 2. ユーザーのスコープから候補を取得
-  const scope = createScope(userId, role);
-  const scopedBusinessUnitIds = scope.businessUnitIds ?? [];
+  // 2. ユーザーの直接所属組織から事業単位を取得
+  // Note: createScope は visibleOrgUnitIds を使うが、推定には直接所属(orgUnitIds)を使う
+  const userScope = computeUserScope(userId, 'org');  // 'org'モードで直接所属を取得
+  const directOrgUnitIds = userScope.orgUnitIds;
+  const scopedBusinessUnitIds = getBusinessUnitIdsFromOrgIds(directOrgUnitIds);
 
   // 3. 候補が0件の場合 → 全事業単位を候補として返す
   if (scopedBusinessUnitIds.length === 0) {
@@ -101,7 +103,9 @@ export function inferBusinessUnit(
     return {
       ok: false,
       candidates: allUnits.map(unitToCandidate),
-      reason: '組織所属が未設定のため、事業単位を選択してください',
+      reason: directOrgUnitIds.length === 0
+        ? '組織所属が未設定のため、事業単位を選択してください'
+        : '所属組織に紐づく事業単位がありません。事業単位を選択してください',
     };
   }
 
