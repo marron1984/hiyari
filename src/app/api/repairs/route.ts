@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listRepairs, createRepair } from '@/lib/repairs/repo';
 import type { RepairStatus, RepairCategory, SafetyRisk } from '@/lib/repairs/types';
 import type { AppRole } from '@/config/appRoles';
+import { validateApiGuardrail } from '@/lib/scope/guardrail';
 
 // デモユーザー情報（本番ではセッションから取得）
 const DEMO_USER = {
@@ -79,6 +80,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'タイトルと説明は必須です' },
         { status: 400 }
+      );
+    }
+
+    // Task 033: ガードレール検証（manager/leader は businessUnitId 必須）
+    const guardrailResult = validateApiGuardrail(DEMO_USER.role, 'repairs', { businessUnitId });
+    if (!guardrailResult.valid) {
+      return NextResponse.json(
+        { error: guardrailResult.error },
+        { status: guardrailResult.status }
       );
     }
 

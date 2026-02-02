@@ -84,6 +84,7 @@ export interface UpdateCorrectiveActionRequest {
   title?: string;
   description?: string;
   severity?: CorrectiveActionSeverity;
+  businessUnitId?: string | null;  // Task 033: backfill用
   rootCause?: string | null;
   actionPlan?: string | null;
   ownerUserId?: string | null;

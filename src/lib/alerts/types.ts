@@ -19,7 +19,8 @@ export type AlertType =
   | 'complaint_risk'    // クレームリスク
   | 'receivable_risk'   // 未収リスク
   | 'collection_flow_risk'   // 回収フローリスク
-  | 'agreement_risk';        // 同意書リスク
+  | 'agreement_risk'         // 同意書リスク
+  | 'unclassified_scope';    // Task 033: 未分類スコープ
 
 /**
  * アラート重要度
@@ -121,6 +122,7 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   receivable_risk: '未収リスク',
   collection_flow_risk: '回収フロー超過',
   agreement_risk: '同意書リスク',
+  unclassified_scope: '未分類スコープ',  // Task 033
 };
 
 /**

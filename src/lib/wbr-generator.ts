@@ -19,6 +19,8 @@ import {
   type DevTicket,
 } from '@/lib/generateTickets';
 import { getWeeklyAlertSummary } from '@/lib/alerts/repo';
+import { getUnclassifiedCounts } from '@/lib/scope/detectUnclassifiedBusinessUnit';
+import type { UnclassifiedCounts } from '@/lib/scope/types';
 
 // WBRレポート型
 export interface WBRReport {
@@ -83,6 +85,7 @@ export interface RiskAlertSection {
   persistentRisks: RiskAlertItem[]; // 放置されている項目
   newRisks: RiskAlertItem[]; // 新たに顕在化したリスク
   alertSummary?: AlertSummaryForWBR; // アラートセンターからのサマリー
+  unclassifiedCounts?: UnclassifiedCounts; // Task 033: 未分類スコープ件数
 }
 
 // ⑤ 来週のアクション
@@ -328,7 +331,10 @@ function generateRiskAlerts(): RiskAlertSection {
   // アラートセンターからのサマリー
   const alertSummary = getWeeklyAlertSummary();
 
-  return { persistentRisks, newRisks, alertSummary };
+  // Task 033: 未分類スコープ件数
+  const unclassifiedCounts = getUnclassifiedCounts();
+
+  return { persistentRisks, newRisks, alertSummary, unclassifiedCounts };
 }
 
 function getRiskDescription(feature: OSFeature): string {
@@ -531,6 +537,17 @@ export function exportWBRToText(report: WBRReport): string {
       lines.push(`  🆕 ${r.name}（${r.category}）`);
       lines.push(`     ${r.description}`);
     });
+  }
+  // Task 033: 未分類スコープ件数
+  if (report.riskAlerts.unclassifiedCounts && report.riskAlerts.unclassifiedCounts.total > 0) {
+    lines.push('【未分類スコープ】');
+    const uc = report.riskAlerts.unclassifiedCounts;
+    const parts: string[] = [];
+    if (uc.tickets > 0) parts.push(`チケット ${uc.tickets}件`);
+    if (uc.repairs > 0) parts.push(`修繕 ${uc.repairs}件`);
+    if (uc.correctiveActions > 0) parts.push(`是正措置 ${uc.correctiveActions}件`);
+    lines.push(`  ⚠️ businessUnitId 未設定: ${parts.join('、')}（計 ${uc.total}件）`);
+    lines.push('     → Scope Backfill で事業単位を割り当ててください');
   }
   lines.push('');
 
@@ -773,6 +790,22 @@ export function exportWBRToHTML(report: WBRReport): string {
       ? `
     <h4>新規リスク</h4>
     ${report.riskAlerts.newRisks.map((r) => `<div class="risk-high">🆕 <strong>${r.name}</strong>（${r.category}）<br>${r.description}</div>`).join('')}
+  `
+      : ''
+  }
+  ${
+    report.riskAlerts.unclassifiedCounts && report.riskAlerts.unclassifiedCounts.total > 0
+      ? `
+    <h4>未分類スコープ（Task 033）</h4>
+    <div class="risk-high">
+      <strong>⚠️ businessUnitId 未設定レコード: 計 ${report.riskAlerts.unclassifiedCounts.total}件</strong><br>
+      ${[
+        report.riskAlerts.unclassifiedCounts.tickets > 0 ? `チケット ${report.riskAlerts.unclassifiedCounts.tickets}件` : '',
+        report.riskAlerts.unclassifiedCounts.repairs > 0 ? `修繕 ${report.riskAlerts.unclassifiedCounts.repairs}件` : '',
+        report.riskAlerts.unclassifiedCounts.correctiveActions > 0 ? `是正措置 ${report.riskAlerts.unclassifiedCounts.correctiveActions}件` : '',
+      ].filter(Boolean).join('、')}<br>
+      → Scope Backfill で事業単位を割り当ててください
+    </div>
   `
       : ''
   }

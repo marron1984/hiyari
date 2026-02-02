@@ -320,6 +320,13 @@ export function updateTicket(
     ticket.location = patch.location;
   }
 
+  // Task 033: businessUnitId 更新（backfill用）
+  if (patch.businessUnitId !== undefined) {
+    before.businessUnitId = ticket.businessUnitId;
+    after.businessUnitId = patch.businessUnitId;
+    ticket.businessUnitId = patch.businessUnitId;
+  }
+
   ticket.updatedAt = new Date().toISOString();
 
   if (Object.keys(after).length > 0) {

@@ -148,6 +148,7 @@ export interface UpdateTicketRequest {
   description?: string;
   priority?: TicketPriority;
   category?: TicketCategory;
+  businessUnitId?: string | null;  // Task 033: backfill用
   dueAt?: string | null;
   tags?: string[] | null;
   location?: string | null;

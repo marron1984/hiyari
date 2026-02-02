@@ -16,10 +16,10 @@ import type {
 } from './types';
 
 // 他のリポジトリからインポート
-import * as ticketsRepo from '@/lib/tickets/repo';
-import * as repairsRepo from '@/lib/repairs/repo';
-import * as correctiveActionsRepo from '@/lib/correctiveActions/repo';
-import * as businessRepo from '@/lib/business/repo';
+import { listTickets, updateTicket } from '@/lib/tickets/repo';
+import { listRepairs, updateRepair } from '@/lib/repairs/repo';
+import { listCorrectiveActions, update as updateCorrectiveAction } from '@/lib/correctiveActions/repo';
+import { getBusinessUnitById } from '@/lib/business/repo';
 
 // ========== 監査ログストレージ ==========
 
@@ -55,7 +55,7 @@ function recordBackfillEvent(
   affectedCount: number,
   dryRun: boolean
 ): ScopeBackfillEvent {
-  const businessUnit = businessRepo.getBusinessUnitById(targetBusinessUnitId);
+  const businessUnit = getBusinessUnitById(targetBusinessUnitId);
 
   const event: ScopeBackfillEvent = {
     id: generateEventId(),
@@ -83,7 +83,7 @@ export function preview(
   targetBusinessUnitId: string
 ): { success: true; data: BackfillPreviewResponse } | { success: false; error: string } {
   // 事業単位の存在チェック
-  const businessUnit = businessRepo.getBusinessUnitById(targetBusinessUnitId);
+  const businessUnit = getBusinessUnitById(targetBusinessUnitId);
   if (!businessUnit) {
     return { success: false, error: '指定された事業単位が存在しません' };
   }
@@ -140,7 +140,7 @@ export function apply(
   targetBusinessUnitId: string
 ): { success: true; data: BackfillApplyResponse } | { success: false; error: string } {
   // 事業単位の存在チェック
-  const businessUnit = businessRepo.getBusinessUnitById(targetBusinessUnitId);
+  const businessUnit = getBusinessUnitById(targetBusinessUnitId);
   if (!businessUnit) {
     return { success: false, error: '指定された事業単位が存在しません' };
   }
@@ -197,9 +197,9 @@ function previewTickets(
 ): { items: BackfillSampleItem[]; count: number } {
   // 管理者権限でフルアクセス
   const viewer = { userId: 'admin', role: 'admin' as const };
-  const result = ticketsRepo.listTickets(viewer, {});
+  const result = listTickets({}, viewer);
 
-  let tickets = result.tickets.filter((t) => t.businessUnitId === null);
+  let tickets = result.items.filter((t) => t.businessUnitId === null);
 
   // 日付フィルタ
   if (filters.dateFrom) {
@@ -240,9 +240,9 @@ function previewTickets(
 
 function applyTickets(filters: BackfillFilters, targetBusinessUnitId: string): number {
   const viewer = { userId: 'admin', role: 'admin' as const };
-  const result = ticketsRepo.listTickets(viewer, {});
+  const result = listTickets({}, viewer);
 
-  let tickets = result.tickets.filter((t) => t.businessUnitId === null);
+  let tickets = result.items.filter((t) => t.businessUnitId === null);
 
   // 日付フィルタ
   if (filters.dateFrom) {
@@ -273,7 +273,7 @@ function applyTickets(filters: BackfillFilters, targetBusinessUnitId: string): n
   // 一括更新
   let count = 0;
   for (const ticket of tickets) {
-    const updateResult = ticketsRepo.updateTicket(ticket.id, { businessUnitId: targetBusinessUnitId }, viewer);
+    const updateResult = updateTicket(ticket.id, { businessUnitId: targetBusinessUnitId }, viewer);
     if (updateResult.success) {
       count++;
     }
@@ -289,19 +289,19 @@ function previewRepairs(
   limit: number
 ): { items: BackfillSampleItem[]; count: number } {
   const viewer = { userId: 'admin', role: 'admin' as const };
-  const result = repairsRepo.listRepairs(viewer, {});
+  const result = listRepairs(viewer, {});
 
   let repairs = result.repairs.filter((r) => r.businessUnitId === null);
 
   // 日付フィルタ
   if (filters.dateFrom) {
     const from = new Date(filters.dateFrom);
-    repairs = repairs.filter((r) => new Date(r.reportedAt) >= from);
+    repairs = repairs.filter((r) => new Date(r.createdAt) >= from);
   }
   if (filters.dateTo) {
     const to = new Date(filters.dateTo);
     to.setHours(23, 59, 59, 999);
-    repairs = repairs.filter((r) => new Date(r.reportedAt) <= to);
+    repairs = repairs.filter((r) => new Date(r.createdAt) <= to);
   }
 
   // 検索フィルタ
@@ -323,7 +323,7 @@ function previewRepairs(
   const items: BackfillSampleItem[] = repairs.slice(0, limit).map((r) => ({
     id: r.id,
     title: r.title,
-    createdAt: r.reportedAt,
+    createdAt: r.createdAt,
     hint: `${r.status} / ${r.safetyRisk} / ${r.category}`,
   }));
 
@@ -332,19 +332,19 @@ function previewRepairs(
 
 function applyRepairs(filters: BackfillFilters, targetBusinessUnitId: string): number {
   const viewer = { userId: 'admin', role: 'admin' as const };
-  const result = repairsRepo.listRepairs(viewer, {});
+  const result = listRepairs(viewer, {});
 
   let repairs = result.repairs.filter((r) => r.businessUnitId === null);
 
   // 日付フィルタ
   if (filters.dateFrom) {
     const from = new Date(filters.dateFrom);
-    repairs = repairs.filter((r) => new Date(r.reportedAt) >= from);
+    repairs = repairs.filter((r) => new Date(r.createdAt) >= from);
   }
   if (filters.dateTo) {
     const to = new Date(filters.dateTo);
     to.setHours(23, 59, 59, 999);
-    repairs = repairs.filter((r) => new Date(r.reportedAt) <= to);
+    repairs = repairs.filter((r) => new Date(r.createdAt) <= to);
   }
 
   // 検索フィルタ
@@ -365,7 +365,7 @@ function applyRepairs(filters: BackfillFilters, targetBusinessUnitId: string): n
   // 一括更新
   let count = 0;
   for (const repair of repairs) {
-    const updateResult = repairsRepo.update(repair.id, { businessUnitId: targetBusinessUnitId }, viewer);
+    const updateResult = updateRepair(repair.id, { businessUnitId: targetBusinessUnitId }, viewer);
     if (updateResult.success) {
       count++;
     }
@@ -381,7 +381,7 @@ function previewCorrectiveActions(
   limit: number
 ): { items: BackfillSampleItem[]; count: number } {
   const viewer = { userId: 'admin', role: 'admin' as const };
-  const result = correctiveActionsRepo.list(viewer, {});
+  const result = listCorrectiveActions(viewer, {});
 
   let actions = result.items.filter((ca) => ca.businessUnitId === null);
 
@@ -420,7 +420,7 @@ function previewCorrectiveActions(
 
 function applyCorrectiveActions(filters: BackfillFilters, targetBusinessUnitId: string): number {
   const viewer = { userId: 'admin', role: 'admin' as const };
-  const result = correctiveActionsRepo.list(viewer, {});
+  const result = listCorrectiveActions(viewer, {});
 
   let actions = result.items.filter((ca) => ca.businessUnitId === null);
 
@@ -449,7 +449,7 @@ function applyCorrectiveActions(filters: BackfillFilters, targetBusinessUnitId: 
   // 一括更新
   let count = 0;
   for (const ca of actions) {
-    const updateResult = correctiveActionsRepo.update(ca.id, { businessUnitId: targetBusinessUnitId }, viewer);
+    const updateResult = updateCorrectiveAction(ca.id, { businessUnitId: targetBusinessUnitId }, viewer);
     if (updateResult.success) {
       count++;
     }

@@ -213,6 +213,7 @@ export function getAlertStats(): AlertStats {
       receivable_risk: 0,
       collection_flow_risk: 0,
       agreement_risk: 0,
+      unclassified_scope: 0,  // Task 033
     },
   };
 

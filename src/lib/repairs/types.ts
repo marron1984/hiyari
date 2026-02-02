@@ -79,6 +79,7 @@ export interface UpdateRepairRequest {
   description?: string;
   category?: RepairCategory;
   safetyRisk?: SafetyRisk;
+  businessUnitId?: string | null;  // Task 033: backfill用
   location?: string | null;
   assignedVendor?: string | null;
   estimatedCost?: number | null;
