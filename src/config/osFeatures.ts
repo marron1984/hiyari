@@ -143,7 +143,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'business-summary',
     name: '事業別サマリー',
     category: 'core',
-    status: 'planned',
+    status: 'active',
     description: '事業ごとの業績サマリー',
     path: '/dashboard/business-summary',
     priority: 5,
