@@ -213,6 +213,9 @@ export function getAlertStats(): AlertStats {
       receivable_risk: 0,
       collection_flow_risk: 0,
       agreement_risk: 0,
+      // Task 038: 未分類スコープ（正式名称 + レガシー）
+      business_scope_unclassified: 0,
+      unclassified_scope: 0,
     },
   };
 

@@ -3,12 +3,17 @@
  *
  * GET /api/tickets - 一覧取得
  * POST /api/tickets - 新規作成
+ *
+ * Task 033: ガードレール検証
+ * Task 035: staff 向け businessUnitId 自動推定
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { listTickets, createTicket } from '@/lib/tickets/repo';
 import type { AppRole } from '@/config/appRoles';
 import type { TicketStatus, TicketPriority, TicketCategory } from '@/lib/tickets/types';
+import { validateApiGuardrail } from '@/lib/scope/guardrail';
+import { processStaffCreation, requiresInference } from '@/lib/scope/inferBusinessUnit';
 
 // デモユーザー情報（本番ではセッションから取得）
 const DEMO_USER = {
@@ -30,10 +35,18 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get('limit');
     const offsetParam = searchParams.get('offset');
 
+    // Task 030: businessUnitId フィルタ
+    const businessUnitIdParam = searchParams.get('businessUnitId');
+    // 'null' 文字列は未分類を意味する
+    const businessUnitId = businessUnitIdParam === 'null'
+      ? null
+      : (businessUnitIdParam ?? undefined);
+
     const filter = {
       status: status ?? undefined,
       priority: priority ?? undefined,
       category: category ?? undefined,
+      businessUnitId,                    // Task 030
       q: q ?? undefined,
       my: my ?? undefined,
       overdue: overdueParam === 'true' ? true : undefined,
@@ -68,6 +81,7 @@ export async function POST(request: NextRequest) {
       description,
       priority,
       category,
+      businessUnitId,              // Task 030: 事業単位
       dueAt,
       tags,
       relatedType,
@@ -82,12 +96,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Task 033: ガードレール検証（manager/leader は businessUnitId 必須）
+    const guardrailResult = validateApiGuardrail(DEMO_USER.role, 'tickets', { businessUnitId });
+    if (!guardrailResult.valid) {
+      return NextResponse.json(
+        { error: guardrailResult.error },
+        { status: guardrailResult.status }
+      );
+    }
+
+    // Task 035: staff 向け businessUnitId 自動推定
+    let finalBusinessUnitId = businessUnitId;
+    if (requiresInference(DEMO_USER.role)) {
+      const inferResult = processStaffCreation(
+        DEMO_USER.id,
+        DEMO_USER.role,
+        'tickets',
+        businessUnitId,
+        { category }  // ヒント
+      );
+
+      if (inferResult.needsSelection) {
+        return NextResponse.json(
+          {
+            error: inferResult.reason,
+            needsSelection: true,
+            candidates: inferResult.candidates,
+          },
+          { status: 422 }
+        );
+      }
+
+      finalBusinessUnitId = inferResult.businessUnitId;
+    }
+
     const ticket = createTicket(
       {
         title,
         description,
         priority,
         category,
+        businessUnitId: finalBusinessUnitId,  // Task 035: 推定結果を使用
         dueAt,
         tags,
         relatedType,

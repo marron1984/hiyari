@@ -1,4 +1,10 @@
-// 通知タイプ
+/**
+ * 通知タイプ
+ *
+ * Task 038: 未分類アラート type 名の統一
+ * - 正式名称: business_scope_unclassified
+ * - レガシー名: unclassified_scope（後方互換）
+ */
 export type NotificationType =
   | 'clock_reminder'        // 打刻リマインダー
   | 'overtime_request'      // 残業申請通知
@@ -19,6 +25,8 @@ export type NotificationType =
   | 'ai_anomaly_report'     // AI副社長・日次違和感レポート
   | 'ai_organization_health' // AI副社長・組織温度レポート
   | 'ai_todo_high'          // AI副社長・HIGH優先度TODO
+  | 'business_scope_unclassified'  // Task 038: 未分類スコープ警告（正式名称）
+  | 'unclassified_scope'    // Task 033: 未分類スコープ警告（レガシー）
   | 'system';               // システム通知
 
 // 通知
@@ -62,6 +70,15 @@ export interface Notification {
     // ai_todo_high
     todoId?: string;
     todoSource?: 'OVERTIME' | 'APPROVAL' | 'SALES' | 'DOCUMENT' | 'PROSPECT';
+    // unclassified_scope (Task 033)
+    unclassifiedCounts?: {
+      tickets: number;
+      repairs: number;
+      correctiveActions: number;
+      total: number;
+    };
+    targetRole?: 'admin' | 'manager' | 'leader';
+    detectedAt?: string;
   };
 }
 

@@ -51,6 +51,7 @@ export interface BusinessUnit {
   name: string;
   type: BusinessUnitType;
   locationHint: string | null;
+  orgUnitId: string | null;           // Task 030: 組織ツリーとの紐付け
   isActive: boolean;
   ownerUserId: string | null;
   ownerName: string | null;           // 表示用
@@ -201,6 +202,7 @@ export interface CreateBusinessUnitInput {
   name: string;
   type: BusinessUnitType;
   locationHint?: string | null;
+  orgUnitId?: string | null;          // Task 030: 組織ツリーとの紐付け
   ownerUserId?: string | null;
 }
 
@@ -208,6 +210,7 @@ export interface UpdateBusinessUnitInput {
   name?: string;
   type?: BusinessUnitType;
   locationHint?: string | null;
+  orgUnitId?: string | null;          // Task 030: 組織ツリーとの紐付け
   ownerUserId?: string | null;
   isActive?: boolean;
 }

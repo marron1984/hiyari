@@ -70,6 +70,7 @@ export interface Ticket {
   status: TicketStatus;
   priority: TicketPriority;
   category: TicketCategory;
+  businessUnitId: string | null;      // Task 030: 事業単位スコープ
   requesterUserId: string;
   requesterUserName?: string;
   assigneeUserId: string | null;
@@ -131,6 +132,7 @@ export interface CreateTicketRequest {
   description: string;
   priority?: TicketPriority;
   category?: TicketCategory;
+  businessUnitId?: string | null;     // Task 030: 事業単位スコープ
   dueAt?: string | null;
   tags?: string[] | null;
   relatedType?: TicketRelatedType;
@@ -146,6 +148,7 @@ export interface UpdateTicketRequest {
   description?: string;
   priority?: TicketPriority;
   category?: TicketCategory;
+  businessUnitId?: string | null;  // Task 033: backfill用
   dueAt?: string | null;
   tags?: string[] | null;
   location?: string | null;
@@ -158,6 +161,7 @@ export interface TicketListFilter {
   status?: TicketStatus;
   priority?: TicketPriority;
   category?: TicketCategory;
+  businessUnitId?: string | null;     // Task 030: 事業単位スコープ
   q?: string;
   my?: 'assigned' | 'requested' | 'watching';
   overdue?: boolean;

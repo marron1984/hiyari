@@ -1,30 +1,58 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
 import {
   ArrowLeft,
   Ticket,
   AlertTriangle,
+  Building2,
 } from 'lucide-react';
 import type { TicketPriority, TicketCategory } from '@/lib/tickets/types';
 import {
   TICKET_PRIORITY_CONFIG,
   TICKET_CATEGORY_CONFIG,
 } from '@/lib/tickets/types';
+import type { BusinessUnit } from '@/lib/business/types';
 
 export default function NewTicketPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Task 030: businessUnitId 初期値（URLパラメータから取得）
+  const initialBusinessUnitId = searchParams.get('businessUnitId') || '';
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TicketPriority>('normal');
   const [category, setCategory] = useState<TicketCategory>('general');
+  const [businessUnitId, setBusinessUnitId] = useState(initialBusinessUnitId);
   const [dueAt, setDueAt] = useState('');
   const [location, setLocation] = useState('');
   const [tags, setTags] = useState('');
+
+  // Task 030: 事業単位リスト
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
+  const [loadingBU, setLoadingBU] = useState(true);
+
+  useEffect(() => {
+    async function fetchBusinessUnits() {
+      try {
+        const res = await fetch('/api/business/units');
+        if (res.ok) {
+          const data = await res.json();
+          setBusinessUnits(data.units || []);
+        }
+      } catch {
+        console.error('Failed to fetch business units');
+      } finally {
+        setLoadingBU(false);
+      }
+    }
+    fetchBusinessUnits();
+  }, []);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +77,7 @@ export default function NewTicketPage() {
           description: description.trim(),
           priority,
           category,
+          businessUnitId: businessUnitId || null,  // Task 030
           dueAt: dueAt ? new Date(dueAt).toISOString() : null,
           location: location.trim() || null,
           tags: tags.trim()
@@ -172,6 +201,32 @@ export default function NewTicketPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Task 030: 事業単位 */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">
+                  <span className="inline-flex items-center gap-1">
+                    <Building2 className="w-4 h-4" />
+                    事業単位
+                  </span>
+                </label>
+                <select
+                  value={businessUnitId}
+                  onChange={(e) => setBusinessUnitId(e.target.value)}
+                  className="w-full px-3 py-2 border border-zinc-200 rounded-lg"
+                  disabled={loadingBU}
+                >
+                  <option value="">（未指定）</option>
+                  {businessUnits.map((bu) => (
+                    <option key={bu.id} value={bu.id}>
+                      {bu.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-zinc-500">
+                  関連する事業を選択すると、事業別の集計に反映されます
+                </p>
               </div>
             </CardContent>
           </Card>
