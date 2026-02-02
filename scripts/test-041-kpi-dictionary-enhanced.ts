@@ -30,7 +30,6 @@ import {
   clearCalculationRefStore,
 } from '../src/lib/kpiDictionary/calculationRefRepo';
 import { generateWBR } from '../src/lib/wbr-generator';
-import { collectHighlights } from '../src/lib/business/repo';
 
 // テスト結果
 let passed = 0;

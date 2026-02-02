@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent, Badge } from '@/components/ui';
 import {
@@ -25,7 +25,18 @@ import {
   Flame,
   Calendar,
   ChevronRight,
+  Building2,
+  ExternalLink,
 } from 'lucide-react';
+import type { ActionCandidate, BusinessTop3Result } from '@/lib/aiVp/businessTop3';
+
+// 事業別Top3 APIレスポンス型
+interface BusinessTop3ApiResponse {
+  businessUnits: BusinessTop3Result[];
+  topActions: ActionCandidate[];
+  globalAlerts: ActionCandidate[];
+  generatedAt: string;
+}
 import {
   OS_FEATURES,
   calculateCompositeScore,
@@ -214,6 +225,39 @@ export default function AiVpHubPage() {
     return { top3, riskWarnings, sprintCandidates };
   }, []);
 
+  // 事業別Top3の取得
+  const [businessTop3, setBusinessTop3] = useState<BusinessTop3ApiResponse | null>(null);
+  const [businessTop3Loading, setBusinessTop3Loading] = useState(true);
+
+  useEffect(() => {
+    async function fetchBusinessTop3() {
+      try {
+        const res = await fetch('/api/ai-vp/business-top3');
+        if (res.ok) {
+          const data = await res.json();
+          setBusinessTop3(data);
+        }
+      } catch (e) {
+        console.error('[AI-VP] Failed to fetch business top3:', e);
+      } finally {
+        setBusinessTop3Loading(false);
+      }
+    }
+    fetchBusinessTop3();
+  }, []);
+
+  // severity に応じたバッジスタイル
+  const getSeverityBadgeStyle = (severity: ActionCandidate['severity']) => {
+    switch (severity) {
+      case 'critical':
+        return 'bg-red-100 text-red-700';
+      case 'warning':
+        return 'bg-amber-100 text-amber-700';
+      default:
+        return 'bg-blue-100 text-blue-700';
+    }
+  };
+
   return (
     <main className="pb-8">
       <div className="max-w-4xl mx-auto px-4 py-6">
@@ -288,6 +332,120 @@ export default function AiVpHubPage() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* セクション①-B：事業別Top3（Task 042） */}
+          <Card className="border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-emerald-500 rounded-lg">
+                  <Building2 className="w-4 h-4 text-white" />
+                </div>
+                <CardTitle className="text-lg text-emerald-800">事業別 Top3</CardTitle>
+                {businessTop3 && (
+                  <Badge className="bg-emerald-100 text-emerald-700">
+                    {businessTop3.businessUnits.length}事業
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-emerald-600 mt-1">
+                各事業の今週やるべきアクションをスコア順で提示します
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {businessTop3Loading ? (
+                <div className="text-center py-6 text-emerald-600">
+                  読み込み中...
+                </div>
+              ) : businessTop3 && businessTop3.businessUnits.length > 0 ? (
+                <div className="space-y-4">
+                  {businessTop3.businessUnits.map((bu) => (
+                    <div key={bu.businessUnitId} className="bg-white rounded-lg border border-emerald-100 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-bold text-zinc-800">{bu.businessUnitName}</span>
+                        <Badge className="bg-zinc-100 text-zinc-600 text-xs">
+                          {bu.businessUnitType}
+                        </Badge>
+                      </div>
+                      {bu.actions.length > 0 ? (
+                        <div className="space-y-2">
+                          {bu.actions.map((action, idx) => (
+                            <Link
+                              key={action.key}
+                              href={action.url}
+                              className="flex items-start gap-2 p-2 rounded hover:bg-emerald-50 transition-all group"
+                            >
+                              <div className={`w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0 ${
+                                idx === 0 ? 'bg-emerald-500 text-white' :
+                                idx === 1 ? 'bg-emerald-300 text-emerald-800' :
+                                'bg-emerald-200 text-emerald-700'
+                              }`}>
+                                {idx + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium text-zinc-800">{action.title}</span>
+                                  <Badge className={`text-xs ${getSeverityBadgeStyle(action.severity)}`}>
+                                    {action.severity === 'critical' ? '重大' :
+                                     action.severity === 'warning' ? '注意' : '情報'}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-zinc-500 mt-0.5">{action.reason}</p>
+                              </div>
+                              <ExternalLink className="w-4 h-4 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-zinc-500">今週の重要アクションはありません</p>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* 全社アラート（globalAlerts）*/}
+                  {businessTop3.globalAlerts && businessTop3.globalAlerts.length > 0 && (
+                    <div className="bg-red-50 rounded-lg border border-red-100 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                        <span className="font-bold text-red-800">全社アラート Top3</span>
+                      </div>
+                      <div className="space-y-2">
+                        {businessTop3.globalAlerts.map((alert, idx) => (
+                          <Link
+                            key={alert.key}
+                            href={alert.url}
+                            className="flex items-start gap-2 p-2 rounded hover:bg-red-100 transition-all group"
+                          >
+                            <div className={`w-5 h-5 flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0 ${
+                              idx === 0 ? 'bg-red-500 text-white' :
+                              idx === 1 ? 'bg-red-300 text-red-800' :
+                              'bg-red-200 text-red-700'
+                            }`}>
+                              {idx + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium text-zinc-800">{alert.title}</span>
+                                <Badge className={`text-xs ${getSeverityBadgeStyle(alert.severity)}`}>
+                                  {alert.severity === 'critical' ? '重大' :
+                                   alert.severity === 'warning' ? '注意' : '情報'}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-zinc-500 mt-0.5">{alert.reason}</p>
+                            </div>
+                            <ExternalLink className="w-4 h-4 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-emerald-600">
+                  閲覧可能な事業がありません（権限を確認してください）
+                </div>
+              )}
             </CardContent>
           </Card>
 

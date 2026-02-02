@@ -23,6 +23,9 @@ import { getUnclassifiedCounts } from '@/lib/scope/detectUnclassifiedBusinessUni
 import type { UnclassifiedCounts } from '@/lib/scope/types';
 // Task 041: KPI辞書参照
 import { getKPIDictionaryEntry } from '@/lib/kpiDictionary/repo';
+// Task 042: AI VP Business Top3
+import { generateWBRBusinessTop3Summary } from '@/lib/aiVp/businessTop3';
+import type { ViewerContext } from '@/lib/business/types';
 
 // WBRレポート型
 export interface WBRReport {
@@ -37,6 +40,7 @@ export interface WBRReport {
   riskAlerts: RiskAlertSection;
   nextActions: NextActionsSection;
   aiComment: AICommentSection;
+  businessTop3?: BusinessTop3Section;  // Task 042: 事業別Top3
 }
 
 // ① 週次サマリー
@@ -108,6 +112,12 @@ export interface NextActionsSection {
 export interface AICommentSection {
   judgmentSummary: string; // 今週の判断総括
   nextWeekInsight: string; // 来週への示唆
+}
+
+// ⑦ 事業別Top3（Task 042）
+export interface BusinessTop3Section {
+  topBusinessRisks: { name: string; riskLevel: string; topAction: string | null }[];
+  globalTopActions: string[];
 }
 
 /**
@@ -454,7 +464,7 @@ function generateAIComment(
 /**
  * WBRレポートを生成
  */
-export function generateWBR(date: Date = new Date()): WBRReport {
+export function generateWBR(date: Date = new Date(), viewer?: ViewerContext): WBRReport {
   const week = getWeekRange(date);
   const executiveSummary = generateExecutiveSummary();
   const kpiHighlights = generateKPIHighlights();
@@ -462,6 +472,12 @@ export function generateWBR(date: Date = new Date()): WBRReport {
   const riskAlerts = generateRiskAlerts();
   const nextActions = generateNextActions();
   const aiComment = generateAIComment(executiveSummary, riskAlerts);
+
+  // Task 042: 事業別Top3を生成（viewerが指定された場合のみ）
+  let businessTop3: BusinessTop3Section | undefined;
+  if (viewer) {
+    businessTop3 = generateWBRBusinessTop3Summary(viewer);
+  }
 
   const formatDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -478,6 +494,7 @@ export function generateWBR(date: Date = new Date()): WBRReport {
     riskAlerts,
     nextActions,
     aiComment,
+    businessTop3,
   };
 }
 
@@ -585,6 +602,29 @@ export function exportWBRToText(report: WBRReport): string {
     lines.push('     → Scope Backfill で事業単位を割り当ててください');
   }
   lines.push('');
+
+  // Task 042: 事業別Top3
+  if (report.businessTop3) {
+    lines.push('■ 4.5. AI副社長 事業別Top3');
+    lines.push('──────────────────────────────────────────────────────────────');
+    if (report.businessTop3.topBusinessRisks.length > 0) {
+      lines.push('【高リスク事業】');
+      report.businessTop3.topBusinessRisks.forEach((r) => {
+        const levelIcon = r.riskLevel === 'critical' ? '🔴' : r.riskLevel === 'high' ? '🟠' : '🟡';
+        lines.push(`  ${levelIcon} ${r.name}（${r.riskLevel}）`);
+        if (r.topAction) {
+          lines.push(`     最優先: ${r.topAction}`);
+        }
+      });
+    }
+    if (report.businessTop3.globalTopActions.length > 0) {
+      lines.push('【全社Top3アクション】');
+      report.businessTop3.globalTopActions.forEach((a, i) => {
+        lines.push(`  ${i + 1}. ${a}`);
+      });
+    }
+    lines.push('');
+  }
 
   // ⑤ 来週のアクション
   lines.push('■ 5. 来週のアクション（Next Actions）');
@@ -841,6 +881,41 @@ export function exportWBRToHTML(report: WBRReport): string {
       ].filter(Boolean).join('、')}<br>
       → Scope Backfill で事業単位を割り当ててください
     </div>
+  `
+      : ''
+  }
+
+  ${
+    report.businessTop3
+      ? `
+  <h2>4.5. AI副社長 事業別Top3（Task 042）</h2>
+  ${
+    report.businessTop3.topBusinessRisks.length > 0
+      ? `
+    <h4>高リスク事業</h4>
+    ${report.businessTop3.topBusinessRisks
+      .map(
+        (r) => `
+      <div class="${r.riskLevel === 'critical' ? 'risk-critical' : 'risk-high'}">
+        <strong>${r.riskLevel === 'critical' ? '🔴' : r.riskLevel === 'high' ? '🟠' : '🟡'} ${r.name}</strong>（${r.riskLevel}）
+        ${r.topAction ? `<br>最優先: ${r.topAction}` : ''}
+      </div>
+    `
+      )
+      .join('')}
+  `
+      : ''
+  }
+  ${
+    report.businessTop3.globalTopActions.length > 0
+      ? `
+    <h4>全社Top3アクション</h4>
+    <ol>
+      ${report.businessTop3.globalTopActions.map((a) => `<li>${a}</li>`).join('')}
+    </ol>
+  `
+      : ''
+  }
   `
       : ''
   }
