@@ -15,7 +15,10 @@ export type AlertType =
   | 'handover_urgent'   // 重要申し送り
   | 'ticket_backlog'    // チケット滞留
   | 'training_overdue'  // 研修期限超過
-  | 'committee_risk';   // 委員会リスク
+  | 'committee_risk'    // 委員会リスク
+  | 'complaint_risk'    // クレームリスク
+  | 'receivable_risk'   // 未収リスク
+  | 'collection_flow_risk';  // 回収フローリスク
 
 /**
  * アラート重要度
@@ -113,6 +116,9 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   ticket_backlog: 'チケット滞留',
   training_overdue: '研修期限超過',
   committee_risk: '委員会リスク',
+  complaint_risk: 'クレームリスク',
+  receivable_risk: '未収リスク',
+  collection_flow_risk: '回収フロー超過',
 };
 
 /**

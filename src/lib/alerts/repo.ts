@@ -209,6 +209,9 @@ export function getAlertStats(): AlertStats {
       ticket_backlog: 0,
       training_overdue: 0,
       committee_risk: 0,
+      complaint_risk: 0,
+      receivable_risk: 0,
+      collection_flow_risk: 0,
     },
   };
 
