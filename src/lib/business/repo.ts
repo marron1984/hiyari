@@ -3,6 +3,8 @@
  *
  * 事業単位マスタと集計サマリー生成
  * 現状は in-memory ストレージ（将来 DB 置換）
+ *
+ * Task 030: org/business スコープ適用
  */
 
 import type {
@@ -25,6 +27,15 @@ import * as trainingRepo from '@/lib/training/repo';
 import * as receivablesRepo from '@/lib/receivables/repo';
 import * as collectionRepo from '@/lib/collection/repo';
 import * as agreementsRepo from '@/lib/agreements/repo';
+
+// スコープ (Task 030)
+import type { Scope, DomainCoverage, AppRole } from '@/lib/access/scope';
+import {
+  createScope,
+  isBusinessUnitInScope,
+  DOMAIN_SCOPE_COVERAGE,
+  getUnscopedDomains,
+} from '@/lib/access/scope';
 
 // ========== ストレージ ==========
 
@@ -388,6 +399,160 @@ export function getBusinessSummaryOverviews(
   });
 
   return overviews;
+}
+
+// ========== スコープ対応版 (Task 030) ==========
+
+/**
+ * スコープに基づいて事業単位をフィルタして一覧取得
+ */
+export function listBusinessUnitsWithScope(
+  scope: Scope,
+  activeOnly: boolean = true
+): BusinessUnit[] {
+  let items = listBusinessUnits(activeOnly);
+
+  // スコープでフィルタ
+  items = items.filter((unit) => isBusinessUnitInScope(scope, unit.id));
+
+  return items;
+}
+
+/**
+ * スコープ情報付きのサマリー概要
+ */
+export interface ScopedBusinessSummaryOverview extends BusinessSummaryOverview {
+  isFiltered: boolean;  // スコープでフィルタされているか
+}
+
+/**
+ * スコープ付きの全事業サマリー概要レスポンス
+ */
+export interface ScopedOverviewsResponse {
+  overviews: ScopedBusinessSummaryOverview[];
+  scope: {
+    role: AppRole;
+    businessUnitIds: string[] | undefined;
+    isFullAccess: boolean;
+  };
+  domainCoverage: DomainCoverage[];
+  unscopedDomains: DomainCoverage[];
+}
+
+/**
+ * スコープ対応版: 全事業サマリー概要を取得
+ */
+export function getBusinessSummaryOverviewsWithScope(
+  userId: string,
+  role: AppRole
+): ScopedOverviewsResponse {
+  // スコープを生成
+  const scope = createScope(userId, role);
+
+  // ViewerContextに変換（レガシー関数用）
+  const viewer: ViewerContext = { userId, role };
+
+  if (!canViewBusinessSummary(role)) {
+    return {
+      overviews: [],
+      scope: {
+        role,
+        businessUnitIds: scope.businessUnitIds,
+        isFullAccess: false,
+      },
+      domainCoverage: DOMAIN_SCOPE_COVERAGE,
+      unscopedDomains: getUnscopedDomains(),
+    };
+  }
+
+  // 全事業を取得
+  const allUnits = listBusinessUnits(true);
+
+  // スコープ内の事業のみ
+  const scopedUnits = allUnits.filter((unit) => isBusinessUnitInScope(scope, unit.id));
+
+  const isFullAccess = ['admin', 'executive', 'auditor'].includes(role);
+
+  const overviews: ScopedBusinessSummaryOverview[] = [];
+
+  for (const unit of scopedUnits) {
+    const summary = generateBusinessSummary(viewer, unit.id);
+    if (!summary) continue;
+
+    const h = summary.highlights;
+    const criticalIssues =
+      h.alerts.criticalOpen +
+      h.complaints.criticalOpen +
+      h.correctiveActions.criticalOpen;
+
+    const warningIssues =
+      h.alerts.warningOpen +
+      h.complaints.highOpen +
+      h.complaints.overdue +
+      h.training.overdue +
+      h.agreements.expired +
+      h.collection.overdueSteps;
+
+    const totalIssues = criticalIssues + warningIssues;
+
+    let riskLevel: 'critical' | 'warning' | 'normal' = 'normal';
+    if (criticalIssues > 0) {
+      riskLevel = 'critical';
+    } else if (warningIssues > 0) {
+      riskLevel = 'warning';
+    }
+
+    overviews.push({
+      unit,
+      riskLevel,
+      totalIssues,
+      criticalIssues,
+      isFiltered: !isFullAccess,
+    });
+  }
+
+  // リスクレベル順でソート
+  overviews.sort((a, b) => {
+    const levelOrder = { critical: 0, warning: 1, normal: 2 };
+    const levelDiff = levelOrder[a.riskLevel] - levelOrder[b.riskLevel];
+    if (levelDiff !== 0) return levelDiff;
+    return b.totalIssues - a.totalIssues;
+  });
+
+  return {
+    overviews,
+    scope: {
+      role,
+      businessUnitIds: scope.businessUnitIds,
+      isFullAccess,
+    },
+    domainCoverage: DOMAIN_SCOPE_COVERAGE,
+    unscopedDomains: getUnscopedDomains(),
+  };
+}
+
+/**
+ * スコープに基づいてサマリーを生成（将来の拡張用）
+ */
+export function generateBusinessSummaryWithScope(
+  scope: Scope,
+  businessUnitId: string | null,
+  range: SummaryRange = 'thisMonth'
+): BusinessSummary | null {
+  // 権限チェック
+  if (!canViewBusinessSummary(scope.role)) {
+    return null;
+  }
+
+  // 特定事業の場合、スコープ内かチェック
+  if (businessUnitId && !isBusinessUnitInScope(scope, businessUnitId)) {
+    return null;
+  }
+
+  // ViewerContextに変換
+  const viewer: ViewerContext = { userId: scope.userId, role: scope.role };
+
+  return generateBusinessSummary(viewer, businessUnitId, range);
 }
 
 // ========== デモデータ ==========
