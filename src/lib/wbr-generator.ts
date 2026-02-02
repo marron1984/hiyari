@@ -21,6 +21,13 @@ import {
 import { getWeeklyAlertSummary } from '@/lib/alerts/repo';
 import { getUnclassifiedCounts } from '@/lib/scope/detectUnclassifiedBusinessUnit';
 import type { UnclassifiedCounts } from '@/lib/scope/types';
+// Task 041: KPI辞書参照
+import { getKPIDictionaryEntry } from '@/lib/kpiDictionary/repo';
+// Task 042: AI VP Business Top3
+import { generateWBRBusinessTop3Summary } from '@/lib/aiVp/businessTop3';
+// Task 043: AI VP Generated Tickets
+import { getGeneratedTicketsThisWeek } from '@/lib/aiVp/ticketGenerator';
+import type { ViewerContext } from '@/lib/business/types';
 
 // WBRレポート型
 export interface WBRReport {
@@ -35,6 +42,8 @@ export interface WBRReport {
   riskAlerts: RiskAlertSection;
   nextActions: NextActionsSection;
   aiComment: AICommentSection;
+  businessTop3?: BusinessTop3Section;  // Task 042: 事業別Top3
+  generatedTickets?: GeneratedTicketsSection;  // Task 043: 今週生成されたチケット
 }
 
 // ① 週次サマリー
@@ -53,6 +62,9 @@ export interface KPIHighlight {
   direction: 'up' | 'down' | 'stable';
   impact: 'high' | 'medium' | 'low';
   insight: string;
+  // Task 041: 辞書参照で方向性・重要性を表示
+  directionMeaning?: 'higher_is_better' | 'lower_is_better' | 'neutral' | null;
+  whyItMatters?: string | null;
 }
 
 export interface KPIHighlightSection {
@@ -103,6 +115,25 @@ export interface NextActionsSection {
 export interface AICommentSection {
   judgmentSummary: string; // 今週の判断総括
   nextWeekInsight: string; // 来週への示唆
+}
+
+// ⑦ 事業別Top3（Task 042）
+export interface BusinessTop3Section {
+  topBusinessRisks: { name: string; riskLevel: string; topAction: string | null }[];
+  globalTopActions: string[];
+}
+
+// ⑧ 今週生成されたAI-VPチケット（Task 043）
+export interface GeneratedTicketsSection {
+  tickets: {
+    id: string;
+    title: string;
+    priority: string;
+    businessUnitId: string | null;
+    status: string;
+    dueAt: string | null;
+  }[];
+  totalCount: number;
 }
 
 /**
@@ -206,6 +237,15 @@ function generateKPIHighlights(): KPIHighlightSection {
   // シミュレートされたKPI変動（実際のシステムではDBから取得）
   const highlights: KPIHighlight[] = [];
 
+  // Task 041: KPI辞書から direction/whyItMatters を取得するヘルパー
+  const getDictMetadata = (kpiId: string) => {
+    const entry = getKPIDictionaryEntry(kpiId);
+    return {
+      directionMeaning: entry?.direction ?? null,
+      whyItMatters: entry?.whyItMatters ?? null,
+    };
+  };
+
   // 機能実装進捗
   const progressPercent = Math.round((counts.active / OS_FEATURES.length) * 100);
   const prevProgress = progressPercent - Math.floor(Math.random() * 5 + 2); // 仮の前週値
@@ -217,6 +257,8 @@ function generateKPIHighlights(): KPIHighlightSection {
     direction: 'up',
     impact: 'high',
     insight: `前週比+${progressPercent - prevProgress}%。計画通りの進捗を維持。`,
+    directionMeaning: 'higher_is_better',
+    whyItMatters: 'OS機能の実装進捗は経営基盤整備の直接指標。計画通りの進捗が組織の成長を支える。',
   });
 
   // 高リスク未着手件数
@@ -234,6 +276,8 @@ function generateKPIHighlights(): KPIHighlightSection {
       highRiskCount >= 5
         ? '放置リスクが高い機能が残存。優先的な対応を推奨。'
         : 'リスク管理は概ね適正。引き続き監視を継続。',
+    directionMeaning: 'lower_is_better',
+    whyItMatters: '高リスク機能の放置は業務停滞や事故発生リスクを高める。早期対応が組織の安定につながる。',
   });
 
   // 今月対応予定チケット
@@ -245,7 +289,24 @@ function generateKPIHighlights(): KPIHighlightSection {
     direction: 'down',
     impact: 'medium',
     insight: 'チケット消化が進行中。計画的な実行を継続。',
+    directionMeaning: 'neutral',
+    whyItMatters: 'チケット消化は開発リズムの指標。適切なペースでの消化が品質と速度のバランスを保つ。',
   });
+
+  // Task 041: KPI辞書ベースのハイライト追加
+  const occupancyEntry = getKPIDictionaryEntry('occupancy_rate');
+  if (occupancyEntry) {
+    highlights.push({
+      name: occupancyEntry.name,
+      currentValue: '92.5%',
+      previousValue: '91.2%',
+      changePercent: 1.4,
+      direction: 'up',
+      impact: 'high',
+      insight: '入居率は順調に推移。目標の95%に向けて継続注力。',
+      ...getDictMetadata('occupancy_rate'),
+    });
+  }
 
   return { highlights };
 }
@@ -419,7 +480,7 @@ function generateAIComment(
 /**
  * WBRレポートを生成
  */
-export function generateWBR(date: Date = new Date()): WBRReport {
+export function generateWBR(date: Date = new Date(), viewer?: ViewerContext): WBRReport {
   const week = getWeekRange(date);
   const executiveSummary = generateExecutiveSummary();
   const kpiHighlights = generateKPIHighlights();
@@ -427,6 +488,31 @@ export function generateWBR(date: Date = new Date()): WBRReport {
   const riskAlerts = generateRiskAlerts();
   const nextActions = generateNextActions();
   const aiComment = generateAIComment(executiveSummary, riskAlerts);
+
+  // Task 042: 事業別Top3を生成（viewerが指定された場合のみ）
+  let businessTop3: BusinessTop3Section | undefined;
+  if (viewer) {
+    businessTop3 = generateWBRBusinessTop3Summary(viewer);
+  }
+
+  // Task 043: 今週生成されたAI-VPチケットを取得
+  let generatedTickets: GeneratedTicketsSection | undefined;
+  if (viewer) {
+    const tickets = getGeneratedTicketsThisWeek(viewer);
+    if (tickets.length > 0) {
+      generatedTickets = {
+        tickets: tickets.map((t) => ({
+          id: t.id,
+          title: t.title,
+          priority: t.priority,
+          businessUnitId: t.businessUnitId,
+          status: t.status,
+          dueAt: t.dueAt,
+        })),
+        totalCount: tickets.length,
+      };
+    }
+  }
 
   const formatDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -443,6 +529,8 @@ export function generateWBR(date: Date = new Date()): WBRReport {
     riskAlerts,
     nextActions,
     aiComment,
+    businessTop3,
+    generatedTickets,
   };
 }
 
@@ -550,6 +638,44 @@ export function exportWBRToText(report: WBRReport): string {
     lines.push('     → Scope Backfill で事業単位を割り当ててください');
   }
   lines.push('');
+
+  // Task 042: 事業別Top3
+  if (report.businessTop3) {
+    lines.push('■ 4.5. AI副社長 事業別Top3');
+    lines.push('──────────────────────────────────────────────────────────────');
+    if (report.businessTop3.topBusinessRisks.length > 0) {
+      lines.push('【高リスク事業】');
+      report.businessTop3.topBusinessRisks.forEach((r) => {
+        const levelIcon = r.riskLevel === 'critical' ? '🔴' : r.riskLevel === 'high' ? '🟠' : '🟡';
+        lines.push(`  ${levelIcon} ${r.name}（${r.riskLevel}）`);
+        if (r.topAction) {
+          lines.push(`     最優先: ${r.topAction}`);
+        }
+      });
+    }
+    if (report.businessTop3.globalTopActions.length > 0) {
+      lines.push('【全社Top3アクション】');
+      report.businessTop3.globalTopActions.forEach((a, i) => {
+        lines.push(`  ${i + 1}. ${a}`);
+      });
+    }
+    lines.push('');
+  }
+
+  // Task 043: 今週生成されたAI-VPチケット
+  if (report.generatedTickets && report.generatedTickets.totalCount > 0) {
+    lines.push('■ 4.6. 今週生成されたAI-VPチケット（Task 043）');
+    lines.push('──────────────────────────────────────────────────────────────');
+    lines.push(`  合計 ${report.generatedTickets.totalCount}件 のチケットがAI副社長により自動生成されました`);
+    lines.push('');
+    report.generatedTickets.tickets.forEach((t, i) => {
+      const priorityIcon = t.priority === 'urgent' ? '🔴' : t.priority === 'high' ? '🟠' : '🔵';
+      const statusText = t.status === 'open' ? '未着手' : t.status === 'in_progress' ? '対応中' : t.status;
+      lines.push(`  ${i + 1}. ${priorityIcon} ${t.title}`);
+      lines.push(`     ステータス: ${statusText} / 期限: ${t.dueAt?.slice(0, 10) ?? '未設定'}`);
+    });
+    lines.push('');
+  }
 
   // ⑤ 来週のアクション
   lines.push('■ 5. 来週のアクション（Next Actions）');
@@ -806,6 +932,64 @@ export function exportWBRToHTML(report: WBRReport): string {
       ].filter(Boolean).join('、')}<br>
       → Scope Backfill で事業単位を割り当ててください
     </div>
+  `
+      : ''
+  }
+
+  ${
+    report.businessTop3
+      ? `
+  <h2>4.5. AI副社長 事業別Top3（Task 042）</h2>
+  ${
+    report.businessTop3.topBusinessRisks.length > 0
+      ? `
+    <h4>高リスク事業</h4>
+    ${report.businessTop3.topBusinessRisks
+      .map(
+        (r) => `
+      <div class="${r.riskLevel === 'critical' ? 'risk-critical' : 'risk-high'}">
+        <strong>${r.riskLevel === 'critical' ? '🔴' : r.riskLevel === 'high' ? '🟠' : '🟡'} ${r.name}</strong>（${r.riskLevel}）
+        ${r.topAction ? `<br>最優先: ${r.topAction}` : ''}
+      </div>
+    `
+      )
+      .join('')}
+  `
+      : ''
+  }
+  ${
+    report.businessTop3.globalTopActions.length > 0
+      ? `
+    <h4>全社Top3アクション</h4>
+    <ol>
+      ${report.businessTop3.globalTopActions.map((a) => `<li>${a}</li>`).join('')}
+    </ol>
+  `
+      : ''
+  }
+  `
+      : ''
+  }
+
+  ${
+    report.generatedTickets && report.generatedTickets.totalCount > 0
+      ? `
+  <h2>4.6. 今週生成されたAI-VPチケット（Task 043）</h2>
+  <p>合計 <strong>${report.generatedTickets.totalCount}件</strong> のチケットがAI副社長により自動生成されました</p>
+  <div>
+    ${report.generatedTickets.tickets
+      .map((t, i) => {
+        const priorityIcon = t.priority === 'urgent' ? '🔴' : t.priority === 'high' ? '🟠' : '🔵';
+        const statusText = t.status === 'open' ? '未着手' : t.status === 'in_progress' ? '対応中' : t.status;
+        return `
+      <div class="progress-item">
+        ${priorityIcon} <strong>${i + 1}. ${t.title}</strong><br>
+        ステータス: ${statusText} / 期限: ${t.dueAt?.slice(0, 10) ?? '未設定'}
+      </div>
+    `;
+      })
+      .join('')}
+  </div>
   `
       : ''
   }

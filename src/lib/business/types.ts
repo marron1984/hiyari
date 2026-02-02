@@ -78,6 +78,9 @@ export interface KpiHighlight {
   trend: 'up' | 'down' | 'flat' | null;
   trendText: string | null;
   url: string;
+  // Task 041: 辞書参照で方向性・重要性を表示
+  direction?: 'higher_is_better' | 'lower_is_better' | 'neutral' | null;
+  whyItMatters?: string | null;
 }
 
 export interface AlertsHighlight {

@@ -11,8 +11,9 @@ import type { AppRole } from '@/config/appRoles';
 
 /**
  * 申請タイプ
+ * Task 040: share_issue（外部共有発行承認）追加
  */
-export type RequestType = 'expense' | 'overtime' | 'generic';
+export type RequestType = 'expense' | 'overtime' | 'generic' | 'share_issue';
 
 /**
  * フローステータス

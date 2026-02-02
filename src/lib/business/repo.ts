@@ -43,6 +43,9 @@ import {
   getUnscopedDomains,
 } from '@/lib/access/scope';
 
+// Task 041: KPI辞書参照
+import { getKPIDictionaryEntry } from '@/lib/kpiDictionary/repo';
+
 // ========== ストレージ ==========
 
 const businessUnitsStore = new Map<string, BusinessUnit>();
@@ -210,6 +213,15 @@ function collectHighlights(
   // URL生成ヘルパー
   const buQuery = businessUnitId ? `?businessUnitId=${businessUnitId}` : '';
 
+  // Task 041: KPI辞書から direction/whyItMatters を取得
+  const getKpiMetadata = (kpiId: string) => {
+    const entry = getKPIDictionaryEntry(kpiId);
+    return {
+      direction: entry?.direction ?? null,
+      whyItMatters: entry?.whyItMatters ?? null,
+    };
+  };
+
   return {
     kpi: {
       keyMetrics: [
@@ -218,25 +230,28 @@ function collectHighlights(
           kpiId: 'occupancy_rate',
           name: '稼働率',
           displayValue: '92.5%',
-          trend: 'up',
+          trend: 'up' as const,
           trendText: '+2.1% 先月比',
           url: '/dashboard/kpi',
+          ...getKpiMetadata('occupancy_rate'),
         },
         {
-          kpiId: 'staff_retention',
-          name: '職員定着率',
-          displayValue: '87.3%',
-          trend: 'flat',
-          trendText: '±0.2%',
+          kpiId: 'staff_turnover',
+          name: '離職率',
+          displayValue: '12.5%',
+          trend: 'down' as const,
+          trendText: '-1.2%',
           url: '/dashboard/kpi',
+          ...getKpiMetadata('staff_turnover'),
         },
         {
-          kpiId: 'customer_satisfaction',
-          name: '顧客満足度',
-          displayValue: '4.2/5.0',
-          trend: 'up',
-          trendText: '+0.3',
+          kpiId: 'hiyari_count',
+          name: 'ヒヤリハット報告',
+          displayValue: '23件',
+          trend: 'up' as const,
+          trendText: '+5件',
           url: '/dashboard/kpi',
+          ...getKpiMetadata('hiyari_count'),
         },
       ],
     },
