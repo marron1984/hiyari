@@ -27,6 +27,7 @@ import {
   Zap,
   Clock,
   Shield,
+  BookOpen,
 } from 'lucide-react';
 
 export default function WbrPage() {
@@ -200,11 +201,17 @@ export default function WbrPage() {
         {/* ===== ② KPIハイライト ===== */}
         <Card className="mb-6">
           <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-emerald-500 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-white" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-emerald-500 rounded-lg">
+                  <TrendingUp className="w-4 h-4 text-white" />
+                </div>
+                <CardTitle className="text-lg">2. KPIハイライト</CardTitle>
               </div>
-              <CardTitle className="text-lg">2. KPIハイライト</CardTitle>
+              <Link href="/dashboard/kpi-dictionary" className="text-xs text-emerald-600 hover:text-emerald-800 flex items-center gap-1">
+                <BookOpen className="w-3 h-3" />
+                KPI辞書
+              </Link>
             </div>
             <p className="text-sm text-zinc-500 mt-1">
               今週変動があった重要指標
@@ -516,16 +523,28 @@ export default function WbrPage() {
           </p>
           <div className="mt-4 flex justify-center gap-4">
             <Link
+              href="/dashboard/kpi"
+              className="text-sm text-emerald-500 hover:text-emerald-700"
+            >
+              KPIダッシュボード →
+            </Link>
+            <Link
+              href="/dashboard/kpi-dictionary"
+              className="text-sm text-teal-500 hover:text-teal-700"
+            >
+              KPI辞書 →
+            </Link>
+            <Link
               href="/dashboard/executive-summary"
               className="text-sm text-indigo-500 hover:text-indigo-700"
             >
-              経営サマリーを見る →
+              経営サマリー →
             </Link>
             <Link
               href="/dashboard/ai-vp"
               className="text-sm text-purple-500 hover:text-purple-700"
             >
-              AI副社長ハブへ →
+              AI副社長ハブ →
             </Link>
           </div>
         </div>

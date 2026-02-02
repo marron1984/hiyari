@@ -305,6 +305,12 @@ export default function KpiDashboardPage() {
         <div className="mt-8 text-center">
           <div className="flex justify-center gap-4">
             <Link
+              href="/dashboard/kpi-dictionary"
+              className="text-sm text-emerald-500 hover:text-emerald-700"
+            >
+              KPI辞書を見る →
+            </Link>
+            <Link
               href="/dashboard/wbr"
               className="text-sm text-blue-500 hover:text-blue-700"
             >

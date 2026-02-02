@@ -11,7 +11,11 @@ export type AlertType =
   | 'kpi_anomaly'       // KPI異常
   | 'approval_backlog'  // 承認滞留
   | 'deadline_overdue'  // 期限超過
-  | 'system_error';     // システムエラー
+  | 'system_error'      // システムエラー
+  | 'handover_urgent'   // 重要申し送り
+  | 'ticket_backlog'    // チケット滞留
+  | 'training_overdue'  // 研修期限超過
+  | 'committee_risk';   // 委員会リスク
 
 /**
  * アラート重要度
@@ -105,6 +109,10 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   approval_backlog: '承認滞留',
   deadline_overdue: '期限超過',
   system_error: 'システム',
+  handover_urgent: '重要申し送り',
+  ticket_backlog: 'チケット滞留',
+  training_overdue: '研修期限超過',
+  committee_risk: '委員会リスク',
 };
 
 /**
