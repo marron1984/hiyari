@@ -16,6 +16,8 @@ import {
   createAlertNotification,
   checkWebhookConfig,
 } from '@/lib/notifications/webhook';
+import { listEnabledAlertConfigs } from '@/lib/kpiDictionary/anomalyRuleRepo';
+import type { AlertConfig, AnomalyDetectionResult } from '@/lib/kpi/types';
 
 // Cron認証用シークレット
 const ALERT_CRON_SECRET = process.env.ALERT_CRON_SECRET;
@@ -51,10 +53,35 @@ export async function POST(request: NextRequest) {
 
     // 1. KPIデータを取得
     const timeSeriesData = getMockKPITimeSeries();
-    const alertConfigs = getDefaultAlertConfigs();
 
-    // 2. 異常検知を実行
-    const anomalies = detectAllAnomalies(timeSeriesData, alertConfigs);
+    // 2. DB優先でアラート設定を取得（Task 041: 堅牢化）
+    let alertConfigs: AlertConfig[];
+    try {
+      // DBから有効なルールを取得
+      const dbConfigs = listEnabledAlertConfigs();
+      if (dbConfigs.length > 0) {
+        alertConfigs = dbConfigs;
+        console.log(`[KPI Alert] Using ${dbConfigs.length} DB rules`);
+      } else {
+        // DBにルールがない場合はconfigフォールバック
+        alertConfigs = getDefaultAlertConfigs();
+        console.log('[KPI Alert] Fallback to config rules');
+      }
+    } catch (dbError) {
+      // DBエラーの場合もconfigフォールバック
+      console.warn('[KPI Alert] DB error, falling back to config:', dbError);
+      alertConfigs = getDefaultAlertConfigs();
+    }
+
+    // 3. 異常検知を実行（壊れたルールはスキップ）
+    let anomalies: AnomalyDetectionResult[] = [];
+    try {
+      anomalies = detectAllAnomalies(timeSeriesData, alertConfigs);
+    } catch (detectionError) {
+      console.error('[KPI Alert] Detection error:', detectionError);
+      // 個別KPIで失敗しても全体は落とさない
+      anomalies = [];
+    }
 
     console.log(`[KPI Alert] Detected ${anomalies.length} anomalies`);
 
@@ -138,10 +165,29 @@ export async function GET(request: NextRequest) {
   try {
     // KPIデータを取得
     const timeSeriesData = getMockKPITimeSeries();
-    const alertConfigs = getDefaultAlertConfigs();
+
+    // DB優先でアラート設定を取得（Task 041: 堅牢化）
+    let alertConfigs: AlertConfig[];
+    let configSource = 'config';
+    try {
+      const dbConfigs = listEnabledAlertConfigs();
+      if (dbConfigs.length > 0) {
+        alertConfigs = dbConfigs;
+        configSource = 'database';
+      } else {
+        alertConfigs = getDefaultAlertConfigs();
+      }
+    } catch {
+      alertConfigs = getDefaultAlertConfigs();
+    }
 
     // 異常検知を実行（通知なし）
-    const anomalies = detectAllAnomalies(timeSeriesData, alertConfigs);
+    let anomalies: AnomalyDetectionResult[] = [];
+    try {
+      anomalies = detectAllAnomalies(timeSeriesData, alertConfigs);
+    } catch {
+      anomalies = [];
+    }
 
     // Webhook設定状態
     const webhookConfig = checkWebhookConfig();
@@ -150,6 +196,8 @@ export async function GET(request: NextRequest) {
       success: true,
       preview: true,
       anomalyCount: anomalies.length,
+      configSource,
+      configCount: alertConfigs.length,
       anomalies: anomalies.map((a) => ({
         kpiId: a.kpiId,
         kpiName: a.kpiName,

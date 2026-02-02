@@ -66,6 +66,7 @@ export interface KPIDictionaryEntry {
 
   // 算出情報
   calculationMethod: CalculationMethod;
+  calculationRef: string | null;         // 算出リファレンスID（kpi_calculation_refsへの参照）
   calculationNotes: string | null;
   dataSource: string | null;
   refreshCadence: RefreshCadence | null;
@@ -100,6 +101,7 @@ export interface CreateKPIDictionaryRequest {
   whyItMatters?: string | null;
   definition?: string | null;
   calculationMethod?: CalculationMethod;
+  calculationRef?: string | null;
   calculationNotes?: string | null;
   dataSource?: string | null;
   refreshCadence?: RefreshCadence | null;
@@ -127,6 +129,7 @@ export interface UpdateKPIDictionaryRequest {
   whyItMatters?: string | null;
   definition?: string | null;
   calculationMethod?: CalculationMethod;
+  calculationRef?: string | null;
   calculationNotes?: string | null;
   dataSource?: string | null;
   refreshCadence?: RefreshCadence | null;
@@ -183,6 +186,7 @@ export interface KPIAnomalyRule {
   compareTo: 'prevDay' | 'prevWeek' | null;
   zScoreWindowDays: number | null;
   zScoreThreshold: number | null;
+  ruleReason: string | null;               // ルール発火時の影響説明（任意）
   updatedAt: string;
 }
 
@@ -198,4 +202,49 @@ export interface UpdateAnomalyRuleRequest {
   compareTo?: 'prevDay' | 'prevWeek' | null;
   zScoreWindowDays?: number | null;
   zScoreThreshold?: number | null;
+  ruleReason?: string | null;
+}
+
+// ========== KPI算出リファレンス ==========
+
+/**
+ * 算出リファレンスタイプ
+ */
+export type CalculationRefType = 'sql' | 'code' | 'vendor';
+
+/**
+ * KPI算出リファレンス（算出ロジックの台帳）
+ */
+export interface KPICalculationRef {
+  id: string;                               // 人間可読ID: 'kpi_sql_v1:approval_leadtime'
+  type: CalculationRefType;
+  title: string;
+  body: string | null;                      // SQL本文など（codeの場合は空でOK）
+  filePath: string | null;                  // codeの場所
+  ownerUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * KPI算出リファレンス作成リクエスト
+ */
+export interface CreateCalculationRefRequest {
+  id: string;
+  type: CalculationRefType;
+  title: string;
+  body?: string | null;
+  filePath?: string | null;
+  ownerUserId?: string | null;
+}
+
+/**
+ * KPI算出リファレンス更新リクエスト
+ */
+export interface UpdateCalculationRefRequest {
+  type?: CalculationRefType;
+  title?: string;
+  body?: string | null;
+  filePath?: string | null;
+  ownerUserId?: string | null;
 }

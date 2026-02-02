@@ -21,6 +21,8 @@ import {
 import { getWeeklyAlertSummary } from '@/lib/alerts/repo';
 import { getUnclassifiedCounts } from '@/lib/scope/detectUnclassifiedBusinessUnit';
 import type { UnclassifiedCounts } from '@/lib/scope/types';
+// Task 041: KPI辞書参照
+import { getKPIDictionaryEntry } from '@/lib/kpiDictionary/repo';
 
 // WBRレポート型
 export interface WBRReport {
@@ -53,6 +55,9 @@ export interface KPIHighlight {
   direction: 'up' | 'down' | 'stable';
   impact: 'high' | 'medium' | 'low';
   insight: string;
+  // Task 041: 辞書参照で方向性・重要性を表示
+  directionMeaning?: 'higher_is_better' | 'lower_is_better' | 'neutral' | null;
+  whyItMatters?: string | null;
 }
 
 export interface KPIHighlightSection {
@@ -206,6 +211,15 @@ function generateKPIHighlights(): KPIHighlightSection {
   // シミュレートされたKPI変動（実際のシステムではDBから取得）
   const highlights: KPIHighlight[] = [];
 
+  // Task 041: KPI辞書から direction/whyItMatters を取得するヘルパー
+  const getDictMetadata = (kpiId: string) => {
+    const entry = getKPIDictionaryEntry(kpiId);
+    return {
+      directionMeaning: entry?.direction ?? null,
+      whyItMatters: entry?.whyItMatters ?? null,
+    };
+  };
+
   // 機能実装進捗
   const progressPercent = Math.round((counts.active / OS_FEATURES.length) * 100);
   const prevProgress = progressPercent - Math.floor(Math.random() * 5 + 2); // 仮の前週値
@@ -217,6 +231,8 @@ function generateKPIHighlights(): KPIHighlightSection {
     direction: 'up',
     impact: 'high',
     insight: `前週比+${progressPercent - prevProgress}%。計画通りの進捗を維持。`,
+    directionMeaning: 'higher_is_better',
+    whyItMatters: 'OS機能の実装進捗は経営基盤整備の直接指標。計画通りの進捗が組織の成長を支える。',
   });
 
   // 高リスク未着手件数
@@ -234,6 +250,8 @@ function generateKPIHighlights(): KPIHighlightSection {
       highRiskCount >= 5
         ? '放置リスクが高い機能が残存。優先的な対応を推奨。'
         : 'リスク管理は概ね適正。引き続き監視を継続。',
+    directionMeaning: 'lower_is_better',
+    whyItMatters: '高リスク機能の放置は業務停滞や事故発生リスクを高める。早期対応が組織の安定につながる。',
   });
 
   // 今月対応予定チケット
@@ -245,7 +263,24 @@ function generateKPIHighlights(): KPIHighlightSection {
     direction: 'down',
     impact: 'medium',
     insight: 'チケット消化が進行中。計画的な実行を継続。',
+    directionMeaning: 'neutral',
+    whyItMatters: 'チケット消化は開発リズムの指標。適切なペースでの消化が品質と速度のバランスを保つ。',
   });
+
+  // Task 041: KPI辞書ベースのハイライト追加
+  const occupancyEntry = getKPIDictionaryEntry('occupancy_rate');
+  if (occupancyEntry) {
+    highlights.push({
+      name: occupancyEntry.name,
+      currentValue: '92.5%',
+      previousValue: '91.2%',
+      changePercent: 1.4,
+      direction: 'up',
+      impact: 'high',
+      insight: '入居率は順調に推移。目標の95%に向けて継続注力。',
+      ...getDictMetadata('occupancy_rate'),
+    });
+  }
 
   return { highlights };
 }

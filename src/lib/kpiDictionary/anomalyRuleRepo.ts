@@ -20,6 +20,7 @@ const DEFAULT_ANOMALY_RULES: Record<string, Partial<KPIAnomalyRule>> = {
     thresholdLow: null,
     maxPercentChange: 50,
     compareTo: 'prevDay',
+    ruleReason: '未承認申請が溜まると業務が停滞し、従業員の不満や意思決定の遅れを招く',
   },
   occupancy_rate: {
     enabled: true,
@@ -28,6 +29,7 @@ const DEFAULT_ANOMALY_RULES: Record<string, Partial<KPIAnomalyRule>> = {
     thresholdLow: 85,
     maxPercentChange: 10,
     compareTo: 'prevWeek',
+    ruleReason: '入居率が85%を下回ると固定費の回収が困難になり、経営へ直接影響',
   },
   incident_count: {
     enabled: true,
@@ -36,6 +38,7 @@ const DEFAULT_ANOMALY_RULES: Record<string, Partial<KPIAnomalyRule>> = {
     thresholdLow: null,
     maxPercentChange: 100,
     compareTo: 'prevDay',
+    ruleReason: '事故件数が閾値を超えると入居者の安全・信頼に直結する重大リスク',
   },
   hiyari_count: {
     enabled: true,
@@ -44,6 +47,7 @@ const DEFAULT_ANOMALY_RULES: Record<string, Partial<KPIAnomalyRule>> = {
     thresholdLow: 5,
     maxPercentChange: null,
     compareTo: null,
+    ruleReason: 'ヒヤリハット報告数の減少は安全意識の低下や報告文化の衰退を示す可能性',
   },
   staff_turnover: {
     enabled: true,
@@ -52,6 +56,7 @@ const DEFAULT_ANOMALY_RULES: Record<string, Partial<KPIAnomalyRule>> = {
     thresholdLow: null,
     maxPercentChange: 30,
     compareTo: 'prevWeek',
+    ruleReason: '離職率20%超は採用・教育コストの増大とサービス品質低下を招く',
   },
   revenue_per_resident: {
     enabled: true,
@@ -60,6 +65,7 @@ const DEFAULT_ANOMALY_RULES: Record<string, Partial<KPIAnomalyRule>> = {
     thresholdLow: 20,
     maxPercentChange: 15,
     compareTo: 'prevWeek',
+    ruleReason: '入居者単価の低下は収益性の悪化を意味し、持続可能性に影響',
   },
   approval_lead_time: {
     enabled: true,
@@ -68,6 +74,7 @@ const DEFAULT_ANOMALY_RULES: Record<string, Partial<KPIAnomalyRule>> = {
     thresholdLow: null,
     maxPercentChange: 50,
     compareTo: 'prevDay',
+    ruleReason: '承認に5日以上かかると業務停滞・従業員モチベーション低下のリスク',
   },
 };
 
@@ -94,6 +101,7 @@ function initializeStore(): void {
       compareTo: partialRule.compareTo ?? null,
       zScoreWindowDays: partialRule.zScoreWindowDays ?? null,
       zScoreThreshold: partialRule.zScoreThreshold ?? null,
+      ruleReason: partialRule.ruleReason ?? null,
       updatedAt: now,
     };
     rulesStore.set(kpiId, rule);
@@ -129,6 +137,7 @@ export function getAnomalyRule(kpiId: string): KPIAnomalyRule | null {
       compareTo: configRule.compareTo ?? null,
       zScoreWindowDays: configRule.zScoreWindowDays ?? null,
       zScoreThreshold: configRule.zScoreThreshold ?? null,
+      ruleReason: configRule.ruleReason ?? null,
       updatedAt: now,
     };
   }
@@ -170,6 +179,7 @@ export function upsertAnomalyRule(
       compareTo: patch.compareTo ?? null,
       zScoreWindowDays: patch.zScoreWindowDays ?? null,
       zScoreThreshold: patch.zScoreThreshold ?? null,
+      ruleReason: patch.ruleReason ?? null,
       updatedAt: now,
     };
     rulesStore.set(kpiId, newRule);

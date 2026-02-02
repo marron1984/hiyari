@@ -52,6 +52,7 @@ function initializeStore(): void {
       whyItMatters: '承認遅延は業務のボトルネックとなり、従業員の不満や意思決定の遅れを招く。迅速な承認フローの維持が組織効率の鍵。',
       definition: '申請ステータスが「承認待ち」の申請の総数。下書きや差戻し済みは含まない。',
       calculationMethod: 'sql',
+      calculationRef: 'kpi_sql_v1:pending_approvals',
       calculationNotes: 'SELECT COUNT(*) FROM applications WHERE status = "pending_approval"',
       dataSource: 'DB: applications',
       refreshCadence: 'realtime',
@@ -78,6 +79,7 @@ function initializeStore(): void {
       whyItMatters: '入居率は売上に直結する最重要KPI。95%を下回ると固定費の回収が困難になり、経営に影響。',
       definition: '(現在入居者数 / 定員) × 100。空室予約（1ヶ月以内入居予定）は入居者に含める。',
       calculationMethod: 'sql',
+      calculationRef: 'kpi_sql_v1:occupancy_rate',
       calculationNotes: 'SELECT (occupied_rooms / total_capacity) * 100 FROM facilities',
       dataSource: 'DB: facilities, residents',
       refreshCadence: 'daily',
@@ -104,6 +106,7 @@ function initializeStore(): void {
       whyItMatters: '事故は入居者の安全に直結し、信頼と評判に影響。ゼロ事故を目指すが、発生時は迅速な対応と再発防止が重要。',
       definition: '報告された事故件数。ヒヤリハットは含まない。',
       calculationMethod: 'sql',
+      calculationRef: 'kpi_sql_v1:incident_count',
       calculationNotes: 'SELECT COUNT(*) FROM incidents WHERE type = "accident" AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH)',
       dataSource: 'DB: incidents',
       refreshCadence: 'daily',
@@ -130,6 +133,7 @@ function initializeStore(): void {
       whyItMatters: 'ヒヤリハット報告は事故予防の先行指標。報告数が多いほど安全意識が高く、潜在リスクを早期発見できる。',
       definition: '報告されたヒヤリハットの件数。',
       calculationMethod: 'sql',
+      calculationRef: 'kpi_sql_v1:hiyari_count',
       calculationNotes: 'SELECT COUNT(*) FROM incidents WHERE type = "hiyari" AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH)',
       dataSource: 'DB: incidents',
       refreshCadence: 'daily',
@@ -156,6 +160,7 @@ function initializeStore(): void {
       whyItMatters: '離職は採用・教育コストの増大とサービス品質の低下を招く。介護業界平均は16%程度。',
       definition: '(年間退職者数 / 期初従業員数) × 100',
       calculationMethod: 'manual',
+      calculationRef: 'kpi_code:staff_turnover',
       calculationNotes: '毎月の退職者数を人事部が集計し、手動で登録。',
       dataSource: 'CSV: HR monthly report',
       refreshCadence: 'monthly',
@@ -182,6 +187,7 @@ function initializeStore(): void {
       whyItMatters: '入居者単価は収益性の直接指標。介護度と付帯サービスの提供状況を反映。',
       definition: '月間総売上 / 平均入居者数',
       calculationMethod: 'vendor',
+      calculationRef: 'vendor:freee:revenue_per_resident',
       calculationNotes: '会計ソフト（freee）のAPIから月次売上を取得し、入居者数で除算。',
       dataSource: 'Vendor API: freee',
       refreshCadence: 'monthly',
@@ -207,6 +213,7 @@ function initializeStore(): void {
       whyItMatters: '承認リードタイムが長いと業務が停滞し、従業員のモチベーション低下につながる。',
       definition: '過去30日間に承認された申請の「申請日から承認日までの日数」の平均',
       calculationMethod: 'sql',
+      calculationRef: 'kpi_sql_v1:approval_lead_time',
       calculationNotes: 'SELECT AVG(DATEDIFF(approved_at, submitted_at)) FROM applications WHERE approved_at IS NOT NULL AND approved_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)',
       dataSource: 'DB: applications',
       refreshCadence: 'daily',
@@ -232,6 +239,7 @@ function initializeStore(): void {
       whyItMatters: null,
       definition: null,
       calculationMethod: 'manual',
+      calculationRef: null,
       calculationNotes: null,
       dataSource: null,
       refreshCadence: null,
@@ -345,6 +353,7 @@ export function createKPIDictionaryEntry(
     whyItMatters: request.whyItMatters ?? null,
     definition: request.definition ?? null,
     calculationMethod: request.calculationMethod ?? 'manual',
+    calculationRef: request.calculationRef ?? null,
     calculationNotes: request.calculationNotes ?? null,
     dataSource: request.dataSource ?? null,
     refreshCadence: request.refreshCadence ?? null,
@@ -382,7 +391,7 @@ export function updateKPIDictionaryEntry(
   const now = new Date().toISOString();
 
   // 定義変更があるかチェック
-  const definitionFields = ['definition', 'calculationMethod', 'calculationNotes', 'dataSource'];
+  const definitionFields = ['definition', 'calculationMethod', 'calculationRef', 'calculationNotes', 'dataSource'];
   const hasDefinitionChange = definitionFields.some(
     (field) => patch[field as keyof UpdateKPIDictionaryRequest] !== undefined
   );

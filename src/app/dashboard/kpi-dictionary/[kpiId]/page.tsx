@@ -31,12 +31,19 @@ import {
   Settings,
   Archive,
   RotateCcw,
+  Code,
+  FileCode,
+  Link2,
+  ChevronDown,
+  ChevronUp,
+  Info,
 } from 'lucide-react';
 import type {
   KPIDictionaryEntry,
   KPIAnomalyRule,
   KPIDefinitionEvent,
   UpdateAnomalyRuleRequest,
+  KPICalculationRef,
 } from '@/lib/kpiDictionary/types';
 
 // カテゴリ設定
@@ -85,8 +92,12 @@ export default function KpiDictionaryDetailPage() {
   const [entry, setEntry] = useState<KPIDictionaryEntry | null>(null);
   const [anomalyRule, setAnomalyRule] = useState<KPIAnomalyRule | null>(null);
   const [events, setEvents] = useState<KPIDefinitionEvent[]>([]);
+  const [calculationRef, setCalculationRef] = useState<KPICalculationRef | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 変更履歴の展開表示
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
 
   // 異常検知ルール編集
   const [editingRule, setEditingRule] = useState(false);
@@ -119,6 +130,17 @@ export default function KpiDictionaryDetailPage() {
       if (ruleRes.ok) {
         const ruleData = await ruleRes.json();
         setAnomalyRule(ruleData.rule);
+      }
+
+      // 算出リファレンス取得
+      if (entryData.entry.calculationRef) {
+        const refRes = await fetch(`/api/kpi/calculation-refs/${encodeURIComponent(entryData.entry.calculationRef)}`);
+        if (refRes.ok) {
+          const refData = await refRes.json();
+          setCalculationRef(refData.ref);
+        }
+      } else {
+        setCalculationRef(null);
       }
 
       // 変更履歴取得（管理者/マネージャーのみ）
@@ -177,6 +199,7 @@ export default function KpiDictionaryDetailPage() {
         thresholdLow: anomalyRule.thresholdLow,
         maxPercentChange: anomalyRule.maxPercentChange,
         compareTo: anomalyRule.compareTo,
+        ruleReason: anomalyRule.ruleReason,
       });
     } else {
       setRuleDraft({
@@ -186,6 +209,7 @@ export default function KpiDictionaryDetailPage() {
         thresholdLow: null,
         maxPercentChange: 30,
         compareTo: 'prevDay',
+        ruleReason: null,
       });
     }
     setEditingRule(true);
@@ -278,6 +302,51 @@ export default function KpiDictionaryDetailPage() {
         return { label: '復元', color: 'bg-purple-100 text-purple-700' };
       default:
         return { label: action, color: 'bg-zinc-100 text-zinc-700' };
+    }
+  };
+
+  // 変更差分の要点抽出
+  const getChangeSummary = (event: KPIDefinitionEvent): string[] => {
+    if (!event.beforeJson || !event.afterJson) return [];
+    try {
+      const before = JSON.parse(event.beforeJson);
+      const after = JSON.parse(event.afterJson);
+      const changes: string[] = [];
+      const fieldLabels: Record<string, string> = {
+        name: '名称',
+        description: '説明',
+        definition: '定義',
+        whyItMatters: '重要性',
+        targetText: '目標',
+        calculationMethod: '算出方法',
+        calculationRef: '算出リファレンス',
+        dataSource: 'データソース',
+        direction: '方向性',
+        isExternalAllowed: '外部公開',
+        status: 'ステータス',
+      };
+      for (const [key, label] of Object.entries(fieldLabels)) {
+        if (before[key] !== after[key]) {
+          changes.push(label);
+        }
+      }
+      return changes.slice(0, 3); // 最大3つ
+    } catch {
+      return [];
+    }
+  };
+
+  // 算出リファレンスのタイプアイコン
+  const getRefTypeIcon = (type: string) => {
+    switch (type) {
+      case 'sql':
+        return <Database className="w-4 h-4 text-blue-600" />;
+      case 'code':
+        return <FileCode className="w-4 h-4 text-green-600" />;
+      case 'vendor':
+        return <Link2 className="w-4 h-4 text-purple-600" />;
+      default:
+        return <Code className="w-4 h-4 text-zinc-500" />;
     }
   };
 
@@ -554,7 +623,47 @@ export default function KpiDictionaryDetailPage() {
                     </span>
                   </div>
                 </div>
+
+                {/* 算出リファレンス */}
+                <div>
+                  <div className="text-xs text-zinc-500 mb-1">算出リファレンス</div>
+                  {entry.calculationRef ? (
+                    <div className="flex items-center gap-1">
+                      {calculationRef && getRefTypeIcon(calculationRef.type)}
+                      <span className="font-mono text-sm">{entry.calculationRef}</span>
+                    </div>
+                  ) : (
+                    <span className="text-zinc-400">（未設定）</span>
+                  )}
+                </div>
               </div>
+
+              {/* 算出リファレンス詳細 */}
+              {calculationRef && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="text-xs text-zinc-500 mb-2">算出ロジック詳細</div>
+                  <div className="bg-zinc-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      {getRefTypeIcon(calculationRef.type)}
+                      <span className="font-medium text-sm">{calculationRef.title}</span>
+                      <span className="px-1.5 py-0.5 bg-zinc-200 text-zinc-600 text-xs rounded">
+                        {calculationRef.type.toUpperCase()}
+                      </span>
+                    </div>
+                    {calculationRef.body && (
+                      <pre className="text-xs bg-zinc-900 text-zinc-100 p-3 rounded overflow-x-auto">
+                        {calculationRef.body}
+                      </pre>
+                    )}
+                    {calculationRef.filePath && (
+                      <div className="mt-2 flex items-center gap-1 text-sm">
+                        <FileCode className="w-3 h-3 text-zinc-400" />
+                        <span className="font-mono text-zinc-600">{calculationRef.filePath}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* 算出ノート */}
               {entry.calculationNotes && (
@@ -687,6 +796,25 @@ export default function KpiDictionaryDetailPage() {
                     </div>
                   </div>
 
+                  {/* ルール発火時の影響説明 */}
+                  <div>
+                    <label className="text-xs text-zinc-500">
+                      ルール発火時の影響説明（任意）
+                    </label>
+                    <textarea
+                      value={ruleDraft.ruleReason ?? ''}
+                      onChange={(e) =>
+                        setRuleDraft({
+                          ...ruleDraft,
+                          ruleReason: e.target.value || null,
+                        })
+                      }
+                      placeholder="このルールが発火すると何が困るか説明..."
+                      rows={2}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
+                    />
+                  </div>
+
                   <div className="flex justify-end gap-2 pt-4 border-t">
                     <Button
                       variant="outline"
@@ -763,6 +891,19 @@ export default function KpiDictionaryDetailPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* ルール発火時の影響説明 */}
+                  {anomalyRule.ruleReason && (
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="flex items-start gap-2">
+                        <Info className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <div className="text-xs text-zinc-500 mb-1">発火時の影響</div>
+                          <p className="text-sm text-zinc-700">{anomalyRule.ruleReason}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center text-zinc-500 py-4">
@@ -788,29 +929,70 @@ export default function KpiDictionaryDetailPage() {
                   <div className="space-y-3">
                     {events.map((event) => {
                       const actionInfo = getActionLabel(event.action);
+                      const changeSummary = getChangeSummary(event);
+                      const isExpanded = expandedEventId === event.id;
                       return (
                         <div
                           key={event.id}
-                          className="flex items-start gap-3 p-3 bg-zinc-50 rounded-lg"
+                          className="bg-zinc-50 rounded-lg overflow-hidden"
                         >
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span
-                                className={`px-1.5 py-0.5 text-xs rounded ${actionInfo.color}`}
-                              >
-                                {actionInfo.label}
-                              </span>
-                              <span className="text-sm font-medium">
-                                {event.actorUserName || event.actorUserId || 'システム'}
-                              </span>
+                          <div
+                            className="flex items-start gap-3 p-3 cursor-pointer hover:bg-zinc-100"
+                            onClick={() =>
+                              setExpandedEventId(isExpanded ? null : event.id)
+                            }
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span
+                                  className={`px-1.5 py-0.5 text-xs rounded ${actionInfo.color}`}
+                                >
+                                  {actionInfo.label}
+                                </span>
+                                <span className="text-sm font-medium">
+                                  {event.actorUserName || event.actorUserId || 'システム'}
+                                </span>
+                                {changeSummary.length > 0 && (
+                                  <span className="text-xs text-zinc-400">
+                                    ({changeSummary.join('、')}{changeSummary.length < 3 ? '' : '...'}を変更)
+                                  </span>
+                                )}
+                              </div>
+                              {event.note && (
+                                <p className="text-sm text-zinc-600">{event.note}</p>
+                              )}
+                              <div className="text-xs text-zinc-400 mt-1">
+                                {formatDateTime(event.createdAt)}
+                              </div>
                             </div>
-                            {event.note && (
-                              <p className="text-sm text-zinc-600">{event.note}</p>
+                            {event.beforeJson && event.afterJson && (
+                              <button className="p-1 text-zinc-400 hover:text-zinc-600">
+                                {isExpanded ? (
+                                  <ChevronUp className="w-4 h-4" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4" />
+                                )}
+                              </button>
                             )}
-                            <div className="text-xs text-zinc-400 mt-1">
-                              {formatDateTime(event.createdAt)}
-                            </div>
                           </div>
+                          {isExpanded && event.beforeJson && event.afterJson && (
+                            <div className="px-3 pb-3 border-t border-zinc-200">
+                              <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
+                                <div>
+                                  <div className="text-zinc-500 mb-1">変更前</div>
+                                  <pre className="bg-red-50 p-2 rounded text-red-800 overflow-x-auto max-h-40">
+                                    {JSON.stringify(JSON.parse(event.beforeJson), null, 2)}
+                                  </pre>
+                                </div>
+                                <div>
+                                  <div className="text-zinc-500 mb-1">変更後</div>
+                                  <pre className="bg-green-50 p-2 rounded text-green-800 overflow-x-auto max-h-40">
+                                    {JSON.stringify(JSON.parse(event.afterJson), null, 2)}
+                                  </pre>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
