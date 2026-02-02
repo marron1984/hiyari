@@ -14,6 +14,7 @@
 import type { NotificationType, CreateNotificationInput, Notification as NotificationType_ } from '@/types/notification';
 import * as fs from 'fs';
 import * as path from 'path';
+import { NOTIFICATION_TYPE_BUSINESS_SCOPE_UNCLASSIFIED } from '@/lib/alerts/constants';
 
 // ========== 型定義 ==========
 
@@ -572,12 +573,12 @@ export function createUnclassifiedScopeNotification(
 
   // 同日の重複を抑制するfingerprint
   const today = new Date().toISOString().slice(0, 10);
-  const fingerprint = generateFingerprint('unclassified_scope', 'summary', today);
+  const fingerprint = generateFingerprint(NOTIFICATION_TYPE_BUSINESS_SCOPE_UNCLASSIFIED, 'summary', today);
 
   const result = create({
     tenantId: 'default',
     userId: 'user_manager',
-    type: 'unclassified_scope',
+    type: NOTIFICATION_TYPE_BUSINESS_SCOPE_UNCLASSIFIED,  // Task 038: 正式名称を使用
     severity: counts.total >= 20 ? 'critical' : counts.total >= 5 ? 'warning' : 'info',
     title: '未分類レコードの検出',
     message: `businessUnitId 未設定: ${parts.join('、')}（計 ${counts.total}件）。未分類管理画面で対応してください。`,

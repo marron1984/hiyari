@@ -2,6 +2,10 @@
  * アラートセンター 型定義
  *
  * 全種類のアラートを統一的に管理するための型定義
+ *
+ * Task 038: 未分類アラート type 名の統一
+ * - 正式名称: business_scope_unclassified
+ * - レガシー名: unclassified_scope（後方互換）
  */
 
 /**
@@ -20,7 +24,8 @@ export type AlertType =
   | 'receivable_risk'   // 未収リスク
   | 'collection_flow_risk'   // 回収フローリスク
   | 'agreement_risk'         // 同意書リスク
-  | 'unclassified_scope';    // Task 033: 未分類スコープ
+  | 'business_scope_unclassified'  // Task 038: 未分類スコープ（正式名称）
+  | 'unclassified_scope';    // Task 033: 未分類スコープ（レガシー、後方互換）
 
 /**
  * アラート重要度
@@ -122,7 +127,8 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   receivable_risk: '未収リスク',
   collection_flow_risk: '回収フロー超過',
   agreement_risk: '同意書リスク',
-  unclassified_scope: '未分類スコープ',  // Task 033
+  business_scope_unclassified: '未分類スコープ',  // Task 038: 正式名称
+  unclassified_scope: '未分類スコープ',  // Task 033: レガシー
 };
 
 /**
