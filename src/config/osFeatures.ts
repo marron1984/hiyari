@@ -635,7 +635,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'complaints',
     name: 'クレーム対応',
     category: 'risk',
-    status: 'planned',
+    status: 'active',
     description: 'クレームの記録と対応',
     path: '/dashboard/complaints',
     priority: 5,
