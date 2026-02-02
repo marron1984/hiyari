@@ -728,7 +728,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'receivables',
     name: '未収管理',
     category: 'finance',
-    status: 'planned',
+    status: 'active',
     description: '未収金の管理',
     path: '/dashboard/receivables',
     priority: 5,
