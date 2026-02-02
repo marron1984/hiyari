@@ -3,11 +3,17 @@
  *
  * Implementation Ticket 036: Notifications 永続化（DB化）
  *
- * 現在はインメモリストアを使用（本番ではFirestore/PostgreSQLに置換）
- * fingerprint による重複抑制を実装
+ * 本番環境: Firestore/PostgreSQLに置換
+ * デモ環境: JSONファイルベース永続化（再起動後も保持）
+ *
+ * 制約:
+ * - UNIQUE(userId, fingerprint) による重複抑制
+ * - インデックス: (userId, status, createdAt DESC)
  */
 
 import type { NotificationType, CreateNotificationInput, Notification as NotificationType_ } from '@/types/notification';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // ========== 型定義 ==========
 
@@ -55,14 +61,84 @@ export interface ListNotificationsResult {
   unreadCount: number;
 }
 
-// ========== ストレージ（本番ではDB） ==========
+// ========== 永続化ストレージ ==========
 
-// インメモリストア（本番ではDB置換）
-const notificationStore = new Map<string, Notification>();
-// fingerprint インデックス（userId + fingerprint → id）
-const fingerprintIndex = new Map<string, string>();
+// データファイルパス（プロジェクトルートの .data ディレクトリ）
+const DATA_DIR = path.join(process.cwd(), '.data');
+const DATA_FILE = path.join(DATA_DIR, 'notifications.json');
+
+// インメモリキャッシュ（DBクエリ高速化用）
+let notificationStore = new Map<string, Notification>();
+// fingerprint インデックス（UNIQUE(userId, fingerprint)の代替）
+let fingerprintIndex = new Map<string, string>();
 
 let idCounter = 1;
+let isInitialized = false;
+
+/**
+ * ストレージを初期化（ファイルから読み込み）
+ */
+function initializeStorage(): void {
+  if (isInitialized) return;
+
+  try {
+    // データディレクトリがなければ作成
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+
+    // ファイルが存在すれば読み込み
+    if (fs.existsSync(DATA_FILE)) {
+      const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+
+      // Map に変換
+      if (data.notifications && Array.isArray(data.notifications)) {
+        for (const n of data.notifications) {
+          notificationStore.set(n.id, n);
+          const fpKey = buildFingerprintKey(n.userId, n.fingerprint);
+          fingerprintIndex.set(fpKey, n.id);
+        }
+      }
+
+      // ID カウンタを復元
+      if (data.idCounter) {
+        idCounter = data.idCounter;
+      } else {
+        // 既存データから最大IDを取得
+        const maxId = Math.max(0, ...Array.from(notificationStore.values())
+          .map(n => parseInt(n.id.replace(/\D/g, '')) || 0));
+        idCounter = maxId + 1;
+      }
+    }
+
+    isInitialized = true;
+    console.log(`[Notifications] Loaded ${notificationStore.size} notifications from storage`);
+  } catch (error) {
+    console.error('[Notifications] Failed to load from storage:', error);
+    isInitialized = true;  // エラーでも初期化完了扱い
+  }
+}
+
+/**
+ * ストレージに保存（非同期でファイル書き込み）
+ */
+function saveStorage(): void {
+  try {
+    const data = {
+      notifications: Array.from(notificationStore.values()),
+      idCounter,
+      savedAt: new Date().toISOString(),
+    };
+
+    // 同期書き込み（データ整合性のため）
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('[Notifications] Failed to save to storage:', error);
+  }
+}
+
+// 初期化を実行
+initializeStorage();
 
 function generateId(): string {
   return `notif_${Date.now()}_${idCounter++}`;
@@ -115,6 +191,9 @@ export function create(request: CreateNotificationRequest): { notification: Noti
 
   notificationStore.set(notification.id, notification);
   fingerprintIndex.set(fpKey, notification.id);
+
+  // 永続化
+  saveStorage();
 
   return { notification, isNew: true };
 }
@@ -266,6 +345,8 @@ export function markRead(
   if (notification.status === 'unread') {
     notification.status = 'read';
     notification.readAt = now();
+    // 永続化
+    saveStorage();
   }
 
   return { success: true, notification };
@@ -286,6 +367,11 @@ export function markAllRead(userId: string): { count: number } {
       notification.readAt = timestamp;
       count++;
     }
+  }
+
+  // 永続化（更新があった場合のみ）
+  if (count > 0) {
+    saveStorage();
   }
 
   return { count };
@@ -314,6 +400,11 @@ export function markAllReadByRole(role: string): { count: number } {
     }
   }
 
+  // 永続化（更新があった場合のみ）
+  if (count > 0) {
+    saveStorage();
+  }
+
   return { count };
 }
 
@@ -340,6 +431,8 @@ export function dismiss(
   }
 
   notification.status = 'dismissed';
+  // 永続化
+  saveStorage();
   return { success: true };
 }
 
