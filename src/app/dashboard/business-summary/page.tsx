@@ -24,6 +24,10 @@ import {
   Users,
   Activity,
   Info,
+  Ticket,
+  Wrench,
+  ShieldAlert,
+  Award,
 } from 'lucide-react';
 
 // ========== 型定義 ==========
@@ -289,6 +293,52 @@ function SummaryDetail({ summary }: SummaryDetailProps) {
             items={[
               { label: 'Critical', value: highlights.alerts.criticalOpen, critical: true },
               { label: 'Warning', value: highlights.alerts.warningOpen, warning: true },
+            ]}
+          />
+
+          {/* Task 030: チケット */}
+          <HighlightCard
+            title="チケット"
+            icon={<Ticket className="w-4 h-4" />}
+            url={highlights.tickets.url}
+            items={[
+              { label: 'オープン', value: highlights.tickets.open, warning: true },
+              { label: '緊急', value: highlights.tickets.urgentOpen, critical: true },
+              { label: '期限超過', value: highlights.tickets.overdue, critical: true },
+            ]}
+          />
+
+          {/* Task 030: 修繕 */}
+          <HighlightCard
+            title="修繕"
+            icon={<Wrench className="w-4 h-4" />}
+            url={highlights.repairs.url}
+            items={[
+              { label: '高リスク', value: highlights.repairs.highRiskOpen, critical: true },
+              { label: '期限超過', value: highlights.repairs.overdue, warning: true },
+            ]}
+          />
+
+          {/* Task 030: 是正措置 */}
+          <HighlightCard
+            title="是正措置"
+            icon={<ShieldAlert className="w-4 h-4" />}
+            url={highlights.correctiveActions.url}
+            items={[
+              { label: 'オープン', value: highlights.correctiveActions.open, warning: true },
+              { label: '重大', value: highlights.correctiveActions.criticalOpen, critical: true },
+              { label: '期限超過', value: highlights.correctiveActions.overdue, critical: true },
+            ]}
+          />
+
+          {/* Task 030: 資格 */}
+          <HighlightCard
+            title="資格"
+            icon={<Award className="w-4 h-4" />}
+            url={highlights.licenses.url}
+            items={[
+              { label: '期限切れ', value: highlights.licenses.expired, critical: true },
+              { label: '30日以内', value: highlights.licenses.expiring30, warning: true },
             ]}
           />
 
