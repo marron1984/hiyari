@@ -30,10 +30,18 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get('limit');
     const offsetParam = searchParams.get('offset');
 
+    // Task 030: businessUnitId フィルタ
+    const businessUnitIdParam = searchParams.get('businessUnitId');
+    // 'null' 文字列は未分類を意味する
+    const businessUnitId = businessUnitIdParam === 'null'
+      ? null
+      : (businessUnitIdParam ?? undefined);
+
     const filter = {
       status: status ?? undefined,
       priority: priority ?? undefined,
       category: category ?? undefined,
+      businessUnitId,                    // Task 030
       q: q ?? undefined,
       my: my ?? undefined,
       overdue: overdueParam === 'true' ? true : undefined,
@@ -68,6 +76,7 @@ export async function POST(request: NextRequest) {
       description,
       priority,
       category,
+      businessUnitId,              // Task 030: 事業単位
       dueAt,
       tags,
       relatedType,
@@ -88,6 +97,7 @@ export async function POST(request: NextRequest) {
         description,
         priority,
         category,
+        businessUnitId,            // Task 030
         dueAt,
         tags,
         relatedType,

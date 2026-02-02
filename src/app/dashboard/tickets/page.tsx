@@ -16,6 +16,7 @@ import {
   RefreshCw,
   ChevronRight,
   Calendar,
+  Building2,
 } from 'lucide-react';
 import type {
   Ticket as TicketType,
@@ -29,6 +30,7 @@ import {
   TICKET_PRIORITY_CONFIG,
   TICKET_CATEGORY_CONFIG,
 } from '@/lib/tickets/types';
+import type { BusinessUnit } from '@/lib/business/types';
 
 type TabType = 'my_assigned' | 'my_requested' | 'open' | 'overdue';
 
@@ -50,7 +52,11 @@ export default function TicketsPage() {
   const [statusFilter, setStatusFilter] = useState<TicketStatus | ''>('');
   const [priorityFilter, setPriorityFilter] = useState<TicketPriority | ''>('');
   const [categoryFilter, setCategoryFilter] = useState<TicketCategory | ''>('');
+  const [businessUnitFilter, setBusinessUnitFilter] = useState('');  // Task 030
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Task 030: 事業単位リスト
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnit[]>([]);
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
@@ -75,6 +81,7 @@ export default function TicketsPage() {
       if (statusFilter) params.append('status', statusFilter);
       if (priorityFilter) params.append('priority', priorityFilter);
       if (categoryFilter) params.append('category', categoryFilter);
+      if (businessUnitFilter) params.append('businessUnitId', businessUnitFilter);  // Task 030
       if (searchQuery) params.append('q', searchQuery);
 
       const res = await fetch(`/api/tickets?${params.toString()}`);
@@ -94,7 +101,7 @@ export default function TicketsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, statusFilter, priorityFilter, categoryFilter, searchQuery]);
+  }, [activeTab, statusFilter, priorityFilter, categoryFilter, businessUnitFilter, searchQuery]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -106,10 +113,24 @@ export default function TicketsPage() {
     }
   }, []);
 
+  // Task 030: 事業単位リスト取得
+  const fetchBusinessUnits = useCallback(async () => {
+    try {
+      const res = await fetch('/api/business/units');
+      if (res.ok) {
+        const data = await res.json();
+        setBusinessUnits(data.units || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch business units:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchTickets();
     fetchStats();
-  }, [fetchTickets, fetchStats]);
+    fetchBusinessUnits();
+  }, [fetchTickets, fetchStats, fetchBusinessUnits]);
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
@@ -253,6 +274,18 @@ export default function TicketsPage() {
                 <option value="">全カテゴリ</option>
                 {Object.entries(TICKET_CATEGORY_CONFIG).map(([key, config]) => (
                   <option key={key} value={key}>{config.icon} {config.label}</option>
+                ))}
+              </select>
+
+              {/* Task 030: 事業単位 */}
+              <select
+                value={businessUnitFilter}
+                onChange={(e) => setBusinessUnitFilter(e.target.value)}
+                className="px-3 py-1.5 border border-zinc-200 rounded-lg text-sm"
+              >
+                <option value="">全事業</option>
+                {businessUnits.map((bu) => (
+                  <option key={bu.id} value={bu.id}>{bu.name}</option>
                 ))}
               </select>
 
