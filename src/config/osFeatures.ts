@@ -671,7 +671,7 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'family-contact-log',
     name: '家族連絡ログ',
     category: 'family',
-    status: 'planned',
+    status: 'active',
     description: '家族への連絡履歴',
     path: '/dashboard/family-contact',
     priority: 4,
