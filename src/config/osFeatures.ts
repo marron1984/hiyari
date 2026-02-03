@@ -268,12 +268,12 @@ export const OS_FEATURES: OSFeature[] = [
     id: 'esign-log',
     name: '電子署名ログ',
     category: 'document',
-    status: 'planned',
-    description: '電子署名の履歴管理',
-    path: '/dashboard/esign-log',
-    priority: 2,
-    roi: 2,
-    risk: 2,
+    status: 'active',
+    description: '電子署名の履歴管理・証跡ログ',
+    path: '/dashboard/e-sign',
+    priority: 4,
+    roi: 4,
+    risk: 4,
   },
 
   // ========== 人・権限 ==========
