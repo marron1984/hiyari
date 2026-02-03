@@ -227,48 +227,73 @@ export interface RoleHomeData {
 
 /**
  * 役職別ウィジェット設定
+ *
+ * Implementation Ticket 046-final: 役職別並び確定
+ * - staff: 自分のタスク中心、周知・申し送り
+ * - leader: チーム管理、担当範囲のチケット・修繕
+ * - manager: 担当範囲全体、是正・アラート・未分類
+ * - executive: 事業全体俯瞰、AI副社長Top3
+ * - admin: システム運用、日次/週次オペ
  */
 export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
-  admin: [
-    'alerts',
-    'unclassified',
-    'daily_ops',
-    'weekly_ops',
-    'tickets',
-    'repairs',
-    'corrective_actions',
-    'licenses',
-  ],
-  executive: [
-    'ai_vp_top3',
-    'business_summary',
-    'alerts',
-    'receivables',
-  ],
-  manager: [
-    'tickets',
-    'repairs',
-    'corrective_actions',
-    'alerts',
-    'licenses',
-    'unclassified',
-    'daily_ops',
-  ],
-  leader: [
-    'tickets',
-    'repairs',
-    'handover',
-    'alerts',
-  ],
+  // staff: 自分のタスク中心
   staff: [
-    'tickets',
-    'training',
-    'licenses',
-    'announcements',
-    'handover',
+    'tickets',        // 自分の担当/依頼
+    'training',       // 研修未受講（自分）
+    'licenses',       // 資格期限（自分）
+    'announcements',  // 周知未読
+    'handover',       // 申し送り未読
   ],
+
+  // leader: チーム管理
+  leader: [
+    'tickets',        // 担当チケット
+    'repairs',        // 担当修繕
+    'handover',       // 申し送り
+    'alerts',         // チーム向けアラート
+    'training',       // チーム研修状況
+  ],
+
+  // manager: 担当範囲全体
+  manager: [
+    'tickets',            // 担当範囲チケット
+    'repairs',            // 担当範囲修繕
+    'corrective_actions', // 是正措置
+    'alerts',             // アラート
+    'licenses',           // 資格期限（チーム）
+    'unclassified',       // 未分類スコープ
+    'receivables',        // 未収金
+    'daily_ops',          // 日次オペログ（参照）
+  ],
+
+  // executive: 事業全体俯瞰
+  executive: [
+    'ai_vp_top3',         // AI副社長 事業別Top3
+    'alerts',             // 重大アラート
+    'business_summary',   // 事業別サマリー
+    'receivables',        // 未収金ハイライト
+    'unclassified',       // 未分類スコープ
+    'weekly_ops',         // WBRへの導線
+  ],
+
+  // admin: システム運用・全体管理
+  admin: [
+    'alerts',             // アラート（全社）
+    'unclassified',       // 未分類スコープ
+    'daily_ops',          // 日次オペ（実行ボタン付き）
+    'weekly_ops',         // 週次オペ（実行ボタン付き）
+    'tickets',            // チケット全体
+    'repairs',            // 修繕全体
+    'corrective_actions', // 是正措置
+    'licenses',           // 資格期限
+    'receivables',        // 未収金
+  ],
+
+  // auditor: 監査用ビュー
   auditor: [
     'alerts',
+    'corrective_actions',
+    'unclassified',
     'daily_ops',
     'weekly_ops',
   ],

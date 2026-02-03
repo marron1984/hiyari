@@ -1,33 +1,18 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { getChaosViewLevel } from '@/lib/auth';
-import { fetchKPIData, type KPIFetchResult } from '@/lib/dashboard/kpi-fetcher';
-import { AIVPSummaryCard } from '@/components/dashboard/AIVPSummaryCard';
-import { KPIGrid } from '@/components/dashboard/KPICard';
-import { Card, CardContent, Button } from '@/components/ui';
-import {
-  type DashboardRole,
-  KPI_DEFINITIONS,
-  getRoleLabel,
-} from '@/types/dashboard-kpi';
+import { RoleHomePage } from '@/components/roleHome';
+import { Card, CardContent } from '@/components/ui';
+import type { AppRole } from '@/config/appRoles';
 import {
   Shield,
-  AlertTriangle,
-  RefreshCw,
   MessageSquare,
   BookOpen,
-  ExternalLink,
   HelpCircle,
-  Users,
-  FileText,
   ArrowRight,
 } from 'lucide-react';
-
-// NotebookLM URL
-const NOTEBOOKLM_URL = 'https://notebooklm.google.com/notebook/6ca2fe2f-2716-4add-8ea2-3faeb5c6750e';
 
 /**
  * ロール別OSナビ設定
@@ -47,6 +32,8 @@ interface RoleNavConfig {
   bgGradient: string;
   iconBg: string;
 }
+
+type DashboardRole = 'staff' | 'manager' | 'exec';
 
 const ROLE_NAV_CONFIG: Record<DashboardRole, RoleNavConfig> = {
   staff: {
@@ -99,57 +86,33 @@ const ROLE_NAV_CONFIG: Record<DashboardRole, RoleNavConfig> = {
   },
 };
 
+/**
+ * DashboardRole → AppRole 変換
+ */
+function toAppRole(role: DashboardRole): AppRole {
+  switch (role) {
+    case 'exec':
+      return 'executive';
+    case 'manager':
+      return 'manager';
+    case 'staff':
+    default:
+      return 'staff';
+  }
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<KPIFetchResult | null>(null);
 
   // 役割判定
   const viewLevel = user ? getChaosViewLevel(user.role, user.email) : 'self';
   const role: DashboardRole = viewLevel === 'all' ? 'exec' : viewLevel === 'team' ? 'manager' : 'staff';
+  const appRole = toAppRole(role);
 
-  // データ取得
-  const fetchData = useCallback(async (isRefresh = false) => {
-    if (!user) return;
-
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError(null);
-
-    try {
-      const result = await fetchKPIData(user, role);
-      setData(result);
-
-      if (result.errors.length > 0) {
-        console.warn('[Dashboard] Some data failed to load:', result.errors);
-      }
-    } catch (err) {
-      console.error('[Dashboard] Failed to fetch data:', err);
-      setError('データの取得に失敗しました');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user, role]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // リフレッシュハンドラ
-  const handleRefresh = () => {
-    fetchData(true);
-  };
-
-  // ローディング中もレイアウトは維持
-  if (loading) {
+  // ユーザーがまだロードされていない場合
+  if (!user) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-5xl mx-auto px-4 py-6">
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-3">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
@@ -159,11 +122,6 @@ export default function DashboardPage() {
       </div>
     );
   }
-
-  // NotebookLMを開く
-  const handleOpenNotebookLM = () => {
-    window.open(NOTEBOOKLM_URL, '_blank', 'noopener,noreferrer');
-  };
 
   // ロール別ナビ設定を取得
   const navConfig = ROLE_NAV_CONFIG[role];
@@ -175,7 +133,7 @@ export default function DashboardPage() {
   const noteColor = role === 'staff' ? 'border-green-100' : role === 'manager' ? 'border-blue-100' : 'border-purple-100';
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="max-w-5xl mx-auto px-4 py-6">
       {/* OSナビ（ロール別最上段固定導線） */}
       <Card className={`mb-6 bg-gradient-to-br ${navConfig.bgGradient} ${borderColor} shadow-sm`}>
         <CardContent className="p-5">
@@ -228,66 +186,10 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* エラーバナー */}
-      {error && (
-        <Card className="mb-6 bg-red-50 border-red-200">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-red-800">
-                    {error}
-                  </p>
-                  <p className="text-xs text-red-600 mt-1">
-                    一部のデータが取得できませんでした
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing}
-              >
-                {refreshing ? '更新中...' : '再試行'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ヘッダー（役割表示 + リフレッシュ） */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-lg font-semibold text-zinc-900">ダッシュボード</h1>
-          <p className="text-sm text-zinc-500">{getRoleLabel(role)}ビュー</p>
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="gap-1.5"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          更新
-        </Button>
-      </div>
-
-      {/* AI副社長サマリー（最上段） */}
-      <AIVPSummaryCard
-        summary={data?.aiSummary ?? null}
-        role={role}
-        loading={loading}
-      />
-
-      {/* KPIグリッド（最大6つ） */}
-      <KPIGrid
-        kpis={data?.kpis ?? []}
-        definitions={KPI_DEFINITIONS}
-        loading={loading}
-        maxItems={6}
+      {/* 役職別ホーム（RoleHomePage） */}
+      <RoleHomePage
+        userRole={appRole}
+        userId={user.id}
       />
 
       {/* フッター */}
