@@ -21,6 +21,9 @@ import {
   Play,
   CheckCircle,
   XCircle,
+  FileSignature,
+  Layers,
+  ShieldAlert,
 } from 'lucide-react';
 import type {
   Widget,
@@ -39,6 +42,9 @@ import type {
   WeeklyOpsWidget,
   ReceivablesWidget,
   BusinessSummaryWidget,
+  ContractsWidget,
+  OsMapWidget,
+  QualityRiskWidget,
 } from '@/lib/roleHome/types';
 import type { AppRole } from '@/config/appRoles';
 
@@ -95,6 +101,13 @@ export function RoleHomeWidget({
       return <ReceivablesWidgetCard widget={widget as ReceivablesWidget} />;
     case 'business_summary':
       return <BusinessSummaryWidgetCard widget={widget as BusinessSummaryWidget} />;
+    // Task 053: 新規ウィジェット
+    case 'contracts':
+      return <ContractsWidgetCard widget={widget as ContractsWidget} />;
+    case 'os_map':
+      return <OsMapWidgetCard widget={widget as OsMapWidget} />;
+    case 'quality_risk':
+      return <QualityRiskWidgetCard widget={widget as QualityRiskWidget} />;
     default:
       return <DefaultWidgetCard widget={widget} />;
   }
@@ -640,6 +653,88 @@ function BusinessSummaryWidgetCard({ widget }: { widget: BusinessSummaryWidget }
   );
 }
 
+// Task 053: 契約ウィジェット
+function ContractsWidgetCard({ widget }: { widget: ContractsWidget }) {
+  return (
+    <WidgetCard
+      icon={<FileSignature className="w-4 h-4 text-indigo-500" />}
+      title={widget.title}
+      href={widget.href}
+      severity={widget.severity}
+    >
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="p-2 bg-amber-50 rounded">
+          <div className="text-lg font-bold text-amber-600">{widget.expiringSoon}</div>
+          <div className="text-[10px] text-amber-700">期限間近</div>
+        </div>
+        <div className="p-2 bg-red-50 rounded">
+          <div className="text-lg font-bold text-red-600">{widget.decisionOverdue}</div>
+          <div className="text-[10px] text-red-700">判断期限超</div>
+        </div>
+        <div className="p-2 bg-rose-50 rounded">
+          <div className="text-lg font-bold text-rose-600">{widget.highRiskExpiring}</div>
+          <div className="text-[10px] text-rose-700">高リスク</div>
+        </div>
+      </div>
+    </WidgetCard>
+  );
+}
+
+// Task 053: OSマップウィジェット
+function OsMapWidgetCard({ widget }: { widget: OsMapWidget }) {
+  return (
+    <WidgetCard
+      icon={<Layers className="w-4 h-4 text-violet-500" />}
+      title={widget.title}
+      href={widget.href}
+    >
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-zinc-600">進捗率</span>
+          <span className="text-sm font-bold text-violet-600">{widget.progressPercent}%</span>
+        </div>
+        <div className="w-full bg-zinc-200 rounded-full h-2">
+          <div
+            className="bg-violet-500 h-2 rounded-full transition-all"
+            style={{ width: `${Math.min(widget.progressPercent, 100)}%` }}
+          />
+        </div>
+        <div className="flex items-center justify-between text-xs text-zinc-500">
+          <span>稼働中 {widget.activeFeatures}</span>
+          <span>全体 {widget.totalFeatures}</span>
+        </div>
+      </div>
+    </WidgetCard>
+  );
+}
+
+// Task 053: 品質/リスクウィジェット
+function QualityRiskWidgetCard({ widget }: { widget: QualityRiskWidget }) {
+  return (
+    <WidgetCard
+      icon={<ShieldAlert className="w-4 h-4 text-orange-500" />}
+      title={widget.title}
+      href={widget.href}
+      severity={widget.severity}
+    >
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="p-2 bg-red-50 rounded">
+          <div className="text-lg font-bold text-red-600">{widget.highRiskCount}</div>
+          <div className="text-[10px] text-red-700">高リスク</div>
+        </div>
+        <div className="p-2 bg-amber-50 rounded">
+          <div className="text-lg font-bold text-amber-600">{widget.incidentCount}</div>
+          <div className="text-[10px] text-amber-700">インシデント</div>
+        </div>
+        <div className="p-2 bg-orange-50 rounded">
+          <div className="text-lg font-bold text-orange-600">{widget.overdueActions}</div>
+          <div className="text-[10px] text-orange-700">対応遅延</div>
+        </div>
+      </div>
+    </WidgetCard>
+  );
+}
+
 // デフォルトウィジェット
 function DefaultWidgetCard({ widget }: { widget: Widget }) {
   const Icon = getWidgetIcon(widget.type);
@@ -675,9 +770,9 @@ function getWidgetIcon(type: WidgetType) {
     announcements: Megaphone,
     daily_ops: Clock,
     weekly_ops: Calendar,
-    os_map: Building2,
-    quality_risk: AlertTriangle,
-    contracts: FileQuestion,
+    os_map: Layers,           // Task 053: 専用アイコン
+    quality_risk: ShieldAlert, // Task 053: 専用アイコン
+    contracts: FileSignature,  // Task 053: 専用アイコン
     receivables: Wallet,
   };
   return iconMap[type] ?? FileQuestion;

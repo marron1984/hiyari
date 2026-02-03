@@ -49,14 +49,24 @@ async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
  * Query params:
  * - asRole: AppRole (optional) - admin限定プレビュー用
  *
- * セキュリティ:
- * - userId/role はサーバー側で確定
+ * Task 053 セキュリティ強化:
+ * - クエリの userId/role は無視（偽装防止）
+ * - userId はサーバー側でセッションから確定
  * - asRole は admin のみ使用可能
+ * - canViewFinance=false の role には receivables/contracts を返さない
  */
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const asRole = searchParams.get('asRole');
+
+    // Task 053: クエリの userId/role は明示的に無視（偽装防止）
+    // これらのパラメータがあっても使用しない
+    const _ignoredUserId = searchParams.get('userId');
+    const _ignoredRole = searchParams.get('role');
+    if (_ignoredUserId || _ignoredRole) {
+      console.warn('[API /home/summary] Ignored spoofing attempt: userId/role params are not allowed');
+    }
 
     // 現在のユーザー情報を取得（サーバー側で確定）
     const currentUser = await getCurrentUser();
@@ -80,12 +90,15 @@ export async function GET(request: NextRequest) {
     // ウィジェットを構築
     const widgets = buildWidgetsForRole(effectiveRole, effectiveUserId, widgetTypes);
 
-    // 役職に応じたウィジェットフィルタリング
-    // finance系（receivables）は canViewFinance=false の役職には返さない
+    // Task 053: 役職に応じたウィジェットフィルタリング
+    // canViewFinance=true の役職
     const financeRoles: AppRole[] = ['admin', 'executive', 'manager', 'auditor'];
+    const canViewFinance = financeRoles.includes(effectiveRole);
+
     const filteredWidgets = widgets.filter(w => {
-      // receivables は finance 権限がある役職のみ
-      if (w.type === 'receivables' && !financeRoles.includes(effectiveRole)) {
+      // 財務系ウィジェットは canViewFinance=true の役職のみ
+      const financeWidgets: WidgetType[] = ['receivables', 'contracts'];
+      if (financeWidgets.includes(w.type) && !canViewFinance) {
         return false;
       }
       return true;

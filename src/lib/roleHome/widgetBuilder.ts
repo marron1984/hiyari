@@ -1,7 +1,7 @@
 /**
  * 役職別ホーム ウィジェットビルダー
  *
- * Implementation Ticket 046: 各ウィジェットのデータを取得
+ * Task 053: 各ウィジェットのデータを取得
  */
 
 import type { AppRole } from '@/config/appRoles';
@@ -22,6 +22,9 @@ import type {
   BusinessSummaryWidget,
   ReceivablesWidget,
   AIVPTop3Widget,
+  ContractsWidget,
+  OsMapWidget,
+  QualityRiskWidget,
 } from './types';
 import { WIDGET_LABELS } from './types';
 import type { ViewerContext } from '@/lib/business/types';
@@ -378,6 +381,61 @@ export function buildAIVPTop3Widget(): AIVPTop3Widget {
 }
 
 /**
+ * Task 053: 契約ウィジェットを構築
+ */
+export function buildContractsWidget(): ContractsWidget {
+  // TODO: contracts リポジトリと連携
+  // 期限間近・判断期限超過・高リスク期限間近をカウント
+  return {
+    type: 'contracts',
+    title: WIDGET_LABELS.contracts,
+    href: '/dashboard/contracts',
+    count: 0,
+    severity: 'info',
+    expiringSoon: 0,
+    decisionOverdue: 0,
+    highRiskExpiring: 0,
+    isEmpty: true,
+  };
+}
+
+/**
+ * Task 053: OSマップウィジェットを構築
+ */
+export function buildOsMapWidget(): OsMapWidget {
+  // TODO: OS_FEATURES から統計を取得
+  return {
+    type: 'os_map',
+    title: WIDGET_LABELS.os_map,
+    href: '/dashboard/os-map',
+    count: 0,
+    severity: 'info',
+    totalFeatures: 0,
+    activeFeatures: 0,
+    progressPercent: 0,
+    isEmpty: true,
+  };
+}
+
+/**
+ * Task 053: 品質/リスク統合ウィジェットを構築
+ */
+export function buildQualityRiskWidget(): QualityRiskWidget {
+  // TODO: 品質関連リポジトリと連携
+  return {
+    type: 'quality_risk',
+    title: WIDGET_LABELS.quality_risk,
+    href: '/dashboard/quality',
+    count: 0,
+    severity: 'info',
+    highRiskCount: 0,
+    incidentCount: 0,
+    overdueActions: 0,
+    isEmpty: true,
+  };
+}
+
+/**
  * ウィジェットタイプに応じてウィジェットを構築
  */
 export function buildWidget(
@@ -414,6 +472,13 @@ export function buildWidget(
       return buildWeeklyOpsWidget();
     case 'receivables':
       return buildReceivablesWidget(userId, role);
+    // Task 053: 新規ウィジェット
+    case 'contracts':
+      return buildContractsWidget();
+    case 'os_map':
+      return buildOsMapWidget();
+    case 'quality_risk':
+      return buildQualityRiskWidget();
     default:
       return {
         type: widgetType,

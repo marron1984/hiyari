@@ -186,6 +186,36 @@ export interface ReceivablesWidget extends BaseWidget {
 }
 
 /**
+ * 契約ウィジェット（Task 053追加）
+ */
+export interface ContractsWidget extends BaseWidget {
+  type: 'contracts';
+  expiringSoon: number;      // 期限間近（30日以内）
+  decisionOverdue: number;   // 判断期限超過
+  highRiskExpiring: number;  // 高リスク期限間近
+}
+
+/**
+ * OSマップウィジェット（Task 053追加）
+ */
+export interface OsMapWidget extends BaseWidget {
+  type: 'os_map';
+  totalFeatures: number;
+  activeFeatures: number;
+  progressPercent: number;
+}
+
+/**
+ * 品質/リスク統合ウィジェット（Task 053追加）
+ */
+export interface QualityRiskWidget extends BaseWidget {
+  type: 'quality_risk';
+  highRiskCount: number;
+  incidentCount: number;
+  overdueActions: number;
+}
+
+/**
  * ウィジェット型のユニオン
  */
 export type Widget =
@@ -203,6 +233,9 @@ export type Widget =
   | WeeklyOpsWidget
   | BusinessSummaryWidget
   | ReceivablesWidget
+  | ContractsWidget
+  | OsMapWidget
+  | QualityRiskWidget
   | BaseWidget;
 
 /**
@@ -228,15 +261,20 @@ export interface RoleHomeData {
 /**
  * 役職別ウィジェット設定
  *
- * Implementation Ticket 046-final: 役職別並び確定
+ * Task 053: 役職別並び確定（迷子ゼロ）
  * - staff: 自分のタスク中心、周知・申し送り
- * - leader: チーム管理、担当範囲のチケット・修繕
- * - manager: 担当範囲全体、是正・アラート・未分類
- * - executive: 事業全体俯瞰、AI副社長Top3
- * - admin: システム運用、日次/週次オペ
+ * - leader: チーム管理、担当範囲のチケット・修繕・アラート
+ * - manager: 担当範囲全体、是正・アラート・未分類・日次/週次オペ
+ * - executive: 事業全体俯瞰、AI副社長Top3・契約・未収
+ * - admin: システム運用、OSマップ・品質リスク・日次/週次オペ
  */
 export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
   // staff: 自分のタスク中心
+  // - myTickets（assigned/requested）
+  // - training overdue（自分）
+  // - licenses expiring（自分）
+  // - announcements unread
+  // - handover unread
   staff: [
     'tickets',        // 自分の担当/依頼
     'training',       // 研修未受講（自分）
@@ -246,40 +284,66 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
   ],
 
   // leader: チーム管理
+  // - myTickets（assigned）
+  // - repairs（assigned/highRisk）
+  // - handover unread
+  // - alerts（warning以上）
   leader: [
     'tickets',        // 担当チケット
-    'repairs',        // 担当修繕
+    'repairs',        // 担当修繕（highRisk）
     'handover',       // 申し送り
-    'alerts',         // チーム向けアラート
+    'alerts',         // チーム向けアラート（warning以上）
     'training',       // チーム研修状況
   ],
 
   // manager: 担当範囲全体
+  // - alerts critical open
+  // - unclassified open + 034導線
+  // - tickets overdue/urgent
+  // - repairs highRisk/overdue
+  // - correctiveActions overdue/critical
+  // - licenses expired/expiring30（org scope）
+  // - daily_ops / weekly_ops status
   manager: [
-    'tickets',            // 担当範囲チケット
-    'repairs',            // 担当範囲修繕
-    'corrective_actions', // 是正措置
-    'alerts',             // アラート
-    'licenses',           // 資格期限（チーム）
-    'unclassified',       // 未分類スコープ
+    'alerts',             // アラート（critical優先）
+    'unclassified',       // 未分類スコープ + 導線
+    'tickets',            // チケット（overdue/urgent）
+    'repairs',            // 修繕（highRisk/overdue）
+    'corrective_actions', // 是正措置（overdue/critical）
+    'licenses',           // 資格期限（org scope）
     'receivables',        // 未収金
-    'daily_ops',          // 日次オペログ（参照）
+    'daily_ops',          // 日次オペステータス
+    'weekly_ops',         // 週次オペステータス
   ],
 
   // executive: 事業全体俯瞰
+  // - ai-vp business top3
+  // - business summary list
+  // - alerts critical open
+  // - contracts expiring（finance閲覧可）
+  // - receivables overdue（finance閲覧可）
   executive: [
     'ai_vp_top3',         // AI副社長 事業別Top3
-    'alerts',             // 重大アラート
     'business_summary',   // 事業別サマリー
+    'alerts',             // 重大アラート
+    'contracts',          // 契約期限間近（Task 053追加）
     'receivables',        // 未収金ハイライト
     'unclassified',       // 未分類スコープ
     'weekly_ops',         // WBRへの導線
   ],
 
   // admin: システム運用・全体管理
+  // - os-map
+  // - quality-risk
+  // - alerts critical open
+  // - unclassified open + 032/034導線
+  // - daily_ops / weekly_ops status
+  // - shares approval pending（040）
   admin: [
+    'os_map',             // OSマップ（Task 053追加）
+    'quality_risk',       // 品質/リスク統合（Task 053追加）
     'alerts',             // アラート（全社）
-    'unclassified',       // 未分類スコープ
+    'unclassified',       // 未分類スコープ + 導線
     'daily_ops',          // 日次オペ（実行ボタン付き）
     'weekly_ops',         // 週次オペ（実行ボタン付き）
     'tickets',            // チケット全体
