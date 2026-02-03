@@ -10,6 +10,7 @@ import type {
   AgreementConsent,
   AgreementEvent,
   AgreementStats,
+  AgreementStatsOptions,
   AgreementEntityType,
   AgreementEventAction,
   AgreementCategory,
@@ -39,6 +40,14 @@ const typesStore = new Map<string, AgreementType>();
 const documentsStore = new Map<string, AgreementDocument>();
 const consentsStore = new Map<string, AgreementConsent>();
 const eventsStore = new Map<string, AgreementEvent>();
+
+// Task 054: ユーザー→組織マッピング（user_org_memberships相当）
+interface UserInfo {
+  id: string;
+  name: string | null;
+  orgUnitId: string | null;  // primaryOrgUnitId
+}
+const usersStore = new Map<string, UserInfo>();
 
 // ========== ユーティリティ ==========
 
@@ -488,20 +497,65 @@ export function scanExpiredConsents(): AgreementConsent[] {
 
 // ========== 統計 ==========
 
-export function getStats(viewer: ViewerContext): AgreementStats | null {
+/**
+ * 統計を取得（orgUnitIdsによるスコープ対応）
+ *
+ * Task 054: business-summary スコープ拡張 Phase2
+ * - orgUnitIds が指定された場合、職員（staff）の所属組織でフィルタ
+ * - subjectType が指定された場合、そのタイプのみを集計
+ */
+export function getStats(
+  viewer: ViewerContext,
+  options?: AgreementStatsOptions
+): AgreementStats | null {
   if (!canViewConsents(viewer.role)) {
     return null;
   }
 
-  const consents = Array.from(consentsStore.values());
+  let consents = Array.from(consentsStore.values());
   const types = Array.from(typesStore.values());
+
+  // Task 054: subjectType フィルタ
+  if (options?.subjectType) {
+    consents = consents.filter((c) => c.subjectType === options.subjectType);
+  }
+
+  // Task 054: orgUnitIds スコープフィルタ
+  // staff タイプの同意は subjectId でユーザーを特定し、orgUnitId でフィルタ
+  if (options?.orgUnitIds && options.orgUnitIds.length > 0) {
+    consents = consents.filter((c) => {
+      // staff タイプは組織フィルタ対象
+      if (c.subjectType === 'staff' && c.subjectId) {
+        const user = usersStore.get(c.subjectId);
+        return user?.orgUnitId && options.orgUnitIds!.includes(user.orgUnitId);
+      }
+      // client/family/other は組織フィルタ対象外（全て含む）
+      // 将来的に resident -> orgUnit の紐付けで対応可能
+      return true;
+    });
+  }
 
   const thisMonth = new Date();
   thisMonth.setDate(1);
   thisMonth.setHours(0, 0, 0, 0);
 
-  const expiringCount = scanExpiringConsents().length;
-  const expiredCount = scanExpiredConsents().length;
+  // フィルタ後の同意から期限切れ/期限接近を計算
+  const expiringConsents = consents.filter((c) => {
+    if (c.consentStatus !== 'consented') return false;
+    if (!c.validUntil) return false;
+    const agreementType = typesStore.get(c.agreementTypeId);
+    const warnDays = agreementType?.defaultWarnDays ?? 30;
+    const today = new Date();
+    const validDate = new Date(c.validUntil);
+    const daysUntilExpiry = Math.ceil((validDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return daysUntilExpiry > 0 && daysUntilExpiry <= warnDays;
+  });
+
+  const expiredConsents = consents.filter((c) => {
+    if (c.consentStatus !== 'consented') return false;
+    return isExpired(c.validUntil);
+  });
+
   const consentedCountThisMonth = consents.filter(
     (c) =>
       c.consentStatus === 'consented' &&
@@ -519,8 +573,8 @@ export function getStats(viewer: ViewerContext): AgreementStats | null {
   }
 
   return {
-    expiringCount,
-    expiredCount,
+    expiringCount: expiringConsents.length,
+    expiredCount: expiredConsents.length,
     consentedCountThisMonth,
     totalActiveTypes: types.filter((t) => t.isActive).length,
     totalConsents: consents.length,
@@ -540,6 +594,14 @@ export function getEvents(entityId: string): AgreementEvent[] {
 
 function initDemoData(): void {
   if (typesStore.size > 0) return;
+
+  // Task 054: ユーザー→組織マッピングを初期化
+  const users: UserInfo[] = [
+    { id: 'user_staff', name: '田中太郎', orgUnitId: 'org_nishi' },
+    { id: 'user_manager', name: '管理者', orgUnitId: 'org_corp' },
+    { id: 'user_leader', name: 'リーダー', orgUnitId: 'org_higashi' },
+  ];
+  users.forEach((u) => usersStore.set(u.id, u));
 
   const todayStr = today();
 

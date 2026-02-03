@@ -171,6 +171,16 @@ export interface AgreementStats {
   byType: Record<string, { consented: number; expired: number }>;
 }
 
+// ========== Task 054: スコープ付き統計オプション ==========
+
+/**
+ * 統計取得オプション（スコープ対応）
+ */
+export interface AgreementStatsOptions {
+  orgUnitIds?: string[];       // フィルタ対象の組織ID（職員の所属ベース）
+  subjectType?: SubjectType;   // subjectTypeフィルタ（staff, client, etc）
+}
+
 // ========== RBAC ==========
 
 /**

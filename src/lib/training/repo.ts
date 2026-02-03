@@ -19,6 +19,8 @@ import type {
   SessionStats,
   MyTrainingSummary,
   ViewerContext,
+  TrainingStats,
+  TrainingStatsOptions,
 } from './types';
 import { canManageTraining, canViewAllStats } from './types';
 
@@ -29,6 +31,14 @@ const sessionsStore = new Map<string, TrainingSession>();
 const assignmentsStore = new Map<string, TrainingAssignment>();
 const attendancesStore = new Map<string, TrainingAttendance>();
 const eventsStore = new Map<string, TrainingEvent>();
+
+// Task 054: ユーザー→組織マッピング（user_org_memberships相当）
+interface UserInfo {
+  id: string;
+  name: string | null;
+  orgUnitId: string | null;  // primaryOrgUnitId
+}
+const usersStore = new Map<string, UserInfo>();
 
 let courseIdCounter = 1;
 let sessionIdCounter = 1;
@@ -550,6 +560,60 @@ export function getSessionStats(sessionId: string): SessionStats | null {
   };
 }
 
+// ========== Task 054: スコープ対応統計 ==========
+
+/**
+ * 研修統計を取得（orgUnitIdsによるスコープ対応）
+ *
+ * Task 054: business-summary スコープ拡張 Phase2
+ * - orgUnitIds が指定された場合、ユーザーの所属組織でフィルタ
+ * - 未指定の場合は全体を集計
+ */
+export function getStats(
+  viewer: ViewerContext,
+  options?: TrainingStatsOptions
+): TrainingStats | null {
+  if (!canViewAllStats(viewer)) {
+    return null;
+  }
+
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  // 全受講記録を取得
+  let attendances = Array.from(attendancesStore.values());
+
+  // Task 054: orgUnitIds スコープフィルタ
+  if (options?.orgUnitIds && options.orgUnitIds.length > 0) {
+    attendances = attendances.filter((a) => {
+      const user = usersStore.get(a.userId);
+      return user?.orgUnitId && options.orgUnitIds!.includes(user.orgUnitId);
+    });
+  }
+
+  // 期限超過（未受講 + 期限切れ）
+  const overdueCount = attendances.filter(
+    (a) => a.status === 'assigned' && a.dueAt && new Date(a.dueAt) < now
+  ).length;
+
+  // 未受講（assigned）件数
+  const assignedOpenCount = attendances.filter(
+    (a) => a.status === 'assigned'
+  ).length;
+
+  // 今週完了したセッション数（ユニークセッション）
+  const attendedThisWeek = attendances.filter(
+    (a) => a.status === 'attended' && a.attendedAt && new Date(a.attendedAt) >= weekAgo
+  );
+  const sessionsDoneThisWeek = new Set(attendedThisWeek.map((a) => a.sessionId)).size;
+
+  return {
+    overdueCount,
+    sessionsDoneThisWeek,
+    assignedOpenCount,
+  };
+}
+
 // ========== 期限超過スキャン ==========
 
 export function overdueAssignmentsScan(): TrainingAttendance[] {
@@ -586,6 +650,16 @@ export function listTrainingEvents(entityType?: TrainingEntityType, entityId?: s
 
 export function seedTrainingData(): void {
   if (coursesStore.size > 0) return;
+
+  // Task 054: ユーザー→組織マッピングを初期化
+  const users: UserInfo[] = [
+    { id: 'user_001', name: '山田太郎', orgUnitId: 'org_nishi' },
+    { id: 'user_002', name: '佐藤次郎', orgUnitId: 'org_nishi' },
+    { id: 'user_003', name: '鈴木花子', orgUnitId: 'org_higashi' },
+    { id: 'user_004', name: '高橋三郎', orgUnitId: 'org_facility' },
+    { id: 'user_005', name: '田中美咲', orgUnitId: 'org_sakura' },
+  ];
+  users.forEach((u) => usersStore.set(u.id, u));
 
   const now = new Date();
   const lastMonth = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);

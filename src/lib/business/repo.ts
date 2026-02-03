@@ -184,8 +184,12 @@ function collectHighlights(
         ['new', 'triaging', 'investigating', 'responding'].includes(c.status)
     );
 
-  // ========== 研修 ==========
-  const overdueTraining = trainingRepo.overdueAssignmentsScan();
+  // ========== Task 054: 研修（orgUnitIdsスコープ対応） ==========
+  // businessUnitId -> orgUnitId を解決してスコープ
+  const businessUnitForScope = businessUnitId ? getBusinessUnitById(businessUnitId) : null;
+  const scopeOrgUnitIds = businessUnitForScope?.orgUnitId ? [businessUnitForScope.orgUnitId] : undefined;
+  const trainingViewer = { userId: viewer.userId, role: viewer.role };
+  const trainingStats = trainingRepo.getStats(trainingViewer, { orgUnitIds: scopeOrgUnitIds });
 
   // ========== Task 049: 未収（財務・事業単位フィルタ対応） ==========
   const receivableViewer = { userId: viewer.userId, role: viewer.role };
@@ -205,9 +209,9 @@ function collectHighlights(
     ? contractsRepo.getStats(contractViewer, { businessUnitId: businessUnitId ?? undefined })
     : null;
 
-  // ========== 同意書 ==========
+  // ========== Task 054: 同意書（orgUnitIdsスコープ対応） ==========
   const agreementViewer = { userId: viewer.userId, role: viewer.role };
-  const agreementStats = agreementsRepo.getStats(agreementViewer);
+  const agreementStats = agreementsRepo.getStats(agreementViewer, { orgUnitIds: scopeOrgUnitIds });
 
   // ========== Task 030: チケット（スコープ対応） ==========
   const ticketViewer = { userId: viewer.userId, role: viewer.role };
@@ -222,11 +226,9 @@ function collectHighlights(
   const caStats = correctiveActionsRepo.getStats(caViewer, { businessUnitId });
 
   // ========== Task 030: 資格（orgUnitIdベースでスコープ） ==========
-  // businessUnitId -> orgUnitId を解決してスコープ
-  const businessUnit = businessUnitId ? getBusinessUnitById(businessUnitId) : null;
-  const orgUnitIds = businessUnit?.orgUnitId ? [businessUnit.orgUnitId] : undefined;
+  // scopeOrgUnitIds は上で既に計算済み
   const licenseViewer = { userId: viewer.userId, role: viewer.role };
-  const licenseStats = licensesRepo.getStats(licenseViewer, { orgUnitIds });
+  const licenseStats = licensesRepo.getStats(licenseViewer, { orgUnitIds: scopeOrgUnitIds });
 
   // URL生成ヘルパー
   const buQuery = businessUnitId ? `?businessUnitId=${businessUnitId}` : '';
@@ -302,13 +304,15 @@ function collectHighlights(
       url: `/dashboard/corrective-actions${buQuery}`,
     },
     training: {
-      overdue: overdueTraining.length,
-      url: '/dashboard/training',
+      overdue: trainingStats?.overdueCount ?? 0,
+      assignedOpen: trainingStats?.assignedOpenCount ?? 0,
+      sessionsDoneThisWeek: trainingStats?.sessionsDoneThisWeek ?? 0,
+      url: scopeOrgUnitIds ? `/dashboard/training?orgUnitId=${scopeOrgUnitIds[0]}` : '/dashboard/training',
     },
     licenses: {
       expired: licenseStats?.expired ?? 0,
       expiring30: licenseStats?.expiring30 ?? 0,
-      url: orgUnitIds ? `/dashboard/licenses?orgUnitId=${orgUnitIds[0]}` : '/dashboard/licenses',
+      url: scopeOrgUnitIds ? `/dashboard/licenses?orgUnitId=${scopeOrgUnitIds[0]}` : '/dashboard/licenses',
     },
     // Task 049: 財務系（canViewFinance=false時はnull）
     receivables: hasFinanceAccess && receivableStats

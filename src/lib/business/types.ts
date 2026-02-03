@@ -118,6 +118,8 @@ export interface CorrectiveActionsHighlight {
 
 export interface TrainingHighlight {
   overdue: number;
+  assignedOpen: number;          // Task 054: 未受講件数
+  sessionsDoneThisWeek: number;  // Task 054: 今週完了セッション数
   url: string;
 }
 
