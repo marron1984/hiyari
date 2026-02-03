@@ -59,7 +59,8 @@ interface BusinessHighlights {
   repairs: { highRiskOpen: number; overdue: number; url: string };
   complaints: { highOpen: number; criticalOpen: number; overdue: number; url: string };
   correctiveActions: { open: number; criticalOpen: number; overdue: number; url: string };
-  training: { overdue: number; url: string };
+  // Task 054: training に assignedOpen, sessionsDoneThisWeek 追加
+  training: { overdue: number; assignedOpen: number; sessionsDoneThisWeek: number; url: string };
   licenses: { expired: number; expiring30: number; url: string };
   // Task 049: 財務系（canViewFinance=false時はnull）
   receivables: { overdueTotal: number; aging60Count: number; url: string } | null;
@@ -357,12 +358,16 @@ function SummaryDetail({ summary }: SummaryDetailProps) {
             ]}
           />
 
-          {/* 研修 */}
+          {/* Task 054: 研修（assignedOpen, sessionsDoneThisWeek追加） */}
           <HighlightCard
             title="研修"
             icon={<GraduationCap className="w-4 h-4" />}
             url={highlights.training.url}
-            items={[{ label: '未受講', value: highlights.training.overdue, warning: true }]}
+            items={[
+              { label: '期限超過', value: highlights.training.overdue, critical: true },
+              { label: '未受講', value: highlights.training.assignedOpen, warning: true },
+              { label: '今週完了', value: highlights.training.sessionsDoneThisWeek },
+            ]}
           />
 
           {/* Task 049: 未収（canViewFinance=falseの場合は非表示） */}
