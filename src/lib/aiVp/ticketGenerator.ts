@@ -5,6 +5,7 @@
  * fingerprint による冪等性保証
  *
  * Task 043: AI VP Business Top3 → Ticket Auto-generation
+ * Task 058: 自動割当連動 + 未割当アラート/通知
  */
 
 import type { ViewerContext } from '@/lib/business/types';
@@ -17,6 +18,10 @@ import type {
   BusinessTop3Summary,
 } from './businessTop3';
 import { getAllBusinessTop3, getAlertTop3, getCurrentWeekId } from './businessTop3';
+
+// Task 058: 未割当アラート/通知
+import { createAlert } from '@/lib/alerts/repo';
+import { getUnassignedQueue } from '@/lib/assignment/autoAssign';
 
 // ========== 型定義 ==========
 
@@ -32,6 +37,9 @@ export interface GenerationResult {
   created: GeneratedTicket[];
   skipped: GeneratedTicket[];  // fingerprint重複でスキップ
   totalProcessed: number;
+  // Task 058: 未割当追跡
+  unassignedCount: number;
+  unassignedAlertIds: string[];
 }
 
 export interface GenerationOptions {
@@ -123,11 +131,12 @@ export function findTicketByFingerprint(fingerprint: string): Ticket | null {
 
 /**
  * ActionCandidate からチケットを生成
+ * Task 058: 未割当時のアラート/通知も作成
  */
 function generateTicketFromAction(
   action: ActionCandidate,
   actorUserId: string = 'system_ai_vp'
-): Ticket {
+): { ticket: Ticket; isAssigned: boolean; alertId: string | null } {
   const ticket = ticketsRepo.createTicket(
     {
       title: `[AI-VP] ${action.title}`,
@@ -146,7 +155,82 @@ function generateTicketFromAction(
   // fingerprint をストアに登録
   fingerprintStore.set(action.fingerprint, ticket.id);
 
-  return ticket;
+  // Task 058: 自動割当チェック
+  const isAssigned = ticket.assigneeUserId !== null;
+  let alertId: string | null = null;
+
+  if (!isAssigned) {
+    // 未割当アラートを作成
+    alertId = createUnassignedAiVpAlert(ticket, action);
+    // 未割当通知を作成（manager/adminへ）
+    createUnassignedAiVpNotification(ticket, action);
+  }
+
+  return { ticket, isAssigned, alertId };
+}
+
+/**
+ * Task 058: 未割当AI-VPチケットのアラートを作成
+ */
+function createUnassignedAiVpAlert(ticket: Ticket, action: ActionCandidate): string {
+  const fingerprint = `unassigned:ai_vp:${ticket.id}`;
+  const businessUnitId = action.businessUnitId === 'global' ? null : action.businessUnitId;
+
+  const result = createAlert({
+    type: 'unassigned_item',
+    sourceId: ticket.id,
+    title: '未割当チケットが発生（AI副社長）',
+    message: `チケット「${ticket.title}」が自動生成されましたが、担当者を割り当てできませんでした。\n\n事業単位ID: ${businessUnitId ?? '未設定'}\n事業名: ${action.businessUnitName}\n理由: businessUnitに責任者が設定されていないか、組織マネージャーが見つかりませんでした。`,
+    severity: 'warning',
+    fingerprint,
+    meta: {
+      ticketId: ticket.id,
+      ticketTitle: ticket.title,
+      businessUnitId,
+      businessUnitName: action.businessUnitName,
+      actionFingerprint: action.fingerprint,
+      generatedBy: 'ai_vp',
+      url: `/dashboard/tickets?relatedType=ai_vp&assigned=false`,
+    },
+  });
+
+  return result.alert?.id ?? '';
+}
+
+/**
+ * Task 058: 未割当AI-VPチケットの通知を作成（manager/adminへ）
+ *
+ * 注: notifications/repoはサーバーサイドのみで使用可能（fs/pathを使用）
+ * そのため動的インポートを使用
+ */
+async function createUnassignedAiVpNotification(ticket: Ticket, action: ActionCandidate): Promise<void> {
+  // サーバーサイドのみで実行（クライアントでは何もしない）
+  if (typeof window !== 'undefined') {
+    return;
+  }
+
+  try {
+    const fingerprint = `notif:unassigned:ai_vp:${ticket.id}`;
+    const businessUnitId = action.businessUnitId === 'global' ? null : action.businessUnitId;
+
+    // 動的インポートでサーバーサイドモジュールを読み込み
+    const { create: createNotification } = await import('@/lib/notifications/repo');
+
+    // manager/admin向け通知を作成
+    createNotification({
+      tenantId: 'default',
+      userId: 'admin',  // 管理者向け
+      type: 'system',
+      severity: 'warning',
+      title: '未割当チケット（AI副社長生成）',
+      message: `「${ticket.title}」の担当者を割り当ててください。事業: ${action.businessUnitName}`,
+      url: `/dashboard/tickets/${ticket.id}`,
+      fingerprint,
+    });
+  } catch {
+    // クライアントサイドでのインポート失敗は無視
+    console.warn('[AI-VP] Notification creation skipped (client-side)');
+  }
 }
 
 // ========== メイン機能 ==========
@@ -188,6 +272,10 @@ export function generateTicketsFromTop3(
   // 最大数まで処理
   const actionsToProcess = allActions.slice(0, maxTickets);
 
+  // Task 058: 未割当追跡
+  let unassignedCount = 0;
+  const unassignedAlertIds: string[] = [];
+
   for (const action of actionsToProcess) {
     // fingerprint で既存チケットをチェック
     const existingTicket = findTicketByFingerprint(action.fingerprint);
@@ -204,12 +292,20 @@ export function generateTicketsFromTop3(
 
     // dryRun でなければチケットを作成
     if (!dryRun) {
-      const ticket = generateTicketFromAction(action);
+      const result = generateTicketFromAction(action);
       created.push({
-        ticket,
+        ticket: result.ticket,
         action,
         isNew: true,
       });
+
+      // Task 058: 未割当追跡
+      if (!result.isAssigned) {
+        unassignedCount++;
+        if (result.alertId) {
+          unassignedAlertIds.push(result.alertId);
+        }
+      }
     } else {
       // dryRun の場合は仮のチケット情報を返す
       created.push({
@@ -247,6 +343,8 @@ export function generateTicketsFromTop3(
     created,
     skipped,
     totalProcessed: actionsToProcess.length,
+    unassignedCount,
+    unassignedAlertIds,
   };
 }
 
@@ -289,15 +387,21 @@ export function formatGenerationReport(result: GenerationResult): string {
   lines.push(`処理件数: ${result.totalProcessed}`);
   lines.push(`新規作成: ${result.created.length}`);
   lines.push(`スキップ: ${result.skipped.length}`);
+  // Task 058: 未割当件数
+  lines.push(`未割当: ${result.unassignedCount}`);
   lines.push('');
 
   if (result.created.length > 0) {
     lines.push('--- 新規作成チケット ---');
     for (const item of result.created) {
+      const assigneeStatus = item.ticket.assigneeUserId
+        ? `担当: ${item.ticket.assigneeUserName}`
+        : '【未割当】';
       lines.push(`  - ${item.ticket.title}`);
       lines.push(`    優先度: ${item.ticket.priority} / カテゴリ: ${item.ticket.category}`);
       lines.push(`    事業: ${item.action.businessUnitName}`);
       lines.push(`    期限: ${item.ticket.dueAt}`);
+      lines.push(`    ${assigneeStatus}`);
       lines.push('');
     }
   }
@@ -309,6 +413,15 @@ export function formatGenerationReport(result: GenerationResult): string {
       lines.push(`    既存チケット: ${item.ticket.id}`);
       lines.push('');
     }
+  }
+
+  // Task 058: 未割当アラート
+  if (result.unassignedCount > 0) {
+    lines.push('--- 未割当チケット（要対応） ---');
+    lines.push(`  ${result.unassignedCount}件のチケットに担当者を割り当てできませんでした。`);
+    lines.push(`  アラートID: ${result.unassignedAlertIds.join(', ')}`);
+    lines.push(`  対応URL: /dashboard/tickets?relatedType=ai_vp&assigned=false`);
+    lines.push('');
   }
 
   return lines.join('\n');
