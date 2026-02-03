@@ -23,6 +23,9 @@ import type {
 } from './types';
 import { canViewCollectionFlow, addDays, isStepOverdue } from './types';
 
+// Task 049: receivables のインポート（businessUnitId取得用）
+import * as receivablesRepo from '@/lib/receivables/repo';
+
 // ========== ストレージ ==========
 
 const templatesStore = new Map<string, CollectionFlowTemplate>();
@@ -467,14 +470,35 @@ export interface CollectionStats {
   templateCount: number;
 }
 
-export function getStats(viewer: ViewerContext): CollectionStats | null {
+// Task 049: 統計フィルタオプション
+export interface CollectionStatsFilterOptions {
+  businessUnitId?: string;
+}
+
+export function getStats(viewer: ViewerContext, options: CollectionStatsFilterOptions = {}): CollectionStats | null {
   if (!canViewCollectionFlow(viewer.role)) {
     return null;
   }
 
-  const assignments = Array.from(assignmentsStore.values());
-  const stepLogs = Array.from(stepLogsStore.values());
+  let assignments = Array.from(assignmentsStore.values());
+  let stepLogs = Array.from(stepLogsStore.values());
   const templates = Array.from(templatesStore.values());
+
+  // Task 049: 事業単位フィルタ（receivableのbusinessUnitIdで絞る）
+  if (options.businessUnitId) {
+    // receivableIdのSetを作成
+    const receivableViewer = { userId: viewer.userId, role: viewer.role as 'manager' | 'admin' | 'executive' | 'auditor' | 'staff' | 'leader' };
+    const receivablesResult = receivablesRepo.listReceivables(
+      receivableViewer,
+      { businessUnitId: options.businessUnitId },
+      { limit: 10000, offset: 0 }
+    );
+    const receivableIdsInBusiness = new Set(receivablesResult.items.map((r) => r.id));
+
+    // 当該事業単位のreceivableに紐づくassignment/stepLogsのみに絞る
+    assignments = assignments.filter((a) => receivableIdsInBusiness.has(a.receivableId));
+    stepLogs = stepLogs.filter((l) => receivableIdsInBusiness.has(l.receivableId));
+  }
 
   // 今週の開始日
   const now = new Date();

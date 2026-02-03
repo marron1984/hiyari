@@ -28,6 +28,7 @@ import {
   Wrench,
   ShieldAlert,
   Award,
+  FileSignature,  // Task 049: 契約用アイコン
 } from 'lucide-react';
 
 // ========== 型定義 ==========
@@ -60,8 +61,10 @@ interface BusinessHighlights {
   correctiveActions: { open: number; criticalOpen: number; overdue: number; url: string };
   training: { overdue: number; url: string };
   licenses: { expired: number; expiring30: number; url: string };
-  receivables: { overdueTotal: number; aging60Count: number; url: string };
-  collection: { overdueSteps: number; url: string };
+  // Task 049: 財務系（canViewFinance=false時はnull）
+  receivables: { overdueTotal: number; aging60Count: number; url: string } | null;
+  collection: { overdueSteps: number; url: string } | null;
+  contracts: { expiring: number; decisionOverdue: number; highRiskExpiring: number; url: string } | null;
   agreements: { expired: number; expiring30: number; url: string };
 }
 
@@ -362,28 +365,46 @@ function SummaryDetail({ summary }: SummaryDetailProps) {
             items={[{ label: '未受講', value: highlights.training.overdue, warning: true }]}
           />
 
-          {/* 未収 */}
-          <HighlightCard
-            title="未収管理"
-            icon={<Wallet className="w-4 h-4" />}
-            url={highlights.receivables.url}
-            items={[
-              {
-                label: '期限超過',
-                value: formatCurrency(highlights.receivables.overdueTotal),
-                warning: highlights.receivables.overdueTotal > 0,
-              },
-              { label: '60日超', value: highlights.receivables.aging60Count, critical: true },
-            ]}
-          />
+          {/* Task 049: 未収（canViewFinance=falseの場合は非表示） */}
+          {highlights.receivables && (
+            <HighlightCard
+              title="未収管理"
+              icon={<Wallet className="w-4 h-4" />}
+              url={highlights.receivables.url}
+              items={[
+                {
+                  label: '期限超過',
+                  value: formatCurrency(highlights.receivables.overdueTotal),
+                  warning: highlights.receivables.overdueTotal > 0,
+                },
+                { label: '60日超', value: highlights.receivables.aging60Count, critical: true },
+              ]}
+            />
+          )}
 
-          {/* 回収フロー */}
-          <HighlightCard
-            title="回収フロー"
-            icon={<TrendingUp className="w-4 h-4" />}
-            url={highlights.collection.url}
-            items={[{ label: 'ステップ期限超過', value: highlights.collection.overdueSteps, warning: true }]}
-          />
+          {/* Task 049: 回収フロー（canViewFinance=falseの場合は非表示） */}
+          {highlights.collection && (
+            <HighlightCard
+              title="回収フロー"
+              icon={<TrendingUp className="w-4 h-4" />}
+              url={highlights.collection.url}
+              items={[{ label: 'ステップ期限超過', value: highlights.collection.overdueSteps, warning: true }]}
+            />
+          )}
+
+          {/* Task 049: 契約（canViewFinance=falseの場合は非表示） */}
+          {highlights.contracts && (
+            <HighlightCard
+              title="契約"
+              icon={<FileSignature className="w-4 h-4" />}
+              url={highlights.contracts.url}
+              items={[
+                { label: '期限間近', value: highlights.contracts.expiring, warning: true },
+                { label: '判断期限超過', value: highlights.contracts.decisionOverdue, critical: true },
+                { label: '高リスク期限間近', value: highlights.contracts.highRiskExpiring, critical: true },
+              ]}
+            />
+          )}
 
           {/* 同意書 */}
           <HighlightCard

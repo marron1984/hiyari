@@ -34,6 +34,9 @@ import * as repairsRepo from '@/lib/repairs/repo';
 import * as correctiveActionsRepo from '@/lib/correctiveActions/repo';
 import * as licensesRepo from '@/lib/licenses/repo';
 
+// Task 049: 契約管理
+import * as contractsRepo from '@/lib/contracts/repo';
+
 // スコープ (Task 030)
 import type { Scope, DomainCoverage, AppRole } from '@/lib/access/scope';
 import {
@@ -41,6 +44,7 @@ import {
   isBusinessUnitInScope,
   DOMAIN_SCOPE_COVERAGE,
   getUnscopedDomains,
+  canViewFinance,  // Task 049: 財務閲覧権限
 } from '@/lib/access/scope';
 
 // Task 041: KPI辞書参照
@@ -154,11 +158,15 @@ export function generateBusinessSummary(
 /**
  * 各ドメインからハイライトを集計
  * Task 030: businessUnitId によるスコープ対応
+ * Task 049: 財務系（receivables, collection, contracts）のRBAC対応
  */
 function collectHighlights(
   viewer: ViewerContext,
   businessUnitId: string | null
 ): BusinessHighlights {
+  // Task 049: 財務閲覧権限チェック
+  const hasFinanceAccess = canViewFinance(viewer.role);
+
   // ========== アラート ==========
   const alertStats = alertsRepo.getAlertStats();
   const alertsAll = alertsRepo.listAlerts({ status: 'open' });
@@ -179,13 +187,23 @@ function collectHighlights(
   // ========== 研修 ==========
   const overdueTraining = trainingRepo.overdueAssignmentsScan();
 
-  // ========== 未収 ==========
+  // ========== Task 049: 未収（財務・事業単位フィルタ対応） ==========
   const receivableViewer = { userId: viewer.userId, role: viewer.role };
-  const receivableStats = receivablesRepo.getStats(receivableViewer);
+  const receivableStats = hasFinanceAccess
+    ? receivablesRepo.getStats(receivableViewer, { businessUnitId: businessUnitId ?? undefined })
+    : null;
 
-  // ========== 回収フロー ==========
+  // ========== Task 049: 回収フロー（財務・事業単位フィルタ対応） ==========
   const collectionViewer = { userId: viewer.userId, role: viewer.role as 'manager' | 'admin' | 'executive' | 'auditor' | 'staff' | 'leader' };
-  const collectionStats = collectionRepo.getStats(collectionViewer);
+  const collectionStats = hasFinanceAccess
+    ? collectionRepo.getStats(collectionViewer, { businessUnitId: businessUnitId ?? undefined })
+    : null;
+
+  // ========== Task 049: 契約（財務・事業単位フィルタ対応） ==========
+  const contractViewer = { userId: viewer.userId, role: viewer.role };
+  const contractStats = hasFinanceAccess
+    ? contractsRepo.getStats(contractViewer, { businessUnitId: businessUnitId ?? undefined })
+    : null;
 
   // ========== 同意書 ==========
   const agreementViewer = { userId: viewer.userId, role: viewer.role };
@@ -292,15 +310,28 @@ function collectHighlights(
       expiring30: licenseStats?.expiring30 ?? 0,
       url: orgUnitIds ? `/dashboard/licenses?orgUnitId=${orgUnitIds[0]}` : '/dashboard/licenses',
     },
-    receivables: {
-      overdueTotal: receivableStats?.overdueTotal ?? 0,
-      aging60Count: 0, // 計算が必要
-      url: '/dashboard/receivables',
-    },
-    collection: {
-      overdueSteps: collectionStats?.overdueSteps ?? 0,
-      url: '/dashboard/collection-flow',
-    },
+    // Task 049: 財務系（canViewFinance=false時はnull）
+    receivables: hasFinanceAccess && receivableStats
+      ? {
+          overdueTotal: receivableStats.overdueTotal,
+          aging60Count: receivableStats.aging60Count,
+          url: `/dashboard/receivables${businessUnitId ? `?businessUnitId=${businessUnitId}&tab=overdue` : ''}`,
+        }
+      : null,
+    collection: hasFinanceAccess && collectionStats
+      ? {
+          overdueSteps: collectionStats.overdueSteps,
+          url: `/dashboard/collection-flow${businessUnitId ? `?businessUnitId=${businessUnitId}&tab=progress` : ''}`,
+        }
+      : null,
+    contracts: hasFinanceAccess && contractStats
+      ? {
+          expiring: contractStats.expiring,
+          decisionOverdue: contractStats.decisionOverdue,
+          highRiskExpiring: contractStats.highRiskExpiring,
+          url: `/dashboard/contracts${businessUnitId ? `?businessUnitId=${businessUnitId}&tab=expiring` : ''}`,
+        }
+      : null,
     agreements: {
       expired: agreementStats?.expiredCount ?? 0,
       expiring30: agreementStats?.expiringCount ?? 0,
@@ -345,7 +376,8 @@ function generateCommentary(
     actions.push('同意書管理で更新対応');
   }
 
-  if (highlights.receivables.overdueTotal > 0) {
+  // Task 049: 財務系（nullの場合はスキップ）
+  if (highlights.receivables && highlights.receivables.overdueTotal > 0) {
     const amount = new Intl.NumberFormat('ja-JP', {
       style: 'currency',
       currency: 'JPY',
@@ -355,8 +387,19 @@ function generateCommentary(
     actions.push('未収管理で回収状況を確認');
   }
 
-  if (highlights.collection.overdueSteps > 0) {
+  if (highlights.collection && highlights.collection.overdueSteps > 0) {
     risks.push(`回収ステップ${highlights.collection.overdueSteps}件が遅延`);
+  }
+
+  // Task 049: 契約
+  if (highlights.contracts) {
+    if (highlights.contracts.decisionOverdue > 0) {
+      risks.push(`契約${highlights.contracts.decisionOverdue}件が更新判断期限超過`);
+      actions.push('契約管理で更新判断を確認');
+    }
+    if (highlights.contracts.highRiskExpiring > 0) {
+      risks.push(`高リスク契約${highlights.contracts.highRiskExpiring}件が期限間近`);
+    }
   }
 
   // サマリーテキスト生成
@@ -410,13 +453,16 @@ export function getBusinessSummaryOverviews(
       h.complaints.criticalOpen +
       h.correctiveActions.criticalOpen;
 
+    // Task 049: 財務系がnullの場合は0として計算
     const warningIssues =
       h.alerts.warningOpen +
       h.complaints.highOpen +
       h.complaints.overdue +
       h.training.overdue +
       h.agreements.expired +
-      h.collection.overdueSteps;
+      (h.collection?.overdueSteps ?? 0) +
+      (h.receivables?.overdueTotal ? 1 : 0) +
+      (h.contracts?.decisionOverdue ?? 0);
 
     const totalIssues = criticalIssues + warningIssues;
 
@@ -530,13 +576,16 @@ export function getBusinessSummaryOverviewsWithScope(
       h.complaints.criticalOpen +
       h.correctiveActions.criticalOpen;
 
+    // Task 049: 財務系がnullの場合は0として計算
     const warningIssues =
       h.alerts.warningOpen +
       h.complaints.highOpen +
       h.complaints.overdue +
       h.training.overdue +
       h.agreements.expired +
-      h.collection.overdueSteps;
+      (h.collection?.overdueSteps ?? 0) +
+      (h.receivables?.overdueTotal ? 1 : 0) +
+      (h.contracts?.decisionOverdue ?? 0);
 
     const totalIssues = criticalIssues + warningIssues;
 

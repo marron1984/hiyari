@@ -386,8 +386,9 @@ export const DOMAIN_SCOPE_COVERAGE: DomainCoverage[] = [
   { domain: 'correctiveActions', label: '是正措置', status: 'scoped', note: 'Task 030: businessUnitId対応' },
   { domain: 'training', label: '研修', status: 'partial', note: 'userId経由で間接対応' },
   { domain: 'licenses', label: '資格', status: 'scoped', note: 'Task 030: orgUnitIds対応（ユーザー所属ベース）' },
-  { domain: 'receivables', label: '未収', status: 'partial', note: 'residentId経由で間接対応' },
-  { domain: 'collection', label: '回収フロー', status: 'partial', note: 'receivableId経由で間接対応' },
+  { domain: 'receivables', label: '未収', status: 'scoped', note: 'Task 049: businessUnitId対応' },
+  { domain: 'collection', label: '回収フロー', status: 'scoped', note: 'Task 049: receivable.businessUnitId経由' },
+  { domain: 'contracts', label: '契約', status: 'scoped', note: 'Task 049: businessUnitId対応' },
   { domain: 'agreements', label: '同意書', status: 'partial', note: 'residentId経由で間接対応' },
 ];
 

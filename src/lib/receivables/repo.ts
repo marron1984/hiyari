@@ -84,6 +84,7 @@ export interface ReceivableFilters {
   agingMinDays?: number;
   amountMin?: number;
   ownerUserId?: string;
+  businessUnitId?: string;  // Task 049: 事業単位フィルタ
   q?: string;
 }
 
@@ -136,6 +137,10 @@ export function listReceivables(
   }
   if (filters.ownerUserId) {
     items = items.filter((r) => r.ownerUserId === filters.ownerUserId);
+  }
+  // Task 049: 事業単位フィルタ
+  if (filters.businessUnitId) {
+    items = items.filter((r) => r.businessUnitId === filters.businessUnitId);
   }
   if (filters.q) {
     const q = filters.q.toLowerCase();
@@ -209,6 +214,7 @@ export interface CreateReceivableInput {
   ownerUserId?: string | null;
   nextActionAt?: string | null;
   nextActionType?: NextActionType;
+  businessUnitId?: string | null;  // Task 049: 事業単位
 }
 
 export function createReceivable(
@@ -220,6 +226,7 @@ export function createReceivable(
 
   const receivable: Receivable = {
     id,
+    businessUnitId: input.businessUnitId ?? null,  // Task 049
     subjectType: input.subjectType,
     subjectId: input.subjectId ?? null,
     subjectName: input.subjectName,
@@ -267,6 +274,7 @@ export interface UpdateReceivableInput {
   riskNote?: string | null;
   nextActionAt?: string | null;
   nextActionType?: NextActionType;
+  businessUnitId?: string | null;  // Task 049: 事業単位
 }
 
 export function updateReceivable(
@@ -507,6 +515,7 @@ export interface ReceivableStats {
   overdueTotal: number;
   overdueCount: number;
   criticalOverdueCount: number;
+  aging60Count: number;        // Task 049: 60日超の件数
   countByStatus: Record<ReceivableStatus, number>;
   agingBuckets: {
     '1-30': number;
@@ -517,12 +526,22 @@ export interface ReceivableStats {
   totalAmount: number;
 }
 
-export function getStats(viewer: ViewerContext): ReceivableStats | null {
+// Task 049: 統計フィルタオプション
+export interface StatsFilterOptions {
+  businessUnitId?: string;
+}
+
+export function getStats(viewer: ViewerContext, options: StatsFilterOptions = {}): ReceivableStats | null {
   if (!canViewReceivables(viewer.role)) {
     return null;
   }
 
-  const items = Array.from(receivablesStore.values());
+  let items = Array.from(receivablesStore.values());
+
+  // Task 049: 事業単位フィルタ
+  if (options.businessUnitId) {
+    items = items.filter((r) => r.businessUnitId === options.businessUnitId);
+  }
 
   const openItems = items.filter((r) => !['paid', 'writeoff', 'archived'].includes(r.status));
   const overdueItems = items.filter((r) => isOverdue(r));
@@ -549,6 +568,9 @@ export function getStats(viewer: ViewerContext): ReceivableStats | null {
     '90+': 0,
   };
 
+  // Task 049: 60日超の件数をカウント
+  let aging60Count = 0;
+
   overdueItems.forEach((r) => {
     const aging = calculateAgingDays(r.dueAt);
     if (aging <= 30) {
@@ -557,8 +579,10 @@ export function getStats(viewer: ViewerContext): ReceivableStats | null {
       agingBuckets['31-60'] += r.amount;
     } else if (aging <= 90) {
       agingBuckets['61-90'] += r.amount;
+      aging60Count++;  // Task 049
     } else {
       agingBuckets['90+'] += r.amount;
+      aging60Count++;  // Task 049
     }
   });
 
@@ -567,6 +591,7 @@ export function getStats(viewer: ViewerContext): ReceivableStats | null {
     overdueTotal: overdueItems.reduce((sum, r) => sum + r.amount, 0),
     overdueCount: overdueItems.length,
     criticalOverdueCount: overdueItems.filter((r) => r.priority === 'critical').length,
+    aging60Count,  // Task 049
     countByStatus,
     agingBuckets,
     totalAmount: items.reduce((sum, r) => sum + r.amount, 0),
@@ -633,6 +658,7 @@ function initDemoData(): void {
   const demoReceivables: Omit<Receivable, 'agingDays'>[] = [
     {
       id: 'recv_demo_001',
+      businessUnitId: 'bu_001',  // Task 049: 西淀川
       subjectType: 'client',
       subjectId: 'resident_001',
       subjectName: '山田太郎',
@@ -659,6 +685,7 @@ function initDemoData(): void {
     },
     {
       id: 'recv_demo_002',
+      businessUnitId: 'bu_001',  // Task 049: 西淀川
       subjectType: 'client',
       subjectId: 'resident_002',
       subjectName: '鈴木花子',
@@ -685,6 +712,7 @@ function initDemoData(): void {
     },
     {
       id: 'recv_demo_003',
+      businessUnitId: 'bu_003',  // Task 049: サ高住さくら
       subjectType: 'company',
       subjectId: 'company_001',
       subjectName: '株式会社ABC福祉',
@@ -711,6 +739,7 @@ function initDemoData(): void {
     },
     {
       id: 'recv_demo_004',
+      businessUnitId: 'bu_002',  // Task 049: 東淀川
       subjectType: 'client',
       subjectId: 'resident_003',
       subjectName: '佐藤一郎',
@@ -737,6 +766,7 @@ function initDemoData(): void {
     },
     {
       id: 'recv_demo_005',
+      businessUnitId: 'bu_004',  // Task 049: 老人ホーム
       subjectType: 'client',
       subjectId: 'resident_004',
       subjectName: '田中美咲',
@@ -763,6 +793,7 @@ function initDemoData(): void {
     },
     {
       id: 'recv_demo_006',
+      businessUnitId: null,  // Task 049: 未分類
       subjectType: 'other',
       subjectId: null,
       subjectName: '個人（紹介料）',
