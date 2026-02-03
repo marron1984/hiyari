@@ -142,13 +142,57 @@ export function getById(
 
 // ========== 作成 ==========
 
+import {
+  tryAutoAssign,
+  addToUnassignedQueue,
+  removeFromUnassignedQueue,
+} from '@/lib/assignment/autoAssign';
+
 export function create(
   input: CreateCorrectiveActionRequest,
-  actorUserId: string
+  actorUserId: string,
+  options: { skipAutoAssign?: boolean } = {}
 ): CorrectiveAction {
   const timestamp = now();
+  const caId = generateId();
+
+  // Task 057: 自動担当者割当（ownerUserIdが未指定の場合）
+  let ownerUserId = input.ownerUserId ?? null;
+  let ownerUserName = input.ownerUserId ? getUserName(input.ownerUserId) : null;
+
+  if (!ownerUserId && !options.skipAutoAssign) {
+    const severityMap: Record<string, 'low' | 'medium' | 'high' | 'critical'> = {
+      minor: 'low',
+      moderate: 'medium',
+      major: 'high',
+      critical: 'critical',
+    };
+
+    const assignResult = tryAutoAssign({
+      entityType: 'correctiveAction',
+      entityId: caId,
+      businessUnitId: input.businessUnitId ?? null,
+      severity: severityMap[input.severity ?? 'minor'] ?? 'low',
+      createdByUserId: actorUserId,
+    });
+
+    if (assignResult.ok && assignResult.wasAssigned) {
+      ownerUserId = assignResult.assigneeUserId;
+      ownerUserName = getUserName(assignResult.assigneeUserId);
+    } else if (!assignResult.ok) {
+      // 未割当キューに追加
+      addToUnassignedQueue(
+        'correctiveAction',
+        caId,
+        input.businessUnitId ?? null,
+        assignResult.reason,
+        actorUserId
+      );
+    }
+  }
+
   const ca: CorrectiveAction = {
-    id: generateId(),
+    id: caId,
     title: input.title,
     description: input.description,
     status: 'open',
@@ -158,8 +202,8 @@ export function create(
     businessUnitId: input.businessUnitId ?? null,
     rootCause: input.rootCause ?? null,
     actionPlan: input.actionPlan ?? null,
-    ownerUserId: input.ownerUserId ?? null,
-    ownerUserName: input.ownerUserId ? getUserName(input.ownerUserId) : null,
+    ownerUserId,
+    ownerUserName,
     createdByUserId: actorUserId,
     createdByUserName: getUserName(actorUserId),
     dueAt: input.dueAt ?? null,
