@@ -31,10 +31,12 @@ export interface AiVpSettings {
   updatedByUserId: string;
 }
 
+export type AiVpSettingsAction = 'update' | 'reset' | 'rollback' | 'apply_preset';
+
 export interface AiVpSettingsEvent {
   id: string;
   actorUserId: string;
-  action: 'update' | 'reset';
+  action: AiVpSettingsAction;
   beforeJson: AiVpConfig | null;
   afterJson: AiVpConfig;
   createdAt: string;
@@ -377,6 +379,116 @@ export function resetAiVpConfig(actorUserId: string): AiVpSettings {
   console.log(`[AiVpSettings] Config reset by ${actorUserId}`);
 
   return newSettings;
+}
+
+/**
+ * 直前の状態にロールバック
+ *
+ * 最新のイベントの beforeJson に戻す
+ */
+export function rollbackAiVpConfig(
+  actorUserId: string
+): { success: true; settings: AiVpSettings } | { success: false; error: string } {
+  initializeStorage();
+
+  // 最新のイベントを取得
+  const sortedEvents = eventsStore
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  if (sortedEvents.length === 0) {
+    return { success: false, error: 'ロールバックできる履歴がありません' };
+  }
+
+  const latestEvent = sortedEvents[0];
+
+  // beforeJson がない場合（最初の設定だった場合）はデフォルトに戻す
+  const targetConfig = latestEvent.beforeJson ?? DEFAULT_CONFIG;
+
+  const timestamp = now();
+  const beforeConfig = settingsStore?.configJson ?? null;
+
+  // 設定を復元
+  const newSettings: AiVpSettings = {
+    id: settingsStore?.id ?? generateId('aivp_settings'),
+    scope: 'global',
+    businessUnitId: null,
+    configJson: targetConfig,
+    updatedAt: timestamp,
+    updatedByUserId: actorUserId,
+  };
+
+  // イベントログを追加
+  const event: AiVpSettingsEvent = {
+    id: generateId('aivp_event'),
+    actorUserId,
+    action: 'rollback',
+    beforeJson: beforeConfig,
+    afterJson: targetConfig,
+    createdAt: timestamp,
+    note: `ロールバック: ${latestEvent.id} の前の状態に復元`,
+  };
+
+  settingsStore = newSettings;
+  eventsStore.push(event);
+
+  saveStorage();
+
+  console.log(`[AiVpSettings] Config rolled back by ${actorUserId}`);
+
+  return { success: true, settings: newSettings };
+}
+
+/**
+ * プリセットを適用
+ */
+export function applyPresetAiVpConfig(
+  presetId: string,
+  presetConfig: AiVpConfig,
+  actorUserId: string
+): { success: true; settings: AiVpSettings } | { success: false; errors: ValidationError[] } {
+  initializeStorage();
+
+  // バリデーション
+  const validation = validateAiVpConfig(presetConfig);
+  if (!validation.valid) {
+    return { success: false, errors: validation.errors };
+  }
+
+  const timestamp = now();
+  const beforeConfig = settingsStore?.configJson ?? null;
+
+  // 補完済み設定を作成
+  const mergedConfig = mergeWithDefaults(presetConfig);
+
+  // 設定を更新
+  const newSettings: AiVpSettings = {
+    id: settingsStore?.id ?? generateId('aivp_settings'),
+    scope: 'global',
+    businessUnitId: null,
+    configJson: mergedConfig,
+    updatedAt: timestamp,
+    updatedByUserId: actorUserId,
+  };
+
+  // イベントログを追加
+  const event: AiVpSettingsEvent = {
+    id: generateId('aivp_event'),
+    actorUserId,
+    action: 'apply_preset',
+    beforeJson: beforeConfig,
+    afterJson: mergedConfig,
+    createdAt: timestamp,
+    note: `プリセット適用: ${presetId}`,
+  };
+
+  settingsStore = newSettings;
+  eventsStore.push(event);
+
+  saveStorage();
+
+  console.log(`[AiVpSettings] Preset ${presetId} applied by ${actorUserId}`);
+
+  return { success: true, settings: newSettings };
 }
 
 /**
