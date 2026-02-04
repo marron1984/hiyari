@@ -23,6 +23,7 @@ import {
   create as createNotification,
   getByFingerprint,
 } from '@/lib/notifications/repo';
+import { shouldNotifyUser } from '@/lib/notifications/settings';
 
 // ========== 型定義 ==========
 
@@ -43,9 +44,10 @@ export interface SendDigestResult {
   skippedCount: number;
   emptyCount: number;
   alreadySentCount: number;
+  userDisabledCount: number;  // Task 061: ユーザー設定で無効化された件数
   byRole: Record<string, {
     sent: boolean;
-    reason: 'sent' | 'already_sent' | 'empty' | 'error';
+    reason: 'sent' | 'already_sent' | 'empty' | 'error' | 'user_disabled';
     notificationId?: string;
   }>;
 }
@@ -98,6 +100,7 @@ export function sendMorningDigest(
     skippedCount: 0,
     emptyCount: 0,
     alreadySentCount: 0,
+    userDisabledCount: 0,  // Task 061
     byRole: {},
   };
 
@@ -112,6 +115,14 @@ export function sendMorningDigest(
 
   for (const [role, digest] of digests) {
     const userId = userIdsByRole.get(role) || 'system';
+
+    // Task 061: ユーザー設定チェック
+    const userSetting = shouldNotifyUser(userId, 'morning_digest', role);
+    if (!userSetting.shouldNotify) {
+      result.userDisabledCount++;
+      result.byRole[role] = { sent: false, reason: 'user_disabled' };
+      continue;
+    }
 
     // 空チェック
     if (isDigestEmpty(digest) && !sendEmpty) {
@@ -172,7 +183,7 @@ export function sendMorningDigest(
 
   console.log(
     `[MorningDigest] Sent ${result.sentCount} digests for ${dateStr}` +
-    ` (skipped: ${result.skippedCount}, empty: ${result.emptyCount}, already: ${result.alreadySentCount})`
+    ` (skipped: ${result.skippedCount}, empty: ${result.emptyCount}, already: ${result.alreadySentCount}, disabled: ${result.userDisabledCount})`
   );
 
   return result;
@@ -187,7 +198,7 @@ export function sendMorningDigestForRole(
   options: Omit<SendDigestOptions, 'targetRoles'> = {}
 ): {
   sent: boolean;
-  reason: 'sent' | 'already_sent' | 'empty' | 'error';
+  reason: 'sent' | 'already_sent' | 'empty' | 'error' | 'user_disabled';
   digest: DailyDigest;
   notificationId?: string;
 } {
@@ -198,6 +209,12 @@ export function sendMorningDigestForRole(
   } = options;
 
   const digest = buildDailyDigest(role, userId, date);
+
+  // Task 061: ユーザー設定チェック
+  const userSetting = shouldNotifyUser(userId, 'morning_digest', role);
+  if (!userSetting.shouldNotify) {
+    return { sent: false, reason: 'user_disabled', digest };
+  }
 
   // 空チェック
   if (isDigestEmpty(digest) && !sendEmpty) {
