@@ -24,6 +24,7 @@ import {
   FileSignature,
   Layers,
   ShieldAlert,
+  Activity,
 } from 'lucide-react';
 import type {
   Widget,
@@ -45,6 +46,7 @@ import type {
   ContractsWidget,
   OsMapWidget,
   QualityRiskWidget,
+  OpsReportWidget,
 } from '@/lib/roleHome/types';
 import type { AppRole } from '@/config/appRoles';
 
@@ -108,6 +110,9 @@ export function RoleHomeWidget({
       return <OsMapWidgetCard widget={widget as OsMapWidget} />;
     case 'quality_risk':
       return <QualityRiskWidgetCard widget={widget as QualityRiskWidget} />;
+    // Task 066: 運用レポート
+    case 'ops_report':
+      return <OpsReportWidgetCard widget={widget as OpsReportWidget} />;
     default:
       return <DefaultWidgetCard widget={widget} />;
   }
@@ -735,6 +740,88 @@ function QualityRiskWidgetCard({ widget }: { widget: QualityRiskWidget }) {
   );
 }
 
+// Task 066: 運用レポートウィジェット
+function OpsReportWidgetCard({ widget }: { widget: OpsReportWidget }) {
+  const DailyIcon = widget.dailyOk === true
+    ? CheckCircle
+    : widget.dailyOk === false
+      ? XCircle
+      : Clock;
+  const dailyColor = widget.dailyOk === true
+    ? 'text-green-500'
+    : widget.dailyOk === false
+      ? 'text-red-500'
+      : 'text-zinc-400';
+
+  const WeeklyIcon = widget.weeklyOk === true
+    ? CheckCircle
+    : widget.weeklyOk === false
+      ? XCircle
+      : Clock;
+  const weeklyColor = widget.weeklyOk === true
+    ? 'text-green-500'
+    : widget.weeklyOk === false
+      ? 'text-red-500'
+      : 'text-zinc-400';
+
+  return (
+    <WidgetCard
+      icon={<Activity className="w-4 h-4 text-emerald-500" />}
+      title={widget.title}
+      href={widget.href}
+      severity={widget.severity}
+    >
+      <div className="space-y-3">
+        {/* オペ実行状態 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <DailyIcon className={`w-4 h-4 ${dailyColor}`} />
+            <span className="text-xs text-zinc-600">日次</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <WeeklyIcon className={`w-4 h-4 ${weeklyColor}`} />
+            <span className="text-xs text-zinc-600">週次</span>
+          </div>
+        </div>
+
+        {/* アラート・未分類カウント */}
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {widget.criticalOpen > 0 && (
+            <div className="p-1.5 bg-red-50 rounded">
+              <div className="text-sm font-bold text-red-600">{widget.criticalOpen}</div>
+              <div className="text-[10px] text-red-700">重大</div>
+            </div>
+          )}
+          {widget.systemErrorOpen > 0 && (
+            <div className="p-1.5 bg-orange-50 rounded">
+              <div className="text-sm font-bold text-orange-600">{widget.systemErrorOpen}</div>
+              <div className="text-[10px] text-orange-700">システム</div>
+            </div>
+          )}
+          {widget.unclassifiedOpen > 0 && (
+            <div className="p-1.5 bg-amber-50 rounded">
+              <div className="text-sm font-bold text-amber-600">{widget.unclassifiedOpen}</div>
+              <div className="text-[10px] text-amber-700">未分類</div>
+            </div>
+          )}
+        </div>
+
+        {/* 最終実行時刻 */}
+        {widget.lastDailyRunAt && (
+          <div className="text-[10px] text-zinc-400 text-right">
+            最終daily: {new Date(widget.lastDailyRunAt).toLocaleString('ja-JP', {
+              month: 'numeric',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </div>
+        )}
+      </div>
+    </WidgetCard>
+  );
+}
+
 // デフォルトウィジェット
 function DefaultWidgetCard({ widget }: { widget: Widget }) {
   const Icon = getWidgetIcon(widget.type);
@@ -770,6 +857,7 @@ function getWidgetIcon(type: WidgetType) {
     announcements: Megaphone,
     daily_ops: Clock,
     weekly_ops: Calendar,
+    ops_report: Activity,      // Task 066: 運用レポート
     os_map: Layers,           // Task 053: 専用アイコン
     quality_risk: ShieldAlert, // Task 053: 専用アイコン
     contracts: FileSignature,  // Task 053: 専用アイコン

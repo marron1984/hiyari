@@ -21,6 +21,7 @@ import {
   ChevronRight,
   CheckCircle2,
   XCircle,
+  Activity,
 } from 'lucide-react';
 
 /**
@@ -40,6 +41,7 @@ const WIDGET_ICONS: Record<WidgetType, React.ComponentType<{ className?: string 
   announcements: Megaphone,
   daily_ops: Calendar,
   weekly_ops: CalendarDays,
+  ops_report: Activity,      // Task 066: 運用レポート
   os_map: Building2,
   quality_risk: AlertTriangle,
   contracts: FileText,

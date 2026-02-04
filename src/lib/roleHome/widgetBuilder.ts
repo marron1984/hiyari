@@ -25,6 +25,7 @@ import type {
   ContractsWidget,
   OsMapWidget,
   QualityRiskWidget,
+  OpsReportWidget,
 } from './types';
 import { WIDGET_LABELS } from './types';
 import type { ViewerContext } from '@/lib/business/types';
@@ -436,6 +437,59 @@ export function buildQualityRiskWidget(): QualityRiskWidget {
 }
 
 /**
+ * Task 066: 運用レポートウィジェットを構築
+ *
+ * manager/admin向けの運用状況サマリー
+ * - daily-ops / weekly-ops の実行状態
+ * - system_error アラート件数
+ * - 未分類スコープ件数
+ * - critical アラート件数
+ */
+export function buildOpsReportWidget(): OpsReportWidget {
+  // daily-ops の実行状況を取得
+  const dailyStats = getDailyOpsStats();
+  const dailyOk = dailyStats.lastSuccessfulRun ? true : (dailyStats.lastFailedRun ? false : null);
+  const lastDailyRunAt = dailyStats.lastSuccessfulRun?.startedAt ??
+    dailyStats.lastFailedRun?.startedAt ?? null;
+
+  // アラート統計を取得
+  const alertStats = getAlertStats();
+
+  // 未分類スコープを取得
+  const unclassified = getUnclassifiedCounts();
+
+  // system_error アラートをカウント（openかつtype=system_error）
+  const { alerts: systemErrorAlerts } = listAlerts({ status: 'open', limit: 100 });
+  const systemErrorOpen = systemErrorAlerts.filter(
+    a => a.type === 'system_error'
+  ).length;
+
+  // 重要度判定
+  let severity: AlertSeverity = 'info';
+  if (dailyOk === false || alertStats.criticalOpen > 0 || systemErrorOpen > 0) {
+    severity = 'critical';
+  } else if (unclassified.total > 0) {
+    severity = 'warning';
+  }
+
+  return {
+    type: 'ops_report',
+    title: WIDGET_LABELS.ops_report,
+    href: '/dashboard/ops-report',
+    count: alertStats.criticalOpen + systemErrorOpen + unclassified.total,
+    severity,
+    dailyOk,
+    weeklyOk: null, // TODO: weekly-ops リポジトリと連携
+    systemErrorOpen,
+    unclassifiedOpen: unclassified.total,
+    criticalOpen: alertStats.criticalOpen,
+    lastDailyRunAt,
+    lastWeeklyRunAt: null, // TODO: weekly-ops リポジトリと連携
+    isEmpty: false,
+  };
+}
+
+/**
  * ウィジェットタイプに応じてウィジェットを構築
  */
 export function buildWidget(
@@ -479,6 +533,9 @@ export function buildWidget(
       return buildOsMapWidget();
     case 'quality_risk':
       return buildQualityRiskWidget();
+    // Task 066: 運用レポート
+    case 'ops_report':
+      return buildOpsReportWidget();
     default:
       return {
         type: widgetType,

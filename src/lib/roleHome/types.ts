@@ -24,6 +24,7 @@ export type WidgetType =
   | 'announcements'      // 周知未読
   | 'daily_ops'          // 日次オペ実行ログ
   | 'weekly_ops'         // 週次オペ実行ログ
+  | 'ops_report'         // 運用レポート（Task 066）
   | 'os_map'             // OSマップリンク
   | 'quality_risk'       // 品質/リスク統合
   | 'contracts'          // 契約/未収ハイライト
@@ -216,6 +217,20 @@ export interface QualityRiskWidget extends BaseWidget {
 }
 
 /**
+ * 運用レポートウィジェット（Task 066追加）
+ */
+export interface OpsReportWidget extends BaseWidget {
+  type: 'ops_report';
+  dailyOk: boolean | null;          // daily-ops 成功/失敗/未実行
+  weeklyOk: boolean | null;         // weekly-ops 成功/失敗/未実行
+  systemErrorOpen: number;          // system_error アラート件数
+  unclassifiedOpen: number;         // 未分類スコープ件数
+  criticalOpen: number;             // critical アラート件数
+  lastDailyRunAt: string | null;    // 最終daily実行日時
+  lastWeeklyRunAt: string | null;   // 最終weekly実行日時
+}
+
+/**
  * ウィジェット型のユニオン
  */
 export type Widget =
@@ -236,6 +251,7 @@ export type Widget =
   | ContractsWidget
   | OsMapWidget
   | QualityRiskWidget
+  | OpsReportWidget
   | BaseWidget;
 
 /**
@@ -297,6 +313,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
   ],
 
   // manager: 担当範囲全体
+  // - ops_report（Task 066: 運用レポート）
   // - alerts critical open
   // - unclassified open + 034導線
   // - tickets overdue/urgent
@@ -305,6 +322,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
   // - licenses expired/expiring30（org scope）
   // - daily_ops / weekly_ops status
   manager: [
+    'ops_report',         // 運用レポート（Task 066）
     'alerts',             // アラート（critical優先）
     'unclassified',       // 未分類スコープ + 導線
     'tickets',            // チケット（overdue/urgent）
@@ -333,6 +351,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
   ],
 
   // admin: システム運用・全体管理
+  // - ops_report（Task 066: 運用レポート）
   // - os-map
   // - quality-risk
   // - alerts critical open
@@ -340,6 +359,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
   // - daily_ops / weekly_ops status
   // - shares approval pending（040）
   admin: [
+    'ops_report',         // 運用レポート（Task 066）
     'os_map',             // OSマップ（Task 053追加）
     'quality_risk',       // 品質/リスク統合（Task 053追加）
     'alerts',             // アラート（全社）
@@ -380,6 +400,7 @@ export const WIDGET_LABELS: Record<WidgetType, string> = {
   announcements: '周知',
   daily_ops: '日次オペ',
   weekly_ops: '週次オペ',
+  ops_report: '運用レポート',
   os_map: 'OSマップ',
   quality_risk: '品質/リスク',
   contracts: '契約',
