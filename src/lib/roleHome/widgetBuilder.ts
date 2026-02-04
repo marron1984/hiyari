@@ -37,7 +37,8 @@ import { getTicketStats } from '@/lib/tickets/repo';
 import { getStats as getRepairsStats } from '@/lib/repairs/repo';
 import { getStats as getCorrectiveActionsStats } from '@/lib/correctiveActions/repo';
 import { scanExpiring, scanExpired } from '@/lib/licenses/repo';
-import { getRunStats as getDailyOpsStats, listRecentRuns as listDailyOpsRuns } from '@/lib/dailyOps/repo';
+import { getRunStats as getDailyOpsStats, listRecentRuns as listDailyOpsRuns, getRecentFailedSteps as getDailyFailedSteps } from '@/lib/dailyOps/repo';
+import { getRunStats as getWeeklyOpsStats, listRecentRuns as listWeeklyOpsRuns, getRecentFailedSteps as getWeeklyFailedSteps, hasFailedRecently as hasWeeklyFailedRecently } from '@/lib/weeklyOps/repo';
 import { getStats as getReceivablesStats } from '@/lib/receivables/repo';
 import { countUnreadHandoverItems } from '@/lib/handover/repo';
 import { listAnnouncementsForUser } from '@/lib/announcements/store';
@@ -259,11 +260,12 @@ export function buildAnnouncementsWidget(userId: string, role: AppRole): Announc
 }
 
 /**
- * 日次オペウィジェットを構築
+ * 日次オペウィジェットを構築（Ticket 067: 失敗ステップ名表示）
  */
 export function buildDailyOpsWidget(): DailyOpsWidget {
   const stats = getDailyOpsStats();
   const recentRuns = listDailyOpsRuns(5);
+  const failedSteps = getDailyFailedSteps();
 
   const hasFailedRecently = stats.lastFailedRun !== null &&
     (!stats.lastSuccessfulRun ||
@@ -279,18 +281,21 @@ export function buildDailyOpsWidget(): DailyOpsWidget {
     lastRunOk: stats.lastSuccessfulRun ? true : (stats.lastFailedRun ? false : null),
     totalRuns: stats.totalRuns,
     hasFailedRecently,
+    // Ticket 067: 失敗ステップ名を表示
+    failedSteps: failedSteps.length > 0 ? failedSteps : undefined,
     isEmpty: stats.totalRuns === 0,
   };
 }
 
 /**
- * 週次オペウィジェットを構築
+ * 週次オペウィジェットを構築（Ticket 067: weekly-opsリポジトリ連携）
  */
 export function buildWeeklyOpsWidget(): WeeklyOpsWidget {
-  // TODO: 週次オペリポジトリと連携
-  // 現在は WBR への導線として機能
+  const stats = getWeeklyOpsStats();
+  const failedSteps = getWeeklyFailedSteps();
+  const hasFailedRecently = hasWeeklyFailedRecently();
 
-  // 今週の金曜日を計算
+  // 今週の金曜日を計算（WBR期限）
   const today = new Date();
   const dayOfWeek = today.getDay();
   const daysUntilFriday = (5 - dayOfWeek + 7) % 7;
@@ -301,12 +306,15 @@ export function buildWeeklyOpsWidget(): WeeklyOpsWidget {
     type: 'weekly_ops',
     title: WIDGET_LABELS.weekly_ops,
     href: '/dashboard/wbr',
-    count: 0,
-    severity: 'info',
-    lastRunAt: null,
-    lastRunOk: null,
+    count: stats.totalRuns,
+    severity: hasFailedRecently ? 'critical' : 'info',
+    lastRunAt: stats.lastRunAt,
+    lastRunOk: stats.lastRunOk,
     wbrDueDate: friday.toISOString().split('T')[0],
-    isEmpty: true,
+    // Ticket 067: 失敗情報
+    hasFailedRecently,
+    failedSteps: failedSteps.length > 0 ? failedSteps : undefined,
+    isEmpty: stats.totalRuns === 0,
   };
 }
 

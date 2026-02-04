@@ -45,6 +45,8 @@ export interface DailyOpsRun {
   totalAlertsSkipped: number;
   totalNotifications: number;
   errorMessage?: string;
+  /** 失敗したステップ名（復旧導線用 - Ticket 067） */
+  failedSteps?: DailyOpsStepName[];
 }
 
 /**

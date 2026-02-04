@@ -52,6 +52,14 @@ export function addStepResult(runId: string, step: DailyOpsStepResult): void {
   run.totalAlertsCreated += step.alertsCreated;
   run.totalAlertsSkipped += step.alertsSkipped;
   run.totalNotifications += step.notificationsCreated;
+
+  // 失敗ステップを記録（Ticket 067）
+  if (!step.ok) {
+    if (!run.failedSteps) {
+      run.failedSteps = [];
+    }
+    run.failedSteps.push(step.name);
+  }
 }
 
 /**
@@ -135,6 +143,32 @@ export function getRunStats(): {
       (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
     )[0] ?? null,
   };
+}
+
+/**
+ * 最新の実行を取得
+ */
+export function getLatestRun(): DailyOpsRun | null {
+  const runs = Array.from(runsStore.values())
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+  return runs[0] ?? null;
+}
+
+/**
+ * 最近失敗した実行があるかどうか
+ */
+export function hasFailedRecently(): boolean {
+  const recentRuns = listRecentRuns(5);
+  return recentRuns.some((r) => !r.ok && r.finishedAt);
+}
+
+/**
+ * 失敗したステップ名を取得（最新の実行から）
+ */
+export function getRecentFailedSteps(): import('./types').DailyOpsStepName[] {
+  const latest = getLatestRun();
+  if (!latest || latest.ok) return [];
+  return latest.failedSteps ?? [];
 }
 
 /**

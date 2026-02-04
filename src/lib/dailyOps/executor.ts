@@ -25,6 +25,7 @@ import {
 import { createAlert, createAlertsFromScan } from '@/lib/alerts/repo';
 import type { CreateAlertRequest, AlertSeverity } from '@/lib/alerts/types';
 import { create as createNotification } from '@/lib/notifications/repo';
+import { OPS_FAILURE_NOTIFICATION } from '@/config/opsSchedule';
 
 // ========== スキャナーインポート ==========
 
@@ -57,6 +58,12 @@ function meetsSeverityThreshold(
 
 // ========== システムエラーアラート作成 ==========
 
+/**
+ * システムエラーアラートを作成（Ticket 067: 失敗時の復旧導線強化）
+ *
+ * - manager/admin へ通知（immediate）
+ * - Ops Report に「失敗ステップ名」が見える
+ */
 function createSystemErrorAlert(
   stepName: DailyOpsStepName,
   errorMessage: string,
@@ -68,13 +75,18 @@ function createSystemErrorAlert(
     type: 'system_error',
     sourceId: stepName,
     title: `日次オペ失敗: ${stepName}`,
-    message: `${errorMessage}\n\n日付: ${date}\nステップ: ${stepName}`,
+    message: `${errorMessage}\n\n日付: ${date}\nステップ: ${stepName}\n\n復旧方法: /api/cron/daily-ops?steps=${stepName}&force=true`,
     severity: 'critical',
     fingerprint,
     meta: {
+      opsType: 'daily',
       stepName,
       date,
       errorMessage,
+      // 通知対象ロール（Ticket 067）
+      notifyRoles: OPS_FAILURE_NOTIFICATION.targetRoles,
+      // 復旧用URL
+      retryUrl: `/api/cron/daily-ops?steps=${stepName}&force=true`,
     },
   });
 }

@@ -469,7 +469,7 @@ function AnnouncementsWidgetCard({ widget }: { widget: AnnouncementsWidget }) {
   );
 }
 
-// 日次オペウィジェット
+// 日次オペウィジェット（Ticket 067: 失敗ステップ名表示）
 function DailyOpsWidgetCard({
   widget,
   role,
@@ -532,11 +532,20 @@ function DailyOpsWidgetCard({
           </Button>
         )}
       </div>
+      {/* Ticket 067: 失敗ステップ名表示 */}
+      {widget.failedSteps && widget.failedSteps.length > 0 && (
+        <div className="mt-2 p-2 bg-red-50 rounded">
+          <div className="text-[10px] text-red-600 font-medium">失敗ステップ:</div>
+          <div className="text-[10px] text-red-500">
+            {widget.failedSteps.join(', ')}
+          </div>
+        </div>
+      )}
     </WidgetCard>
   );
 }
 
-// 週次オペウィジェット
+// 週次オペウィジェット（Ticket 067: 失敗ステップ名表示）
 function WeeklyOpsWidgetCard({
   widget,
   role,
@@ -547,22 +556,36 @@ function WeeklyOpsWidgetCard({
   onRun?: () => void;
 }) {
   const isAdmin = role === 'admin';
+  const StatusIcon = widget.lastRunOk === true
+    ? CheckCircle
+    : widget.lastRunOk === false
+      ? XCircle
+      : Clock;
+  const statusColor = widget.lastRunOk === true
+    ? 'text-green-500'
+    : widget.lastRunOk === false
+      ? 'text-red-500'
+      : 'text-zinc-400';
 
   return (
     <WidgetCard
       icon={<Calendar className="w-4 h-4 text-teal-500" />}
       title={widget.title}
       href={isAdmin ? undefined : widget.href}
+      severity={widget.hasFailedRecently ? 'critical' : undefined}
     >
       <div className="flex items-center justify-between">
-        <div>
-          <div className="text-xs text-zinc-600">
-            WBR期限: {widget.wbrDueDate ?? '未設定'}
-          </div>
-          <div className="text-[10px] text-zinc-400">
-            {widget.lastRunAt
-              ? `最終実行: ${new Date(widget.lastRunAt).toLocaleDateString('ja-JP')}`
-              : '未実行'}
+        <div className="flex items-center gap-2">
+          <StatusIcon className={`w-4 h-4 ${statusColor}`} />
+          <div>
+            <div className="text-xs text-zinc-600">
+              WBR期限: {widget.wbrDueDate ?? '未設定'}
+            </div>
+            <div className="text-[10px] text-zinc-400">
+              {widget.lastRunAt
+                ? `最終実行: ${new Date(widget.lastRunAt).toLocaleDateString('ja-JP')}`
+                : '未実行'}
+            </div>
           </div>
         </div>
         {isAdmin && onRun && (
@@ -580,6 +603,15 @@ function WeeklyOpsWidgetCard({
           </Button>
         )}
       </div>
+      {/* Ticket 067: 失敗ステップ名表示 */}
+      {widget.failedSteps && widget.failedSteps.length > 0 && (
+        <div className="mt-2 p-2 bg-red-50 rounded">
+          <div className="text-[10px] text-red-600 font-medium">失敗ステップ:</div>
+          <div className="text-[10px] text-red-500">
+            {widget.failedSteps.join(', ')}
+          </div>
+        </div>
+      )}
     </WidgetCard>
   );
 }
