@@ -1,15 +1,16 @@
 /**
  * POST /api/ai-vp/preview-top3
  *
- * Implementation Ticket 063-fix: 設定を適用した場合のTop3をプレビュー
+ * Implementation Ticket 063-fix / 068: 設定を適用した場合のTop3をプレビュー
  *
  * DBを書き換えずに、指定した設定でTop3を計算して返す
+ * Ticket 068: 現設定 vs 編集中の比較表示を追加
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import type { AppRole } from '@/config/appRoles';
-import { validateAiVpConfig, type AiVpConfig } from '@/lib/aiVp/settings';
+import { validateAiVpConfig, getAiVpConfig, type AiVpConfig } from '@/lib/aiVp/settings';
 import { listBusinessUnits } from '@/lib/business/repo';
 
 function isValidAppRole(role: string): role is AppRole {
@@ -30,6 +31,34 @@ function checkAdminOrManager(role: AppRole): boolean {
 }
 
 /**
+ * 固定のサンプルデータ（プレビュー比較用）
+ * 毎回同じデータを使うことで、設定変更の影響を正確に比較できる
+ */
+const SAMPLE_COUNTS: Record<string, Record<string, number>> = {
+  bu_001: {
+    licenses_expired: 2,
+    repairs_highrisk: 1,
+    ca_critical: 3,
+    tickets_urgent: 4,
+    alerts_critical: 1,
+  },
+  bu_002: {
+    licenses_expired: 1,
+    repairs_highrisk: 2,
+    ca_critical: 1,
+    tickets_urgent: 2,
+    alerts_critical: 0,
+  },
+  bu_003: {
+    licenses_expired: 0,
+    repairs_highrisk: 3,
+    ca_critical: 0,
+    tickets_urgent: 5,
+    alerts_critical: 2,
+  },
+};
+
+/**
  * プレビュー用のスコア計算（簡易版）
  *
  * 実際のbusinessTop3.tsの計算ロジックを参照しつつ、
@@ -44,14 +73,8 @@ function calculatePreviewScores(config: AiVpConfig, businessUnitId?: string) {
 
   // 各事業でサンプルスコアを計算
   const results = targetBUs.map((bu) => {
-    // サンプルデータ（実際はリポジトリから取得）
-    const sampleCounts = {
-      licenses_expired: Math.floor(Math.random() * 3),
-      repairs_highrisk: Math.floor(Math.random() * 2),
-      ca_critical: Math.floor(Math.random() * 2),
-      tickets_urgent: Math.floor(Math.random() * 5),
-      alerts_critical: Math.floor(Math.random() * 2),
-    };
+    // サンプルデータ（固定値で比較可能に）
+    const sampleCounts = SAMPLE_COUNTS[bu.id] ?? SAMPLE_COUNTS['bu_001'];
 
     // スコア計算
     const candidates = [
@@ -145,11 +168,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // プレビュー用のスコア計算
+    // Ticket 068: 現設定を取得
+    const currentConfig = getAiVpConfig();
+
+    // 現設定でのスコア計算
+    const currentResults = calculatePreviewScores(currentConfig, businessUnitId);
+
+    // 編集中設定でのスコア計算
     const previewResults = calculatePreviewScores(configJson, businessUnitId);
 
     return NextResponse.json({
       success: true,
+      // Ticket 068: 現設定 vs 編集中の比較表示
+      comparison: {
+        generatedAt: new Date().toISOString(),
+        isPreview: true,
+        // 現設定のTop3
+        current: {
+          label: '現設定',
+          businessUnits: currentResults,
+        },
+        // 編集中のTop3
+        preview: {
+          label: '編集中',
+          businessUnits: previewResults,
+        },
+      },
+      // 後方互換: 従来のpreviewフィールドも維持
       preview: {
         generatedAt: new Date().toISOString(),
         isPreview: true,

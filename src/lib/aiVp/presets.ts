@@ -164,6 +164,41 @@ const PRESET_SAFETY: AiVpPreset = {
   },
 };
 
+// ========== エイリアスプリセット（Ticket 068要件） ==========
+
+/**
+ * ops_first: 運用効率重視（operationsのエイリアス）
+ */
+const PRESET_OPS_FIRST: AiVpPreset = {
+  id: 'ops_first',
+  name: '運用効率優先',
+  description: 'チケット・日常運用の効率化を最優先',
+  scenario: 'operations',
+  config: PRESET_OPERATIONS.config,
+};
+
+/**
+ * compliance_first: コンプライアンス重視（complianceのエイリアス）
+ */
+const PRESET_COMPLIANCE_FIRST: AiVpPreset = {
+  id: 'compliance_first',
+  name: 'コンプライアンス優先',
+  description: '資格・是正措置など法令遵守項目を最優先',
+  scenario: 'compliance',
+  config: PRESET_COMPLIANCE.config,
+};
+
+/**
+ * cash_first: 財務重視（financeのエイリアス）
+ */
+const PRESET_CASH_FIRST: AiVpPreset = {
+  id: 'cash_first',
+  name: 'キャッシュフロー優先',
+  description: '未収金・契約・回収フローを最優先',
+  scenario: 'finance',
+  config: PRESET_FINANCE.config,
+};
+
 // ========== エクスポート ==========
 
 export const PRESETS: AiVpPreset[] = [
@@ -172,6 +207,10 @@ export const PRESETS: AiVpPreset[] = [
   PRESET_OPERATIONS,
   PRESET_FINANCE,
   PRESET_SAFETY,
+  // エイリアス（Ticket 068要件）
+  PRESET_OPS_FIRST,
+  PRESET_COMPLIANCE_FIRST,
+  PRESET_CASH_FIRST,
 ];
 
 /**
