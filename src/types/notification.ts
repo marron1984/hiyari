@@ -28,6 +28,7 @@ export type NotificationType =
   | 'ai_vp_ticket_created'  // Task 043: AI副社長・チケット自動生成
   | 'business_scope_unclassified'  // Task 038: 未分類スコープ警告（正式名称）
   | 'unclassified_scope'    // Task 033: 未分類スコープ警告（レガシー）
+  | 'kpi_audit'             // Task 056: KPI辞書棚卸し
   | 'system';               // システム通知
 
 // 通知
@@ -84,6 +85,10 @@ export interface Notification {
     ticketId?: string;
     businessUnitId?: string;
     fingerprint?: string;
+    // kpi_audit (Task 056)
+    auditedAt?: string;
+    totalIncomplete?: number;
+    ticketsCreated?: number;
   };
 }
 
