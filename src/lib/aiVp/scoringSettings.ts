@@ -1,17 +1,25 @@
 /**
- * AI副社長 スコアリング設定
+ * AI副社長 スコアリング設定（互換レイヤー）
  *
  * Implementation Ticket 062: AI副社長Top3の重み（スコアリング）を管理画面から調整
  *
- * - 事業別Top3（042/050）のスコアリング重みをUIから編集可能
- * - 変更は即反映（AI副社長/Role Home/朝ダイジェスト）
- * - 監査ログ（いつ誰が何を変えたか）
- * - デフォルトにリセット可能
- *
- * 注意: fs/path はサーバーサイドのみで使用（動的インポート）
+ * このファイルは businessTop3.ts との互換性を維持するためのラッパーです。
+ * 実際の設定管理は settings.ts で行います。
  */
 
-// ========== 型定義 ==========
+import {
+  getAiVpConfig,
+  saveAiVpConfig,
+  resetAiVpConfig as resetSettings,
+  getAiVpSettingsEvents,
+  getAiVpSettingsMeta,
+  DEFAULT_CONFIG as NEW_DEFAULT_CONFIG,
+  WEIGHT_LABELS as NEW_WEIGHT_LABELS,
+  THRESHOLD_LABELS as NEW_THRESHOLD_LABELS,
+  type AiVpConfig,
+} from './settings';
+
+// ========== 型定義（businessTop3.ts 互換） ==========
 
 export interface ScoringWeights {
   // 資格
@@ -104,7 +112,7 @@ export interface AuditLogEntry {
   changes: string[];  // 変更された項目のリスト
 }
 
-// ========== デフォルト設定 ==========
+// ========== デフォルト設定（互換用） ==========
 
 export const DEFAULT_WEIGHTS: ScoringWeights = {
   // 資格
@@ -192,151 +200,82 @@ export const THRESHOLD_LABELS: Record<keyof ScoringThresholds, string> = {
   receivablesWarningAmount: '未収金「警告」金額（円）',
 };
 
-// ========== 永続化ストレージ ==========
-// サーバーサイドのみファイル永続化、クライアントはインメモリのみ
+// ========== 設定変換ヘルパー ==========
 
-let settingsStore = new Map<string, AiVpSettings>();
-let auditLog: AuditLogEntry[] = [];
-let isInitialized = false;
-
-// サーバーサイドかどうかを判定
-function isServer(): boolean {
-  return typeof window === 'undefined';
+/**
+ * 新しい設定形式からbusinessTop3.ts互換形式に変換
+ */
+function convertToScoringWeights(config: AiVpConfig): ScoringWeights {
+  const w = config.weights;
+  return {
+    licenses_expired: w.licenses_expired,
+    licenses_expiring30: w.licenses_expiring30 ?? 4,
+    repairs_highRiskOpen: w.repairs_highrisk,
+    repairs_overdue: w.repairs_overdue ?? 6,
+    correctiveActions_criticalOpen: w.ca_critical,
+    correctiveActions_overdue: w.ca_overdue ?? 6,
+    correctiveActions_open: 2,
+    tickets_urgentOpen: w.tickets_urgent,
+    tickets_overdue: w.tickets_overdue ?? 4,
+    tickets_open: 1,
+    alerts_criticalOpen: w.alerts_critical,
+    alerts_warningOpen: w.alerts_warning ?? 2,
+    receivables_criticalOverdue: w.receivables_overdue,
+    receivables_warningOverdue: 4,
+    contracts_decisionOverdue: w.contracts_decision_overdue,
+    collection_overdueSteps: w.collection_overdue_steps,
+  };
 }
 
-// ファイルパスを取得（サーバーサイドのみ）
-function getFilePaths(): { dataDir: string; settingsFile: string; auditFile: string } | null {
-  if (!isServer()) return null;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const path = require('path');
-    const dataDir = path.join(process.cwd(), '.data');
-    return {
-      dataDir,
-      settingsFile: path.join(dataDir, 'ai_vp_settings.json'),
-      auditFile: path.join(dataDir, 'ai_vp_settings_audit.json'),
-    };
-  } catch {
-    return null;
-  }
+function convertToScoringThresholds(config: AiVpConfig): ScoringThresholds {
+  const t = config.thresholds;
+  return {
+    severityCritical: t.severity_critical ?? 20,
+    severityWarning: t.severity_warning ?? 10,
+    riskCritical: t.risk_critical ?? 50,
+    riskHigh: t.risk_high ?? 30,
+    riskMedium: t.risk_medium ?? 15,
+    receivablesCriticalAmount: t.receivables_critical_amount,
+    receivablesWarningAmount: t.receivables_warning_amount,
+  };
 }
 
-function initializeStorage(): void {
-  if (isInitialized) return;
-
-  // クライアントサイドの場合はデフォルト設定のみ
-  if (!isServer()) {
-    isInitialized = true;
-    return;
-  }
-
-  const paths = getFilePaths();
-  if (!paths) {
-    isInitialized = true;
-    return;
-  }
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require('fs');
-
-    if (!fs.existsSync(paths.dataDir)) {
-      fs.mkdirSync(paths.dataDir, { recursive: true });
-    }
-
-    // 設定ファイル読み込み
-    if (fs.existsSync(paths.settingsFile)) {
-      const data = JSON.parse(fs.readFileSync(paths.settingsFile, 'utf-8'));
-      if (data.settings && Array.isArray(data.settings)) {
-        for (const s of data.settings) {
-          settingsStore.set(s.id, s);
-        }
-      }
-    }
-
-    // 監査ログ読み込み
-    if (fs.existsSync(paths.auditFile)) {
-      const data = JSON.parse(fs.readFileSync(paths.auditFile, 'utf-8'));
-      if (data.entries && Array.isArray(data.entries)) {
-        auditLog = data.entries;
-      }
-    }
-
-    isInitialized = true;
-    console.log(`[AiVpSettings] Loaded ${settingsStore.size} settings, ${auditLog.length} audit entries`);
-  } catch (error) {
-    console.error('[AiVpSettings] Failed to load:', error);
-    isInitialized = true;
-  }
-}
-
-function saveStorage(): void {
-  // クライアントサイドでは保存しない
-  if (!isServer()) return;
-
-  const paths = getFilePaths();
-  if (!paths) return;
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require('fs');
-
-    const settingsData = {
-      settings: Array.from(settingsStore.values()),
-      savedAt: new Date().toISOString(),
-    };
-    fs.writeFileSync(paths.settingsFile, JSON.stringify(settingsData, null, 2), 'utf-8');
-
-    const auditData = {
-      entries: auditLog,
-      savedAt: new Date().toISOString(),
-    };
-    fs.writeFileSync(paths.auditFile, JSON.stringify(auditData, null, 2), 'utf-8');
-  } catch (error) {
-    console.error('[AiVpSettings] Failed to save:', error);
-  }
-}
-
-initializeStorage();
-
-function now(): string {
-  return new Date().toISOString();
-}
-
-function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+function convertToDiversitySettings(config: AiVpConfig): DiversitySettings {
+  const d = config.diversity;
+  return {
+    maxPerCategory: d.maxPerCategory,
+    maxFinanceCandidates: d.maxFinanceCandidates,
+    top3Limit: d.top3Limit ?? 3,
+    globalTopLimit: d.globalTopLimit ?? 5,
+  };
 }
 
 // ========== グローバル設定ID ==========
 
 const GLOBAL_SETTINGS_ID = 'ai_vp_global';
 
-// ========== CRUD ==========
+// ========== CRUD（settings.ts にデリゲート） ==========
 
 /**
  * グローバル設定を取得（なければデフォルトを返す）
  */
 export function getGlobalSettings(): AiVpSettings {
-  const existing = settingsStore.get(GLOBAL_SETTINGS_ID);
-  if (existing) return existing;
+  const config = getAiVpConfig();
+  const meta = getAiVpSettingsMeta();
 
-  // デフォルト設定を返す（永続化はしない）
   return {
     id: GLOBAL_SETTINGS_ID,
     scope: 'global',
     businessUnitId: null,
-    config: { ...DEFAULT_CONFIG },
-    updatedAt: now(),
-    updatedByUserId: 'system',
-    createdAt: now(),
+    config: {
+      weights: convertToScoringWeights(config),
+      thresholds: convertToScoringThresholds(config),
+      diversity: convertToDiversitySettings(config),
+    },
+    updatedAt: meta.updatedAt ?? new Date().toISOString(),
+    updatedByUserId: meta.updatedByUserId ?? 'system',
+    createdAt: meta.updatedAt ?? new Date().toISOString(),
   };
-}
-
-/**
- * 設定IDで取得
- */
-export function getById(id: string): AiVpSettings | null {
-  return settingsStore.get(id) ?? null;
 }
 
 /**
@@ -346,76 +285,63 @@ export function updateGlobalSettings(
   config: Partial<AiVpScoringConfig>,
   userId: string
 ): AiVpSettings {
-  const existing = getGlobalSettings();
-  const timestamp = now();
+  // 現在の設定を取得
+  const currentConfig = getAiVpConfig();
 
-  // 変更点を検出
-  const changes = detectChanges(existing.config, config);
+  // 互換形式から新形式に変換してマージ
+  const newWeights = config.weights ? {
+    licenses_expired: config.weights.licenses_expired ?? currentConfig.weights.licenses_expired,
+    licenses_expiring30: config.weights.licenses_expiring30 ?? currentConfig.weights.licenses_expiring30,
+    repairs_highrisk: config.weights.repairs_highRiskOpen ?? currentConfig.weights.repairs_highrisk,
+    repairs_overdue: config.weights.repairs_overdue ?? currentConfig.weights.repairs_overdue,
+    ca_critical: config.weights.correctiveActions_criticalOpen ?? currentConfig.weights.ca_critical,
+    ca_overdue: config.weights.correctiveActions_overdue ?? currentConfig.weights.ca_overdue,
+    tickets_urgent: config.weights.tickets_urgentOpen ?? currentConfig.weights.tickets_urgent,
+    tickets_overdue: config.weights.tickets_overdue ?? currentConfig.weights.tickets_overdue,
+    overdue_generic: currentConfig.weights.overdue_generic,
+    alerts_critical: config.weights.alerts_criticalOpen ?? currentConfig.weights.alerts_critical,
+    alerts_warning: config.weights.alerts_warningOpen ?? currentConfig.weights.alerts_warning,
+    receivables_overdue: config.weights.receivables_criticalOverdue ?? currentConfig.weights.receivables_overdue,
+    contracts_decision_overdue: config.weights.contracts_decisionOverdue ?? currentConfig.weights.contracts_decision_overdue,
+    collection_overdue_steps: config.weights.collection_overdueSteps ?? currentConfig.weights.collection_overdue_steps,
+  } : currentConfig.weights;
 
-  // 新しい設定をマージ
-  const newConfig: AiVpScoringConfig = {
-    weights: { ...existing.config.weights, ...config.weights },
-    thresholds: { ...existing.config.thresholds, ...config.thresholds },
-    diversity: { ...existing.config.diversity, ...config.diversity },
-  };
+  const newThresholds = config.thresholds ? {
+    severity_critical: config.thresholds.severityCritical ?? currentConfig.thresholds.severity_critical,
+    severity_warning: config.thresholds.severityWarning ?? currentConfig.thresholds.severity_warning,
+    risk_critical: config.thresholds.riskCritical ?? currentConfig.thresholds.risk_critical,
+    risk_high: config.thresholds.riskHigh ?? currentConfig.thresholds.risk_high,
+    risk_medium: config.thresholds.riskMedium ?? currentConfig.thresholds.risk_medium,
+    receivables_critical_amount: config.thresholds.receivablesCriticalAmount ?? currentConfig.thresholds.receivables_critical_amount,
+    receivables_warning_amount: config.thresholds.receivablesWarningAmount ?? currentConfig.thresholds.receivables_warning_amount,
+  } : currentConfig.thresholds;
 
-  const updated: AiVpSettings = {
-    id: GLOBAL_SETTINGS_ID,
-    scope: 'global',
-    businessUnitId: null,
-    config: newConfig,
-    updatedAt: timestamp,
-    updatedByUserId: userId,
-    createdAt: existing.id ? existing.createdAt : timestamp,
-  };
+  const newDiversity = config.diversity ? {
+    maxPerCategory: config.diversity.maxPerCategory ?? currentConfig.diversity.maxPerCategory,
+    maxFinanceCandidates: config.diversity.maxFinanceCandidates ?? currentConfig.diversity.maxFinanceCandidates,
+    top3Limit: config.diversity.top3Limit ?? currentConfig.diversity.top3Limit,
+    globalTopLimit: config.diversity.globalTopLimit ?? currentConfig.diversity.globalTopLimit,
+  } : currentConfig.diversity;
 
-  // 監査ログ追加
-  addAuditLog({
-    settingsId: GLOBAL_SETTINGS_ID,
-    action: existing.id ? 'update' : 'create',
-    previousConfig: existing.id ? existing.config : null,
-    newConfig,
-    userId,
-    changes,
-  });
+  // 新しい設定を保存
+  const result = saveAiVpConfig(
+    { weights: newWeights, thresholds: newThresholds, diversity: newDiversity },
+    userId
+  );
 
-  settingsStore.set(GLOBAL_SETTINGS_ID, updated);
-  saveStorage();
+  if (!result.success) {
+    console.error('[scoringSettings] Failed to save:', result.errors);
+  }
 
-  return updated;
+  return getGlobalSettings();
 }
 
 /**
  * グローバル設定をデフォルトにリセット
  */
 export function resetGlobalSettings(userId: string): AiVpSettings {
-  const existing = getGlobalSettings();
-  const timestamp = now();
-
-  const reset: AiVpSettings = {
-    id: GLOBAL_SETTINGS_ID,
-    scope: 'global',
-    businessUnitId: null,
-    config: { ...DEFAULT_CONFIG },
-    updatedAt: timestamp,
-    updatedByUserId: userId,
-    createdAt: existing.createdAt || timestamp,
-  };
-
-  // 監査ログ追加
-  addAuditLog({
-    settingsId: GLOBAL_SETTINGS_ID,
-    action: 'reset',
-    previousConfig: existing.config,
-    newConfig: DEFAULT_CONFIG,
-    userId,
-    changes: ['全設定をデフォルトにリセット'],
-  });
-
-  settingsStore.set(GLOBAL_SETTINGS_ID, reset);
-  saveStorage();
-
-  return reset;
+  resetSettings(userId);
+  return getGlobalSettings();
 }
 
 // ========== 有効な設定を取得（スコアリング用） ==========
@@ -447,62 +373,7 @@ export function getEffectiveDiversity(businessUnitId?: string): DiversitySetting
   return settings.config.diversity;
 }
 
-// ========== 監査ログ ==========
-
-function detectChanges(
-  oldConfig: AiVpScoringConfig,
-  newConfig: Partial<AiVpScoringConfig>
-): string[] {
-  const changes: string[] = [];
-
-  // 重みの変更を検出
-  if (newConfig.weights) {
-    for (const [key, value] of Object.entries(newConfig.weights)) {
-      const oldValue = oldConfig.weights[key as keyof ScoringWeights];
-      if (oldValue !== value) {
-        const label = WEIGHT_LABELS[key as keyof ScoringWeights]?.label || key;
-        changes.push(`${label}: ${oldValue} → ${value}`);
-      }
-    }
-  }
-
-  // 閾値の変更を検出
-  if (newConfig.thresholds) {
-    for (const [key, value] of Object.entries(newConfig.thresholds)) {
-      const oldValue = oldConfig.thresholds[key as keyof ScoringThresholds];
-      if (oldValue !== value) {
-        const label = THRESHOLD_LABELS[key as keyof ScoringThresholds] || key;
-        changes.push(`${label}: ${oldValue} → ${value}`);
-      }
-    }
-  }
-
-  // 多様性設定の変更を検出
-  if (newConfig.diversity) {
-    for (const [key, value] of Object.entries(newConfig.diversity)) {
-      const oldValue = oldConfig.diversity[key as keyof DiversitySettings];
-      if (oldValue !== value) {
-        changes.push(`${key}: ${oldValue} → ${value}`);
-      }
-    }
-  }
-
-  return changes;
-}
-
-function addAuditLog(entry: Omit<AuditLogEntry, 'id' | 'timestamp'>): void {
-  const logEntry: AuditLogEntry = {
-    id: generateId('audit'),
-    ...entry,
-    timestamp: now(),
-  };
-  auditLog.push(logEntry);
-
-  // 最大1000件保持
-  if (auditLog.length > 1000) {
-    auditLog = auditLog.slice(-1000);
-  }
-}
+// ========== 監査ログ（settings.ts にデリゲート） ==========
 
 /**
  * 監査ログを取得
@@ -510,16 +381,28 @@ function addAuditLog(entry: Omit<AuditLogEntry, 'id' | 'timestamp'>): void {
 export function getAuditLog(
   options: { limit?: number; settingsId?: string } = {}
 ): AuditLogEntry[] {
-  const { limit = 50, settingsId } = options;
+  const { limit = 50 } = options;
+  const events = getAiVpSettingsEvents(limit);
 
-  let filtered = auditLog;
-  if (settingsId) {
-    filtered = auditLog.filter(e => e.settingsId === settingsId);
-  }
-
-  return filtered
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, limit);
+  // 新しい形式から互換形式に変換
+  return events.map((e) => ({
+    id: e.id,
+    settingsId: GLOBAL_SETTINGS_ID,
+    action: e.action as 'create' | 'update' | 'reset',
+    previousConfig: e.beforeJson ? {
+      weights: convertToScoringWeights(e.beforeJson),
+      thresholds: convertToScoringThresholds(e.beforeJson),
+      diversity: convertToDiversitySettings(e.beforeJson),
+    } : null,
+    newConfig: {
+      weights: convertToScoringWeights(e.afterJson),
+      thresholds: convertToScoringThresholds(e.afterJson),
+      diversity: convertToDiversitySettings(e.afterJson),
+    },
+    userId: e.actorUserId,
+    timestamp: e.createdAt,
+    changes: e.note ? [e.note] : [],
+  }));
 }
 
 // ========== 統計 ==========
@@ -529,10 +412,11 @@ export function getStats(): {
   totalAuditEntries: number;
   lastUpdated: string | null;
 } {
-  const global = settingsStore.get(GLOBAL_SETTINGS_ID);
+  const meta = getAiVpSettingsMeta();
+  const events = getAiVpSettingsEvents(1000);
   return {
-    totalSettings: settingsStore.size,
-    totalAuditEntries: auditLog.length,
-    lastUpdated: global?.updatedAt ?? null,
+    totalSettings: 1,
+    totalAuditEntries: events.length,
+    lastUpdated: meta.updatedAt,
   };
 }
