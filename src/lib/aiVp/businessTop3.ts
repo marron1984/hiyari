@@ -15,6 +15,11 @@ import * as repairsRepo from '@/lib/repairs/repo';
 import * as correctiveActionsRepo from '@/lib/correctiveActions/repo';
 import * as licensesRepo from '@/lib/licenses/repo';
 import * as alertsRepo from '@/lib/alerts/repo';
+import {
+  getEffectiveWeights,
+  getEffectiveThresholds,
+  getEffectiveDiversity,
+} from './scoringSettings';
 
 // ========== 型定義 ==========
 
@@ -61,43 +66,29 @@ export interface BusinessTop3Summary {
 }
 
 // ========== スコアリング設定 ==========
+// Task 062: 管理画面から調整可能な設定を使用
 
-const SCORING_WEIGHTS = {
-  // 資格
-  licenses_expired: 10,
-  licenses_expiring30: 4,
-
-  // 修繕
-  repairs_highRiskOpen: 8,
-  repairs_overdue: 6,
-
-  // 是正措置
-  correctiveActions_criticalOpen: 8,
-  correctiveActions_overdue: 6,
-  correctiveActions_open: 2,
-
-  // チケット
-  tickets_urgentOpen: 5,
-  tickets_overdue: 4,
-  tickets_open: 1,
-
-  // アラート
-  alerts_criticalOpen: 6,
-  alerts_warningOpen: 2,
-};
+/**
+ * スコアリング重みを取得（管理画面設定を反映）
+ */
+function getScoringWeights() {
+  return getEffectiveWeights();
+}
 
 // ========== ヘルパー関数 ==========
 
 function determineSeverity(score: number): ActionSeverity {
-  if (score >= 20) return 'critical';
-  if (score >= 10) return 'warning';
+  const thresholds = getEffectiveThresholds();
+  if (score >= thresholds.severityCritical) return 'critical';
+  if (score >= thresholds.severityWarning) return 'warning';
   return 'info';
 }
 
 function determineRiskLevel(totalScore: number): 'low' | 'medium' | 'high' | 'critical' {
-  if (totalScore >= 50) return 'critical';
-  if (totalScore >= 30) return 'high';
-  if (totalScore >= 15) return 'medium';
+  const thresholds = getEffectiveThresholds();
+  if (totalScore >= thresholds.riskCritical) return 'critical';
+  if (totalScore >= thresholds.riskHigh) return 'high';
+  if (totalScore >= thresholds.riskMedium) return 'medium';
   return 'low';
 }
 
@@ -144,7 +135,7 @@ function generateActionCandidates(
 
   if (ticketStats.urgentOpen > 0) {
     const templateKey = 'tickets_urgent';
-    const score = ticketStats.urgentOpen * SCORING_WEIGHTS.tickets_urgentOpen;
+    const score = ticketStats.urgentOpen * getScoringWeights().tickets_urgentOpen;
     candidates.push({
       key: `${businessUnitId}:tickets:urgent`,
       businessUnitId,
@@ -167,7 +158,7 @@ function generateActionCandidates(
 
   if (ticketStats.overdue > 0) {
     const templateKey = 'tickets_overdue';
-    const score = ticketStats.overdue * SCORING_WEIGHTS.tickets_overdue;
+    const score = ticketStats.overdue * getScoringWeights().tickets_overdue;
     candidates.push({
       key: `${businessUnitId}:tickets:overdue`,
       businessUnitId,
@@ -196,7 +187,7 @@ function generateActionCandidates(
 
   if (repairStats.highRiskOpen > 0) {
     const templateKey = 'repairs_highRisk';
-    const score = repairStats.highRiskOpen * SCORING_WEIGHTS.repairs_highRiskOpen;
+    const score = repairStats.highRiskOpen * getScoringWeights().repairs_highRiskOpen;
     candidates.push({
       key: `${businessUnitId}:repairs:highRisk`,
       businessUnitId,
@@ -219,7 +210,7 @@ function generateActionCandidates(
 
   if (repairStats.overdue > 0) {
     const templateKey = 'repairs_overdue';
-    const score = repairStats.overdue * SCORING_WEIGHTS.repairs_overdue;
+    const score = repairStats.overdue * getScoringWeights().repairs_overdue;
     candidates.push({
       key: `${businessUnitId}:repairs:overdue`,
       businessUnitId,
@@ -248,7 +239,7 @@ function generateActionCandidates(
 
   if (caStats.criticalOpen > 0) {
     const templateKey = 'ca_critical';
-    const score = caStats.criticalOpen * SCORING_WEIGHTS.correctiveActions_criticalOpen;
+    const score = caStats.criticalOpen * getScoringWeights().correctiveActions_criticalOpen;
     candidates.push({
       key: `${businessUnitId}:ca:critical`,
       businessUnitId,
@@ -271,7 +262,7 @@ function generateActionCandidates(
 
   if (caStats.overdue > 0) {
     const templateKey = 'ca_overdue';
-    const score = caStats.overdue * SCORING_WEIGHTS.correctiveActions_overdue;
+    const score = caStats.overdue * getScoringWeights().correctiveActions_overdue;
     candidates.push({
       key: `${businessUnitId}:ca:overdue`,
       businessUnitId,
@@ -302,7 +293,7 @@ function generateActionCandidates(
 
   if (licenseStats && licenseStats.expired > 0) {
     const templateKey = 'licenses_expired';
-    const score = licenseStats.expired * SCORING_WEIGHTS.licenses_expired;
+    const score = licenseStats.expired * getScoringWeights().licenses_expired;
     candidates.push({
       key: `${businessUnitId}:licenses:expired`,
       businessUnitId,
@@ -325,7 +316,7 @@ function generateActionCandidates(
 
   if (licenseStats && licenseStats.expiring30 > 0) {
     const templateKey = 'licenses_expiring30';
-    const score = licenseStats.expiring30 * SCORING_WEIGHTS.licenses_expiring30;
+    const score = licenseStats.expiring30 * getScoringWeights().licenses_expiring30;
     candidates.push({
       key: `${businessUnitId}:licenses:expiring30`,
       businessUnitId,
@@ -371,11 +362,12 @@ export function getBusinessTop3(
     viewer
   );
 
-  // スコア順にソートしてTop3を取得
+  // スコア順にソートしてTop3を取得（Task 062: 設定可能）
+  const diversity = getEffectiveDiversity();
   const sortedCandidates = candidates
     .filter((c) => c.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 3);
+    .slice(0, diversity.top3Limit);
 
   const totalScore = candidates.reduce((sum, c) => sum + c.score, 0);
 
@@ -414,10 +406,11 @@ export function getAllBusinessTop3(
     }
   }
 
-  // 全事業のTop5アクション
+  // 全事業のTopアクション（Task 062: 設定可能）
+  const diversity = getEffectiveDiversity();
   const topActions = allCandidates
     .sort((a, b) => b.score - a.score)
-    .slice(0, 5);
+    .slice(0, diversity.globalTopLimit);
 
   // 総スコア順に事業をソート
   businessResults.sort((a, b) => b.totalScore - a.totalScore);
@@ -438,7 +431,7 @@ export function getAlertTop3(viewer: ViewerContext): ActionCandidate[] {
 
   if (alertStats.criticalOpen > 0) {
     const templateKey = 'alerts_critical';
-    const score = alertStats.criticalOpen * SCORING_WEIGHTS.alerts_criticalOpen;
+    const score = alertStats.criticalOpen * getScoringWeights().alerts_criticalOpen;
     candidates.push({
       key: 'global:alerts:critical',
       businessUnitId: 'global',
@@ -462,7 +455,7 @@ export function getAlertTop3(viewer: ViewerContext): ActionCandidate[] {
   const warningOpen = alertStats.open - alertStats.criticalOpen;
   if (warningOpen > 0) {
     const templateKey = 'alerts_warning';
-    const score = warningOpen * SCORING_WEIGHTS.alerts_warningOpen;
+    const score = warningOpen * getScoringWeights().alerts_warningOpen;
     candidates.push({
       key: 'global:alerts:warning',
       businessUnitId: 'global',
@@ -483,7 +476,9 @@ export function getAlertTop3(viewer: ViewerContext): ActionCandidate[] {
     });
   }
 
-  return candidates.sort((a, b) => b.score - a.score).slice(0, 3);
+  // Task 062: 設定可能
+  const diversity = getEffectiveDiversity();
+  return candidates.sort((a, b) => b.score - a.score).slice(0, diversity.top3Limit);
 }
 
 /**
