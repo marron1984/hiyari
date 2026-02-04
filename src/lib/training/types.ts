@@ -227,3 +227,21 @@ export function canManageTraining(viewer: ViewerContext): boolean {
 export function canViewAllStats(viewer: ViewerContext): boolean {
   return ['manager', 'executive', 'admin', 'auditor'].includes(viewer.role);
 }
+
+// ========== Task 054: スコープ付き統計 ==========
+
+/**
+ * 研修統計（スコープ対応）
+ */
+export interface TrainingStats {
+  overdueCount: number;          // 期限超過の受講記録数
+  sessionsDoneThisWeek: number;  // 今週完了したセッション数
+  assignedOpenCount: number;     // 未受講（assigned）の件数
+}
+
+/**
+ * 統計取得オプション
+ */
+export interface TrainingStatsOptions {
+  orgUnitIds?: string[];  // フィルタ対象の組織ID（ユーザー所属ベース）
+}

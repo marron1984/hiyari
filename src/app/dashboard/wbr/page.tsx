@@ -1,38 +1,49 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
 import {
-  generateWBR,
   generateWBRHistory,
   exportWBRToText,
   exportWBRToHTML,
-  type WBRReport,
 } from '@/lib/wbr-generator';
 import {
+  WbrHeader,
+  WbrPrintHeader,
+  WbrConclusion,
+  WbrHighlights,
+  WbrRisks,
+  WbrTop3,
+  WbrExecution,
+} from '@/components/wbr';
+import {
   Calendar,
-  FileText,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  AlertTriangle,
-  CheckCircle,
-  Target,
   Brain,
   ChevronRight,
-  ChevronDown,
-  Download,
-  History,
-  Zap,
-  Clock,
-  Shield,
-  BookOpen,
 } from 'lucide-react';
 
+/**
+ * WBR表示モード
+ * - executive: 経営向け（数字多め、意思決定寄り）
+ * - manager: 運用向け（滞留/期限超過/未分類の解消）
+ * - compact: リーダー/スタッフ向け（ノイズ削減）
+ */
+type WbrMode = 'executive' | 'manager' | 'compact';
+
+/**
+ * WBRページ
+ *
+ * Implementation Ticket 047: 会議でそのまま投影・配布できる見た目
+ */
 export default function WbrPage() {
+  const searchParams = useSearchParams();
+  const modeParam = searchParams.get('mode') as WbrMode | null;
+
   const [selectedReportIndex, setSelectedReportIndex] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
+  const [mode, setMode] = useState<WbrMode>(modeParam ?? 'executive');
 
   // WBRを生成
   const wbrHistory = useMemo(() => generateWBRHistory(8), []);
@@ -63,60 +74,85 @@ export default function WbrPage() {
     }
   };
 
-  // 方向アイコン
-  const DirectionIcon = ({ direction }: { direction: 'up' | 'down' | 'stable' }) => {
-    if (direction === 'up') return <TrendingUp className="w-4 h-4 text-green-600" />;
-    if (direction === 'down') return <TrendingDown className="w-4 h-4 text-red-600" />;
-    return <Minus className="w-4 h-4 text-zinc-400" />;
-  };
+  // 事業別Top3をWBR用に変換
+  const businessTop3Items = currentReport.businessTop3?.topBusinessRisks.map(r => ({
+    businessUnitId: r.name,
+    businessUnitName: r.name,
+    topIssue: r.topAction ?? '対応中',
+    severity: (r.riskLevel === 'critical' ? 'critical' : r.riskLevel === 'warning' ? 'warning' : 'info') as 'critical' | 'warning' | 'info',
+  })) ?? [];
+
+  // AI生成チケットを変換
+  const generatedTickets = currentReport.generatedTickets?.tickets.map(t => ({
+    id: t.id,
+    title: t.title,
+    businessUnitName: t.businessUnitId ?? '未分類',
+    createdAt: new Date().toISOString(),
+  })) ?? [];
 
   return (
     <main className="pb-8">
-      <div className="max-w-5xl mx-auto px-4 py-6">
-        {/* ヘッダー */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg">
-              <Calendar className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Weekly Business Review</h1>
-              <p className="text-sm text-gray-500">{currentReport.weekLabel}</p>
-            </div>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowHistory(!showHistory)}
-            >
-              <History className="w-4 h-4 mr-1" />
-              過去のWBR
-              {showHistory ? (
-                <ChevronDown className="w-4 h-4 ml-1" />
-              ) : (
-                <ChevronRight className="w-4 h-4 ml-1" />
-              )}
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportText}>
-              <Download className="w-4 h-4 mr-1" />
-              テキスト
-            </Button>
-            <Button size="sm" onClick={handleExportPDF}>
-              <FileText className="w-4 h-4 mr-1" />
-              PDF出力
-            </Button>
-          </div>
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* 印刷用ヘッダー */}
+        <WbrPrintHeader
+          weekLabel={currentReport.weekLabel}
+          weekStart={currentReport.weekStart}
+          generatedAt={currentReport.generatedAt}
+        />
+
+        {/* 画面用ヘッダー */}
+        <WbrHeader
+          weekLabel={currentReport.weekLabel}
+          weekStart={currentReport.weekStart}
+          generatedAt={currentReport.generatedAt}
+          onExportText={handleExportText}
+          onExportPDF={handleExportPDF}
+          onShowHistory={() => setShowHistory(!showHistory)}
+          showHistoryButton={true}
+        />
+
+        {/* モード切替（役職別） */}
+        <div className="flex gap-2 mb-4 print:hidden">
+          <button
+            onClick={() => setMode('executive')}
+            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+              mode === 'executive'
+                ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
+                : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+            }`}
+          >
+            経営向け
+          </button>
+          <button
+            onClick={() => setMode('manager')}
+            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+              mode === 'manager'
+                ? 'bg-blue-100 border-blue-300 text-blue-700'
+                : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+            }`}
+          >
+            管理者向け
+          </button>
+          <button
+            onClick={() => setMode('compact')}
+            className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+              mode === 'compact'
+                ? 'bg-green-100 border-green-300 text-green-700'
+                : 'bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+            }`}
+          >
+            コンパクト
+          </button>
         </div>
 
         {/* 過去のWBR履歴 */}
         {showHistory && (
-          <Card className="mb-6">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">過去のWBR</CardTitle>
+          <Card className="mb-4 print:hidden">
+            <CardHeader className="py-2 px-4">
+              <CardTitle className="text-sm">過去のWBR</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <CardContent className="px-4 pb-4">
+              <div className="grid grid-cols-4 gap-2">
                 {wbrHistory.map((report, index) => (
                   <button
                     key={report.id}
@@ -124,16 +160,14 @@ export default function WbrPage() {
                       setSelectedReportIndex(index);
                       setShowHistory(false);
                     }}
-                    className={`p-3 text-left rounded-lg border transition-all ${
+                    className={`p-2 text-left rounded-lg border transition-all text-xs ${
                       index === selectedReportIndex
                         ? 'bg-blue-50 border-blue-300'
                         : 'hover:bg-zinc-50 border-zinc-200'
                     }`}
                   >
-                    <p className="font-medium text-sm">
-                      {report.weekStart}〜
-                    </p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="font-medium">{report.weekStart}〜</p>
+                    <p className="text-zinc-500">
                       {index === 0 ? '今週' : `${index}週前`}
                     </p>
                   </button>
@@ -143,408 +177,136 @@ export default function WbrPage() {
           </Card>
         )}
 
-        {/* ===== ① 週次サマリー ===== */}
-        <Card className="mb-6 border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-blue-500 rounded-lg">
-                <FileText className="w-4 h-4 text-white" />
-              </div>
-              <CardTitle className="text-lg text-blue-800">
-                1. Executive Summary
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-white p-4 rounded-lg border border-blue-100 mb-4">
-              <p className="text-zinc-700 leading-relaxed">
-                {currentReport.executiveSummary.overview}
-              </p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <h4 className="text-sm font-semibold text-green-700 mb-2 flex items-center gap-1">
-                  <CheckCircle className="w-4 h-4" />
-                  良かった点
-                </h4>
-                <div className="space-y-2">
-                  {currentReport.executiveSummary.goodPoints.map((point, i) => (
-                    <div
-                      key={i}
-                      className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm"
-                    >
-                      {point}
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-amber-700 mb-2 flex items-center gap-1">
-                  <AlertTriangle className="w-4 h-4" />
-                  課題点
-                </h4>
-                <div className="space-y-2">
-                  {currentReport.executiveSummary.issues.map((issue, i) => (
-                    <div
-                      key={i}
-                      className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm"
-                    >
-                      {issue}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* ===== ファーストビュー（1ページ目） ===== */}
+        <section className="print:break-after-page">
+          {/* 1. 結論（Good/Bad/Next） */}
+          <WbrConclusion
+            overview={currentReport.executiveSummary.overview}
+            goodPoints={currentReport.executiveSummary.goodPoints}
+            issues={currentReport.executiveSummary.issues}
+            nextActions={currentReport.nextActions.top3.map(a => a.title)}
+          />
 
-        {/* ===== ② KPIハイライト ===== */}
-        <Card className="mb-6">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-emerald-500 rounded-lg">
-                  <TrendingUp className="w-4 h-4 text-white" />
-                </div>
-                <CardTitle className="text-lg">2. KPIハイライト</CardTitle>
-              </div>
-              <Link href="/dashboard/kpi-dictionary" className="text-xs text-emerald-600 hover:text-emerald-800 flex items-center gap-1">
-                <BookOpen className="w-3 h-3" />
-                KPI辞書
-              </Link>
-            </div>
-            <p className="text-sm text-zinc-500 mt-1">
-              今週変動があった重要指標
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {currentReport.kpiHighlights.highlights.map((kpi, i) => (
-                <div
-                  key={i}
-                  className="p-4 border rounded-lg bg-zinc-50 hover:bg-white transition-colors"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-zinc-600">
-                      {kpi.name}
-                    </span>
-                    <Badge
-                      className={`text-xs ${
-                        kpi.impact === 'high'
-                          ? 'bg-red-100 text-red-700'
-                          : kpi.impact === 'medium'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-zinc-100 text-zinc-700'
-                      }`}
-                    >
-                      影響度: {kpi.impact === 'high' ? '高' : kpi.impact === 'medium' ? '中' : '低'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-end gap-2 mb-2">
-                    <span className="text-3xl font-bold text-zinc-800">
-                      {kpi.currentValue}
-                    </span>
-                    <div className="flex items-center gap-1 mb-1">
-                      <DirectionIcon direction={kpi.direction} />
-                      <span className="text-sm text-zinc-500">
-                        前週: {kpi.previousValue}
-                      </span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-zinc-600">{kpi.insight}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+          {/* 2. リスク（コンパクト版） */}
+          <WbrRisks
+            persistentRisks={currentReport.riskAlerts.persistentRisks}
+            newRisks={currentReport.riskAlerts.newRisks}
+            alertSummary={currentReport.riskAlerts.alertSummary}
+            unclassifiedCounts={currentReport.riskAlerts.unclassifiedCounts}
+            compact={mode === 'compact'}
+          />
 
-        {/* ===== ③ 進捗レビュー ===== */}
-        <Card className="mb-6">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-violet-500 rounded-lg">
-                <Zap className="w-4 h-4 text-white" />
-              </div>
-              <CardTitle className="text-lg">3. 進捗レビュー</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {currentReport.progressReview.nearCompletion.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-violet-700 mb-2">
-                    🏁 完了間近
-                  </h4>
-                  <div className="space-y-2">
-                    {currentReport.progressReview.nearCompletion.map((item, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between p-3 bg-violet-50 border border-violet-200 rounded-lg"
-                      >
-                        <span className="font-medium">{item.name}</span>
-                        <Badge className="bg-violet-100 text-violet-700">
-                          {item.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {/* 3. 来週Top3（コンパクトモードではTop1のみ） */}
+          <WbrTop3
+            top3={currentReport.nextActions.top3}
+            businessTop3={businessTop3Items}
+            compact={mode === 'compact'}
+          />
 
-              {currentReport.progressReview.newlyStarted.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-blue-700 mb-2">
-                    🚀 今週着手
-                  </h4>
-                  <div className="space-y-2">
-                    {currentReport.progressReview.newlyStarted.map((item, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg"
-                      >
-                        <span className="font-medium">{item.name}</span>
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-zinc-500">{item.from}</span>
-                          <ChevronRight className="w-4 h-4 text-blue-400" />
-                          <span className="text-blue-600 font-medium">{item.to}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {/* 4. 実行状況（コンパクト版） */}
+          <WbrExecution
+            nearCompletion={currentReport.progressReview.nearCompletion}
+            stalled={currentReport.progressReview.stalled}
+            generatedTickets={generatedTickets}
+            completedThisWeek={currentReport.progressReview.nearCompletion.length}
+            compact={mode === 'compact'}
+          />
+        </section>
 
-              {currentReport.progressReview.stalled.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-amber-700 mb-2">
-                    ⚠️ 遅延・停滞
-                  </h4>
-                  <div className="space-y-2">
-                    {currentReport.progressReview.stalled.map((item, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg"
-                      >
-                        <span className="font-medium">{item.name}</span>
-                        <span className="text-sm text-amber-600">{item.reason}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        {/* ===== 詳細（2ページ目以降） ===== */}
+        {mode !== 'compact' && (
+          <section>
+            {/* KPIハイライト */}
+            <WbrHighlights
+              highlights={currentReport.kpiHighlights.highlights}
+              maxItems={mode === 'executive' ? 6 : 4}
+            />
 
-        {/* ===== ④ リスク・アラート ===== */}
-        <Card className="mb-6 border border-red-200">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-red-500 rounded-lg">
-                <Shield className="w-4 h-4 text-white" />
-              </div>
-              <CardTitle className="text-lg text-red-800">
-                4. リスク・アラート
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {currentReport.riskAlerts.persistentRisks.length > 0 && (
-              <div className="mb-4">
-                <h4 className="text-sm font-semibold text-red-700 mb-2">
-                  放置リスク
-                </h4>
-                <div className="space-y-2">
-                  {currentReport.riskAlerts.persistentRisks.map((risk, i) => (
-                    <div
-                      key={i}
-                      className={`p-4 rounded-lg border ${
-                        risk.riskLevel === 'critical'
-                          ? 'bg-red-50 border-red-300'
-                          : 'bg-orange-50 border-orange-300'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-lg">
-                              {risk.riskLevel === 'critical' ? '🔴' : '🟠'}
-                            </span>
-                            <span className="font-bold">{risk.name}</span>
-                            <Badge className="text-xs bg-zinc-100 text-zinc-600">
-                              {risk.category}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-zinc-600">{risk.description}</p>
-                        </div>
-                        <Badge
-                          className={`text-xs ${
-                            risk.daysIgnored >= 14
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}
-                        >
-                          <Clock className="w-3 h-3 mr-1" />
-                          {risk.daysIgnored}日経過
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* 進捗レビュー（詳細） */}
+            {mode === 'executive' && (
+              <Card className="mb-4 print:break-inside-avoid">
+                <CardContent className="p-4">
+                  <h3 className="text-sm font-bold text-zinc-800 mb-3 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-violet-600" />
+                    進捗レビュー（詳細）
+                  </h3>
 
-            {currentReport.riskAlerts.newRisks.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold text-blue-700 mb-2">
-                  🆕 新規リスク
-                </h4>
-                <div className="space-y-2">
-                  {currentReport.riskAlerts.newRisks.map((risk, i) => (
-                    <div
-                      key={i}
-                      className="p-4 bg-blue-50 border border-blue-200 rounded-lg"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold">{risk.name}</span>
-                        <Badge className="text-xs bg-zinc-100 text-zinc-600">
-                          {risk.category}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-zinc-600">{risk.description}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {currentReport.riskAlerts.persistentRisks.length === 0 &&
-              currentReport.riskAlerts.newRisks.length === 0 && (
-                <div className="text-center py-6 text-zinc-500">
-                  現在、警告すべきリスクはありません
-                </div>
-              )}
-          </CardContent>
-        </Card>
-
-        {/* ===== ⑤ 来週のアクション ===== */}
-        <Card className="mb-6 border-2 border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-orange-500 rounded-lg">
-                <Target className="w-4 h-4 text-white" />
-              </div>
-              <CardTitle className="text-lg text-orange-800">
-                5. 来週のアクション（Top 3）
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {currentReport.nextActions.top3.map((action, index) => (
-                <div
-                  key={index}
-                  className="p-4 bg-white border border-orange-200 rounded-lg"
-                >
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm flex-shrink-0 ${
-                        index === 0
-                          ? 'bg-yellow-400 text-yellow-900'
-                          : index === 1
-                            ? 'bg-zinc-300 text-zinc-700'
-                            : 'bg-orange-300 text-orange-800'
-                      }`}
-                    >
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-zinc-800 mb-2">
-                        {action.title}
+                  {currentReport.progressReview.newlyStarted.length > 0 && (
+                    <div className="mb-3">
+                      <h4 className="text-xs font-medium text-blue-700 mb-1.5">
+                        今週着手
                       </h4>
-                      <div className="space-y-1 text-sm">
-                        <p>
-                          <span className="text-zinc-500">目的：</span>
-                          <span className="text-zinc-700">{action.purpose}</span>
-                        </p>
-                        <p>
-                          <span className="text-zinc-500">完了条件：</span>
-                          <span className="text-orange-700 font-medium">
-                            {action.completionCriteria}
-                          </span>
-                        </p>
+                      <div className="space-y-1">
+                        {currentReport.progressReview.newlyStarted.map((item, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center justify-between p-2 bg-blue-50 rounded text-xs print:bg-white print:border print:border-zinc-200"
+                          >
+                            <span className="font-medium text-zinc-700">{item.name}</span>
+                            <div className="flex items-center gap-1 text-zinc-500">
+                              <span>{item.from}</span>
+                              <ChevronRight className="w-3 h-3" />
+                              <span className="text-blue-600">{item.to}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* AI副社長コメント */}
+            <Card className="mb-4 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-violet-50 print:border print:border-zinc-300 print:bg-white print:break-inside-avoid">
+              <CardContent className="p-4">
+                <h3 className="text-sm font-bold text-purple-800 mb-3 flex items-center gap-2">
+                  <Brain className="w-4 h-4" />
+                  AI副社長コメント
+                </h3>
+                <div className="space-y-3">
+                  <div className="p-3 bg-white rounded-lg border border-purple-200 print:border-zinc-300">
+                    <h4 className="text-xs font-medium text-purple-700 mb-1">
+                      今週の判断総括
+                    </h4>
+                    <p className="text-xs text-zinc-700 leading-relaxed">
+                      {currentReport.aiComment.judgmentSummary}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-purple-100 rounded-lg border border-purple-300 print:bg-white print:border-zinc-300">
+                    <h4 className="text-xs font-medium text-purple-800 mb-1">
+                      来週への示唆
+                    </h4>
+                    <p className="text-xs text-purple-900 font-medium leading-relaxed">
+                      {currentReport.aiComment.nextWeekInsight}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ===== ⑥ AI副社長コメント ===== */}
-        <Card className="border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-violet-50">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg">
-                <Brain className="w-4 h-4 text-white" />
-              </div>
-              <CardTitle className="text-lg text-purple-800">
-                6. AI副社長コメント
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="p-4 bg-white border border-purple-200 rounded-lg">
-                <h4 className="text-sm font-semibold text-purple-700 mb-2">
-                  今週の判断総括
-                </h4>
-                <p className="text-zinc-700 leading-relaxed">
-                  {currentReport.aiComment.judgmentSummary}
-                </p>
-              </div>
-              <div className="p-4 bg-gradient-to-r from-purple-100 to-violet-100 border border-purple-300 rounded-lg">
-                <h4 className="text-sm font-semibold text-purple-800 mb-2">
-                  来週への示唆
-                </h4>
-                <p className="text-purple-900 font-medium leading-relaxed">
-                  {currentReport.aiComment.nextWeekInsight}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </section>
+        )}
 
         {/* フッター */}
-        <div className="mt-6 text-center">
-          <p className="text-xs text-zinc-400">
+        <div className="mt-6 text-center print:hidden">
+          <p className="text-xs text-zinc-400 mb-4">
             Generated: {currentReport.generatedAt.toLocaleString('ja-JP')}
           </p>
-          <div className="mt-4 flex justify-center gap-4">
-            <Link
-              href="/dashboard/kpi"
-              className="text-sm text-emerald-500 hover:text-emerald-700"
-            >
-              KPIダッシュボード →
+          <div className="flex justify-center gap-4 text-sm text-zinc-400">
+            <Link href="/dashboard/kpi" className="hover:text-zinc-600">
+              KPIダッシュボード
             </Link>
-            <Link
-              href="/dashboard/kpi-dictionary"
-              className="text-sm text-teal-500 hover:text-teal-700"
-            >
-              KPI辞書 →
+            <span>・</span>
+            <Link href="/dashboard/kpi-dictionary" className="hover:text-zinc-600">
+              KPI辞書
             </Link>
-            <Link
-              href="/dashboard/executive-summary"
-              className="text-sm text-indigo-500 hover:text-indigo-700"
-            >
-              経営サマリー →
+            <span>・</span>
+            <Link href="/dashboard/executive-summary" className="hover:text-zinc-600">
+              経営サマリー
             </Link>
-            <Link
-              href="/dashboard/ai-vp"
-              className="text-sm text-purple-500 hover:text-purple-700"
-            >
-              AI副社長ハブ →
+            <span>・</span>
+            <Link href="/dashboard/ai-vp" className="hover:text-zinc-600">
+              AI副社長
             </Link>
           </div>
         </div>

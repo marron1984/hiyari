@@ -25,7 +25,8 @@ export type AlertType =
   | 'collection_flow_risk'   // 回収フローリスク
   | 'agreement_risk'         // 同意書リスク
   | 'business_scope_unclassified'  // Task 038: 未分類スコープ（正式名称）
-  | 'unclassified_scope';    // Task 033: 未分類スコープ（レガシー、後方互換）
+  | 'unclassified_scope'     // Task 033: 未分類スコープ（レガシー、後方互換）
+  | 'unassigned_item';       // Task 058: 未割当アイテム
 
 /**
  * アラート重要度
@@ -129,6 +130,7 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   agreement_risk: '同意書リスク',
   business_scope_unclassified: '未分類スコープ',  // Task 038: 正式名称
   unclassified_scope: '未分類スコープ',  // Task 033: レガシー
+  unassigned_item: '未割当アイテム',  // Task 058: 未割当アイテム
 };
 
 /**

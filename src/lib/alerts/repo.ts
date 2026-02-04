@@ -216,6 +216,8 @@ export function getAlertStats(): AlertStats {
       // Task 038: 未分類スコープ（正式名称 + レガシー）
       business_scope_unclassified: 0,
       unclassified_scope: 0,
+      // Task 058: 未割当アイテム
+      unassigned_item: 0,
     },
   };
 

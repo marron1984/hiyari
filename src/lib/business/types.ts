@@ -118,6 +118,8 @@ export interface CorrectiveActionsHighlight {
 
 export interface TrainingHighlight {
   overdue: number;
+  assignedOpen: number;          // Task 054: 未受講件数
+  sessionsDoneThisWeek: number;  // Task 054: 今週完了セッション数
   url: string;
 }
 
@@ -144,6 +146,14 @@ export interface AgreementsHighlight {
   url: string;
 }
 
+// Task 049: 契約ハイライト
+export interface ContractsHighlight {
+  expiring: number;           // warnDays以内に期限を迎える件数
+  decisionOverdue: number;    // 更新判断期限超過
+  highRiskExpiring: number;   // high/critical かつ expiring
+  url: string;
+}
+
 export interface BusinessHighlights {
   kpi: { keyMetrics: KpiHighlight[] };
   alerts: AlertsHighlight;
@@ -153,8 +163,9 @@ export interface BusinessHighlights {
   correctiveActions: CorrectiveActionsHighlight;
   training: TrainingHighlight;
   licenses: LicensesHighlight;
-  receivables: ReceivablesHighlight;
-  collection: CollectionHighlight;
+  receivables: ReceivablesHighlight | null;    // Task 049: canViewFinance=false時はnull
+  collection: CollectionHighlight | null;       // Task 049: canViewFinance=false時はnull
+  contracts: ContractsHighlight | null;         // Task 049: 契約（canViewFinance=false時はnull）
   agreements: AgreementsHighlight;
 }
 

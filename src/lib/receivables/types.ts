@@ -33,6 +33,9 @@ export type NextActionType = 'call' | 'email' | 'visit' | 'letter' | 'other' | n
 export interface Receivable {
   id: string;
 
+  // 事業単位（Task 049: 事業別財務集計用）
+  businessUnitId: string | null;
+
   // 対象情報
   subjectType: ReceivableSubjectType;
   subjectId: string | null;

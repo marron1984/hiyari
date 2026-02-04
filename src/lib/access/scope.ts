@@ -377,6 +377,7 @@ export interface DomainCoverage {
  * 各ドメインのスコープ対応状況
  * UI表示や監査ログ用
  * Task 030: tickets, repairs, correctiveActions, licenses を scoped に更新
+ * Task 054: training, agreements を scoped に更新（Phase2）
  */
 export const DOMAIN_SCOPE_COVERAGE: DomainCoverage[] = [
   { domain: 'alerts', label: 'アラート', status: 'scoped' },
@@ -384,11 +385,12 @@ export const DOMAIN_SCOPE_COVERAGE: DomainCoverage[] = [
   { domain: 'repairs', label: '修繕', status: 'scoped', note: 'Task 030: businessUnitId対応' },
   { domain: 'complaints', label: 'クレーム', status: 'partial', note: 'residentId経由で間接対応' },
   { domain: 'correctiveActions', label: '是正措置', status: 'scoped', note: 'Task 030: businessUnitId対応' },
-  { domain: 'training', label: '研修', status: 'partial', note: 'userId経由で間接対応' },
+  { domain: 'training', label: '研修', status: 'scoped', note: 'Task 054: orgUnitIds対応（ユーザー所属ベース）' },
   { domain: 'licenses', label: '資格', status: 'scoped', note: 'Task 030: orgUnitIds対応（ユーザー所属ベース）' },
-  { domain: 'receivables', label: '未収', status: 'partial', note: 'residentId経由で間接対応' },
-  { domain: 'collection', label: '回収フロー', status: 'partial', note: 'receivableId経由で間接対応' },
-  { domain: 'agreements', label: '同意書', status: 'partial', note: 'residentId経由で間接対応' },
+  { domain: 'receivables', label: '未収', status: 'scoped', note: 'Task 049: businessUnitId対応' },
+  { domain: 'collection', label: '回収フロー', status: 'scoped', note: 'Task 049: receivable.businessUnitId経由' },
+  { domain: 'contracts', label: '契約', status: 'scoped', note: 'Task 049: businessUnitId対応' },
+  { domain: 'agreements', label: '同意書', status: 'scoped', note: 'Task 054: orgUnitIds対応（職員のみ）' },
 ];
 
 /**

@@ -617,3 +617,345 @@ export function getStats(): { total: number; unread: number; read: number; dismi
     dismissed: all.filter((n) => n.status === 'dismissed').length,
   };
 }
+
+// ========== Task 055: 通知ポリシー対応 ==========
+
+import {
+  getNotifyPolicy,
+  shouldNotify,
+  isThrottleExpired,
+  buildThrottleKey,
+  type NotifyMode,
+} from '@/config/notificationPolicy';
+import type { AppRole } from '@/lib/access/scope';
+import type { AlertType, AlertSeverity as AlertSeverityType } from '@/lib/alerts/types';
+
+// スロットル追跡用ストア（fingerprint+userId -> lastNotifiedAt）
+const throttleStore = new Map<string, string>();
+
+// ダイジェストキュー（mode='digest'の通知を一時保存）
+export interface DigestQueueItem {
+  id: string;
+  alertType: string;
+  severity: NotificationSeverity;
+  title: string;
+  message: string;
+  url: string | null;
+  fingerprint: string;
+  targetRoles: AppRole[];
+  queuedAt: string;
+  metadata?: Record<string, unknown>;
+}
+
+const digestQueue: DigestQueueItem[] = [];
+
+/**
+ * スロットルチェック＆更新
+ */
+function checkAndUpdateThrottle(
+  alertType: string,
+  fingerprint: string,
+  userId: string,
+  throttleMinutes: number
+): { shouldThrottle: boolean; lastNotifiedAt: string | null } {
+  const key = buildThrottleKey(alertType, fingerprint, userId);
+  const lastNotifiedAt = throttleStore.get(key) ?? null;
+
+  if (!isThrottleExpired(lastNotifiedAt, throttleMinutes)) {
+    return { shouldThrottle: true, lastNotifiedAt };
+  }
+
+  // スロットル更新
+  throttleStore.set(key, now());
+  return { shouldThrottle: false, lastNotifiedAt };
+}
+
+/**
+ * ポリシーに基づいて通知を作成（Task 055）
+ *
+ * - ポリシーの minSeverityToNotify をチェック
+ * - スロットル（throttleMinutes）をチェック
+ * - mode='digest' の場合はキューに追加
+ * - mode='immediate' の場合は即座に通知作成
+ * - mode='none' の場合は通知しない
+ */
+export function createWithPolicy(
+  request: {
+    alertType: AlertType | string;
+    severity: AlertSeverityType;
+    title: string;
+    message: string;
+    fingerprint: string;
+    url?: string | null;
+    sourceId?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+  targetUserId: string,
+  targetRole: AppRole
+): {
+  created: boolean;
+  mode: NotifyMode;
+  throttled: boolean;
+  queued: boolean;
+  notification: Notification | null;
+} {
+  // ポリシー判定
+  const { shouldNotify: notify, mode, policy } = shouldNotify(
+    request.alertType,
+    request.severity as NotificationSeverity,
+    targetRole
+  );
+
+  if (!notify || mode === 'none') {
+    return { created: false, mode, throttled: false, queued: false, notification: null };
+  }
+
+  // スロットルチェック
+  const { shouldThrottle } = checkAndUpdateThrottle(
+    request.alertType,
+    request.fingerprint,
+    targetUserId,
+    policy.throttleMinutes
+  );
+
+  if (shouldThrottle) {
+    return { created: false, mode, throttled: true, queued: false, notification: null };
+  }
+
+  // ダイジェストモード: キューに追加
+  if (mode === 'digest') {
+    const queueItem: DigestQueueItem = {
+      id: `digest_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      alertType: request.alertType,
+      severity: request.severity as NotificationSeverity,
+      title: request.title,
+      message: request.message,
+      url: request.url ?? null,
+      fingerprint: request.fingerprint,
+      targetRoles: policy.targetRoles,
+      queuedAt: now(),
+      metadata: request.metadata,
+    };
+    digestQueue.push(queueItem);
+    return { created: false, mode, throttled: false, queued: true, notification: null };
+  }
+
+  // 即時モード: 通知作成
+  const result = create({
+    tenantId: 'default',
+    userId: targetUserId,
+    type: request.alertType as NotificationType,
+    severity: request.severity as NotificationSeverity,
+    title: request.title,
+    message: request.message,
+    url: request.url ?? null,
+    fingerprint: request.fingerprint,
+    metadata: {
+      ...request.metadata,
+      targetRole: targetRole,
+    } as NotificationType_['metadata'],
+  });
+
+  return {
+    created: result.isNew,
+    mode,
+    throttled: false,
+    queued: false,
+    notification: result.notification,
+  };
+}
+
+/**
+ * 複数ロール向けに通知を作成（Task 055）
+ *
+ * ポリシーの targetRoles に基づいて各ロール向けに通知を判定
+ */
+export function createForRoles(
+  request: {
+    alertType: AlertType | string;
+    severity: AlertSeverityType;
+    title: string;
+    message: string;
+    fingerprint: string;
+    url?: string | null;
+    sourceId?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+  usersByRole: Map<AppRole, string[]>
+): {
+  totalCreated: number;
+  totalThrottled: number;
+  totalQueued: number;
+  byRole: Record<string, { created: number; throttled: number; queued: number }>;
+} {
+  const policy = getNotifyPolicy(request.alertType);
+  const result = {
+    totalCreated: 0,
+    totalThrottled: 0,
+    totalQueued: 0,
+    byRole: {} as Record<string, { created: number; throttled: number; queued: number }>,
+  };
+
+  for (const role of policy.targetRoles) {
+    const users = usersByRole.get(role) || [];
+    result.byRole[role] = { created: 0, throttled: 0, queued: 0 };
+
+    for (const userId of users) {
+      const r = createWithPolicy(request, userId, role);
+      if (r.created) {
+        result.totalCreated++;
+        result.byRole[role].created++;
+      }
+      if (r.throttled) {
+        result.totalThrottled++;
+        result.byRole[role].throttled++;
+      }
+      if (r.queued) {
+        result.totalQueued++;
+        result.byRole[role].queued++;
+      }
+    }
+  }
+
+  return result;
+}
+
+// ========== ダイジェスト処理 ==========
+
+/**
+ * ダイジェストキューを取得
+ */
+export function getDigestQueue(): DigestQueueItem[] {
+  return [...digestQueue];
+}
+
+/**
+ * ダイジェストキューをクリア
+ */
+export function clearDigestQueue(): number {
+  const count = digestQueue.length;
+  digestQueue.length = 0;
+  return count;
+}
+
+/**
+ * ダイジェストキューからロール別にグループ化
+ */
+export function getDigestQueueByRole(): Map<AppRole, DigestQueueItem[]> {
+  const byRole = new Map<AppRole, DigestQueueItem[]>();
+
+  for (const item of digestQueue) {
+    for (const role of item.targetRoles) {
+      if (!byRole.has(role)) {
+        byRole.set(role, []);
+      }
+      byRole.get(role)!.push(item);
+    }
+  }
+
+  return byRole;
+}
+
+/**
+ * ダイジェスト通知を送信（キューから一括処理）
+ *
+ * 通常はスケジューラー（cron）から呼び出される
+ */
+export function processDigestQueue(
+  targetHour: number,
+  usersByRole: Map<AppRole, string[]>
+): {
+  processedCount: number;
+  notificationsCreated: number;
+} {
+  const queueByRole = getDigestQueueByRole();
+  let notificationsCreated = 0;
+
+  for (const [role, items] of queueByRole) {
+    if (items.length === 0) continue;
+
+    const users = usersByRole.get(role) || [];
+    if (users.length === 0) continue;
+
+    // ダイジェストメッセージを構築
+    const digestTitle = `本日のアラートダイジェスト（${items.length}件）`;
+    const digestLines = items.slice(0, 10).map(item =>
+      `・[${item.severity.toUpperCase()}] ${item.title}`
+    );
+    if (items.length > 10) {
+      digestLines.push(`... 他 ${items.length - 10}件`);
+    }
+    const digestMessage = digestLines.join('\n');
+
+    const digestFingerprint = generateFingerprint(
+      'digest',
+      role,
+      new Date().toISOString().slice(0, 10),
+      String(targetHour)
+    );
+
+    // 各ユーザーに通知作成
+    for (const userId of users) {
+      const result = create({
+        tenantId: 'default',
+        userId,
+        type: 'system' as NotificationType,
+        severity: items.some(i => i.severity === 'critical') ? 'critical' : 'warning',
+        title: digestTitle,
+        message: digestMessage,
+        url: '/dashboard/alerts',
+        fingerprint: digestFingerprint,
+        metadata: {
+          targetRole: role,
+        } as NotificationType_['metadata'],
+      });
+
+      if (result.isNew) {
+        notificationsCreated++;
+      }
+    }
+  }
+
+  const processedCount = digestQueue.length;
+  clearDigestQueue();
+
+  return { processedCount, notificationsCreated };
+}
+
+// ========== スロットル管理 ==========
+
+/**
+ * スロットル情報を取得（デバッグ用）
+ */
+export function getThrottleInfo(
+  alertType: string,
+  fingerprint: string,
+  userId: string
+): { lastNotifiedAt: string | null; key: string } {
+  const key = buildThrottleKey(alertType, fingerprint, userId);
+  return {
+    lastNotifiedAt: throttleStore.get(key) ?? null,
+    key,
+  };
+}
+
+/**
+ * スロットルをクリア（テスト用）
+ */
+export function clearThrottle(
+  alertType: string,
+  fingerprint: string,
+  userId: string
+): boolean {
+  const key = buildThrottleKey(alertType, fingerprint, userId);
+  return throttleStore.delete(key);
+}
+
+/**
+ * 全スロットルをクリア（テスト用）
+ */
+export function clearAllThrottles(): number {
+  const count = throttleStore.size;
+  throttleStore.clear();
+  return count;
+}

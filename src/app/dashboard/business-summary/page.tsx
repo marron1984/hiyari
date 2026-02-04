@@ -28,6 +28,7 @@ import {
   Wrench,
   ShieldAlert,
   Award,
+  FileSignature,  // Task 049: 契約用アイコン
 } from 'lucide-react';
 
 // ========== 型定義 ==========
@@ -58,10 +59,13 @@ interface BusinessHighlights {
   repairs: { highRiskOpen: number; overdue: number; url: string };
   complaints: { highOpen: number; criticalOpen: number; overdue: number; url: string };
   correctiveActions: { open: number; criticalOpen: number; overdue: number; url: string };
-  training: { overdue: number; url: string };
+  // Task 054: training に assignedOpen, sessionsDoneThisWeek 追加
+  training: { overdue: number; assignedOpen: number; sessionsDoneThisWeek: number; url: string };
   licenses: { expired: number; expiring30: number; url: string };
-  receivables: { overdueTotal: number; aging60Count: number; url: string };
-  collection: { overdueSteps: number; url: string };
+  // Task 049: 財務系（canViewFinance=false時はnull）
+  receivables: { overdueTotal: number; aging60Count: number; url: string } | null;
+  collection: { overdueSteps: number; url: string } | null;
+  contracts: { expiring: number; decisionOverdue: number; highRiskExpiring: number; url: string } | null;
   agreements: { expired: number; expiring30: number; url: string };
 }
 
@@ -354,36 +358,58 @@ function SummaryDetail({ summary }: SummaryDetailProps) {
             ]}
           />
 
-          {/* 研修 */}
+          {/* Task 054: 研修（assignedOpen, sessionsDoneThisWeek追加） */}
           <HighlightCard
             title="研修"
             icon={<GraduationCap className="w-4 h-4" />}
             url={highlights.training.url}
-            items={[{ label: '未受講', value: highlights.training.overdue, warning: true }]}
-          />
-
-          {/* 未収 */}
-          <HighlightCard
-            title="未収管理"
-            icon={<Wallet className="w-4 h-4" />}
-            url={highlights.receivables.url}
             items={[
-              {
-                label: '期限超過',
-                value: formatCurrency(highlights.receivables.overdueTotal),
-                warning: highlights.receivables.overdueTotal > 0,
-              },
-              { label: '60日超', value: highlights.receivables.aging60Count, critical: true },
+              { label: '期限超過', value: highlights.training.overdue, critical: true },
+              { label: '未受講', value: highlights.training.assignedOpen, warning: true },
+              { label: '今週完了', value: highlights.training.sessionsDoneThisWeek },
             ]}
           />
 
-          {/* 回収フロー */}
-          <HighlightCard
-            title="回収フロー"
-            icon={<TrendingUp className="w-4 h-4" />}
-            url={highlights.collection.url}
-            items={[{ label: 'ステップ期限超過', value: highlights.collection.overdueSteps, warning: true }]}
-          />
+          {/* Task 049: 未収（canViewFinance=falseの場合は非表示） */}
+          {highlights.receivables && (
+            <HighlightCard
+              title="未収管理"
+              icon={<Wallet className="w-4 h-4" />}
+              url={highlights.receivables.url}
+              items={[
+                {
+                  label: '期限超過',
+                  value: formatCurrency(highlights.receivables.overdueTotal),
+                  warning: highlights.receivables.overdueTotal > 0,
+                },
+                { label: '60日超', value: highlights.receivables.aging60Count, critical: true },
+              ]}
+            />
+          )}
+
+          {/* Task 049: 回収フロー（canViewFinance=falseの場合は非表示） */}
+          {highlights.collection && (
+            <HighlightCard
+              title="回収フロー"
+              icon={<TrendingUp className="w-4 h-4" />}
+              url={highlights.collection.url}
+              items={[{ label: 'ステップ期限超過', value: highlights.collection.overdueSteps, warning: true }]}
+            />
+          )}
+
+          {/* Task 049: 契約（canViewFinance=falseの場合は非表示） */}
+          {highlights.contracts && (
+            <HighlightCard
+              title="契約"
+              icon={<FileSignature className="w-4 h-4" />}
+              url={highlights.contracts.url}
+              items={[
+                { label: '期限間近', value: highlights.contracts.expiring, warning: true },
+                { label: '判断期限超過', value: highlights.contracts.decisionOverdue, critical: true },
+                { label: '高リスク期限間近', value: highlights.contracts.highRiskExpiring, critical: true },
+              ]}
+            />
+          )}
 
           {/* 同意書 */}
           <HighlightCard

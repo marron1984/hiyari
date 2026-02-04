@@ -1,33 +1,55 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { getChaosViewLevel } from '@/lib/auth';
-import { fetchKPIData, type KPIFetchResult } from '@/lib/dashboard/kpi-fetcher';
-import { AIVPSummaryCard } from '@/components/dashboard/AIVPSummaryCard';
-import { KPIGrid } from '@/components/dashboard/KPICard';
-import { Card, CardContent, Button } from '@/components/ui';
-import {
-  type DashboardRole,
-  KPI_DEFINITIONS,
-  getRoleLabel,
-} from '@/types/dashboard-kpi';
+import { getChaosViewLevel, hasMinRole } from '@/lib/auth';
+import { RoleHomePage } from '@/components/roleHome';
+import { Card, CardContent } from '@/components/ui';
+import type { AppRole } from '@/config/appRoles';
+import type { UserRole } from '@/types';
 import {
   Shield,
-  AlertTriangle,
-  RefreshCw,
   MessageSquare,
   BookOpen,
-  ExternalLink,
   HelpCircle,
-  Users,
-  FileText,
   ArrowRight,
+  Eye,
 } from 'lucide-react';
 
-// NotebookLM URL
-const NOTEBOOKLM_URL = 'https://notebooklm.google.com/notebook/6ca2fe2f-2716-4add-8ea2-3faeb5c6750e';
+/**
+ * Task 053: UserRole → AppRole マッピング
+ *
+ * 旧UserRole（user/leader/admin/system_admin）を
+ * 新AppRole（staff/leader/manager/executive/admin/auditor）に変換
+ */
+function mapUserRoleToAppRole(userRole: UserRole, email?: string): AppRole {
+  // 特定のexecメールは executive
+  const EXEC_EMAILS = ['yoshida@aska-g.com'];
+  if (email && EXEC_EMAILS.includes(email)) {
+    return 'executive';
+  }
+
+  switch (userRole) {
+    case 'system_admin':
+      return 'admin';
+    case 'admin':
+      return 'manager';  // 旧admin → manager（管理職）
+    case 'leader':
+      return 'leader';
+    case 'user':
+    default:
+      return 'staff';
+  }
+}
+
+/**
+ * 有効なAppRoleかどうかをチェック
+ */
+function isValidAppRole(role: string): role is AppRole {
+  return ['admin', 'executive', 'manager', 'leader', 'staff', 'auditor'].includes(role);
+}
 
 /**
  * ロール別OSナビ設定
@@ -48,7 +70,27 @@ interface RoleNavConfig {
   iconBg: string;
 }
 
-const ROLE_NAV_CONFIG: Record<DashboardRole, RoleNavConfig> = {
+/**
+ * AppRole → ナビ設定キー
+ */
+type NavConfigKey = 'staff' | 'manager' | 'exec';
+
+function appRoleToNavKey(role: AppRole): NavConfigKey {
+  switch (role) {
+    case 'admin':
+    case 'executive':
+      return 'exec';
+    case 'manager':
+    case 'leader':
+      return 'manager';
+    case 'staff':
+    case 'auditor':
+    default:
+      return 'staff';
+  }
+}
+
+const ROLE_NAV_CONFIG: Record<NavConfigKey, RoleNavConfig> = {
   staff: {
     title: 'わからないことは、聞いて大丈夫',
     subtitle: '安心して相談できる場所',
@@ -99,57 +141,20 @@ const ROLE_NAV_CONFIG: Record<DashboardRole, RoleNavConfig> = {
   },
 };
 
-export default function DashboardPage() {
+/**
+ * ダッシュボードコンテンツ（useSearchParamsを使用）
+ */
+function DashboardContent() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<KPIFetchResult | null>(null);
+  const searchParams = useSearchParams();
 
-  // 役割判定
-  const viewLevel = user ? getChaosViewLevel(user.role, user.email) : 'self';
-  const role: DashboardRole = viewLevel === 'all' ? 'exec' : viewLevel === 'team' ? 'manager' : 'staff';
+  // Task 053: asRole パラメータ取得（admin限定プレビュー用）
+  const asRoleParam = searchParams.get('asRole');
 
-  // データ取得
-  const fetchData = useCallback(async (isRefresh = false) => {
-    if (!user) return;
-
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-    setError(null);
-
-    try {
-      const result = await fetchKPIData(user, role);
-      setData(result);
-
-      if (result.errors.length > 0) {
-        console.warn('[Dashboard] Some data failed to load:', result.errors);
-      }
-    } catch (err) {
-      console.error('[Dashboard] Failed to fetch data:', err);
-      setError('データの取得に失敗しました');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [user, role]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // リフレッシュハンドラ
-  const handleRefresh = () => {
-    fetchData(true);
-  };
-
-  // ローディング中もレイアウトは維持
-  if (loading) {
+  // ユーザーがまだロードされていない場合
+  if (!user) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-5xl mx-auto px-4 py-6">
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-3">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
@@ -160,22 +165,49 @@ export default function DashboardPage() {
     );
   }
 
-  // NotebookLMを開く
-  const handleOpenNotebookLM = () => {
-    window.open(NOTEBOOKLM_URL, '_blank', 'noopener,noreferrer');
-  };
+  // ユーザーの実際のAppRoleを取得
+  const actualAppRole: AppRole = mapUserRoleToAppRole(user.role, user.email);
+
+  // Task 053: admin または system_admin のみ asRole パラメータを有効化
+  const isSystemAdmin = hasMinRole(user.role, 'admin');
+  let effectiveAppRole: AppRole = actualAppRole;
+  let isPreviewMode = false;
+
+  if (isSystemAdmin && asRoleParam && isValidAppRole(asRoleParam)) {
+    effectiveAppRole = asRoleParam;
+    isPreviewMode = true;
+  }
+
+  // ナビ設定用キー
+  const navKey = appRoleToNavKey(effectiveAppRole);
 
   // ロール別ナビ設定を取得
-  const navConfig = ROLE_NAV_CONFIG[role];
+  const navConfig = ROLE_NAV_CONFIG[navKey];
 
   // アイコンカラー設定
-  const iconColor = role === 'staff' ? 'text-green-600' : role === 'manager' ? 'text-blue-600' : 'text-purple-600';
-  const borderColor = role === 'staff' ? 'border-green-200' : role === 'manager' ? 'border-blue-200' : 'border-purple-200';
-  const primaryBg = role === 'staff' ? 'bg-green-600 hover:bg-green-700' : role === 'manager' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700';
-  const noteColor = role === 'staff' ? 'border-green-100' : role === 'manager' ? 'border-blue-100' : 'border-purple-100';
+  const iconColor = navKey === 'staff' ? 'text-green-600' : navKey === 'manager' ? 'text-blue-600' : 'text-purple-600';
+  const borderColor = navKey === 'staff' ? 'border-green-200' : navKey === 'manager' ? 'border-blue-200' : 'border-purple-200';
+  const primaryBg = navKey === 'staff' ? 'bg-green-600 hover:bg-green-700' : navKey === 'manager' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700';
+  const noteColor = navKey === 'staff' ? 'border-green-100' : navKey === 'manager' ? 'border-blue-100' : 'border-purple-100';
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="max-w-5xl mx-auto px-4 py-6">
+      {/* Task 053: プレビューモード表示 */}
+      {isPreviewMode && (
+        <div className="mb-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+          <Eye className="w-4 h-4 text-amber-600" />
+          <span className="text-sm text-amber-700">
+            <span className="font-medium">{effectiveAppRole}</span> としてプレビュー中
+          </span>
+          <Link
+            href="/dashboard"
+            className="ml-auto text-xs text-amber-600 hover:text-amber-800 underline"
+          >
+            プレビュー終了
+          </Link>
+        </div>
+      )}
+
       {/* OSナビ（ロール別最上段固定導線） */}
       <Card className={`mb-6 bg-gradient-to-br ${navConfig.bgGradient} ${borderColor} shadow-sm`}>
         <CardContent className="p-5">
@@ -228,66 +260,11 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* エラーバナー */}
-      {error && (
-        <Card className="mb-6 bg-red-50 border-red-200">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-red-800">
-                    {error}
-                  </p>
-                  <p className="text-xs text-red-600 mt-1">
-                    一部のデータが取得できませんでした
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing}
-              >
-                {refreshing ? '更新中...' : '再試行'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ヘッダー（役割表示 + リフレッシュ） */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-lg font-semibold text-zinc-900">ダッシュボード</h1>
-          <p className="text-sm text-zinc-500">{getRoleLabel(role)}ビュー</p>
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className="gap-1.5"
-        >
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          更新
-        </Button>
-      </div>
-
-      {/* AI副社長サマリー（最上段） */}
-      <AIVPSummaryCard
-        summary={data?.aiSummary ?? null}
-        role={role}
-        loading={loading}
-      />
-
-      {/* KPIグリッド（最大6つ） */}
-      <KPIGrid
-        kpis={data?.kpis ?? []}
-        definitions={KPI_DEFINITIONS}
-        loading={loading}
-        maxItems={6}
+      {/* Task 053: 役職別ホーム（RoleHomePage） - asRoleをpreviewRoleとして渡す */}
+      <RoleHomePage
+        userRole={actualAppRole}
+        userId={user.id}
+        previewRole={isPreviewMode ? effectiveAppRole : undefined}
       />
 
       {/* フッター */}
@@ -308,7 +285,7 @@ export default function DashboardPage() {
           <Link href="/dashboard/knowledge" className="hover:text-zinc-600">
             知識ハブ
           </Link>
-          {role === 'exec' && (
+          {navKey === 'exec' && (
             <>
               <span>・</span>
               <Link href="/dashboard/os-map" className="hover:text-zinc-600">
@@ -323,5 +300,31 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * /dashboard - 役職別ホーム
+ *
+ * Task 053: Role Home を /dashboard に完全接続
+ * - getEffectiveRole(asRole) を使って role を確定
+ * - asRole は admin のみ有効（URLクエリ ?asRole=staff 等）
+ */
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-5xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-center py-20">
+            <div className="flex flex-col items-center gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+              <p className="text-sm text-zinc-500">読み込み中...</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
   );
 }

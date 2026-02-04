@@ -488,6 +488,12 @@ export default function ConsentPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/dashboard/e-sign?agreementConsentId=${consent.id}`}
+                            className="px-2 py-1 text-xs text-indigo-600 hover:bg-indigo-50 rounded"
+                          >
+                            署名ログ
+                          </Link>
                           {consent.consentStatus === 'consented' &&
                             consent.validUntil && (
                               <button

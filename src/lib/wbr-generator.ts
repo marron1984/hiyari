@@ -21,8 +21,14 @@ import {
 import { getWeeklyAlertSummary } from '@/lib/alerts/repo';
 import { getUnclassifiedCounts } from '@/lib/scope/detectUnclassifiedBusinessUnit';
 import type { UnclassifiedCounts } from '@/lib/scope/types';
-// Task 041: KPI辞書参照
-import { getKPIDictionaryEntry } from '@/lib/kpiDictionary/repo';
+// Task 051: KPIハイライトヘルパー（辞書参照を内包）
+import {
+  buildKpiHighlights,
+  toKPIHighlights,
+  getTopHighlights,
+  type RawKpiData,
+  type WbrKpiHighlight,
+} from '@/lib/wbr/buildKpiHighlights';
 // Task 042: AI VP Business Top3
 import { generateWBRBusinessTop3Summary } from '@/lib/aiVp/businessTop3';
 // Task 043: AI VP Generated Tickets
@@ -228,85 +234,95 @@ function generateExecutiveSummary(): ExecutiveSummarySection {
 
 /**
  * ② KPIハイライトを生成
+ *
+ * Task 051: buildKpiHighlightsヘルパーを使用して辞書×異常検知を統合
  */
 function generateKPIHighlights(): KPIHighlightSection {
   const counts = getFeatureCountByStatus();
-  const tickets = generateTickets();
   const phaseCounts = getTicketCountByPhase();
 
-  // シミュレートされたKPI変動（実際のシステムではDBから取得）
-  const highlights: KPIHighlight[] = [];
-
-  // Task 041: KPI辞書から direction/whyItMatters を取得するヘルパー
-  const getDictMetadata = (kpiId: string) => {
-    const entry = getKPIDictionaryEntry(kpiId);
-    return {
-      directionMeaning: entry?.direction ?? null,
-      whyItMatters: entry?.whyItMatters ?? null,
-    };
-  };
-
-  // 機能実装進捗
+  // 機能実装進捗を計算
   const progressPercent = Math.round((counts.active / OS_FEATURES.length) * 100);
   const prevProgress = progressPercent - Math.floor(Math.random() * 5 + 2); // 仮の前週値
-  highlights.push({
-    name: 'OS機能実装進捗',
-    currentValue: `${progressPercent}%`,
-    previousValue: `${prevProgress}%`,
-    changePercent: progressPercent - prevProgress,
-    direction: 'up',
-    impact: 'high',
-    insight: `前週比+${progressPercent - prevProgress}%。計画通りの進捗を維持。`,
-    directionMeaning: 'higher_is_better',
-    whyItMatters: 'OS機能の実装進捗は経営基盤整備の直接指標。計画通りの進捗が組織の成長を支える。',
-  });
 
-  // 高リスク未着手件数
+  // 高リスク未着手件数を計算
   const highRiskCount = OS_FEATURES.filter(
     (f) => f.status !== 'active' && (f.risk ?? 0) >= 4
   ).length;
-  highlights.push({
-    name: '高リスク未着手機能',
-    currentValue: highRiskCount,
-    previousValue: highRiskCount + 1,
-    changePercent: -1,
-    direction: 'down',
-    impact: highRiskCount >= 5 ? 'high' : 'medium',
-    insight:
-      highRiskCount >= 5
-        ? '放置リスクが高い機能が残存。優先的な対応を推奨。'
-        : 'リスク管理は概ね適正。引き続き監視を継続。',
-    directionMeaning: 'lower_is_better',
-    whyItMatters: '高リスク機能の放置は業務停滞や事故発生リスクを高める。早期対応が組織の安定につながる。',
+
+  // Task 051: RawKpiData形式でKPIデータを準備
+  const rawKpiData: RawKpiData[] = [
+    {
+      kpiId: 'os_implementation_progress',
+      name: 'OS機能実装進捗',
+      currentValue: progressPercent,
+      previousValue: prevProgress,
+      unit: '%',
+    },
+    {
+      kpiId: 'high_risk_features',
+      name: '高リスク未着手機能',
+      currentValue: highRiskCount,
+      previousValue: highRiskCount + 1,
+      unit: '件',
+    },
+    {
+      kpiId: 'monthly_tickets',
+      name: '今月対応予定チケット',
+      currentValue: phaseCounts.thisMonth,
+      previousValue: phaseCounts.thisMonth + 2,
+      unit: '件',
+    },
+    // 入居率（辞書登録済み）
+    {
+      kpiId: 'occupancy_rate',
+      currentValue: 92.5,
+      previousValue: 91.2,
+      unit: '%',
+    },
+  ];
+
+  // Task 051: ヘルパーでハイライト生成（辞書・異常検知を統合）
+  const wbrHighlights = buildKpiHighlights(rawKpiData, {
+    applyAnomalyRules: true,
+    flatThreshold: 0.5,
   });
 
-  // 今月対応予定チケット
-  highlights.push({
-    name: '今月対応予定チケット',
-    currentValue: phaseCounts.thisMonth,
-    previousValue: phaseCounts.thisMonth + 2,
-    changePercent: Math.round((-2 / (phaseCounts.thisMonth + 2)) * 100),
-    direction: 'down',
-    impact: 'medium',
-    insight: 'チケット消化が進行中。計画的な実行を継続。',
-    directionMeaning: 'neutral',
-    whyItMatters: 'チケット消化は開発リズムの指標。適切なペースでの消化が品質と速度のバランスを保つ。',
-  });
+  // 影響度順でソート＆トップ5を取得
+  const topHighlights = getTopHighlights(wbrHighlights, 5);
 
-  // Task 041: KPI辞書ベースのハイライト追加
-  const occupancyEntry = getKPIDictionaryEntry('occupancy_rate');
-  if (occupancyEntry) {
-    highlights.push({
-      name: occupancyEntry.name,
-      currentValue: '92.5%',
-      previousValue: '91.2%',
-      changePercent: 1.4,
-      direction: 'up',
-      impact: 'high',
-      insight: '入居率は順調に推移。目標の95%に向けて継続注力。',
-      ...getDictMetadata('occupancy_rate'),
-    });
-  }
+  // 旧形式（KPIHighlight）に変換して互換性を維持
+  const legacyHighlights = toKPIHighlights(topHighlights);
+
+  // insight を補完（元の詳細コメントを保持）
+  const highlights: KPIHighlight[] = legacyHighlights.map((h, i) => {
+    const wbr = topHighlights[i];
+    let insight = h.insight;
+
+    // 異常検知の説明がない場合はコンテキストベースのコメントを付与
+    if (!insight) {
+      if (wbr.kpiId === 'os_implementation_progress') {
+        insight = `前週比${wbr.changePercent > 0 ? '+' : ''}${wbr.changePercent}%。計画通りの進捗を維持。`;
+      } else if (wbr.kpiId === 'high_risk_features') {
+        insight =
+          wbr.isGood
+            ? 'リスク管理は概ね適正。引き続き監視を継続。'
+            : '放置リスクが高い機能が残存。優先的な対応を推奨。';
+      } else if (wbr.kpiId === 'monthly_tickets') {
+        insight = 'チケット消化が進行中。計画的な実行を継続。';
+      } else if (wbr.kpiId === 'occupancy_rate') {
+        insight = '入居率は順調に推移。目標の95%に向けて継続注力。';
+      } else {
+        // 辞書のwhyItMattersか、デフォルトメッセージ
+        insight = wbr.whyItMatters || `${wbr.name}の変動を確認。`;
+      }
+    }
+
+    return {
+      ...h,
+      insight,
+    };
+  });
 
   return { highlights };
 }

@@ -225,13 +225,52 @@ export function getTicketByIdInternal(id: string): Ticket | null {
 
 // ========== チケット作成 ==========
 
+import {
+  tryAutoAssign,
+  addToUnassignedQueue,
+  removeFromUnassignedQueue,
+} from '@/lib/assignment/autoAssign';
+
 export function createTicket(
   input: CreateTicketRequest,
-  actorUserId: string
+  actorUserId: string,
+  options: { skipAutoAssign?: boolean } = {}
 ): Ticket {
   const now = new Date().toISOString();
+  const ticketId = generateTicketId();
+
+  // Task 057: 自動担当者割当
+  let assigneeUserId: string | null = null;
+  let assigneeUserName: string | null = null;
+
+  if (!options.skipAutoAssign) {
+    const assignResult = tryAutoAssign({
+      entityType: 'ticket',
+      entityId: ticketId,
+      businessUnitId: input.businessUnitId ?? null,
+      category: input.category ?? 'general',
+      priority: input.priority ?? 'normal',
+      createdByUserId: actorUserId,
+      location: input.location ?? null,
+    });
+
+    if (assignResult.ok && assignResult.wasAssigned) {
+      assigneeUserId = assignResult.assigneeUserId;
+      assigneeUserName = getUserName(assignResult.assigneeUserId);
+    } else if (!assignResult.ok) {
+      // 未割当キューに追加
+      addToUnassignedQueue(
+        'ticket',
+        ticketId,
+        input.businessUnitId ?? null,
+        assignResult.reason,
+        actorUserId
+      );
+    }
+  }
+
   const ticket: Ticket = {
-    id: generateTicketId(),
+    id: ticketId,
     title: input.title,
     description: input.description,
     status: 'open',
@@ -240,8 +279,8 @@ export function createTicket(
     businessUnitId: input.businessUnitId ?? null,  // Task 030
     requesterUserId: actorUserId,
     requesterUserName: getUserName(actorUserId),
-    assigneeUserId: null,
-    assigneeUserName: null,
+    assigneeUserId,
+    assigneeUserName,
     assigneeRole: null,
     dueAt: input.dueAt ?? null,
     resolvedAt: null,
@@ -262,6 +301,7 @@ export function createTicket(
     priority: ticket.priority,
     category: ticket.category,
     businessUnitId: ticket.businessUnitId,  // Task 030
+    assigneeUserId: ticket.assigneeUserId,  // Task 057
   }, null);
 
   // requesterを自動watch
@@ -372,6 +412,9 @@ export function assignTicket(
 
   // assigneeを自動watch
   addWatcher(id, assigneeUserId);
+
+  // Task 057: 未割当キューから削除
+  removeFromUnassignedQueue('ticket', id);
 
   return { success: true, ticket };
 }
