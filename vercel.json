@@ -1,6 +1,18 @@
 {
   "crons": [
     {
+      "path": "/api/cron/daily-ops",
+      "schedule": "30 23 * * *"
+    },
+    {
+      "path": "/api/cron/notify-digest",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-ops",
+      "schedule": "0 23 * * 0"
+    },
+    {
       "path": "/api/cron/sync-sheets",
       "schedule": "0 18 * * *"
     },
