@@ -667,6 +667,98 @@ export function markAsApplied(
   return { success: true, ticket };
 }
 
+// ========== Ticket 085: 受入決定 ==========
+
+export interface MarkAsAcceptedRequest {
+  vacancyUnitId?: string;   // 空室ユニットID（無ければ既存metaから取得）
+  acceptedNote?: string;    // 受入決定メモ
+}
+
+export interface MarkAsAcceptedResult {
+  success: boolean;
+  error?: string;
+  ticket?: Ticket;
+  businessUnitId?: string;
+  reservedVacancyUnitId?: string;
+}
+
+export function markAsAccepted(
+  ticketId: string,
+  data: MarkAsAcceptedRequest,
+  viewer: ViewerContext
+): MarkAsAcceptedResult {
+  const ticket = ticketsStore.get(ticketId);
+
+  if (!ticket) {
+    return { success: false, error: 'チケットが見つかりません' };
+  }
+
+  if (!canUpdateTicket(ticket, viewer)) {
+    return { success: false, error: '受入決定を記録する権限がありません' };
+  }
+
+  if (ticket.pipeline !== 'vacancy_inquiry') {
+    return { success: false, error: 'このチケットは空室問い合わせではありません' };
+  }
+
+  if (ticket.relatedType !== 'vacancy_inquiry') {
+    return { success: false, error: 'このチケットは空室問い合わせではありません' };
+  }
+
+  // 既に accepted 以降のステージなら不可
+  if (ticket.stage === 'accepted' || ticket.stage === 'rejected' || ticket.stage === 'closed') {
+    return { success: false, error: 'このチケットは既に成約/不成約/クローズ済みです' };
+  }
+
+  // businessUnitId が必須
+  if (!ticket.businessUnitId) {
+    return { success: false, error: '事業単位が設定されていません' };
+  }
+
+  // vacancyUnitId の決定
+  const resolvedVacancyUnitId = data.vacancyUnitId || (ticket.metaJson?.vacancyUnitId as string | undefined);
+  if (!resolvedVacancyUnitId) {
+    return { success: false, error: '空室ユニットを指定してください' };
+  }
+
+  const now = new Date().toISOString();
+  const beforeMeta = { ...(ticket.metaJson || {}) };
+  const beforeStage = ticket.stage;
+
+  // meta を更新
+  const newMeta = {
+    ...ticket.metaJson,
+    acceptedAt: now,
+    acceptedNote: data.acceptedNote ?? undefined,
+    reservedVacancyUnitId: resolvedVacancyUnitId,
+    acceptedByUserId: viewer.userId,
+  };
+  ticket.metaJson = newMeta;
+
+  // stage を accepted に変更
+  ticket.stage = 'accepted';
+  ticket.stageChangedAt = now;
+  ticket.updatedAt = now;
+
+  // イベント記録
+  recordEvent(
+    ticketId,
+    'mark_accepted',
+    viewer.userId,
+    { stage: beforeStage, meta: beforeMeta },
+    { stage: 'accepted', meta: newMeta },
+    null
+  );
+
+  // 呼び出し元でsuggestion作成できるように情報を返す
+  return {
+    success: true,
+    ticket,
+    businessUnitId: ticket.businessUnitId,
+    reservedVacancyUnitId: resolvedVacancyUnitId,
+  };
+}
+
 // ========== Ticket 071: 空室問い合わせ統計 ==========
 
 export function getVacancyInquiryStats(

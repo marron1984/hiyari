@@ -76,6 +76,7 @@ export type TicketEventAction =
   | 'stage_change'      // Ticket 071: ステージ変更
   | 'merge_inquiry'     // Ticket 079: 重複問い合わせ統合
   | 'mark_applied'      // Ticket 084: 申込記録
+  | 'mark_accepted'     // Ticket 085: 受入決定
   | 'comment'
   | 'resolve'
   | 'close'
@@ -97,6 +98,11 @@ export interface TicketMeta {
   requiredDocsStatus?: RequiredDocsStatus; // 必要書類ステータス
   applicationNote?: string;          // 申込メモ
   applicationChannel?: ApplicationChannel; // 申込チャネル
+  // Ticket 085: 受入決定関連
+  acceptedAt?: string;               // 受入決定日時（ISO）
+  acceptedNote?: string;             // 受入決定メモ
+  reservedVacancyUnitId?: string;    // 予約確定した空室ユニットID
+  acceptedByUserId?: string;         // 受入決定した担当者ID
   [key: string]: unknown;
 }
 
@@ -377,6 +383,7 @@ export const TICKET_EVENT_ACTION_LABELS: Record<TicketEventAction, string> = {
   stage_change: 'ステージ変更',  // Ticket 071
   merge_inquiry: '問い合わせ統合', // Ticket 079
   mark_applied: '申込記録',       // Ticket 084
+  mark_accepted: '受入決定',      // Ticket 085
   comment: 'コメント',
   resolve: '解決',
   close: 'クローズ',

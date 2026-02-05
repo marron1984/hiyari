@@ -108,6 +108,21 @@ export default function TicketDetailPage() {
     },
   });
 
+  // Ticket 085: 受入決定
+  const [showAcceptModal, setShowAcceptModal] = useState(false);
+  const [acceptLoading, setAcceptLoading] = useState(false);
+  const [acceptForm, setAcceptForm] = useState<{
+    vacancyUnitId: string;
+    acceptedNote: string;
+  }>({
+    vacancyUnitId: '',
+    acceptedNote: '',
+  });
+  const [vacancyUnits, setVacancyUnits] = useState<
+    { id: string; name: string; unitType: string; availableCount: number }[]
+  >([]);
+  const [vacancyUnitsLoading, setVacancyUnitsLoading] = useState(false);
+
   const fetchTicket = useCallback(async () => {
     try {
       const res = await fetch(`/api/tickets/${id}`);
@@ -300,6 +315,90 @@ export default function TicketDetailPage() {
     const notApplyableStages: VacancyInquiryStage[] = ['applied', 'accepted', 'rejected', 'closed'];
     if (t.stage && notApplyableStages.includes(t.stage)) return false;
     return true;
+  };
+
+  // Ticket 085: 受入決定可能かどうかを判定
+  const canAccept = (t: Ticket): boolean => {
+    if (t.pipeline !== 'vacancy_inquiry') return false;
+    if (t.relatedType !== 'vacancy_inquiry') return false;
+    // applied ステージのときのみ受入決定可能
+    return t.stage === 'applied';
+  };
+
+  // Ticket 085: 空室ユニット一覧を取得
+  const fetchVacancyUnits = useCallback(async (businessUnitId: string) => {
+    setVacancyUnitsLoading(true);
+    try {
+      const res = await fetch(`/api/vacancy-units?businessUnitId=${businessUnitId}&status=active`);
+      const data = await res.json();
+      setVacancyUnits(data.items || []);
+    } catch (err) {
+      console.error('Failed to fetch vacancy units:', err);
+      setVacancyUnits([]);
+    } finally {
+      setVacancyUnitsLoading(false);
+    }
+  }, []);
+
+  // Ticket 085: 受入決定モーダルを開く
+  const openAcceptModal = () => {
+    if (!ticket) return;
+    // 既存のvacancyUnitIdがあれば初期値に設定
+    const existingVacancyUnitId = ticket.metaJson?.vacancyUnitId || '';
+    setAcceptForm({
+      vacancyUnitId: existingVacancyUnitId as string,
+      acceptedNote: '',
+    });
+    // 空室ユニット一覧を取得
+    if (ticket.businessUnitId) {
+      fetchVacancyUnits(ticket.businessUnitId);
+    }
+    setShowAcceptModal(true);
+  };
+
+  // Ticket 085: 受入決定の送信
+  const handleAcceptSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (acceptLoading) return;
+
+    setAcceptLoading(true);
+    try {
+      const body: Record<string, unknown> = {};
+
+      if (acceptForm.vacancyUnitId) {
+        body.vacancyUnitId = acceptForm.vacancyUnitId;
+      }
+      if (acceptForm.acceptedNote) {
+        body.acceptedNote = acceptForm.acceptedNote;
+      }
+
+      const res = await fetch(`/api/vacancy-inquiries/${id}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setShowAcceptModal(false);
+        setAcceptForm({ vacancyUnitId: '', acceptedNote: '' });
+        // データを再取得
+        fetchTicket();
+        fetchEvents();
+        // 提案が作成されたら通知
+        if (data.suggestionCreated) {
+          alert('受入決定を記録しました。空室更新提案が作成されました。');
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || '受入決定の記録に失敗しました');
+      }
+    } catch (err) {
+      console.error('Failed to accept:', err);
+      alert('受入決定の記録に失敗しました');
+    } finally {
+      setAcceptLoading(false);
+    }
   };
 
   // Ticket 081: モーダルを開く
@@ -778,6 +877,44 @@ export default function TicketDetailPage() {
                     </div>
                   )}
 
+                  {/* Ticket 085: 受入決定済みの場合は情報表示 */}
+                  {ticket.metaJson?.acceptedAt && (
+                    <div className="space-y-2 text-sm mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-2 text-green-700">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="font-medium">成約</span>
+                      </div>
+                      <div className="text-zinc-600">
+                        <span className="text-xs text-zinc-400">決定日時:</span>{' '}
+                        {new Date(ticket.metaJson.acceptedAt as string).toLocaleDateString('ja-JP', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </div>
+                      {ticket.metaJson.reservedVacancyUnitId && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">空室ユニット:</span>{' '}
+                          {ticket.metaJson.reservedVacancyUnitId as string}
+                        </div>
+                      )}
+                      {ticket.metaJson.acceptedNote && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">メモ:</span>{' '}
+                          {ticket.metaJson.acceptedNote as string}
+                        </div>
+                      )}
+                      <a
+                        href="/dashboard/vacancies/suggestions"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-2"
+                      >
+                        空室更新提案を見る →
+                      </a>
+                    </div>
+                  )}
+
                   {/* 申込ボタン */}
                   {canApply(ticket) ? (
                     <>
@@ -792,10 +929,19 @@ export default function TicketDetailPage() {
                         申込を記録
                       </button>
                     </>
-                  ) : ticket.stage === 'applied' ? (
-                    <p className="text-zinc-500 text-sm">
-                      成約または不成約のステージへ進めてください
-                    </p>
+                  ) : canAccept(ticket) ? (
+                    <>
+                      <p className="text-zinc-500 text-sm mb-3">
+                        受入が決定したら記録してください
+                      </p>
+                      <button
+                        onClick={openAcceptModal}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        受入決定（成約）
+                      </button>
+                    </>
                   ) : null}
                 </CardContent>
               </Card>
@@ -1214,6 +1360,124 @@ export default function TicketDetailPage() {
                   <button
                     type="button"
                     onClick={() => setShowApplyModal(false)}
+                    className="px-4 py-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Ticket 085: 受入決定モーダル */}
+        {showAcceptModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl w-full max-w-md mx-4 p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">受入決定（成約）</h3>
+                <button
+                  onClick={() => setShowAcceptModal(false)}
+                  className="p-1 hover:bg-zinc-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAcceptSubmit} className="space-y-4">
+                {/* 空室ユニット選択 */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    空室ユニット <span className="text-red-500">*</span>
+                  </label>
+                  {vacancyUnitsLoading ? (
+                    <p className="text-zinc-500 text-sm">読み込み中...</p>
+                  ) : vacancyUnits.length === 0 ? (
+                    <div>
+                      <p className="text-zinc-500 text-sm mb-2">
+                        空室ユニットがありません
+                      </p>
+                      <input
+                        type="text"
+                        value={acceptForm.vacancyUnitId}
+                        onChange={(e) =>
+                          setAcceptForm((prev) => ({
+                            ...prev,
+                            vacancyUnitId: e.target.value,
+                          }))
+                        }
+                        placeholder="空室ユニットIDを入力"
+                        className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                        required
+                      />
+                    </div>
+                  ) : (
+                    <select
+                      value={acceptForm.vacancyUnitId}
+                      onChange={(e) =>
+                        setAcceptForm((prev) => ({
+                          ...prev,
+                          vacancyUnitId: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                      required
+                    >
+                      <option value="">選択してください</option>
+                      {vacancyUnits.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {unit.name} ({unit.unitType}) - 空き: {unit.availableCount}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {ticket?.metaJson?.vacancyUnitId && !acceptForm.vacancyUnitId && (
+                    <p className="text-xs text-zinc-500 mt-1">
+                      ※ 既存の設定: {ticket.metaJson.vacancyUnitId as string}
+                    </p>
+                  )}
+                </div>
+
+                {/* 受入メモ */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    メモ
+                  </label>
+                  <textarea
+                    value={acceptForm.acceptedNote}
+                    onChange={(e) =>
+                      setAcceptForm((prev) => ({
+                        ...prev,
+                        acceptedNote: e.target.value,
+                      }))
+                    }
+                    placeholder="特記事項があれば入力"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm resize-none"
+                  />
+                </div>
+
+                <div className="bg-blue-50 p-3 rounded-lg text-sm">
+                  <p className="text-blue-700 font-medium mb-1">確認事項</p>
+                  <ul className="text-blue-600 text-xs space-y-1 list-disc list-inside">
+                    <li>ステージが「成約」に更新されます</li>
+                    <li>空室更新提案が自動生成されます</li>
+                    <li>この操作は取り消せません</li>
+                  </ul>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={acceptLoading || !acceptForm.vacancyUnitId}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {acceptLoading ? '処理中...' : '受入決定を確定'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAcceptModal(false)}
                     className="px-4 py-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm"
                   >
                     キャンセル
