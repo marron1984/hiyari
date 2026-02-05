@@ -21,6 +21,12 @@ import { createAsync as createNotificationAsync } from '@/lib/notifications/inde
 import { CARE_LEVEL_LABELS } from '@/lib/vacancyUnits/types';
 import type { ViewerContext } from '@/lib/tickets/types';
 import { checkSpamForVerify } from '@/lib/spam/check';
+import {
+  generateReceiptNumber,
+  getExpectedResponseTime,
+  generateAutoReplyForScreen,
+  generateInternalSummary,
+} from '@/lib/vacancyAutoReply/templates';
 
 /**
  * 冪等性キー生成
@@ -202,15 +208,44 @@ export async function POST(request: NextRequest) {
     // pending を verified に更新
     markAsVerified(pending.id, ticket.id, clientIp, userAgent);
 
-    // 担当者への通知
+    // Ticket 078: 自動返信データ生成
+    const receiptNumber = generateReceiptNumber(ticket.id);
+    const expectedResponseTime = getExpectedResponseTime();
+    const contactMethod: 'email' | 'phone' | 'both' =
+      pending.contactEmail && pending.contactPhone
+        ? 'both'
+        : pending.contactEmail
+          ? 'email'
+          : 'phone';
+
+    const autoReply = generateAutoReplyForScreen({
+      name: pending.contactName || 'お客様',
+      businessUnitName: pending.businessUnitId || '当施設',
+      buildingName,
+      contactMethod,
+      ticketId: ticket.id,
+      receiptNumber,
+      expectedResponseTime,
+    });
+
+    // 担当者への通知（要約付き）
     if (ticket.assigneeUserId) {
       try {
+        const internalSummary = generateInternalSummary(
+          ticket.id,
+          pending.contactName || '匿名',
+          buildingName,
+          contactMethod,
+          pending.desiredMoveIn ?? undefined,
+          conditions.conditions as string | undefined
+        );
+
         await createNotificationAsync({
           tenantId: 'default',
           userId: ticket.assigneeUserId,
           type: 'system',
           title: '空室問い合わせが割り当てられました',
-          message: `${displayName}様${buildingName ? `（${buildingName}希望）` : ''}からの問い合わせが割り当てられました。（本人確認済み）`,
+          message: internalSummary,
           severity: 'info',
           url: `/dashboard/tickets/${ticket.id}`,
           fingerprint: `vacancy_inquiry:${ticket.id}`,
@@ -224,6 +259,16 @@ export async function POST(request: NextRequest) {
       success: true,
       ticketId: ticket.id,
       message: 'お問い合わせを受け付けました。担当者より連絡いたします。',
+      autoReply: {
+        title: autoReply.title,
+        body: autoReply.body,
+        receiptNumber: autoReply.receiptNumber,
+        expectedResponseTime: autoReply.expectedResponseTime,
+        additionalInfo: autoReply.additionalInfo,
+        contactMethod,
+        name: pending.contactName || 'お客様',
+        buildingName,
+      },
     });
   } catch (error) {
     console.error('vacancy verify POST error:', error);

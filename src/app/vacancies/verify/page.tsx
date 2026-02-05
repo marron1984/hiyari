@@ -35,6 +35,15 @@ function VerifyContent() {
           setMessage(data.message || 'お問い合わせを受け付けました。');
           setTicketId(data.ticketId);
 
+          // Ticket 078: 自動返信データをsessionStorageに保存
+          if (data.autoReply) {
+            try {
+              sessionStorage.setItem('vacancyAutoReply', JSON.stringify(data.autoReply));
+            } catch {
+              // sessionStorage unavailable
+            }
+          }
+
           // 3秒後に thanks ページへ遷移
           setTimeout(() => {
             router.push('/vacancies/thanks');
