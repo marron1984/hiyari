@@ -34,6 +34,9 @@ import { generateWBRBusinessTop3Summary } from '@/lib/aiVp/businessTop3';
 // Task 043: AI VP Generated Tickets
 import { getGeneratedTicketsThisWeek } from '@/lib/aiVp/ticketGenerator';
 import type { ViewerContext } from '@/lib/business/types';
+// Ticket 071: 空室問い合わせファネル
+import { getVacancyInquiryStats } from '@/lib/tickets/repo';
+import type { VacancyInquiryStats } from '@/lib/tickets/types';
 
 // WBRレポート型
 export interface WBRReport {
@@ -50,6 +53,7 @@ export interface WBRReport {
   aiComment: AICommentSection;
   businessTop3?: BusinessTop3Section;  // Task 042: 事業別Top3
   generatedTickets?: GeneratedTicketsSection;  // Task 043: 今週生成されたチケット
+  vacancyInquiryFunnel?: VacancyInquiryFunnelSection;  // Ticket 071: 空室問い合わせファネル
 }
 
 // ① 週次サマリー
@@ -140,6 +144,22 @@ export interface GeneratedTicketsSection {
     dueAt: string | null;
   }[];
   totalCount: number;
+}
+
+// ⑨ 空室問い合わせファネル（Ticket 071）
+export interface VacancyInquiryFunnelSection {
+  thisWeek: {
+    newCount: number;           // 今週の問い合わせ数（new発生）
+    contactedCount: number;     // 連絡済み
+    tourScheduledCount: number; // 見学予定
+    appliedCount: number;       // 申込み
+    acceptedCount: number;      // 成約
+    rejectedCount: number;      // 不成約
+  };
+  slaComplianceRate: number;    // 今週の初動SLA遵守率（%）
+  totalActive: number;          // アクティブ案件総数
+  slaBreachedCount: number;     // SLA超過中の件数
+  conversionRate: number;       // 成約率（accepted / (accepted + rejected)）
 }
 
 /**
@@ -530,6 +550,34 @@ export function generateWBR(date: Date = new Date(), viewer?: ViewerContext): WB
     }
   }
 
+  // Ticket 071: 空室問い合わせファネル統計を取得
+  let vacancyInquiryFunnel: VacancyInquiryFunnelSection | undefined;
+  if (viewer) {
+    const stats = getVacancyInquiryStats(viewer);
+    // アクティブ案件数（closed/rejected以外）
+    const totalActive = stats.total - stats.byStage.closed - stats.byStage.rejected;
+    // 成約率計算（completed deals / all concluded deals）
+    const concluded = stats.byStage.accepted + stats.byStage.rejected;
+    const conversionRate = concluded > 0
+      ? Math.round((stats.byStage.accepted / concluded) * 100)
+      : 0;
+
+    vacancyInquiryFunnel = {
+      thisWeek: {
+        newCount: stats.thisWeek.newCount,
+        contactedCount: stats.thisWeek.contactedCount,
+        tourScheduledCount: stats.thisWeek.tourScheduledCount,
+        appliedCount: stats.thisWeek.appliedCount,
+        acceptedCount: stats.thisWeek.acceptedCount,
+        rejectedCount: stats.thisWeek.rejectedCount,
+      },
+      slaComplianceRate: stats.slaComplianceRate,
+      totalActive,
+      slaBreachedCount: stats.slaBreached,
+      conversionRate,
+    };
+  }
+
   const formatDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -547,6 +595,7 @@ export function generateWBR(date: Date = new Date(), viewer?: ViewerContext): WB
     aiComment,
     businessTop3,
     generatedTickets,
+    vacancyInquiryFunnel,
   };
 }
 
@@ -690,6 +739,29 @@ export function exportWBRToText(report: WBRReport): string {
       lines.push(`  ${i + 1}. ${priorityIcon} ${t.title}`);
       lines.push(`     ステータス: ${statusText} / 期限: ${t.dueAt?.slice(0, 10) ?? '未設定'}`);
     });
+    lines.push('');
+  }
+
+  // Ticket 071: 空室問い合わせファネル
+  if (report.vacancyInquiryFunnel) {
+    const funnel = report.vacancyInquiryFunnel;
+    lines.push('■ 4.7. 空室問い合わせファネル（Ticket 071）');
+    lines.push('──────────────────────────────────────────────────────────────');
+    lines.push('【今週の実績】');
+    lines.push(`  新規問い合わせ: ${funnel.thisWeek.newCount}件`);
+    lines.push(`  連絡済み:       ${funnel.thisWeek.contactedCount}件`);
+    lines.push(`  見学予定:       ${funnel.thisWeek.tourScheduledCount}件`);
+    lines.push(`  申込み:         ${funnel.thisWeek.appliedCount}件`);
+    lines.push(`  成約:           ${funnel.thisWeek.acceptedCount}件`);
+    lines.push(`  不成約:         ${funnel.thisWeek.rejectedCount}件`);
+    lines.push('');
+    lines.push('【KPI】');
+    lines.push(`  初動SLA遵守率: ${funnel.slaComplianceRate}%`);
+    lines.push(`  成約率:        ${funnel.conversionRate}%`);
+    lines.push(`  アクティブ案件: ${funnel.totalActive}件`);
+    if (funnel.slaBreachedCount > 0) {
+      lines.push(`  ⚠️ SLA超過中:   ${funnel.slaBreachedCount}件（要対応）`);
+    }
     lines.push('');
   }
 
@@ -1005,6 +1077,68 @@ export function exportWBRToHTML(report: WBRReport): string {
     `;
       })
       .join('')}
+  </div>
+  `
+      : ''
+  }
+
+  ${
+    report.vacancyInquiryFunnel
+      ? `
+  <h2>4.7. 空室問い合わせファネル（Ticket 071）</h2>
+  <div style="display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0;">
+    <div class="kpi-card">
+      <div>新規問い合わせ</div>
+      <div class="kpi-value">${report.vacancyInquiryFunnel.thisWeek.newCount}</div>
+      <div style="font-size: 12px; color: #666;">今週</div>
+    </div>
+    <div class="kpi-card">
+      <div>連絡済み</div>
+      <div class="kpi-value">${report.vacancyInquiryFunnel.thisWeek.contactedCount}</div>
+      <div style="font-size: 12px; color: #666;">今週</div>
+    </div>
+    <div class="kpi-card">
+      <div>見学予定</div>
+      <div class="kpi-value">${report.vacancyInquiryFunnel.thisWeek.tourScheduledCount}</div>
+      <div style="font-size: 12px; color: #666;">今週</div>
+    </div>
+    <div class="kpi-card">
+      <div>申込み</div>
+      <div class="kpi-value">${report.vacancyInquiryFunnel.thisWeek.appliedCount}</div>
+      <div style="font-size: 12px; color: #666;">今週</div>
+    </div>
+    <div class="kpi-card" style="background: #ecfdf5;">
+      <div>成約</div>
+      <div class="kpi-value" style="color: #10b981;">${report.vacancyInquiryFunnel.thisWeek.acceptedCount}</div>
+      <div style="font-size: 12px; color: #666;">今週</div>
+    </div>
+    <div class="kpi-card" style="background: #fef2f2;">
+      <div>不成約</div>
+      <div class="kpi-value" style="color: #ef4444;">${report.vacancyInquiryFunnel.thisWeek.rejectedCount}</div>
+      <div style="font-size: 12px; color: #666;">今週</div>
+    </div>
+  </div>
+  <h4>KPI指標</h4>
+  <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+    <div class="kpi-card">
+      <div>初動SLA遵守率</div>
+      <div class="kpi-value ${report.vacancyInquiryFunnel.slaComplianceRate >= 80 ? 'kpi-change-up' : 'kpi-change-down'}">${report.vacancyInquiryFunnel.slaComplianceRate}%</div>
+    </div>
+    <div class="kpi-card">
+      <div>成約率</div>
+      <div class="kpi-value">${report.vacancyInquiryFunnel.conversionRate}%</div>
+    </div>
+    <div class="kpi-card">
+      <div>アクティブ案件</div>
+      <div class="kpi-value">${report.vacancyInquiryFunnel.totalActive}</div>
+    </div>
+    ${report.vacancyInquiryFunnel.slaBreachedCount > 0 ? `
+    <div class="kpi-card" style="background: #fef2f2; border-left: 4px solid #ef4444;">
+      <div>SLA超過中</div>
+      <div class="kpi-value" style="color: #ef4444;">${report.vacancyInquiryFunnel.slaBreachedCount}</div>
+      <div style="font-size: 12px; color: #ef4444;">要対応</div>
+    </div>
+    ` : ''}
   </div>
   `
       : ''

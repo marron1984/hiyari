@@ -18,8 +18,16 @@ import type {
   TicketListFilter,
   TicketStats,
   ViewerContext,
+  VacancyInquiryStage,
+  VacancyInquiryStats,
 } from './types';
-import { canViewTicket, canUpdateTicket, canAssignTicket, canForceCloseTicket } from './types';
+import {
+  canViewTicket,
+  canUpdateTicket,
+  canAssignTicket,
+  canForceCloseTicket,
+  VACANCY_INQUIRY_SLA_MS,
+} from './types';
 
 // ========== インメモリストア ==========
 
@@ -69,6 +77,15 @@ function isOverdue(ticket: Ticket): boolean {
   if (!ticket.dueAt) return false;
   if (['resolved', 'closed', 'archived'].includes(ticket.status)) return false;
   return new Date(ticket.dueAt) < new Date();
+}
+
+/**
+ * Ticket 071: SLA超過チェック
+ */
+function isSlaBreached(ticket: Ticket): boolean {
+  if (!ticket.slaDueAt) return false;
+  if (ticket.stage !== 'new') return false;  // newステージのみSLA適用
+  return new Date(ticket.slaDueAt) < new Date();
 }
 
 function getWeekStart(): Date {
@@ -173,6 +190,26 @@ export function listTickets(
     tickets = tickets.filter(isOverdue);
   }
 
+  // Ticket 071: relatedType フィルタ
+  if (filter.relatedType !== undefined) {
+    tickets = tickets.filter((t) => t.relatedType === filter.relatedType);
+  }
+
+  // Ticket 071: pipeline フィルタ
+  if (filter.pipeline !== undefined) {
+    tickets = tickets.filter((t) => t.pipeline === filter.pipeline);
+  }
+
+  // Ticket 071: stage フィルタ
+  if (filter.stage !== undefined) {
+    tickets = tickets.filter((t) => t.stage === filter.stage);
+  }
+
+  // Ticket 071: SLA超過フィルタ
+  if (filter.slaBreached) {
+    tickets = tickets.filter(isSlaBreached);
+  }
+
   // ソート：priority（urgent優先）→ updatedAt降順
   const priorityOrder: Record<TicketPriority, number> = {
     urgent: 0,
@@ -269,6 +306,16 @@ export function createTicket(
     }
   }
 
+  // Ticket 071: パイプライン属性の決定
+  const pipeline = input.pipeline ?? (input.relatedType === 'vacancy_inquiry' ? 'vacancy_inquiry' : null);
+  const stage = input.stage ?? (pipeline === 'vacancy_inquiry' ? 'new' : null);
+
+  // Ticket 071: vacancy_inquiryの場合、自動でSLA期限を設定
+  let slaDueAt = input.slaDueAt ?? null;
+  if (pipeline === 'vacancy_inquiry' && stage === 'new' && !slaDueAt) {
+    slaDueAt = new Date(Date.now() + VACANCY_INQUIRY_SLA_MS).toISOString();
+  }
+
   const ticket: Ticket = {
     id: ticketId,
     title: input.title,
@@ -289,6 +336,11 @@ export function createTicket(
     relatedType: input.relatedType ?? null,
     relatedId: input.relatedId ?? null,
     location: input.location ?? null,
+    // Ticket 071: パイプライン属性
+    pipeline,
+    stage,
+    slaDueAt,
+    stageChangedAt: pipeline ? now : null,
     createdAt: now,
     updatedAt: now,
   };
@@ -373,6 +425,15 @@ export function updateTicket(
     before.businessUnitId = ticket.businessUnitId;
     after.businessUnitId = patch.businessUnitId;
     ticket.businessUnitId = patch.businessUnitId;
+  }
+
+  // Ticket 071: stage 更新
+  if (patch.stage !== undefined && patch.stage !== ticket.stage) {
+    const stageBefore = { stage: ticket.stage };
+    const stageAfter = { stage: patch.stage };
+    ticket.stage = patch.stage;
+    ticket.stageChangedAt = new Date().toISOString();
+    recordEvent(id, 'stage_change', viewer.userId, stageBefore, stageAfter, null);
   }
 
   ticket.updatedAt = new Date().toISOString();
@@ -495,6 +556,160 @@ export function changeTicketStatus(
   }
 
   return { success: true, ticket };
+}
+
+// ========== Ticket 071: ステージ変更 ==========
+
+export function changeTicketStage(
+  id: string,
+  newStage: VacancyInquiryStage,
+  viewer: ViewerContext
+): { success: true; ticket: Ticket } | { success: false; error: string } {
+  const ticket = ticketsStore.get(id);
+
+  if (!ticket) {
+    return { success: false, error: 'チケットが見つかりません' };
+  }
+
+  if (!canUpdateTicket(ticket, viewer)) {
+    return { success: false, error: 'ステージを変更する権限がありません' };
+  }
+
+  if (ticket.pipeline !== 'vacancy_inquiry') {
+    return { success: false, error: 'このチケットはパイプライン管理対象ではありません' };
+  }
+
+  if (ticket.stage === newStage) {
+    return { success: true, ticket };  // 同じステージなら何もしない
+  }
+
+  const before = { stage: ticket.stage };
+  const now = new Date().toISOString();
+
+  ticket.stage = newStage;
+  ticket.stageChangedAt = now;
+  ticket.updatedAt = now;
+
+  recordEvent(id, 'stage_change', viewer.userId, before, { stage: newStage }, null);
+
+  return { success: true, ticket };
+}
+
+// ========== Ticket 071: 空室問い合わせ統計 ==========
+
+export function getVacancyInquiryStats(
+  viewer: ViewerContext,
+  options?: { businessUnitId?: string | null }
+): VacancyInquiryStats {
+  let tickets = Array.from(ticketsStore.values())
+    .filter((t) => t.pipeline === 'vacancy_inquiry');
+
+  // RBAC適用
+  if (!['manager', 'executive', 'admin', 'auditor'].includes(viewer.role)) {
+    tickets = tickets.filter((t) => canViewTicket(t, viewer));
+  }
+
+  // 事業単位フィルタ
+  if (options?.businessUnitId !== undefined) {
+    if (options.businessUnitId === null) {
+      tickets = tickets.filter((t) => t.businessUnitId === null);
+    } else {
+      tickets = tickets.filter((t) => t.businessUnitId === options.businessUnitId);
+    }
+  }
+
+  const weekStart = getWeekStart();
+
+  const byStage: Record<VacancyInquiryStage, number> = {
+    new: 0,
+    contacted: 0,
+    tour_scheduled: 0,
+    applied: 0,
+    accepted: 0,
+    rejected: 0,
+    closed: 0,
+  };
+
+  const thisWeek = {
+    newCount: 0,
+    contactedCount: 0,
+    tourScheduledCount: 0,
+    appliedCount: 0,
+    acceptedCount: 0,
+    rejectedCount: 0,
+  };
+
+  let slaBreachedCount = 0;
+  let slaTargetCount = 0;     // SLA対象（newステージで作成された）件数
+  let slaCompliantCount = 0;  // SLA遵守（newから抜けた）件数
+
+  for (const ticket of tickets) {
+    // ステージ別集計
+    if (ticket.stage) {
+      byStage[ticket.stage]++;
+    }
+
+    // SLA超過チェック
+    if (isSlaBreached(ticket)) {
+      slaBreachedCount++;
+    }
+
+    // 今週作成分
+    const createdThisWeek = new Date(ticket.createdAt) >= weekStart;
+    if (createdThisWeek) {
+      slaTargetCount++;  // 今週作成 = SLA対象
+
+      // ステージが new 以外ならSLA遵守
+      if (ticket.stage !== 'new') {
+        slaCompliantCount++;
+      }
+    }
+
+    // ステージ変更が今週のものをカウント
+    if (ticket.stageChangedAt && new Date(ticket.stageChangedAt) >= weekStart) {
+      switch (ticket.stage) {
+        case 'new':
+          thisWeek.newCount++;
+          break;
+        case 'contacted':
+          thisWeek.contactedCount++;
+          break;
+        case 'tour_scheduled':
+          thisWeek.tourScheduledCount++;
+          break;
+        case 'applied':
+          thisWeek.appliedCount++;
+          break;
+        case 'accepted':
+          thisWeek.acceptedCount++;
+          break;
+        case 'rejected':
+          thisWeek.rejectedCount++;
+          break;
+      }
+    }
+  }
+
+  // SLA遵守率計算
+  const slaComplianceRate = slaTargetCount > 0
+    ? Math.round((slaCompliantCount / slaTargetCount) * 100)
+    : 100;
+
+  return {
+    total: tickets.length,
+    byStage,
+    slaBreached: slaBreachedCount,
+    thisWeek,
+    slaComplianceRate,
+  };
+}
+
+// ========== Ticket 071: SLA超過チケット取得（バッチ用） ==========
+
+export function getSlaBreachedTickets(): Ticket[] {
+  return Array.from(ticketsStore.values())
+    .filter((t) => t.pipeline === 'vacancy_inquiry')
+    .filter(isSlaBreached);
 }
 
 // ========== コメント追加 ==========
@@ -691,6 +906,10 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: '本館',
+      pipeline: null,
+      stage: null,
+      slaDueAt: null,
+      stageChangedAt: null,
     },
     {
       title: '空調設備の点検依頼',
@@ -711,6 +930,10 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: '3階東棟',
+      pipeline: null,
+      stage: null,
+      slaDueAt: null,
+      stageChangedAt: null,
     },
     {
       title: '新人研修資料の更新依頼',
@@ -731,6 +954,10 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: null,
+      pipeline: null,
+      stage: null,
+      slaDueAt: null,
+      stageChangedAt: null,
     },
     {
       title: 'PCのログイン不具合',
@@ -751,6 +978,10 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: '事務室',
+      pipeline: null,
+      stage: null,
+      slaDueAt: null,
+      stageChangedAt: null,
     },
     {
       title: '利用者様からの問い合わせ対応',
@@ -771,6 +1002,10 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: null,
+      pipeline: null,
+      stage: null,
+      slaDueAt: null,
+      stageChangedAt: null,
     },
     {
       title: '備品発注依頼（消耗品）',
@@ -791,6 +1026,10 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: null,
+      pipeline: null,
+      stage: null,
+      slaDueAt: null,
+      stageChangedAt: null,
     },
   ];
 

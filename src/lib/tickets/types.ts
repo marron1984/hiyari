@@ -47,6 +47,23 @@ export type TicketRelatedType =
   | null;
 
 /**
+ * Ticket 071: パイプラインタイプ
+ */
+export type TicketPipeline = 'vacancy_inquiry' | null;
+
+/**
+ * Ticket 071: 空室問い合わせステージ
+ */
+export type VacancyInquiryStage =
+  | 'new'              // 新規（初動待ち）
+  | 'contacted'        // 連絡済み
+  | 'tour_scheduled'   // 見学予定
+  | 'applied'          // 申込み
+  | 'accepted'         // 成約
+  | 'rejected'         // 不成約
+  | 'closed';          // クローズ
+
+/**
  * チケットイベントアクション
  */
 export type TicketEventAction =
@@ -56,6 +73,7 @@ export type TicketEventAction =
   | 'status_change'
   | 'priority_change'
   | 'category_change'
+  | 'stage_change'      // Ticket 071: ステージ変更
   | 'comment'
   | 'resolve'
   | 'close'
@@ -85,6 +103,11 @@ export interface Ticket {
   relatedType: TicketRelatedType;
   relatedId: string | null;
   location: string | null;
+  // Ticket 071: パイプライン属性
+  pipeline: TicketPipeline;
+  stage: VacancyInquiryStage | null;
+  slaDueAt: string | null;            // 初動SLA期限
+  stageChangedAt: string | null;      // ステージ最終変更日時
   createdAt: string;
   updatedAt: string;
 }
@@ -140,6 +163,10 @@ export interface CreateTicketRequest {
   relatedType?: TicketRelatedType;
   relatedId?: string | null;
   location?: string | null;
+  // Ticket 071: パイプライン属性
+  pipeline?: TicketPipeline;
+  stage?: VacancyInquiryStage | null;
+  slaDueAt?: string | null;
 }
 
 /**
@@ -154,6 +181,8 @@ export interface UpdateTicketRequest {
   dueAt?: string | null;
   tags?: string[] | null;
   location?: string | null;
+  // Ticket 071: ステージ更新
+  stage?: VacancyInquiryStage | null;
 }
 
 /**
@@ -167,6 +196,11 @@ export interface TicketListFilter {
   q?: string;
   my?: 'assigned' | 'requested' | 'watching';
   overdue?: boolean;
+  // Ticket 071: パイプライン絞り込み
+  relatedType?: TicketRelatedType;
+  pipeline?: TicketPipeline;
+  stage?: VacancyInquiryStage;
+  slaBreached?: boolean;              // SLA超過のみ
   limit?: number;
   offset?: number;
 }
@@ -302,12 +336,96 @@ export const TICKET_EVENT_ACTION_LABELS: Record<TicketEventAction, string> = {
   status_change: 'ステータス変更',
   priority_change: '優先度変更',
   category_change: 'カテゴリ変更',
+  stage_change: 'ステージ変更',  // Ticket 071
   comment: 'コメント',
   resolve: '解決',
   close: 'クローズ',
   reopen: '再オープン',
   update: '更新',
 };
+
+/**
+ * Ticket 071: 空室問い合わせステージ表示設定
+ */
+export const VACANCY_INQUIRY_STAGE_CONFIG: Record<
+  VacancyInquiryStage,
+  { label: string; color: string; bg: string; border: string; order: number }
+> = {
+  new: {
+    label: '新規',
+    color: 'text-blue-700',
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+    order: 0,
+  },
+  contacted: {
+    label: '連絡済み',
+    color: 'text-cyan-700',
+    bg: 'bg-cyan-50',
+    border: 'border-cyan-200',
+    order: 1,
+  },
+  tour_scheduled: {
+    label: '見学予定',
+    color: 'text-purple-700',
+    bg: 'bg-purple-50',
+    border: 'border-purple-200',
+    order: 2,
+  },
+  applied: {
+    label: '申込み',
+    color: 'text-yellow-700',
+    bg: 'bg-yellow-50',
+    border: 'border-yellow-200',
+    order: 3,
+  },
+  accepted: {
+    label: '成約',
+    color: 'text-green-700',
+    bg: 'bg-green-50',
+    border: 'border-green-200',
+    order: 4,
+  },
+  rejected: {
+    label: '不成約',
+    color: 'text-red-700',
+    bg: 'bg-red-50',
+    border: 'border-red-200',
+    order: 5,
+  },
+  closed: {
+    label: 'クローズ',
+    color: 'text-zinc-600',
+    bg: 'bg-zinc-100',
+    border: 'border-zinc-300',
+    order: 6,
+  },
+};
+
+/**
+ * Ticket 071: 空室問い合わせ統計
+ */
+export interface VacancyInquiryStats {
+  total: number;
+  byStage: Record<VacancyInquiryStage, number>;
+  slaBreached: number;
+  thisWeek: {
+    newCount: number;
+    contactedCount: number;
+    tourScheduledCount: number;
+    appliedCount: number;
+    acceptedCount: number;
+    rejectedCount: number;
+  };
+  slaComplianceRate: number;  // 初動SLA遵守率（%）
+}
+
+/**
+ * Ticket 071: 初動SLA時間（ミリ秒）
+ * デフォルト: 4時間
+ */
+export const VACANCY_INQUIRY_SLA_HOURS = 4;
+export const VACANCY_INQUIRY_SLA_MS = VACANCY_INQUIRY_SLA_HOURS * 60 * 60 * 1000;
 
 /**
  * 権限チェック：チケットを閲覧できるか
