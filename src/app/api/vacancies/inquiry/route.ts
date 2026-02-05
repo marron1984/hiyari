@@ -3,6 +3,7 @@
  *
  * Ticket 070: 空室 外部提示システム
  * Ticket 072: CTA最適化（フォーム簡略化・冪等性強化）
+ * Ticket 073: 紹介元refトラッキング（バリデーション強化）
  *
  * POST /api/vacancies/inquiry - 問い合わせ送信 → チケット自動作成
  *
@@ -13,6 +14,7 @@
  * - 通知を担当者へ（036統合）
  * - 冪等性: relatedId で二重送信防止
  * - Ticket 072: vacancyUnitId を冪等キーに含める
+ * - Ticket 073: ref をバリデーション（スコープ外は破棄）
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -21,6 +23,7 @@ import { getByIdAsync, seedIfEmptyAsync } from '@/lib/vacancyUnits/repo';
 import { createTicket, listTickets } from '@/lib/tickets/repo';
 import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 import { CARE_LEVEL_LABELS } from '@/lib/vacancyUnits/types';
+import { validateRef, seedRefSourcesIfEmpty, logRefAccess } from '@/lib/refSources/repo';
 import type { ViewerContext } from '@/lib/tickets/types';
 
 // Ticket 072: 拡張リクエスト型
@@ -85,6 +88,7 @@ export async function POST(request: NextRequest) {
   try {
     // シードデータ確認
     await seedIfEmptyAsync();
+    seedRefSourcesIfEmpty();  // Ticket 073: refシードデータ
 
     const body = await request.json() as VacancyInquiryRequestV2;
 
@@ -122,6 +126,30 @@ export async function POST(request: NextRequest) {
         targetBusinessUnitId = unit.businessUnitId;
         buildingName = unit.buildingName;
       }
+    }
+
+    // Ticket 073: refバリデーション
+    let validatedRef: string | undefined;
+    let validatedRefName: string | undefined;
+
+    if (ref && targetBusinessUnitId) {
+      const refSource = validateRef(ref, targetBusinessUnitId);
+      if (refSource) {
+        // 有効な紹介元
+        validatedRef = refSource.ref;
+        validatedRefName = refName || refSource.name;
+
+        // アクセスログ記録
+        const forwardedFor = request.headers.get('x-forwarded-for');
+        const userAgent = request.headers.get('user-agent');
+        logRefAccess(
+          ref,
+          '/api/vacancies/inquiry',
+          forwardedFor?.split(',')[0]?.trim(),
+          userAgent ?? undefined
+        );
+      }
+      // 無効な場合は破棄（エラーにせず、通常問い合わせとして扱う）
     }
 
     // Ticket 072: 冪等性チェック（vacancyUnitIdを含む）
@@ -195,22 +223,23 @@ export async function POST(request: NextRequest) {
     const displayName = contactName || contactPhone || contactEmail || '匿名';
     const titleSuffix = buildingName ? ` (${buildingName})` : '';
 
-    // Ticket 074: メタデータ構築（ref、vacancyUnitId）
+    // Ticket 073/074: メタデータ構築（ref、vacancyUnitId）
+    // バリデーション済みのrefのみを使用
     const ticketMeta: Record<string, unknown> = {};
-    if (ref) {
-      ticketMeta.ref = ref;
+    if (validatedRef) {
+      ticketMeta.ref = validatedRef;
     }
-    if (refName) {
-      ticketMeta.refName = refName;
+    if (validatedRefName) {
+      ticketMeta.refName = validatedRefName;
     }
     if (vacancyUnitId) {
       ticketMeta.vacancyUnitId = vacancyUnitId;
     }
 
-    // タグ構築（refがある場合はタグにも追加）
+    // タグ構築（バリデーション済みrefがある場合はタグにも追加）
     const tags = ['空室問い合わせ', '新規'];
-    if (ref) {
-      tags.push(`ref:${ref}`);
+    if (validatedRef) {
+      tags.push(`ref:${validatedRef}`);
     }
 
     // チケット作成（外部からの問い合わせなのでシステムユーザーとして作成）
