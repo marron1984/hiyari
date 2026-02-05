@@ -21,6 +21,7 @@ import {
   ChevronRight,
   CheckCircle2,
   XCircle,
+  Home,
 } from 'lucide-react';
 
 /**
@@ -44,6 +45,7 @@ const WIDGET_ICONS: Record<WidgetType, React.ComponentType<{ className?: string 
   quality_risk: AlertTriangle,
   contracts: FileText,
   receivables: Banknote,
+  vacancy_inquiry_kpis: Home, // Ticket 082: 空室問い合わせKPI
 };
 
 /**

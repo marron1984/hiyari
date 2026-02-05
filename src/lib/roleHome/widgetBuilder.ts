@@ -25,6 +25,7 @@ import type {
   ContractsWidget,
   OsMapWidget,
   QualityRiskWidget,
+  VacancyInquiryKpisWidget,
 } from './types';
 import { WIDGET_LABELS } from './types';
 import type { ViewerContext } from '@/lib/business/types';
@@ -33,7 +34,8 @@ import type { AlertSeverity } from '@/lib/alerts/types';
 // リポジトリインポート
 import { getAlertStats, listAlerts } from '@/lib/alerts/repo';
 import { getUnclassifiedCounts } from '@/lib/scope/detectUnclassifiedBusinessUnit';
-import { getTicketStats } from '@/lib/tickets/repo';
+import { getTicketStats, listTickets, listTicketEvents } from '@/lib/tickets/repo';
+import { buildAssigneeKpis } from '@/lib/vacancies/buildAssigneeKpis';
 import { getStats as getRepairsStats } from '@/lib/repairs/repo';
 import { getStats as getCorrectiveActionsStats } from '@/lib/correctiveActions/repo';
 import { scanExpiring, scanExpired } from '@/lib/licenses/repo';
@@ -444,6 +446,44 @@ export function buildQualityRiskWidget(): QualityRiskWidget {
 }
 
 /**
+ * Ticket 082: 空室問い合わせKPIウィジェットを構築
+ */
+export function buildVacancyInquiryKpisWidget(userId: string, role: AppRole): VacancyInquiryKpisWidget {
+  // tickets/types の ViewerContext を使用
+  const viewer = { userId, role };
+
+  // チケット一覧を取得（vacancy_inquiry のみ）
+  const { items: tickets } = listTickets(
+    { pipeline: 'vacancy_inquiry', limit: 1000 },
+    viewer
+  );
+
+  // イベント一覧を取得（関連チケットのみ）
+  const ticketIds = tickets.map(t => t.id);
+  const events = ticketIds.flatMap(id => listTicketEvents(id));
+
+  // KPI集計（直近7日）
+  const kpiResult = buildAssigneeKpis(tickets, events, { days: 7 });
+
+  // 重要度判定
+  let severity: AlertSeverity = 'info';
+  if (kpiResult.summary.totalSlaBreach > 0) severity = 'warning';
+  if (kpiResult.summary.overallSlaOkRate < 0.7) severity = 'critical';
+
+  return {
+    type: 'vacancy_inquiry_kpis',
+    title: WIDGET_LABELS.vacancy_inquiry_kpis,
+    href: '/dashboard/vacancy-inquiries',
+    count: kpiResult.summary.totalInquiries,
+    severity,
+    assignees: kpiResult.rows,
+    summary: kpiResult.summary,
+    periodDays: kpiResult.period.days,
+    isEmpty: kpiResult.summary.totalInquiries === 0,
+  };
+}
+
+/**
  * ウィジェットタイプに応じてウィジェットを構築
  */
 export function buildWidget(
@@ -487,6 +527,9 @@ export function buildWidget(
       return buildOsMapWidget();
     case 'quality_risk':
       return buildQualityRiskWidget();
+    // Ticket 082: 空室問い合わせKPI
+    case 'vacancy_inquiry_kpis':
+      return buildVacancyInquiryKpisWidget(userId, role);
     default:
       return {
         type: widgetType,
