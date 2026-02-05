@@ -875,6 +875,120 @@ export function getOverdueTickets(): Ticket[] {
   return Array.from(ticketsStore.values()).filter(isOverdue);
 }
 
+// ========== Ticket 079: 重複問い合わせ検出・統合 ==========
+
+import {
+  DUPLICATE_CHECK_DAYS,
+  DUPLICATE_CHECK_STATUSES,
+} from '@/lib/vacancies/contactKey';
+
+/**
+ * 重複する空室問い合わせチケットを検索
+ *
+ * @param contactHash - 連絡先ハッシュ
+ * @param businessUnitId - 事業単位ID
+ * @returns 既存のチケット（見つからなければnull）
+ */
+export function findDuplicateVacancyInquiryTicket(
+  contactHash: string,
+  businessUnitId: string
+): Ticket | null {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - DUPLICATE_CHECK_DAYS);
+
+  const candidates = Array.from(ticketsStore.values())
+    .filter((t) => t.relatedType === 'vacancy_inquiry')
+    .filter((t) => t.businessUnitId === businessUnitId)
+    .filter((t) => DUPLICATE_CHECK_STATUSES.includes(t.status as typeof DUPLICATE_CHECK_STATUSES[number]))
+    .filter((t) => new Date(t.createdAt) >= cutoffDate)
+    .filter((t) => t.metaJson?.contactHash === contactHash);
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  // 最新のチケットを返す
+  candidates.sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  return candidates[0];
+}
+
+/**
+ * 既存チケットに重複問い合わせを統合
+ *
+ * @param ticketId - 既存チケットID
+ * @param pendingData - 新しい問い合わせデータ
+ * @returns 更新されたチケット
+ */
+export function mergeInquiryToTicket(
+  ticketId: string,
+  pendingData: {
+    contactName?: string | null;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
+    desiredMoveIn?: string | null;
+    message?: string | null;
+    buildingName?: string | null;
+    vacancyUnitId?: string | null;
+  }
+): { success: true; ticket: Ticket } | { success: false; error: string } {
+  const ticket = ticketsStore.get(ticketId);
+
+  if (!ticket) {
+    return { success: false, error: 'チケットが見つかりません' };
+  }
+
+  const now = new Date().toISOString();
+
+  // 追記内容を作成
+  const appendParts: string[] = [
+    '',
+    '---',
+    `【追加問い合わせ】${now}`,
+  ];
+
+  if (pendingData.contactName) {
+    appendParts.push(`お名前: ${pendingData.contactName}`);
+  }
+  if (pendingData.buildingName) {
+    appendParts.push(`希望物件: ${pendingData.buildingName}`);
+  }
+  if (pendingData.desiredMoveIn) {
+    appendParts.push(`入居希望時期: ${pendingData.desiredMoveIn}`);
+  }
+  if (pendingData.message) {
+    appendParts.push(`メッセージ: ${pendingData.message}`);
+  }
+
+  // description に追記
+  ticket.description = ticket.description + appendParts.join('\n');
+  ticket.updatedAt = now;
+
+  // mergedCount をインクリメント
+  if (!ticket.metaJson) {
+    ticket.metaJson = {};
+  }
+  ticket.metaJson.mergedCount = (ticket.metaJson.mergedCount || 0) + 1;
+
+  // イベント記録
+  recordEvent(
+    ticketId,
+    'merge_inquiry',
+    null, // system action
+    null,
+    {
+      pendingName: pendingData.contactName,
+      vacancyUnitId: pendingData.vacancyUnitId,
+      mergedCount: ticket.metaJson.mergedCount,
+    },
+    '同一連絡先からの追加問い合わせを統合'
+  );
+
+  return { success: true, ticket };
+}
+
 // ========== デモデータ投入 ==========
 
 export function seedTicketData(): void {

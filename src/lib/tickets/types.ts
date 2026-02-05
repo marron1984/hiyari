@@ -74,6 +74,7 @@ export type TicketEventAction =
   | 'priority_change'
   | 'category_change'
   | 'stage_change'      // Ticket 071: ステージ変更
+  | 'merge_inquiry'     // Ticket 079: 重複問い合わせ統合
   | 'comment'
   | 'resolve'
   | 'close'
@@ -87,6 +88,8 @@ export interface TicketMeta {
   ref?: string;           // 紹介元（ref）コード
   refName?: string;       // 紹介元表示名
   vacancyUnitId?: string; // Ticket 072: 空室ユニットID
+  contactHash?: string;   // Ticket 079: 連絡先ハッシュ（重複検出用）
+  mergedCount?: number;   // Ticket 079: 統合された問い合わせ数
   [key: string]: unknown;
 }
 
@@ -349,6 +352,7 @@ export const TICKET_EVENT_ACTION_LABELS: Record<TicketEventAction, string> = {
   priority_change: '優先度変更',
   category_change: 'カテゴリ変更',
   stage_change: 'ステージ変更',  // Ticket 071
+  merge_inquiry: '問い合わせ統合', // Ticket 079
   comment: 'コメント',
   resolve: '解決',
   close: 'クローズ',

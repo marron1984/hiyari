@@ -16,7 +16,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, markAsVerified } from '@/lib/vacancyInquiryPending/repo';
-import { createTicket, listTickets } from '@/lib/tickets/repo';
+import {
+  createTicket,
+  listTickets,
+  findDuplicateVacancyInquiryTicket,
+  mergeInquiryToTicket,
+} from '@/lib/tickets/repo';
 import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 import { CARE_LEVEL_LABELS } from '@/lib/vacancyUnits/types';
 import type { ViewerContext } from '@/lib/tickets/types';
@@ -27,6 +32,7 @@ import {
   generateAutoReplyForScreen,
   generateInternalSummary,
 } from '@/lib/vacancyAutoReply/templates';
+import { generateContactHash } from '@/lib/vacancies/contactKey';
 
 /**
  * 冪等性キー生成
@@ -105,6 +111,95 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Ticket 079: contactHash 生成
+    const contactHash = generateContactHash(pending.contactEmail, pending.contactPhone);
+    const conditions = pending.conditionsJson || {};
+    const buildingName = conditions.buildingName as string | undefined;
+
+    // Ticket 079: 重複問い合わせチェック（同一連絡先・同一事業）
+    if (contactHash && pending.businessUnitId) {
+      const existingTicket = findDuplicateVacancyInquiryTicket(
+        contactHash,
+        pending.businessUnitId
+      );
+
+      if (existingTicket) {
+        // 既存チケットに統合
+        const mergeResult = mergeInquiryToTicket(existingTicket.id, {
+          contactName: pending.contactName,
+          contactEmail: pending.contactEmail,
+          contactPhone: pending.contactPhone,
+          desiredMoveIn: pending.desiredMoveIn,
+          message: pending.memo,
+          buildingName,
+          vacancyUnitId: pending.vacancyUnitId,
+        });
+
+        if (mergeResult.success) {
+          // pending を verified に更新（統合先のチケットIDを記録）
+          markAsVerified(pending.id, existingTicket.id, clientIp, userAgent);
+
+          // 担当者に統合通知
+          if (existingTicket.assigneeUserId) {
+            try {
+              await createNotificationAsync({
+                tenantId: 'default',
+                userId: existingTicket.assigneeUserId,
+                type: 'system',
+                title: '追加問い合わせが統合されました',
+                message: `${pending.contactName || '匿名'}様から追加のお問い合わせがありました。（${buildingName || '物件指定なし'}）`,
+                severity: 'info',
+                url: `/dashboard/tickets/${existingTicket.id}`,
+                fingerprint: `vacancy_inquiry:merged:${existingTicket.id}:${new Date().toISOString().slice(0, 10)}`,
+              });
+            } catch (notifyError) {
+              console.error('Failed to send merge notification:', notifyError);
+            }
+          }
+
+          // 既存チケットの受付番号で自動返信データを返す
+          const contactMethod: 'email' | 'phone' | 'both' =
+            pending.contactEmail && pending.contactPhone
+              ? 'both'
+              : pending.contactEmail
+                ? 'email'
+                : 'phone';
+
+          const receiptNumber = generateReceiptNumber(existingTicket.id);
+          const expectedResponseTime = getExpectedResponseTime();
+          const autoReply = generateAutoReplyForScreen({
+            name: pending.contactName || 'お客様',
+            businessUnitName: pending.businessUnitId || '当施設',
+            buildingName,
+            contactMethod,
+            ticketId: existingTicket.id,
+            receiptNumber,
+            expectedResponseTime,
+          });
+
+          return NextResponse.json({
+            success: true,
+            ticketId: existingTicket.id,
+            message: 'お問い合わせを受け付けました。担当者より連絡いたします。',
+            merged: true,
+            autoReply: {
+              title: autoReply.title,
+              body: autoReply.body,
+              receiptNumber: autoReply.receiptNumber,
+              expectedResponseTime: autoReply.expectedResponseTime,
+              additionalInfo: [
+                ...autoReply.additionalInfo,
+                '以前のお問い合わせと合わせて対応いたします',
+              ],
+              contactMethod,
+              name: pending.contactName || 'お客様',
+              buildingName,
+            },
+          });
+        }
+      }
+    }
+
     // チケット説明文を構築
     const descriptionParts: string[] = [
       '【空室問い合わせ】',
@@ -124,8 +219,7 @@ export async function POST(request: NextRequest) {
 
     descriptionParts.push('');
 
-    const conditions = pending.conditionsJson || {};
-    const buildingName = conditions.buildingName as string | undefined;
+    // conditions と buildingName は上で定義済み
 
     if (buildingName) {
       descriptionParts.push(`希望施設: ${buildingName}`);
@@ -181,6 +275,10 @@ export async function POST(request: NextRequest) {
     }
     if (pending.vacancyUnitId) {
       ticketMeta.vacancyUnitId = pending.vacancyUnitId;
+    }
+    // Ticket 079: contactHash を保存（重複検出用）
+    if (contactHash) {
+      ticketMeta.contactHash = contactHash;
     }
 
     // タグ構築
