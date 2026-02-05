@@ -75,6 +75,7 @@ export type TicketEventAction =
   | 'category_change'
   | 'stage_change'      // Ticket 071: ステージ変更
   | 'merge_inquiry'     // Ticket 079: 重複問い合わせ統合
+  | 'mark_applied'      // Ticket 084: 申込記録
   | 'comment'
   | 'resolve'
   | 'close'
@@ -90,8 +91,30 @@ export interface TicketMeta {
   vacancyUnitId?: string; // Ticket 072: 空室ユニットID
   contactHash?: string;   // Ticket 079: 連絡先ハッシュ（重複検出用）
   mergedCount?: number;   // Ticket 079: 統合された問い合わせ数
+  // Ticket 084: 申込関連
+  appliedAt?: string;                // 申込日時（ISO）
+  desiredMoveInDate?: string;        // 希望入居日（YYYY-MM-DD）
+  requiredDocsStatus?: RequiredDocsStatus; // 必要書類ステータス
+  applicationNote?: string;          // 申込メモ
+  applicationChannel?: ApplicationChannel; // 申込チャネル
   [key: string]: unknown;
 }
+
+/**
+ * Ticket 084: 必要書類ステータス
+ */
+export interface RequiredDocsStatus {
+  id?: boolean;           // 身分証明書
+  insurance?: boolean;    // 保険証
+  guarantor?: boolean;    // 保証人書類
+  incomeProof?: boolean;  // 収入証明
+  other?: string;         // その他
+}
+
+/**
+ * Ticket 084: 申込チャネル
+ */
+export type ApplicationChannel = 'in_person' | 'online' | 'other';
 
 /**
  * チケット
@@ -353,6 +376,7 @@ export const TICKET_EVENT_ACTION_LABELS: Record<TicketEventAction, string> = {
   category_change: 'カテゴリ変更',
   stage_change: 'ステージ変更',  // Ticket 071
   merge_inquiry: '問い合わせ統合', // Ticket 079
+  mark_applied: '申込記録',       // Ticket 084
   comment: 'コメント',
   resolve: '解決',
   close: 'クローズ',

@@ -28,18 +28,22 @@ import {
   X,
   Copy,
   Check,
+  ClipboardCheck,
 } from 'lucide-react';
 import type {
   Ticket,
   TicketComment,
   TicketEvent,
   TicketStatus,
+  VacancyInquiryStage,
+  ApplicationChannel,
 } from '@/lib/tickets/types';
 import {
   TICKET_STATUS_CONFIG,
   TICKET_PRIORITY_CONFIG,
   TICKET_CATEGORY_CONFIG,
   TICKET_EVENT_ACTION_LABELS,
+  VACANCY_INQUIRY_STAGE_CONFIG,
 } from '@/lib/tickets/types';
 import type { ReplyTemplate, TemplateVariable } from '@/lib/replyTemplates/types';
 
@@ -76,6 +80,33 @@ export default function TicketDetailPage() {
   const [expandedContent, setExpandedContent] = useState<string | null>(null);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Ticket 084: 申込記録
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyForm, setApplyForm] = useState<{
+    desiredMoveInDate: string;
+    applicationNote: string;
+    applicationChannel: ApplicationChannel | '';
+    requiredDocsStatus: {
+      id: boolean;
+      insurance: boolean;
+      guarantor: boolean;
+      incomeProof: boolean;
+      other: string;
+    };
+  }>({
+    desiredMoveInDate: '',
+    applicationNote: '',
+    applicationChannel: '',
+    requiredDocsStatus: {
+      id: false,
+      insurance: false,
+      guarantor: false,
+      incomeProof: false,
+      other: '',
+    },
+  });
 
   const fetchTicket = useCallback(async () => {
     try {
@@ -192,6 +223,83 @@ export default function TicketDetailPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  // Ticket 084: 申込記録の送信
+  const handleApplySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (applyLoading) return;
+
+    setApplyLoading(true);
+    try {
+      const body: Record<string, unknown> = {};
+
+      if (applyForm.desiredMoveInDate) {
+        body.desiredMoveInDate = applyForm.desiredMoveInDate;
+      }
+      if (applyForm.applicationNote) {
+        body.applicationNote = applyForm.applicationNote;
+      }
+      if (applyForm.applicationChannel) {
+        body.applicationChannel = applyForm.applicationChannel;
+      }
+
+      // requiredDocsStatus に何か入力があれば追加
+      const docs = applyForm.requiredDocsStatus;
+      if (docs.id || docs.insurance || docs.guarantor || docs.incomeProof || docs.other) {
+        body.requiredDocsStatus = {
+          id: docs.id || undefined,
+          insurance: docs.insurance || undefined,
+          guarantor: docs.guarantor || undefined,
+          incomeProof: docs.incomeProof || undefined,
+          other: docs.other || undefined,
+        };
+      }
+
+      const res = await fetch(`/api/vacancy-inquiries/${id}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        setShowApplyModal(false);
+        // フォームをリセット
+        setApplyForm({
+          desiredMoveInDate: '',
+          applicationNote: '',
+          applicationChannel: '',
+          requiredDocsStatus: {
+            id: false,
+            insurance: false,
+            guarantor: false,
+            incomeProof: false,
+            other: '',
+          },
+        });
+        // データを再取得
+        fetchTicket();
+        fetchEvents();
+      } else {
+        const data = await res.json();
+        alert(data.error || '申込記録に失敗しました');
+      }
+    } catch (err) {
+      console.error('Failed to apply:', err);
+      alert('申込記録に失敗しました');
+    } finally {
+      setApplyLoading(false);
+    }
+  };
+
+  // Ticket 084: 申込可能かどうかを判定
+  const canApply = (t: Ticket): boolean => {
+    if (t.pipeline !== 'vacancy_inquiry') return false;
+    if (t.relatedType !== 'vacancy_inquiry') return false;
+    // 既に applied 以降のステージなら不可
+    const notApplyableStages: VacancyInquiryStage[] = ['applied', 'accepted', 'rejected', 'closed'];
+    if (t.stage && notApplyableStages.includes(t.stage)) return false;
+    return true;
   };
 
   // Ticket 081: モーダルを開く
@@ -616,6 +724,83 @@ export default function TicketDetailPage() {
               </Card>
             )}
 
+            {/* Ticket 084: 申込記録（空室問い合わせの場合のみ） */}
+            {ticket.relatedType === 'vacancy_inquiry' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ClipboardCheck className="w-4 h-4" />
+                    申込管理
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {/* 現在のステージ表示 */}
+                  {ticket.stage && (
+                    <div className="mb-3">
+                      <span className="text-xs text-zinc-500">現在のステージ</span>
+                      <div className={`mt-1 inline-flex px-2 py-1 rounded text-sm font-medium ${VACANCY_INQUIRY_STAGE_CONFIG[ticket.stage].bg} ${VACANCY_INQUIRY_STAGE_CONFIG[ticket.stage].color}`}>
+                        {VACANCY_INQUIRY_STAGE_CONFIG[ticket.stage].label}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 申込済みの場合は情報表示 */}
+                  {ticket.metaJson?.appliedAt && (
+                    <div className="space-y-2 text-sm mb-3">
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="font-medium">申込済み</span>
+                      </div>
+                      <div className="text-zinc-600">
+                        <span className="text-xs text-zinc-400">申込日時:</span>{' '}
+                        {new Date(ticket.metaJson.appliedAt as string).toLocaleDateString('ja-JP', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </div>
+                      {ticket.metaJson.desiredMoveInDate && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">希望入居日:</span>{' '}
+                          {ticket.metaJson.desiredMoveInDate as string}
+                        </div>
+                      )}
+                      {ticket.metaJson.applicationChannel && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">申込チャネル:</span>{' '}
+                          {ticket.metaJson.applicationChannel === 'in_person' && '来店'}
+                          {ticket.metaJson.applicationChannel === 'online' && 'オンライン'}
+                          {ticket.metaJson.applicationChannel === 'other' && 'その他'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 申込ボタン */}
+                  {canApply(ticket) ? (
+                    <>
+                      <p className="text-zinc-500 text-sm mb-3">
+                        申込を受け付けたら記録してください
+                      </p>
+                      <button
+                        onClick={() => setShowApplyModal(true)}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm"
+                      >
+                        <ClipboardCheck className="w-4 h-4" />
+                        申込を記録
+                      </button>
+                    </>
+                  ) : ticket.stage === 'applied' ? (
+                    <p className="text-zinc-500 text-sm">
+                      成約または不成約のステージへ進めてください
+                    </p>
+                  ) : null}
+                </CardContent>
+              </Card>
+            )}
+
             {/* 詳細情報 */}
             <Card>
               <CardHeader>
@@ -842,6 +1027,199 @@ export default function TicketDetailPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Ticket 084: 申込記録モーダル */}
+        {showApplyModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl w-full max-w-md mx-4 p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">申込を記録</h3>
+                <button
+                  onClick={() => setShowApplyModal(false)}
+                  className="p-1 hover:bg-zinc-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleApplySubmit} className="space-y-4">
+                {/* 希望入居日 */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    希望入居日
+                  </label>
+                  <input
+                    type="date"
+                    value={applyForm.desiredMoveInDate}
+                    onChange={(e) =>
+                      setApplyForm((prev) => ({
+                        ...prev,
+                        desiredMoveInDate: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                  />
+                </div>
+
+                {/* 申込チャネル */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    申込方法
+                  </label>
+                  <select
+                    value={applyForm.applicationChannel}
+                    onChange={(e) =>
+                      setApplyForm((prev) => ({
+                        ...prev,
+                        applicationChannel: e.target.value as ApplicationChannel | '',
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                  >
+                    <option value="">選択してください</option>
+                    <option value="in_person">来店</option>
+                    <option value="online">オンライン</option>
+                    <option value="other">その他</option>
+                  </select>
+                </div>
+
+                {/* 必要書類チェックリスト */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    必要書類の受領状況
+                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={applyForm.requiredDocsStatus.id}
+                        onChange={(e) =>
+                          setApplyForm((prev) => ({
+                            ...prev,
+                            requiredDocsStatus: {
+                              ...prev.requiredDocsStatus,
+                              id: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="w-4 h-4 rounded border-zinc-300"
+                      />
+                      身分証明書
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={applyForm.requiredDocsStatus.insurance}
+                        onChange={(e) =>
+                          setApplyForm((prev) => ({
+                            ...prev,
+                            requiredDocsStatus: {
+                              ...prev.requiredDocsStatus,
+                              insurance: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="w-4 h-4 rounded border-zinc-300"
+                      />
+                      保険証
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={applyForm.requiredDocsStatus.guarantor}
+                        onChange={(e) =>
+                          setApplyForm((prev) => ({
+                            ...prev,
+                            requiredDocsStatus: {
+                              ...prev.requiredDocsStatus,
+                              guarantor: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="w-4 h-4 rounded border-zinc-300"
+                      />
+                      保証人書類
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={applyForm.requiredDocsStatus.incomeProof}
+                        onChange={(e) =>
+                          setApplyForm((prev) => ({
+                            ...prev,
+                            requiredDocsStatus: {
+                              ...prev.requiredDocsStatus,
+                              incomeProof: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="w-4 h-4 rounded border-zinc-300"
+                      />
+                      収入証明
+                    </label>
+                    <div>
+                      <label className="block text-xs text-zinc-500 mb-1">
+                        その他の書類
+                      </label>
+                      <input
+                        type="text"
+                        value={applyForm.requiredDocsStatus.other}
+                        onChange={(e) =>
+                          setApplyForm((prev) => ({
+                            ...prev,
+                            requiredDocsStatus: {
+                              ...prev.requiredDocsStatus,
+                              other: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="その他必要書類があれば入力"
+                        className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 申込メモ */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    メモ
+                  </label>
+                  <textarea
+                    value={applyForm.applicationNote}
+                    onChange={(e) =>
+                      setApplyForm((prev) => ({
+                        ...prev,
+                        applicationNote: e.target.value,
+                      }))
+                    }
+                    placeholder="特記事項があれば入力"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={applyLoading}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors text-sm"
+                  >
+                    <ClipboardCheck className="w-4 h-4" />
+                    {applyLoading ? '記録中...' : '申込を記録'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowApplyModal(false)}
+                    className="px-4 py-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

@@ -596,6 +596,77 @@ export function changeTicketStage(
   return { success: true, ticket };
 }
 
+// ========== Ticket 084: 申込記録 ==========
+
+export interface MarkAsAppliedRequest {
+  desiredMoveInDate?: string;
+  requiredDocsStatus?: {
+    id?: boolean;
+    insurance?: boolean;
+    guarantor?: boolean;
+    incomeProof?: boolean;
+    other?: string;
+  };
+  applicationNote?: string;
+  applicationChannel?: 'in_person' | 'online' | 'other';
+}
+
+export function markAsApplied(
+  ticketId: string,
+  data: MarkAsAppliedRequest,
+  viewer: ViewerContext
+): { success: true; ticket: Ticket } | { success: false; error: string } {
+  const ticket = ticketsStore.get(ticketId);
+
+  if (!ticket) {
+    return { success: false, error: 'チケットが見つかりません' };
+  }
+
+  if (!canUpdateTicket(ticket, viewer)) {
+    return { success: false, error: '申込を記録する権限がありません' };
+  }
+
+  if (ticket.pipeline !== 'vacancy_inquiry') {
+    return { success: false, error: 'このチケットは空室問い合わせではありません' };
+  }
+
+  if (ticket.relatedType !== 'vacancy_inquiry') {
+    return { success: false, error: 'このチケットは空室問い合わせではありません' };
+  }
+
+  const now = new Date().toISOString();
+  const beforeMeta = { ...(ticket.metaJson || {}) };
+  const beforeStage = ticket.stage;
+
+  // meta を更新
+  const newMeta = {
+    ...ticket.metaJson,
+    appliedAt: now,
+    desiredMoveInDate: data.desiredMoveInDate ?? undefined,
+    requiredDocsStatus: data.requiredDocsStatus ?? undefined,
+    applicationNote: data.applicationNote ?? undefined,
+    applicationChannel: data.applicationChannel ?? undefined,
+  };
+  ticket.metaJson = newMeta;
+
+  // stage を applied に変更
+  ticket.stage = 'applied';
+  ticket.stageChangedAt = now;
+  ticket.updatedAt = now;
+
+  // イベント記録
+  recordEvent(
+    ticketId,
+    'mark_applied',
+    viewer.userId,
+    { stage: beforeStage, meta: beforeMeta },
+    { stage: 'applied', meta: newMeta },
+    null
+  );
+
+  return { success: true, ticket };
+}
+
 // ========== Ticket 071: 空室問い合わせ統計 ==========
 
 export function getVacancyInquiryStats(
