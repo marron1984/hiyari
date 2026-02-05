@@ -24,6 +24,10 @@ import {
   UserPlus,
   ChevronDown,
   ChevronUp,
+  FileText,
+  X,
+  Copy,
+  Check,
 } from 'lucide-react';
 import type {
   Ticket,
@@ -37,6 +41,7 @@ import {
   TICKET_CATEGORY_CONFIG,
   TICKET_EVENT_ACTION_LABELS,
 } from '@/lib/tickets/types';
+import type { ReplyTemplate, TemplateVariable } from '@/lib/replyTemplates/types';
 
 // デモユーザー一覧（本番ではAPIから取得）
 const DEMO_USERS = [
@@ -62,6 +67,15 @@ export default function TicketDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showEvents, setShowEvents] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+
+  // Ticket 081: 返信テンプレート
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templates, setTemplates] = useState<ReplyTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<ReplyTemplate | null>(null);
+  const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
+  const [expandedContent, setExpandedContent] = useState<string | null>(null);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const fetchTicket = useCallback(async () => {
     try {
@@ -98,6 +112,96 @@ export default function TicketDetailPage() {
       console.error('Failed to fetch events:', err);
     }
   }, [id]);
+
+  // Ticket 081: テンプレート一覧取得
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const res = await fetch('/api/reply-templates?category=vacancy_reply&activeOnly=true');
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    } catch (err) {
+      console.error('Failed to fetch templates:', err);
+    }
+  }, []);
+
+  // Ticket 081: テンプレート選択時の処理
+  const handleSelectTemplate = (template: ReplyTemplate) => {
+    setSelectedTemplate(template);
+    // チケットから自動補完できる変数を初期化
+    const vars: Record<string, string> = {};
+    if (ticket) {
+      // metaからデータを取得
+      const meta = ticket.metaJson as Record<string, unknown> | undefined;
+      // name: contactNameがあれば使う
+      const descMatch = ticket.description.match(/お名前:\s*(.+)/);
+      if (descMatch) {
+        vars.name = descMatch[1].trim();
+      }
+      // buildingName: metaから
+      if (meta?.vacancyUnitId) {
+        const buildingMatch = ticket.description.match(/希望施設:\s*(.+)/);
+        if (buildingMatch) {
+          vars.buildingName = buildingMatch[1].trim();
+        }
+      }
+      // businessUnitName
+      if (ticket.businessUnitId) {
+        vars.businessUnitName = ticket.businessUnitId;
+      }
+    }
+    setTemplateVariables(vars);
+    setExpandedContent(null);
+  };
+
+  // Ticket 081: テンプレート展開
+  const handleExpandTemplate = async () => {
+    if (!selectedTemplate) return;
+    setTemplateLoading(true);
+    try {
+      const res = await fetch(`/api/reply-templates/${selectedTemplate.id}/expand`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variables: templateVariables }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setExpandedContent(data.content);
+      }
+    } catch (err) {
+      console.error('Failed to expand template:', err);
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
+
+  // Ticket 081: コメントに挿入
+  const handleInsertToComment = () => {
+    if (expandedContent) {
+      setNewComment((prev) => (prev ? prev + '\n\n' : '') + expandedContent);
+      setShowTemplateModal(false);
+      setSelectedTemplate(null);
+      setTemplateVariables({});
+      setExpandedContent(null);
+    }
+  };
+
+  // Ticket 081: クリップボードにコピー
+  const handleCopyContent = async () => {
+    if (expandedContent) {
+      await navigator.clipboard.writeText(expandedContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Ticket 081: モーダルを開く
+  const openTemplateModal = () => {
+    fetchTemplates();
+    setShowTemplateModal(true);
+    setSelectedTemplate(null);
+    setTemplateVariables({});
+    setExpandedContent(null);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -491,6 +595,27 @@ export default function TicketDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Ticket 081: 返信テンプレート（空室問い合わせの場合のみ） */}
+            {ticket.relatedType === 'vacancy_inquiry' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">返信テンプレート</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-zinc-500 text-sm mb-3">
+                    定型文を使って返信メモを作成できます
+                  </p>
+                  <button
+                    onClick={openTemplateModal}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm"
+                  >
+                    <FileText className="w-4 h-4" />
+                    テンプレを挿入
+                  </button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* 詳細情報 */}
             <Card>
               <CardHeader>
@@ -571,6 +696,152 @@ export default function TicketDetailPage() {
               >
                 キャンセル
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Ticket 081: 返信テンプレートモーダル */}
+        {showTemplateModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">返信テンプレートを挿入</h3>
+                <button
+                  onClick={() => setShowTemplateModal(false)}
+                  className="p-1 hover:bg-zinc-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {!selectedTemplate ? (
+                /* テンプレート選択 */
+                <div className="space-y-2">
+                  <p className="text-sm text-zinc-600 mb-3">
+                    使用するテンプレートを選択してください
+                  </p>
+                  {templates.length === 0 ? (
+                    <p className="text-zinc-500 text-sm py-4 text-center">
+                      利用可能なテンプレートがありません
+                    </p>
+                  ) : (
+                    templates.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => handleSelectTemplate(t)}
+                        className="w-full text-left px-4 py-3 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors"
+                      >
+                        <div className="font-medium text-sm">{t.name}</div>
+                        {t.description && (
+                          <div className="text-xs text-zinc-500 mt-1">
+                            {t.description}
+                          </div>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : !expandedContent ? (
+                /* 変数入力 */
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <button
+                      onClick={() => setSelectedTemplate(null)}
+                      className="text-sm text-zinc-500 hover:text-zinc-700"
+                    >
+                      ← テンプレート選択に戻る
+                    </button>
+                  </div>
+                  <div className="bg-zinc-50 px-3 py-2 rounded-lg">
+                    <span className="font-medium text-sm">{selectedTemplate.name}</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-sm text-zinc-600">変数を入力してください</p>
+                    {selectedTemplate.variablesJson.map((v: TemplateVariable) => (
+                      <div key={v.key}>
+                        <label className="block text-sm font-medium text-zinc-700 mb-1">
+                          {v.label}
+                          {v.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          value={templateVariables[v.key] || ''}
+                          onChange={(e) =>
+                            setTemplateVariables((prev) => ({
+                              ...prev,
+                              [v.key]: e.target.value,
+                            }))
+                          }
+                          placeholder={v.defaultValue || `${v.label}を入力`}
+                          className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleExpandTemplate}
+                    disabled={templateLoading}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors text-sm"
+                  >
+                    {templateLoading ? '生成中...' : 'プレビューを生成'}
+                  </button>
+                </div>
+              ) : (
+                /* プレビュー */
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <button
+                      onClick={() => setExpandedContent(null)}
+                      className="text-sm text-zinc-500 hover:text-zinc-700"
+                    >
+                      ← 変数入力に戻る
+                    </button>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-zinc-700">プレビュー</span>
+                      <button
+                        onClick={handleCopyContent}
+                        className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700"
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="w-3 h-3" />
+                            コピーしました
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            コピー
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="bg-zinc-50 p-4 rounded-lg text-sm whitespace-pre-wrap border border-zinc-200">
+                      {expandedContent}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleInsertToComment}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      コメントに挿入
+                    </button>
+                    <button
+                      onClick={() => setShowTemplateModal(false)}
+                      className="px-4 py-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                    >
+                      閉じる
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
