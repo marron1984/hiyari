@@ -107,6 +107,9 @@ function InquiryFormContent() {
   const [unit, setUnit] = useState<PublicVacancyUnit | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ticket 076: 本人確認フロー
+  const [verifyUrl, setVerifyUrl] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
   // フォーム状態 - Ticket 072: 最小限に
   const [contactName, setContactName] = useState(''); // 任意
@@ -161,8 +164,15 @@ function InquiryFormContent() {
       // Ticket 072: submit イベント記録
       await trackSubmit(unit?.businessUnitId || businessUnitId, vacancyUnitId);
 
-      // Ticket 072: 完了ページへリダイレクト
-      router.push('/vacancies/thanks');
+      // Ticket 076: 本人確認フロー
+      if (data.verifyUrl) {
+        // Phase 1: 確認URLを画面に表示
+        setVerifyUrl(data.verifyUrl);
+        setPendingMessage(data.message);
+      } else {
+        // 従来のフロー（後方互換）
+        router.push('/vacancies/thanks');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '送信に失敗しました');
     } finally {
@@ -172,6 +182,54 @@ function InquiryFormContent() {
 
   // 連絡先が入力されているか
   const hasContact = contactPhone.trim() || contactEmail.trim();
+
+  // Ticket 076: 本人確認URL表示画面
+  if (verifyUrl) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
+            <Mail className="w-8 h-8 text-blue-600" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-800 mb-2">
+            あと1ステップ！
+          </h1>
+          <p className="text-gray-600 mb-6">
+            {pendingMessage || '下記のリンクをクリックして問い合わせを完了してください。'}
+          </p>
+
+          {/* Phase 1: 確認リンクを直接表示（デモ用） */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-gray-600 mb-2">確認リンク:</p>
+            <a
+              href={verifyUrl}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              <Send className="w-5 h-5" />
+              問い合わせを完了する
+            </a>
+          </div>
+
+          <div className="text-sm text-gray-500 space-y-2">
+            <p>※ 30分以内に確認を完了してください</p>
+            <p>※ このリンクは一度のみ有効です</p>
+          </div>
+
+          <div className="mt-6 pt-4 border-t">
+            <button
+              onClick={() => {
+                setVerifyUrl(null);
+                setPendingMessage(null);
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              別の連絡先で問い合わせる
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
