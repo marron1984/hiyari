@@ -5,13 +5,15 @@
  * Ticket 072: CTA最適化（フォーム簡略化・冪等性強化）
  * Ticket 073: 紹介元refトラッキング（バリデーション強化）
  * Ticket 076: 軽量本人確認（pending → verified → ticket作成）
+ * Ticket 077: 迷惑フィルタ（NGワード/連投/ブラックリスト）
  *
  * POST /api/vacancies/inquiry - 問い合わせ送信 → pending作成 → 確認URL返却
  *
  * フロー:
- * 1. pending を作成（tickets は作らない）
- * 2. verify URL を返却（Phase 1: 画面表示、Phase 2: メール送信）
- * 3. ユーザーが verify URL にアクセスすると tickets が作成される
+ * 1. スパムチェック（ブロックリスト/レートリミット/NGワード）
+ * 2. pending を作成（tickets は作らない）
+ * 3. verify URL を返却（Phase 1: 画面表示、Phase 2: メール送信）
+ * 4. ユーザーが verify URL にアクセスすると tickets が作成される
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -19,9 +21,9 @@ import { getByIdAsync, seedIfEmptyAsync } from '@/lib/vacancyUnits/repo';
 import { validateRef, seedRefSourcesIfEmpty, logRefAccess } from '@/lib/refSources/repo';
 import {
   createPending,
-  checkRateLimit,
   generateVerifyUrl,
 } from '@/lib/vacancyInquiryPending/repo';
+import { checkSpam } from '@/lib/spam/check';
 
 // Ticket 072: 拡張リクエスト型
 // Ticket 074: ref（紹介元）パラメータ追加
@@ -73,18 +75,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ticket 076: レートリミット
+    // クライアント情報取得
     const forwardedFor = request.headers.get('x-forwarded-for');
     const clientIp = forwardedFor?.split(',')[0]?.trim();
     const userAgent = request.headers.get('user-agent') ?? undefined;
 
-    const rateLimitResult = checkRateLimit(clientIp, contactEmail);
-    if (!rateLimitResult.allowed) {
+    // Ticket 077: スパムチェック（ブロックリスト/レートリミット/NGワード）
+    const spamResult = checkSpam(
+      {
+        name: contactName,
+        email: contactEmail,
+        phone: contactPhone,
+        memo: message,
+        conditions,
+        ref,
+      },
+      {
+        ip: clientIp,
+        userAgent,
+        path: '/api/vacancies/inquiry',
+      }
+    );
+
+    if (!spamResult.ok) {
+      const statusCode = spamResult.action === 'throttle' ? 429 : 403;
       return NextResponse.json(
-        {
-          error: `連続送信を制限しています。${rateLimitResult.waitSeconds}秒後に再試行してください。`,
-        },
-        { status: 429 }
+        { error: spamResult.reason || '送信できません' },
+        { status: statusCode }
       );
     }
 

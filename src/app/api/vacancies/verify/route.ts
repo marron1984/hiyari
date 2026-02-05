@@ -2,23 +2,25 @@
  * 空室問い合わせ確認API
  *
  * Ticket 076: 空室問い合わせの軽量本人確認
+ * Ticket 077: 迷惑フィルタ（IPレートリミット）
  *
  * POST /api/vacancies/verify - トークン検証 → チケット作成
  *
  * フロー:
- * 1. トークンを検証
- * 2. verified に更新
- * 3. tickets を作成（従来の処理をここで実行）
- * 4. 通知送信
+ * 1. IPスパムチェック
+ * 2. トークンを検証
+ * 3. verified に更新
+ * 4. tickets を作成（従来の処理をここで実行）
+ * 5. 通知送信
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createHash } from 'crypto';
-import { verifyToken, markAsVerified, getPendingById } from '@/lib/vacancyInquiryPending/repo';
+import { verifyToken, markAsVerified } from '@/lib/vacancyInquiryPending/repo';
 import { createTicket, listTickets } from '@/lib/tickets/repo';
 import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 import { CARE_LEVEL_LABELS } from '@/lib/vacancyUnits/types';
 import type { ViewerContext } from '@/lib/tickets/types';
+import { checkSpamForVerify } from '@/lib/spam/check';
 
 /**
  * 冪等性キー生成
@@ -45,6 +47,26 @@ function findExistingTicket(relatedId: string): boolean {
 
 export async function POST(request: NextRequest) {
   try {
+    // クライアント情報取得
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const clientIp = forwardedFor?.split(',')[0]?.trim();
+    const userAgent = request.headers.get('user-agent') ?? undefined;
+
+    // Ticket 077: IPスパムチェック
+    const spamResult = checkSpamForVerify({
+      ip: clientIp,
+      userAgent,
+      path: '/api/vacancies/verify',
+    });
+
+    if (!spamResult.ok) {
+      const statusCode = spamResult.action === 'throttle' ? 429 : 403;
+      return NextResponse.json(
+        { error: spamResult.reason || '確認できません' },
+        { status: statusCode }
+      );
+    }
+
     const body = await request.json();
     const { token } = body;
 
@@ -178,10 +200,6 @@ export async function POST(request: NextRequest) {
     );
 
     // pending を verified に更新
-    const forwardedFor = request.headers.get('x-forwarded-for');
-    const clientIp = forwardedFor?.split(',')[0]?.trim();
-    const userAgent = request.headers.get('user-agent') ?? undefined;
-
     markAsVerified(pending.id, ticket.id, clientIp, userAgent);
 
     // 担当者への通知
