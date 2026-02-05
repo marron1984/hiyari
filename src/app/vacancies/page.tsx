@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Card, Badge, Button } from '@/components/ui';
 import {
   Building2,
@@ -13,6 +13,11 @@ import {
   Phone,
   Mail,
   MessageSquare,
+  Search,
+  SlidersHorizontal,
+  ArrowUpDown,
+  X,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -48,6 +53,14 @@ interface PublicVacancyUnit {
   priceRangeJson: PriceRange;
 }
 
+interface ApiMeta {
+  areas: string[];
+  roomTypes: string[];
+  totalBeforeFilter: number;
+}
+
+type SortOption = 'availability' | 'date' | 'price' | 'name';
+
 // ===== ユーティリティ =====
 
 const CARE_LEVEL_LABELS: Record<number, string> = {
@@ -58,7 +71,13 @@ const CARE_LEVEL_LABELS: Record<number, string> = {
   5: '要介護5',
 };
 
-// Ticket 072: コンバージョン計測用セッションID
+const SORT_LABELS: Record<SortOption, string> = {
+  availability: '空室数順',
+  date: '入居可能日順',
+  price: '価格が安い順',
+  name: '施設名順',
+};
+
 function getOrCreateSessionId(): string {
   if (typeof window === 'undefined') return '';
   const key = 'vacancy_session_id';
@@ -70,11 +89,11 @@ function getOrCreateSessionId(): string {
   return sessionId;
 }
 
-// Ticket 072: イベント記録
 async function trackEvent(
-  eventType: 'view' | 'click_inquiry',
+  eventType: 'view' | 'click_inquiry' | 'filter_change',
   businessUnitId?: string | null,
-  vacancyUnitId?: string | null
+  vacancyUnitId?: string | null,
+  extra?: Record<string, unknown>
 ): Promise<void> {
   try {
     const sessionId = getOrCreateSessionId();
@@ -86,10 +105,11 @@ async function trackEvent(
         businessUnitId: businessUnitId || null,
         vacancyUnitId: vacancyUnitId || null,
         sessionId,
+        ...extra,
       }),
     });
   } catch {
-    // 失敗しても無視（ユーザー体験優先）
+    // 失敗しても無視
   }
 }
 
@@ -112,20 +132,181 @@ function formatPrice(min: number | null | undefined, max: number | null | undefi
   return 'お問い合わせください';
 }
 
-// ===== メインコンポーネント =====
+// ===== フィルタバーコンポーネント =====
 
-export default function PublicVacanciesPage() {
+interface FilterBarProps {
+  areas: string[];
+  roomTypes: string[];
+  selectedArea: string;
+  selectedRoomType: string;
+  selectedSort: SortOption;
+  onAreaChange: (area: string) => void;
+  onRoomTypeChange: (roomType: string) => void;
+  onSortChange: (sort: SortOption) => void;
+  onReset: () => void;
+  hasFilters: boolean;
+}
+
+function FilterBar({
+  areas,
+  roomTypes,
+  selectedArea,
+  selectedRoomType,
+  selectedSort,
+  onAreaChange,
+  onRoomTypeChange,
+  onSortChange,
+  onReset,
+  hasFilters,
+}: FilterBarProps) {
+  const [showFilters, setShowFilters] = useState(false);
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+      {/* モバイル用トグル */}
+      <div className="flex items-center justify-between md:hidden mb-3">
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center gap-2 text-gray-700 font-medium"
+        >
+          <SlidersHorizontal className="w-5 h-5" />
+          フィルタ・並び替え
+          {hasFilters && (
+            <Badge className="bg-blue-100 text-blue-700 text-xs">適用中</Badge>
+          )}
+        </button>
+        {hasFilters && (
+          <button
+            onClick={onReset}
+            className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+          >
+            <X className="w-4 h-4" />
+            リセット
+          </button>
+        )}
+      </div>
+
+      {/* フィルタコントロール */}
+      <div className={`${showFilters ? 'block' : 'hidden'} md:block`}>
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          {/* エリア選択 */}
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1">エリア</label>
+            <select
+              value={selectedArea}
+              onChange={(e) => onAreaChange(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">すべてのエリア</option>
+              {areas.map((area) => (
+                <option key={area} value={area}>
+                  {area}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 部屋タイプ選択 */}
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1">部屋タイプ</label>
+            <select
+              value={selectedRoomType}
+              onChange={(e) => onRoomTypeChange(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">すべてのタイプ</option>
+              {roomTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 並び替え */}
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1">並び替え</label>
+            <select
+              value={selectedSort}
+              onChange={(e) => onSortChange(e.target.value as SortOption)}
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              {(Object.keys(SORT_LABELS) as SortOption[]).map((key) => (
+                <option key={key} value={key}>
+                  {SORT_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* リセットボタン（デスクトップ） */}
+          {hasFilters && (
+            <div className="hidden md:block">
+              <label className="block text-xs text-transparent mb-1">.</label>
+              <button
+                onClick={onReset}
+                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg flex items-center gap-1"
+              >
+                <RefreshCw className="w-4 h-4" />
+                リセット
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== メインコンテンツ =====
+
+function VacanciesContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [units, setUnits] = useState<PublicVacancyUnit[]>([]);
+  const [meta, setMeta] = useState<ApiMeta>({ areas: [], roomTypes: [], totalBeforeFilter: 0 });
   const [loading, setLoading] = useState(true);
-  const [areaFilter, setAreaFilter] = useState<string>('');
   const [viewTracked, setViewTracked] = useState(false);
 
+  // URLからフィルタ状態を取得
+  const area = searchParams.get('area') || '';
+  const roomType = searchParams.get('roomType') || '';
+  const sort = (searchParams.get('sort') as SortOption) || 'availability';
+
+  const hasFilters = !!(area || roomType);
+
+  // URLを更新する関数
+  const updateUrl = useCallback(
+    (params: Record<string, string>) => {
+      const newParams = new URLSearchParams(searchParams.toString());
+      Object.entries(params).forEach(([key, value]) => {
+        if (value) {
+          newParams.set(key, value);
+        } else {
+          newParams.delete(key);
+        }
+      });
+      const newUrl = newParams.toString() ? `?${newParams.toString()}` : '/vacancies';
+      router.push(newUrl, { scroll: false });
+    },
+    [searchParams, router]
+  );
+
+  // データ取得
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
-        const res = await fetch('/api/public/vacancies');
+        const params = new URLSearchParams();
+        if (area) params.set('area', area);
+        if (roomType) params.set('roomType', roomType);
+        params.set('sort', sort);
+
+        const res = await fetch(`/api/public/vacancies?${params.toString()}`);
         const data = await res.json();
         setUnits(data.items || []);
+        setMeta(data.meta || { areas: [], roomTypes: [], totalBeforeFilter: 0 });
       } catch (error) {
         console.error('Fetch error:', error);
       } finally {
@@ -133,9 +314,9 @@ export default function PublicVacanciesPage() {
       }
     };
     fetchData();
-  }, []);
+  }, [area, roomType, sort]);
 
-  // Ticket 072: ページ表示をトラッキング（1回のみ）
+  // ページ表示トラッキング
   useEffect(() => {
     if (!loading && !viewTracked) {
       trackEvent('view');
@@ -143,24 +324,35 @@ export default function PublicVacanciesPage() {
     }
   }, [loading, viewTracked]);
 
-  // Ticket 072: 問い合わせクリックをトラッキング
-  const handleInquiryClick = useCallback((
-    businessUnitId?: string,
-    vacancyUnitId?: string
-  ) => {
-    trackEvent('click_inquiry', businessUnitId, vacancyUnitId);
-  }, []);
+  // フィルタ変更ハンドラ
+  const handleAreaChange = (newArea: string) => {
+    updateUrl({ area: newArea });
+    trackEvent('filter_change', null, null, { filterType: 'area', value: newArea });
+  };
 
-  // エリア一覧を取得
-  const areas = Array.from(new Set(units.map((u) => u.area)));
+  const handleRoomTypeChange = (newRoomType: string) => {
+    updateUrl({ roomType: newRoomType });
+    trackEvent('filter_change', null, null, { filterType: 'roomType', value: newRoomType });
+  };
 
-  // フィルタ適用
-  const filteredUnits = areaFilter
-    ? units.filter((u) => u.area === areaFilter)
-    : units;
+  const handleSortChange = (newSort: SortOption) => {
+    updateUrl({ sort: newSort });
+    trackEvent('filter_change', null, null, { filterType: 'sort', value: newSort });
+  };
+
+  const handleReset = () => {
+    router.push('/vacancies', { scroll: false });
+  };
+
+  const handleInquiryClick = useCallback(
+    (businessUnitId?: string, vacancyUnitId?: string) => {
+      trackEvent('click_inquiry', businessUnitId, vacancyUnitId);
+    },
+    []
+  );
 
   // 空室ありのみ
-  const availableUnits = filteredUnits.filter((u) => u.availableCount > 0);
+  const availableUnits = units.filter((u) => u.availableCount > 0);
 
   if (loading) {
     return (
@@ -190,7 +382,7 @@ export default function PublicVacanciesPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* サマリー */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
           <Card className="p-4 text-center bg-white">
             <div className="text-3xl font-bold text-blue-600">
               {availableUnits.reduce((sum, u) => sum + u.availableCount, 0)}
@@ -204,10 +396,7 @@ export default function PublicVacanciesPage() {
             <div className="text-sm text-gray-600">ご案内可能施設</div>
           </Card>
           <Card className="p-4 text-center bg-white md:col-span-1 col-span-2">
-            <Link
-              href="/vacancies/inquiry"
-              onClick={() => handleInquiryClick()}
-            >
+            <Link href="/vacancies/inquiry" onClick={() => handleInquiryClick()}>
               <Button className="w-full flex items-center justify-center gap-2">
                 <MessageSquare className="w-5 h-5" />
                 お問い合わせ
@@ -216,58 +405,76 @@ export default function PublicVacanciesPage() {
           </Card>
         </div>
 
-        {/* エリアフィルタ */}
-        {areas.length > 1 && (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-medium text-gray-600">エリア:</span>
-              <button
-                onClick={() => setAreaFilter('')}
-                className={`px-3 py-1 rounded-full text-sm ${
-                  !areaFilter
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                すべて
-              </button>
-              {areas.map((area) => (
-                <button
-                  key={area}
-                  onClick={() => setAreaFilter(area)}
-                  className={`px-3 py-1 rounded-full text-sm ${
-                    areaFilter === area
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {area}
-                </button>
-              ))}
-            </div>
+        {/* Ticket 080: フィルタバー */}
+        <FilterBar
+          areas={meta.areas}
+          roomTypes={meta.roomTypes}
+          selectedArea={area}
+          selectedRoomType={roomType}
+          selectedSort={sort}
+          onAreaChange={handleAreaChange}
+          onRoomTypeChange={handleRoomTypeChange}
+          onSortChange={handleSortChange}
+          onReset={handleReset}
+          hasFilters={hasFilters}
+        />
+
+        {/* 検索結果件数 */}
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm text-gray-600">
+            {hasFilters ? (
+              <>
+                <span className="font-medium">{availableUnits.length}件</span>
+                の施設が見つかりました
+                {meta.totalBeforeFilter > 0 && (
+                  <span className="text-gray-400 ml-1">
+                    （全{meta.totalBeforeFilter}件中）
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span className="font-medium">{availableUnits.length}件</span>
+                の施設をご案内中
+              </>
+            )}
+          </p>
+          <div className="flex items-center gap-1 text-xs text-gray-500">
+            <ArrowUpDown className="w-3 h-3" />
+            {SORT_LABELS[sort]}
           </div>
-        )}
+        </div>
 
         {/* 施設一覧 */}
         {availableUnits.length === 0 ? (
           <Card className="p-8 text-center bg-white">
             <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p className="text-gray-500">現在ご案内可能な空室がありません</p>
-            <p className="text-sm text-gray-400 mt-2">
-              お問い合わせいただければ、空き次第ご連絡いたします
+            <p className="text-gray-500">
+              {hasFilters
+                ? '条件に合う空室がありません'
+                : '現在ご案内可能な空室がありません'}
             </p>
-            <Link
-              href="/vacancies/inquiry"
-              className="mt-4 inline-block"
-              onClick={() => handleInquiryClick()}
-            >
-              <Button>お問い合わせ</Button>
-            </Link>
+            <p className="text-sm text-gray-400 mt-2">
+              条件が合わない場合もご相談ください。空き次第ご連絡いたします。
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 mt-4 justify-center">
+              {hasFilters && (
+                <Button variant="secondary" onClick={handleReset}>
+                  条件をリセット
+                </Button>
+              )}
+              <Link href="/vacancies/inquiry" onClick={() => handleInquiryClick()}>
+                <Button>お問い合わせ</Button>
+              </Link>
+            </div>
           </Card>
         ) : (
           <div className="grid md:grid-cols-2 gap-6">
             {availableUnits.map((unit) => (
-              <Card key={unit.id} className="p-6 bg-white hover:shadow-lg transition-shadow">
+              <Card
+                key={unit.id}
+                className="p-6 bg-white hover:shadow-lg transition-shadow"
+              >
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <h2 className="text-xl font-bold text-gray-900">
@@ -311,12 +518,13 @@ export default function PublicVacanciesPage() {
                   {unit.conditionsJson && (
                     <div className="flex items-center gap-2 flex-wrap">
                       <Heart className="w-4 h-4 text-pink-500" />
-                      {unit.conditionsJson.minCareLevel && unit.conditionsJson.maxCareLevel && (
-                        <Badge className="bg-gray-100 text-gray-700 text-xs">
-                          {CARE_LEVEL_LABELS[unit.conditionsJson.minCareLevel]}〜
-                          {CARE_LEVEL_LABELS[unit.conditionsJson.maxCareLevel]}
-                        </Badge>
-                      )}
+                      {unit.conditionsJson.minCareLevel &&
+                        unit.conditionsJson.maxCareLevel && (
+                          <Badge className="bg-gray-100 text-gray-700 text-xs">
+                            {CARE_LEVEL_LABELS[unit.conditionsJson.minCareLevel]}〜
+                            {CARE_LEVEL_LABELS[unit.conditionsJson.maxCareLevel]}
+                          </Badge>
+                        )}
                       {unit.conditionsJson.acceptsDementia && (
                         <Badge className="bg-purple-100 text-purple-700 text-xs">
                           認知症可
@@ -382,5 +590,28 @@ export default function PublicVacanciesPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+// ===== ローディングフォールバック =====
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <Building2 className="w-12 h-12 mx-auto mb-3 text-blue-500 animate-pulse" />
+        <p className="text-gray-500">読み込み中...</p>
+      </div>
+    </div>
+  );
+}
+
+// ===== メインコンポーネント =====
+
+export default function PublicVacanciesPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <VacanciesContent />
+    </Suspense>
   );
 }
