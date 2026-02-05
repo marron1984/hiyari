@@ -151,6 +151,8 @@ export interface DailyOpsWidget extends BaseWidget {
   lastRunOk: boolean | null;
   totalRuns: number;
   hasFailedRecently: boolean;
+  /** 失敗したステップ名（Ticket 067: 復旧導線用） */
+  failedSteps?: string[];
 }
 
 /**
@@ -161,6 +163,10 @@ export interface WeeklyOpsWidget extends BaseWidget {
   lastRunAt: string | null;
   lastRunOk: boolean | null;
   wbrDueDate: string | null;
+  /** 最近失敗があるか（Ticket 067） */
+  hasFailedRecently?: boolean;
+  /** 失敗したステップ名（Ticket 067: 復旧導線用） */
+  failedSteps?: string[];
 }
 
 /**

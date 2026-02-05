@@ -25,6 +25,9 @@ export {
   getRunByDate,
   hasSuccessfulRunToday,
   listRecentRuns,
+  getLatestRun,
+  hasFailedRecently,
+  getRecentFailedSteps,
   getRunStats,
   clearAllRuns,
 } from './repo';

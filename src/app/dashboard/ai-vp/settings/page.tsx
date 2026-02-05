@@ -67,6 +67,17 @@ interface PreviewResult {
   totalScore: number;
 }
 
+interface ComparisonResult {
+  current: {
+    label: string;
+    businessUnits: PreviewResult[];
+  };
+  preview: {
+    label: string;
+    businessUnits: PreviewResult[];
+  };
+}
+
 export default function AiVpSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -83,7 +94,7 @@ export default function AiVpSettingsPage() {
   // 063-fix: プリセットとプレビュー
   const [presets, setPresets] = useState<Preset[]>([]);
   const [showPresets, setShowPresets] = useState(false);
-  const [previewResults, setPreviewResults] = useState<PreviewResult[] | null>(null);
+  const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
   useEffect(() => {
@@ -285,7 +296,7 @@ export default function AiVpSettingsPage() {
     }
   };
 
-  // 063-fix: プレビュー
+  // 063-fix: プレビュー（Ticket 068: 現設定 vs 編集中の比較表示）
   const handlePreview = async () => {
     if (!config) return;
 
@@ -304,7 +315,16 @@ export default function AiVpSettingsPage() {
       }
 
       const data = await res.json();
-      setPreviewResults(data.preview.businessUnits);
+      // Ticket 068: comparison データを使用
+      if (data.comparison) {
+        setComparisonResult(data.comparison);
+      } else {
+        // 後方互換: 旧APIレスポンス形式にも対応
+        setComparisonResult({
+          current: { label: '現設定', businessUnits: data.preview.businessUnits },
+          preview: { label: '編集中', businessUnits: data.preview.businessUnits },
+        });
+      }
       setShowPreview(true);
     } catch (error) {
       console.error('Failed to preview:', error);
@@ -492,14 +512,14 @@ export default function AiVpSettingsPage() {
             </Card>
           )}
 
-          {/* プレビュー結果 */}
-          {showPreview && previewResults && (
+          {/* プレビュー結果（Ticket 068: 現設定 vs 編集中の比較表示） */}
+          {showPreview && comparisonResult && (
             <Card className="mb-6 border-purple-200 bg-purple-50">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center text-purple-700">
                     <Eye className="w-5 h-5 mr-2" />
-                    プレビュー結果（サンプルデータ）
+                    プレビュー比較（サンプルデータ）
                   </CardTitle>
                   <Button
                     variant="outline"
@@ -512,30 +532,81 @@ export default function AiVpSettingsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {previewResults.map((result) => (
-                    <div key={result.businessUnitId} className="p-3 bg-white rounded-lg">
-                      <p className="font-medium text-gray-900 mb-2">
-                        {result.businessUnitName}
-                        <span className="text-sm text-gray-500 ml-2">
-                          (合計スコア: {result.totalScore})
-                        </span>
-                      </p>
-                      {result.top3.length > 0 ? (
-                        <ul className="text-sm text-gray-600 space-y-1">
-                          {result.top3.map((item, i) => (
-                            <li key={item.key}>
-                              {i + 1}. {item.label} - {item.count}件 × {item.weight} = {item.score}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-sm text-gray-400">Top3なし</p>
-                      )}
-                    </div>
-                  ))}
+                  {/* 事業ごとに現設定と編集中を並べて表示 */}
+                  {comparisonResult.current.businessUnits.map((currentBU, index) => {
+                    const previewBU = comparisonResult.preview.businessUnits[index];
+                    const hasChanges = JSON.stringify(currentBU.top3) !== JSON.stringify(previewBU?.top3);
+
+                    return (
+                      <div key={currentBU.businessUnitId} className="p-3 bg-white rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="font-medium text-gray-900">
+                            {currentBU.businessUnitName}
+                          </p>
+                          {hasChanges && (
+                            <span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded">
+                              変更あり
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* 現設定 */}
+                          <div className="p-2 bg-gray-50 rounded">
+                            <p className="text-xs font-medium text-gray-500 mb-2">
+                              {comparisonResult.current.label}
+                              <span className="ml-1 text-gray-400">
+                                (スコア: {currentBU.totalScore})
+                              </span>
+                            </p>
+                            {currentBU.top3.length > 0 ? (
+                              <ul className="text-xs text-gray-600 space-y-1">
+                                {currentBU.top3.map((item, i) => (
+                                  <li key={item.key}>
+                                    {i + 1}. {item.label}: {item.score}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-xs text-gray-400">Top3なし</p>
+                            )}
+                          </div>
+
+                          {/* 編集中 */}
+                          <div className={`p-2 rounded ${hasChanges ? 'bg-purple-100' : 'bg-gray-50'}`}>
+                            <p className="text-xs font-medium text-purple-600 mb-2">
+                              {comparisonResult.preview.label}
+                              <span className="ml-1 text-purple-400">
+                                (スコア: {previewBU?.totalScore || 0})
+                              </span>
+                            </p>
+                            {previewBU && previewBU.top3.length > 0 ? (
+                              <ul className="text-xs text-gray-600 space-y-1">
+                                {previewBU.top3.map((item, i) => {
+                                  const currentItem = currentBU.top3.find(c => c.key === item.key);
+                                  const isNew = !currentItem;
+                                  const scoreChanged = currentItem && currentItem.score !== item.score;
+
+                                  return (
+                                    <li key={item.key} className={isNew ? 'text-green-600 font-medium' : scoreChanged ? 'text-purple-700' : ''}>
+                                      {i + 1}. {item.label}: {item.score}
+                                      {isNew && <span className="ml-1">(新規)</span>}
+                                      {scoreChanged && <span className="ml-1">({currentItem.score}→{item.score})</span>}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : (
+                              <p className="text-xs text-gray-400">Top3なし</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <p className="text-xs text-purple-600 mt-3">
-                  ※ これはプレビューです。実際のデータは保存されていません。
+                  ※ これはプレビューです。保存するまで実際のデータには反映されません。
                 </p>
               </CardContent>
             </Card>
