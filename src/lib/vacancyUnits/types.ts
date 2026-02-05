@@ -120,6 +120,7 @@ export interface VacancyUnitListFilter {
   businessUnitId?: string;
   status?: VacancyUnitStatus;
   area?: string;
+  roomType?: string;          // Ticket 075: 部屋タイプフィルタ
   hasAvailability?: boolean;  // availableCount > 0
   limit?: number;
   offset?: number;
@@ -184,9 +185,10 @@ export function canViewVacancyUnits(viewer: ViewerContext): boolean {
 
 /**
  * 空室ユニットを編集できるか
+ * Ticket 075: leader も編集可に
  */
 export function canEditVacancyUnits(viewer: ViewerContext): boolean {
-  return ['manager', 'executive', 'admin'].includes(viewer.role);
+  return ['leader', 'manager', 'executive', 'admin'].includes(viewer.role);
 }
 
 /**

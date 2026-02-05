@@ -2,13 +2,16 @@
  * 空室ユニット個別API
  *
  * Ticket 070: 空室 外部提示システム
+ * Ticket 075: 現場最速化（RBAC強化 + PATCH対応）
  *
  * GET /api/vacancy-units/[id] - 詳細取得
- * PUT /api/vacancy-units/[id] - 更新
+ * PUT /api/vacancy-units/[id] - 全体更新
+ * PATCH /api/vacancy-units/[id] - 部分更新（インライン編集用）
  * DELETE /api/vacancy-units/[id] - 削除
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import {
   getVacancyUnitById,
   updateVacancyUnit,
@@ -21,12 +24,23 @@ import {
 } from '@/lib/vacancyUnits/types';
 import type { AppRole } from '@/config/appRoles';
 
-// デモユーザー情報
-const DEMO_USER = {
+// デフォルトユーザー情報（ヘッダーから取得できない場合）
+const DEFAULT_USER = {
   id: 'user_003',
   name: '鈴木花子',
   role: 'manager' as AppRole,
 };
+
+/**
+ * リクエストヘッダーからユーザー情報を取得
+ */
+async function getUserFromHeaders() {
+  const headersList = await headers();
+  const userId = headersList.get('x-user-id') || DEFAULT_USER.id;
+  const userName = headersList.get('x-user-name') || DEFAULT_USER.name;
+  const role = (headersList.get('x-user-role') || DEFAULT_USER.role) as AppRole;
+  return { userId, userName, role };
+}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -35,8 +49,9 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    const { userId, role } = await getUserFromHeaders();
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId, role };
     if (!canViewVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '権限がありません' },
@@ -65,8 +80,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    const { userId, userName, role } = await getUserFromHeaders();
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId, role };
     if (!canEditVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '空室ユニットを編集する権限がありません' },
@@ -116,8 +132,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         priceRangeJson,
         status,
       },
-      DEMO_USER.id,
-      DEMO_USER.name
+      userId,
+      userName
     );
 
     if (!unit) {
@@ -137,11 +153,98 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
+/**
+ * PATCH - 部分更新（Ticket 075: インライン編集用）
+ *
+ * インライン編集で1フィールドずつ更新する場合に使用
+ */
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { id } = await params;
+    const { userId, userName, role } = await getUserFromHeaders();
+
+    const viewer = { userId, role };
+    if (!canEditVacancyUnits(viewer)) {
+      return NextResponse.json(
+        { error: '空室ユニットを編集する権限がありません' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+
+    // PATCH では送られてきたフィールドのみ更新
+    const allowedFields = [
+      'availableCount',
+      'availableFrom',
+      'status',
+      'buildingName',
+      'area',
+      'roomType',
+      'capacity',
+      'conditionsJson',
+      'priceRangeJson',
+    ];
+
+    const updateData: Record<string, unknown> = {};
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updateData[field] = body[field];
+      }
+    }
+
+    // バリデーション
+    if (updateData.capacity !== undefined && (typeof updateData.capacity !== 'number' || updateData.capacity < 0)) {
+      return NextResponse.json(
+        { error: '定員は0以上の数値で指定してください' },
+        { status: 400 }
+      );
+    }
+
+    if (updateData.availableCount !== undefined && (typeof updateData.availableCount !== 'number' || updateData.availableCount < 0)) {
+      return NextResponse.json(
+        { error: '空室数は0以上の数値で指定してください' },
+        { status: 400 }
+      );
+    }
+
+    if (updateData.status !== undefined && !['active', 'paused'].includes(updateData.status as string)) {
+      return NextResponse.json(
+        { error: 'ステータスは active または paused を指定してください' },
+        { status: 400 }
+      );
+    }
+
+    const unit = updateVacancyUnit(
+      id,
+      updateData,
+      userId,
+      userName
+    );
+
+    if (!unit) {
+      return NextResponse.json(
+        { error: '空室ユニットが見つかりません' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ unit });
+  } catch (error) {
+    console.error('vacancy-units PATCH error:', error);
+    return NextResponse.json(
+      { error: '空室ユニットの更新に失敗しました' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id } = await params;
+    const { userId, role } = await getUserFromHeaders();
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId, role };
     if (!canManageVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '空室ユニットを削除する権限がありません' },

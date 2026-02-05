@@ -44,6 +44,8 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   unclassified_scope: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
   // Ticket 071: 空室問い合わせSLA超過
   vacancy_inquiry_sla_breach: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+  // Ticket 075: 空室ユニット更新
+  vacancy_unit_updated: { icon: Bell, color: 'text-blue-600', bg: 'bg-blue-50' },
   system: { icon: Bell, color: 'text-zinc-600', bg: 'bg-zinc-50' },
 };
 

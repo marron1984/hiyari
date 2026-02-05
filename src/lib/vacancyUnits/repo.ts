@@ -2,12 +2,15 @@
  * 空室外部提示 リポジトリ
  *
  * Ticket 070: 空室 外部提示システム
+ * Ticket 075: 現場最速化（1クリック更新 + 履歴 + 通知）
  *
  * STORAGE_DRIVER=firestore の場合はFirestoreを使用
  */
 
 import { getStorageDriver } from '@/config/storage';
 import * as firestoreRepo from './repo.firestore';
+import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
+import { autoAssign } from '@/lib/assignment/autoAssign';
 import type {
   VacancyUnit,
   VacancyUpdate,
@@ -96,6 +99,10 @@ export async function listInternalAsync(filter: VacancyUnitListFilter = {}): Pro
   if (filter.area) {
     items = items.filter(u => u.area === filter.area);
   }
+  // Ticket 075: roomTypeフィルタ
+  if (filter.roomType) {
+    items = items.filter(u => u.roomType === filter.roomType);
+  }
   if (filter.hasAvailability) {
     items = items.filter(u => u.availableCount > 0);
   }
@@ -121,6 +128,10 @@ export function listVacancyUnits(filter: VacancyUnitListFilter = {}): {
   }
   if (filter.area) {
     items = items.filter(u => u.area === filter.area);
+  }
+  // Ticket 075: roomTypeフィルタ
+  if (filter.roomType) {
+    items = items.filter(u => u.roomType === filter.roomType);
   }
   if (filter.hasAvailability) {
     items = items.filter(u => u.availableCount > 0);
@@ -283,9 +294,78 @@ export function updateVacancyUnit(
       createdByUserId: actorUserId,
       createdByUserName: actorUserName,
     });
+
+    // Ticket 075: 重要変更時の通知
+    notifyImportantChangeAsync(existing, updated, changedFields).catch(console.error);
   }
 
   return updated;
+}
+
+// ========== Ticket 075: 重要変更通知 ==========
+
+/**
+ * 重要変更かどうか判定
+ * - availableCount の増減
+ * - availableFrom の変更
+ * - status が paused になった
+ */
+function isImportantChange(changedFields: Record<string, { before: unknown; after: unknown }>): boolean {
+  if (changedFields.availableCount) return true;
+  if (changedFields.availableFrom) return true;
+  if (changedFields.status && changedFields.status.after === 'paused') return true;
+  return false;
+}
+
+/**
+ * 重要変更時の通知を送信
+ */
+async function notifyImportantChangeAsync(
+  before: VacancyUnit,
+  after: VacancyUnit,
+  changedFields: Record<string, { before: unknown; after: unknown }>
+): Promise<void> {
+  if (!isImportantChange(changedFields)) return;
+
+  // 通知対象を取得（businessUnitのマネージャー）
+  const assignResult = autoAssign({
+    entityType: 'ticket',
+    businessUnitId: after.businessUnitId,
+  });
+  if (!assignResult.ok) return;
+
+  // 変更内容の説明を生成
+  const changes: string[] = [];
+  if (changedFields.availableCount) {
+    changes.push(`空室 ${changedFields.availableCount.before}→${changedFields.availableCount.after}`);
+  }
+  if (changedFields.availableFrom) {
+    const formatDate = (d: unknown) => d ? String(d).slice(0, 10) : '未定';
+    changes.push(`入居可 ${formatDate(changedFields.availableFrom.before)}→${formatDate(changedFields.availableFrom.after)}`);
+  }
+  if (changedFields.status) {
+    const statusLabels: Record<string, string> = { active: '公開中', paused: '一時停止' };
+    changes.push(`ステータス ${statusLabels[String(changedFields.status.before)] || changedFields.status.before}→${statusLabels[String(changedFields.status.after)] || changedFields.status.after}`);
+  }
+
+  // fingerprint: 1時間単位で重複排除
+  const hourKey = new Date().toISOString().slice(0, 13); // YYYY-MM-DDTHH
+  const fingerprint = `notif:vacancy_update:${after.id}:${hourKey}`;
+
+  try {
+    await createNotificationAsync({
+      tenantId: 'default',
+      userId: assignResult.assigneeUserId,
+      type: 'vacancy_unit_updated',
+      severity: changedFields.status?.after === 'paused' ? 'warning' : 'info',
+      title: `[空室更新] ${after.buildingName} ${after.roomType}`,
+      message: changes.join(', '),
+      url: `/dashboard/vacancies?businessUnitId=${after.businessUnitId}`,
+      fingerprint,
+    });
+  } catch (error) {
+    console.error('[VacancyUnits] Failed to send notification:', error);
+  }
 }
 
 // ========== 削除 ==========

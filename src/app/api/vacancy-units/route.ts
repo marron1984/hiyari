@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     const businessUnitId = searchParams.get('businessUnitId') ?? undefined;
     const status = searchParams.get('status') as VacancyUnitStatus | null;
     const area = searchParams.get('area') ?? undefined;
+    const roomType = searchParams.get('roomType') ?? undefined; // Ticket 075
     const hasAvailability = searchParams.get('hasAvailability') === 'true';
     const limit = searchParams.get('limit')
       ? parseInt(searchParams.get('limit')!, 10)
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest) {
       businessUnitId,
       status: status ?? undefined,
       area,
+      roomType, // Ticket 075
       hasAvailability: hasAvailability || undefined,
       limit,
       offset,

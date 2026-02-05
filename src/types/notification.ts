@@ -29,6 +29,7 @@ export type NotificationType =
   | 'business_scope_unclassified'  // Task 038: 未分類スコープ警告（正式名称）
   | 'unclassified_scope'    // Task 033: 未分類スコープ警告（レガシー）
   | 'vacancy_inquiry_sla_breach'   // Ticket 071: 空室問い合わせSLA超過
+  | 'vacancy_unit_updated'         // Ticket 075: 空室ユニット更新
   | 'system';               // システム通知
 
 // 通知
