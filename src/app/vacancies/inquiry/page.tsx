@@ -100,6 +100,9 @@ function InquiryFormContent() {
   // Ticket 072: 新しいURL設計に対応
   const businessUnitId = searchParams.get('businessUnitId');
   const vacancyUnitId = searchParams.get('vacancyUnitId') || searchParams.get('unitId'); // 後方互換
+  // Ticket 074: 紹介元パラメータ
+  const ref = searchParams.get('ref');
+  const refName = searchParams.get('refName');
 
   const [unit, setUnit] = useState<PublicVacancyUnit | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -144,6 +147,8 @@ function InquiryFormContent() {
           desiredMoveIn: desiredMoveIn || undefined,
           conditions: conditions || undefined,
           message: message || undefined,
+          ref: ref || undefined,          // Ticket 074: 紹介元
+          refName: refName || undefined,  // Ticket 074: 紹介元表示名
         }),
       });
 

@@ -37,6 +37,9 @@ import type { ViewerContext } from '@/lib/business/types';
 // Ticket 071: 空室問い合わせファネル
 import { getVacancyInquiryStats } from '@/lib/tickets/repo';
 import type { VacancyInquiryStats } from '@/lib/tickets/types';
+// Ticket 074: 紹介元（ref）別メトリクス
+import { buildVacancyInquiryRefMetrics } from '@/lib/wbr/buildVacancyInquiryRefMetrics';
+import type { RefMetric, RefMetricsResult } from '@/lib/wbr/buildVacancyInquiryRefMetrics';
 
 // WBRレポート型
 export interface WBRReport {
@@ -54,6 +57,7 @@ export interface WBRReport {
   businessTop3?: BusinessTop3Section;  // Task 042: 事業別Top3
   generatedTickets?: GeneratedTicketsSection;  // Task 043: 今週生成されたチケット
   vacancyInquiryFunnel?: VacancyInquiryFunnelSection;  // Ticket 071: 空室問い合わせファネル
+  refMetrics?: RefMetricsSection;  // Ticket 074: 紹介元別メトリクス
 }
 
 // ① 週次サマリー
@@ -160,6 +164,15 @@ export interface VacancyInquiryFunnelSection {
   totalActive: number;          // アクティブ案件総数
   slaBreachedCount: number;     // SLA超過中の件数
   conversionRate: number;       // 成約率（accepted / (accepted + rejected)）
+}
+
+// ⑩ 紹介元別メトリクス（Ticket 074）
+export interface RefMetricsSection {
+  topByInquiries: RefMetric[];  // 問い合わせ数上位5ref
+  topByConversion: RefMetric[]; // 成約率上位3ref（母数>=3）
+  notes: string[];              // 注目ポイント
+  weekStart: string;
+  weekEnd: string;
 }
 
 /**
@@ -578,6 +591,22 @@ export function generateWBR(date: Date = new Date(), viewer?: ViewerContext): WB
     };
   }
 
+  // Ticket 074: 紹介元別メトリクスを取得
+  let refMetrics: RefMetricsSection | undefined;
+  if (viewer) {
+    const refResult = buildVacancyInquiryRefMetrics(viewer);
+    // 問い合わせがある場合のみセクションを追加
+    if (refResult.topByInquiries.length > 0) {
+      refMetrics = {
+        topByInquiries: refResult.topByInquiries,
+        topByConversion: refResult.topByConversion,
+        notes: refResult.notes,
+        weekStart: refResult.weekStart,
+        weekEnd: refResult.weekEnd,
+      };
+    }
+  }
+
   const formatDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -596,6 +625,7 @@ export function generateWBR(date: Date = new Date(), viewer?: ViewerContext): WB
     businessTop3,
     generatedTickets,
     vacancyInquiryFunnel,
+    refMetrics,
   };
 }
 
@@ -763,6 +793,34 @@ export function exportWBRToText(report: WBRReport): string {
       lines.push(`  ⚠️ SLA超過中:   ${funnel.slaBreachedCount}件（要対応）`);
     }
     lines.push('');
+  }
+
+  // Ticket 074: 紹介元別メトリクス
+  if (report.refMetrics && report.refMetrics.topByInquiries.length > 0) {
+    const ref = report.refMetrics;
+    lines.push('■ 4.8. 紹介元別メトリクス（Ticket 074）');
+    lines.push('──────────────────────────────────────────────────────────────');
+    lines.push('【問い合わせ数上位】');
+    ref.topByInquiries.forEach((m, i) => {
+      const name = m.name || m.ref;
+      const slaIcon = m.slaComplianceRate >= 80 ? '✓' : '⚠️';
+      lines.push(`  ${i + 1}. ${name}: ${m.inquiries}件 (SLA遵守${m.slaComplianceRate}% ${slaIcon})`);
+      lines.push(`     → 連絡${m.contacted} / 見学${m.tour} / 申込${m.applied} / 成約${m.accepted} / 不成約${m.rejected}`);
+    });
+    lines.push('');
+    if (ref.topByConversion.length > 0) {
+      lines.push('【成約率上位】（母数3件以上）');
+      ref.topByConversion.forEach((m, i) => {
+        const name = m.name || m.ref;
+        lines.push(`  ${i + 1}. ${name}: 成約率${m.conversionRate}%（${m.accepted}成約/${m.inquiries}件）`);
+      });
+      lines.push('');
+    }
+    if (ref.notes.length > 0) {
+      lines.push('【注目ポイント】');
+      ref.notes.forEach((note) => lines.push(`  ・${note}`));
+      lines.push('');
+    }
   }
 
   // ⑤ 来週のアクション
@@ -1140,6 +1198,64 @@ export function exportWBRToHTML(report: WBRReport): string {
     </div>
     ` : ''}
   </div>
+  `
+      : ''
+  }
+
+  ${
+    report.refMetrics && report.refMetrics.topByInquiries.length > 0
+      ? `
+  <h2>4.8. 紹介元別メトリクス（Ticket 074）</h2>
+  <h4>問い合わせ数上位</h4>
+  <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+    <thead>
+      <tr style="background: #f1f5f9;">
+        <th style="padding: 12px; text-align: left; border: 1px solid #e2e8f0;">紹介元</th>
+        <th style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">問い合わせ</th>
+        <th style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">連絡</th>
+        <th style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">見学</th>
+        <th style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">申込</th>
+        <th style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">成約</th>
+        <th style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">SLA遵守</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${report.refMetrics.topByInquiries.map((m) => {
+        const name = m.name || m.ref;
+        const slaColor = m.slaComplianceRate >= 80 ? '#10b981' : '#ef4444';
+        return `
+        <tr>
+          <td style="padding: 12px; border: 1px solid #e2e8f0;">${name}</td>
+          <td style="padding: 12px; text-align: right; border: 1px solid #e2e8f0; font-weight: bold;">${m.inquiries}</td>
+          <td style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">${m.contacted}</td>
+          <td style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">${m.tour}</td>
+          <td style="padding: 12px; text-align: right; border: 1px solid #e2e8f0;">${m.applied}</td>
+          <td style="padding: 12px; text-align: right; border: 1px solid #e2e8f0; color: #10b981;">${m.accepted}</td>
+          <td style="padding: 12px; text-align: right; border: 1px solid #e2e8f0; color: ${slaColor};">${m.slaComplianceRate}%</td>
+        </tr>
+        `;
+      }).join('')}
+    </tbody>
+  </table>
+  ${report.refMetrics.topByConversion.length > 0 ? `
+    <h4>成約率上位（母数3件以上）</h4>
+    <div style="display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0;">
+      ${report.refMetrics.topByConversion.map((m) => {
+        const name = m.name || m.ref;
+        return `
+        <div class="kpi-card" style="background: #ecfdf5;">
+          <div>${name}</div>
+          <div class="kpi-value" style="color: #10b981;">${m.conversionRate}%</div>
+          <div style="font-size: 12px; color: #666;">成約率（${m.accepted}/${m.inquiries}件）</div>
+        </div>
+        `;
+      }).join('')}
+    </div>
+  ` : ''}
+  ${report.refMetrics.notes.length > 0 ? `
+    <h4>注目ポイント</h4>
+    ${report.refMetrics.notes.map((note) => `<div class="good-point">${note}</div>`).join('')}
+  ` : ''}
   `
       : ''
   }

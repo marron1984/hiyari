@@ -81,6 +81,16 @@ export type TicketEventAction =
   | 'update';
 
 /**
+ * Ticket 074: チケットメタデータ（紹介元など）
+ */
+export interface TicketMeta {
+  ref?: string;           // 紹介元（ref）コード
+  refName?: string;       // 紹介元表示名
+  vacancyUnitId?: string; // Ticket 072: 空室ユニットID
+  [key: string]: unknown;
+}
+
+/**
  * チケット
  */
 export interface Ticket {
@@ -100,6 +110,7 @@ export interface Ticket {
   resolvedAt: string | null;
   closedAt: string | null;
   tagsJson: string[] | null;
+  metaJson: TicketMeta | null;        // Ticket 074: メタデータ（ref等）
   relatedType: TicketRelatedType;
   relatedId: string | null;
   location: string | null;
@@ -160,6 +171,7 @@ export interface CreateTicketRequest {
   businessUnitId?: string | null;     // Task 030: 事業単位スコープ
   dueAt?: string | null;
   tags?: string[] | null;
+  meta?: TicketMeta | null;           // Ticket 074: メタデータ（ref等）
   relatedType?: TicketRelatedType;
   relatedId?: string | null;
   location?: string | null;

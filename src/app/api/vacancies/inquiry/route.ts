@@ -24,6 +24,7 @@ import { CARE_LEVEL_LABELS } from '@/lib/vacancyUnits/types';
 import type { ViewerContext } from '@/lib/tickets/types';
 
 // Ticket 072: 拡張リクエスト型
+// Ticket 074: ref（紹介元）パラメータ追加
 interface VacancyInquiryRequestV2 {
   vacancyUnitId?: string;
   businessUnitId?: string;
@@ -36,6 +37,8 @@ interface VacancyInquiryRequestV2 {
   specialNeedsDetail?: string;
   conditions?: string; // Ticket 072: 希望条件（選択式）
   message?: string;
+  ref?: string;        // Ticket 074: 紹介元コード
+  refName?: string;    // Ticket 074: 紹介元表示名
 }
 
 /**
@@ -97,6 +100,8 @@ export async function POST(request: NextRequest) {
       specialNeedsDetail,
       conditions,  // Ticket 072: 希望条件
       message,
+      ref,         // Ticket 074: 紹介元
+      refName,     // Ticket 074: 紹介元表示名
     } = body;
 
     // バリデーション - Ticket 072: 名前は任意に
@@ -190,6 +195,24 @@ export async function POST(request: NextRequest) {
     const displayName = contactName || contactPhone || contactEmail || '匿名';
     const titleSuffix = buildingName ? ` (${buildingName})` : '';
 
+    // Ticket 074: メタデータ構築（ref、vacancyUnitId）
+    const ticketMeta: Record<string, unknown> = {};
+    if (ref) {
+      ticketMeta.ref = ref;
+    }
+    if (refName) {
+      ticketMeta.refName = refName;
+    }
+    if (vacancyUnitId) {
+      ticketMeta.vacancyUnitId = vacancyUnitId;
+    }
+
+    // タグ構築（refがある場合はタグにも追加）
+    const tags = ['空室問い合わせ', '新規'];
+    if (ref) {
+      tags.push(`ref:${ref}`);
+    }
+
     // チケット作成（外部からの問い合わせなのでシステムユーザーとして作成）
     // autoAssign は createTicket 内で自動適用（057統合済み）
     const ticket = createTicket(
@@ -201,7 +224,8 @@ export async function POST(request: NextRequest) {
         businessUnitId: targetBusinessUnitId,
         relatedType: 'vacancy_inquiry',
         relatedId: idempotencyKey, // 冪等性キーをrelatedIdとして使用
-        tags: ['空室問い合わせ', '新規'],
+        tags,
+        meta: Object.keys(ticketMeta).length > 0 ? ticketMeta : undefined,  // Ticket 074
       },
       'system' // システムユーザーとして作成
     );
