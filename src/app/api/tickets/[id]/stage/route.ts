@@ -2,6 +2,7 @@
  * チケットステージ更新API
  *
  * Ticket 071: 空室問い合わせ CRM化
+ * Ticket 075: 空室更新提案の自動生成（accepted時）
  *
  * POST /api/tickets/[id]/stage - ステージ変更
  *
@@ -9,9 +10,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { changeTicketStage } from '@/lib/tickets/repo';
+import { changeTicketStage, getTicketById } from '@/lib/tickets/repo';
 import type { VacancyInquiryStage, ViewerContext } from '@/lib/tickets/types';
 import type { AppRole } from '@/config/appRoles';
+import {
+  createSuggestionForAcceptedInquiry,
+  handleRejectedInquiry,
+} from '@/lib/vacancySuggestions/repo';
 
 // デモユーザー情報
 const DEMO_USER = {
@@ -69,6 +74,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { error: result.error },
         { status: 400 }
       );
+    }
+
+    // Ticket 075: 空室更新提案の自動生成
+    const ticket = result.ticket;
+    if (ticket.relatedType === 'vacancy_inquiry') {
+      if (stage === 'accepted') {
+        // accepted になったら空室減少提案を生成
+        const vacancyUnitId = ticket.metaJson?.vacancyUnitId;
+        if (vacancyUnitId && ticket.businessUnitId) {
+          createSuggestionForAcceptedInquiry(
+            id,
+            ticket.businessUnitId,
+            vacancyUnitId
+          ).catch((error) => {
+            console.error('[Stage API] Failed to create vacancy suggestion:', error);
+          });
+        }
+      } else if (stage === 'rejected' || stage === 'closed') {
+        // rejected/closed の場合は既存の open 提案を通知
+        handleRejectedInquiry(id);
+      }
     }
 
     return NextResponse.json({
