@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, Badge, Button } from '@/components/ui';
 import {
   Building2,
@@ -57,6 +58,41 @@ const CARE_LEVEL_LABELS: Record<number, string> = {
   5: '要介護5',
 };
 
+// Ticket 072: コンバージョン計測用セッションID
+function getOrCreateSessionId(): string {
+  if (typeof window === 'undefined') return '';
+  const key = 'vacancy_session_id';
+  let sessionId = sessionStorage.getItem(key);
+  if (!sessionId) {
+    sessionId = `vs_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    sessionStorage.setItem(key, sessionId);
+  }
+  return sessionId;
+}
+
+// Ticket 072: イベント記録
+async function trackEvent(
+  eventType: 'view' | 'click_inquiry',
+  businessUnitId?: string | null,
+  vacancyUnitId?: string | null
+): Promise<void> {
+  try {
+    const sessionId = getOrCreateSessionId();
+    await fetch('/api/vacancy-analytics/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventType,
+        businessUnitId: businessUnitId || null,
+        vacancyUnitId: vacancyUnitId || null,
+        sessionId,
+      }),
+    });
+  } catch {
+    // 失敗しても無視（ユーザー体験優先）
+  }
+}
+
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '即入居可';
   const date = new Date(dateStr);
@@ -82,6 +118,7 @@ export default function PublicVacanciesPage() {
   const [units, setUnits] = useState<PublicVacancyUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [areaFilter, setAreaFilter] = useState<string>('');
+  const [viewTracked, setViewTracked] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -96,6 +133,22 @@ export default function PublicVacanciesPage() {
       }
     };
     fetchData();
+  }, []);
+
+  // Ticket 072: ページ表示をトラッキング（1回のみ）
+  useEffect(() => {
+    if (!loading && !viewTracked) {
+      trackEvent('view');
+      setViewTracked(true);
+    }
+  }, [loading, viewTracked]);
+
+  // Ticket 072: 問い合わせクリックをトラッキング
+  const handleInquiryClick = useCallback((
+    businessUnitId?: string,
+    vacancyUnitId?: string
+  ) => {
+    trackEvent('click_inquiry', businessUnitId, vacancyUnitId);
   }, []);
 
   // エリア一覧を取得
@@ -151,7 +204,10 @@ export default function PublicVacanciesPage() {
             <div className="text-sm text-gray-600">ご案内可能施設</div>
           </Card>
           <Card className="p-4 text-center bg-white md:col-span-1 col-span-2">
-            <Link href="/vacancies/inquiry">
+            <Link
+              href="/vacancies/inquiry"
+              onClick={() => handleInquiryClick()}
+            >
               <Button className="w-full flex items-center justify-center gap-2">
                 <MessageSquare className="w-5 h-5" />
                 お問い合わせ
@@ -200,7 +256,11 @@ export default function PublicVacanciesPage() {
             <p className="text-sm text-gray-400 mt-2">
               お問い合わせいただければ、空き次第ご連絡いたします
             </p>
-            <Link href="/vacancies/inquiry" className="mt-4 inline-block">
+            <Link
+              href="/vacancies/inquiry"
+              className="mt-4 inline-block"
+              onClick={() => handleInquiryClick()}
+            >
               <Button>お問い合わせ</Button>
             </Link>
           </Card>
@@ -276,7 +336,10 @@ export default function PublicVacanciesPage() {
                   )}
                 </div>
 
-                <Link href={`/vacancies/inquiry?unitId=${unit.id}`}>
+                <Link
+                  href={`/vacancies/inquiry?businessUnitId=${unit.businessUnitId}&vacancyUnitId=${unit.id}`}
+                  onClick={() => handleInquiryClick(unit.businessUnitId, unit.id)}
+                >
                   <Button className="w-full flex items-center justify-center gap-2">
                     <MessageSquare className="w-4 h-4" />
                     この施設について問い合わせる
@@ -298,7 +361,11 @@ export default function PublicVacanciesPage() {
             専門スタッフがご対応いたします。
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
-            <Link href="/vacancies/inquiry" className="flex-1">
+            <Link
+              href="/vacancies/inquiry"
+              className="flex-1"
+              onClick={() => handleInquiryClick()}
+            >
               <Button className="w-full flex items-center justify-center gap-2">
                 <Mail className="w-4 h-4" />
                 オンラインで問い合わせ
