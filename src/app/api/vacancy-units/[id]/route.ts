@@ -3,6 +3,7 @@
  *
  * Ticket 070: 空室 外部提示システム
  * Ticket 075: 現場最速化（RBAC強化 + PATCH対応）
+ * Ticket 076: キャッシュ戦略（更新時にrevalidate）
  *
  * GET /api/vacancy-units/[id] - 詳細取得
  * PUT /api/vacancy-units/[id] - 全体更新
@@ -22,6 +23,7 @@ import {
   canEditVacancyUnits,
   canManageVacancyUnits,
 } from '@/lib/vacancyUnits/types';
+import { revalidateVacanciesForBusinessUnit } from '@/lib/cache/vacancyTags';
 import type { AppRole } from '@/config/appRoles';
 
 // デフォルトユーザー情報（ヘッダーから取得できない場合）
@@ -143,6 +145,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Ticket 076: 公開キャッシュを無効化
+    revalidateVacanciesForBusinessUnit(unit.businessUnitId);
+
     return NextResponse.json({ unit });
   } catch (error) {
     console.error('vacancy-units PUT error:', error);
@@ -229,6 +234,9 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Ticket 076: 公開キャッシュを無効化
+    revalidateVacanciesForBusinessUnit(unit.businessUnitId);
+
     return NextResponse.json({ unit });
   } catch (error) {
     console.error('vacancy-units PATCH error:', error);
@@ -252,12 +260,21 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // 削除前にbusinessUnitIdを取得（キャッシュ無効化用）
+    const unit = getVacancyUnitById(id);
+    const businessUnitId = unit?.businessUnitId;
+
     const deleted = deleteVacancyUnit(id);
     if (!deleted) {
       return NextResponse.json(
         { error: '空室ユニットが見つかりません' },
         { status: 404 }
       );
+    }
+
+    // Ticket 076: 公開キャッシュを無効化
+    if (businessUnitId) {
+      revalidateVacanciesForBusinessUnit(businessUnitId);
     }
 
     return NextResponse.json({ success: true });
