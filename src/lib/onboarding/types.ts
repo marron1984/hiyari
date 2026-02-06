@@ -94,7 +94,8 @@ export type OnboardingEventAction =
   | 'requirement_applied'  // 要件バージョンを適用
   | 'reset_pending'        // pending に戻された
   | 'completed'            // 完了
-  | 'signed';              // 署名完了
+  | 'signed'               // 署名完了
+  | 'post_complete';       // Ticket 100: 完了後処理実行
 
 /**
  * オンボーディングイベント（監査ログ）

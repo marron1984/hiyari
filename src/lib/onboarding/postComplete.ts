@@ -11,7 +11,7 @@
 import { listCourses, listSessions, assignUsers } from '@/lib/training/repo';
 import { create as createNotification } from '@/lib/notifications/repo';
 import { getUserById } from '@/lib/roles/user-store';
-import { getUserOnboarding } from './repo';
+import { getUserOnboarding, logOnboardingEvent } from './repo';
 
 // ========== 型定義 ==========
 
@@ -163,6 +163,16 @@ export function handleOnboardingCompleted(userId: string): PostCompleteResult {
   } catch {
     // 通知作成に失敗しても処理は成功とする
   }
+
+  // 3. 監査ログの記録
+  logOnboardingEvent(userId, 'post_complete', {
+    toVersion: onboarding.appliedRequirementsVersion,
+    actorUserId: 'system',
+    note: JSON.stringify({
+      trainingsAssignedCount: result.trainingAssignments.length,
+      notificationsCreated: result.notificationCreated ? 1 : 0,
+    }),
+  });
 
   result.success = true;
   return result;
