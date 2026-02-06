@@ -44,7 +44,21 @@ export type TicketRelatedType =
   | 'alert'
   | 'ai_vp'             // Task 043: AI VP Business Top3 generated tickets
   | 'vacancy_inquiry'   // Ticket 070: 空室問い合わせ
+  | 'sales_next_action' // Ticket 123: 営業ネクストアクション
   | null;
+
+/**
+ * 営業タスク結果コード（Ticket 123/124）
+ */
+export type SalesResultCode =
+  | 'contacted'         // 連絡済み
+  | 'tour_scheduled'    // 見学日程確定
+  | 'applied'           // 申込
+  | 'accepted'          // 入居決定
+  | 'not_interested'    // 興味なし
+  | 'no_answer'         // 不通
+  | 'rescheduled'       // リスケ
+  | 'other';            // その他
 
 /**
  * チケットイベントアクション
@@ -61,6 +75,23 @@ export type TicketEventAction =
   | 'close'
   | 'reopen'
   | 'update';
+
+/**
+ * チケット
+ */
+/**
+ * チケットメタデータ（Ticket 123/124: 営業タスク結果等）
+ */
+export interface TicketMeta {
+  leadScore?: number;
+  nextBestAction?: string;
+  resultCode?: SalesResultCode;
+  resultNote?: string;
+  ref?: string;           // 紹介元
+  stage?: string;         // 営業ステージ
+  originTicketId?: string;
+  [key: string]: unknown;
+}
 
 /**
  * チケット
@@ -85,6 +116,7 @@ export interface Ticket {
   relatedType: TicketRelatedType;
   relatedId: string | null;
   location: string | null;
+  meta: TicketMeta | null;            // Ticket 123/124: 拡張メタデータ
   createdAt: string;
   updatedAt: string;
 }
@@ -140,6 +172,7 @@ export interface CreateTicketRequest {
   relatedType?: TicketRelatedType;
   relatedId?: string | null;
   location?: string | null;
+  meta?: TicketMeta | null;           // Ticket 123/124: 拡張メタデータ
 }
 
 /**

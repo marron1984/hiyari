@@ -289,6 +289,7 @@ export function createTicket(
     relatedType: input.relatedType ?? null,
     relatedId: input.relatedId ?? null,
     location: input.location ?? null,
+    meta: input.meta ?? null,
     createdAt: now,
     updatedAt: now,
   };
@@ -691,6 +692,7 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: '本館',
+      meta: null,
     },
     {
       title: '空調設備の点検依頼',
@@ -711,6 +713,7 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: '3階東棟',
+      meta: null,
     },
     {
       title: '新人研修資料の更新依頼',
@@ -731,6 +734,7 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: null,
+      meta: null,
     },
     {
       title: 'PCのログイン不具合',
@@ -751,6 +755,7 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: '事務室',
+      meta: null,
     },
     {
       title: '利用者様からの問い合わせ対応',
@@ -771,6 +776,7 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: null,
+      meta: null,
     },
     {
       title: '備品発注依頼（消耗品）',
@@ -791,6 +797,7 @@ export function seedTicketData(): void {
       relatedType: null,
       relatedId: null,
       location: null,
+      meta: null,
     },
   ];
 
