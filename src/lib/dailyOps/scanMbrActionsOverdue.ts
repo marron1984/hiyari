@@ -6,7 +6,6 @@
  * 検知条件:
  * - sourceType = 'mbr_focus'
  * - status in (open, in_progress, blocked)
- *   ※ blocked は pending_review で代用（CorrectiveActionStatus に blocked は無い）
  * - dueAt < now
  *
  * 分類:
@@ -43,7 +42,7 @@ export function scanMbrActionsOverdue(nowDate?: Date): MbrOverdueItem[] {
     limit: 1000,
   });
 
-  const activeStatuses = new Set(['open', 'in_progress', 'pending_review']);
+  const activeStatuses = new Set(['open', 'in_progress', 'blocked', 'pending_review']);
   const overdueItems: MbrOverdueItem[] = [];
 
   for (const action of items) {

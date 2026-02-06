@@ -52,7 +52,7 @@ function isDuplicate(sourceId: string): boolean {
     limit: 1000,
   });
   return items.some(
-    (ca) => ca.sourceId === sourceId && ['open', 'in_progress', 'pending_review'].includes(ca.status)
+    (ca) => ca.sourceId === sourceId && ['open', 'in_progress', 'blocked', 'pending_review'].includes(ca.status)
   );
 }
 

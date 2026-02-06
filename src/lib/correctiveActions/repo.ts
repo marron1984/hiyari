@@ -14,13 +14,18 @@ import type {
   CreateCorrectiveActionRequest,
   UpdateCorrectiveActionRequest,
   ViewerContext,
+  BlockCorrectiveActionRequest,
+  CorrectiveActionEvent,
+  CorrectiveActionEventAction,
 } from './types';
 import { canViewCorrectiveAction, canManageCorrectiveAction } from './types';
 
 // ========== ストレージ ==========
 
 const caStore = new Map<string, CorrectiveAction>();
+const eventsStore: CorrectiveActionEvent[] = [];
 let idCounter = 1;
+let eventIdCounter = 1;
 
 // ========== ユーティリティ ==========
 
@@ -211,6 +216,7 @@ export function create(
     verifiedAt: null,
     verifiedByUserId: null,
     verifiedByUserName: null,
+    meta: null,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -321,7 +327,7 @@ export function getStats(
     }
   }
 
-  const openStatuses: CorrectiveActionStatus[] = ['open', 'in_progress', 'pending_review'];
+  const openStatuses: CorrectiveActionStatus[] = ['open', 'in_progress', 'blocked', 'pending_review'];
   const openItems = items.filter((ca) => openStatuses.includes(ca.status));
   const criticalOpen = openItems.filter((ca) => ca.severity === 'critical').length;
   const overdueCount = items.filter(isOverdue).length;
@@ -363,10 +369,146 @@ export function getStats(
 // ========== 重大オープンスキャン ==========
 
 export function scanCriticalOpen(): CorrectiveAction[] {
-  const openStatuses: CorrectiveActionStatus[] = ['open', 'in_progress', 'pending_review'];
+  const openStatuses: CorrectiveActionStatus[] = ['open', 'in_progress', 'blocked', 'pending_review'];
   return Array.from(caStore.values()).filter(
     (ca) => openStatuses.includes(ca.status) && ca.severity === 'critical'
   );
+}
+
+// ========== Ticket 131: イベント記録 ==========
+
+function generateEventId(): string {
+  return `ca_ev_${String(eventIdCounter++).padStart(4, '0')}`;
+}
+
+function addEvent(
+  correctiveActionId: string,
+  action: CorrectiveActionEventAction,
+  actorUserId: string,
+  before?: Record<string, unknown>,
+  after?: Record<string, unknown>,
+  note?: string
+): CorrectiveActionEvent {
+  const event: CorrectiveActionEvent = {
+    id: generateEventId(),
+    correctiveActionId,
+    action,
+    actorUserId,
+    before,
+    after,
+    note,
+    createdAt: now(),
+  };
+  eventsStore.push(event);
+  return event;
+}
+
+export function listEvents(correctiveActionId: string): CorrectiveActionEvent[] {
+  return eventsStore
+    .filter((e) => e.correctiveActionId === correctiveActionId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+// ========== Ticket 131: ブロック/ブロック解除 ==========
+
+/**
+ * 是正措置をブロック状態にする
+ * - status を blocked に変更
+ * - meta に blockedReasonCode, blockedReasonNote, nextReviewAt を保存
+ * - events に blocked を記録
+ * RBAC: owner or manager
+ */
+export function blockAction(
+  id: string,
+  request: BlockCorrectiveActionRequest,
+  viewer: ViewerContext
+): { success: true; item: CorrectiveAction; event: CorrectiveActionEvent } | { success: false; error: string } {
+  const ca = caStore.get(id);
+  if (!ca) {
+    return { success: false, error: '是正措置が見つかりません' };
+  }
+  if (!canManageCorrectiveAction(viewer) && ca.ownerUserId !== viewer.userId) {
+    return { success: false, error: 'ブロック権限がありません' };
+  }
+
+  // blocked に変更できるステータス
+  const blockableStatuses: CorrectiveActionStatus[] = ['open', 'in_progress', 'pending_review'];
+  if (!blockableStatuses.includes(ca.status)) {
+    return { success: false, error: `現在のステータス（${ca.status}）からブロックに変更できません` };
+  }
+
+  const beforeState = { status: ca.status, meta: ca.meta };
+
+  ca.status = 'blocked';
+  ca.meta = {
+    ...(ca.meta ?? {}),
+    blockedReasonCode: request.blockedReasonCode,
+    blockedReasonNote: request.blockedReasonNote ?? null,
+    nextReviewAt: request.nextReviewAt ?? null,
+    blockedAt: now(),
+    blockedByUserId: viewer.userId,
+  };
+  ca.updatedAt = now();
+
+  const afterState = { status: ca.status, meta: ca.meta };
+
+  const event = addEvent(
+    id,
+    'blocked',
+    viewer.userId,
+    beforeState,
+    afterState,
+    `理由: ${request.blockedReasonCode}${request.blockedReasonNote ? ` / ${request.blockedReasonNote}` : ''}`
+  );
+
+  return { success: true, item: ca, event };
+}
+
+/**
+ * ブロック解除
+ * - status を指定された状態（open or in_progress）に変更
+ * - events に unblocked を記録
+ */
+export function unblockAction(
+  id: string,
+  newStatus: 'open' | 'in_progress',
+  viewer: ViewerContext
+): { success: true; item: CorrectiveAction; event: CorrectiveActionEvent } | { success: false; error: string } {
+  const ca = caStore.get(id);
+  if (!ca) {
+    return { success: false, error: '是正措置が見つかりません' };
+  }
+  if (!canManageCorrectiveAction(viewer) && ca.ownerUserId !== viewer.userId) {
+    return { success: false, error: 'ブロック解除権限がありません' };
+  }
+
+  if (ca.status !== 'blocked') {
+    return { success: false, error: '現在ブロック中ではありません' };
+  }
+
+  const beforeState = { status: ca.status, meta: ca.meta };
+
+  ca.status = newStatus;
+  // meta の blocked 情報はクリアせず履歴として残す
+  ca.meta = {
+    ...(ca.meta ?? {}),
+    unblockedAt: now(),
+    unblockedByUserId: viewer.userId,
+  };
+  ca.updatedAt = now();
+
+  const afterState = { status: ca.status, meta: ca.meta };
+
+  const event = addEvent(
+    id,
+    'unblocked',
+    viewer.userId,
+    beforeState,
+    afterState,
+    `ブロック解除 → ${newStatus}`
+  );
+
+  return { success: true, item: ca, event };
 }
 
 // ========== デモデータ ==========
@@ -466,6 +608,7 @@ function initDemoData(): void {
   items.forEach((item) => {
     const ca: CorrectiveAction = {
       ...item,
+      meta: null,
       id: generateId(),
       createdAt: twoDaysAgo.toISOString(),
       updatedAt: now.toISOString(),

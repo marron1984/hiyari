@@ -23,11 +23,13 @@ import type {
   CorrectiveActionSeverity,
   SourceType,
   CorrectiveActionStats,
+  BlockedReasonCode,
 } from '@/lib/correctiveActions/types';
 import {
   CA_STATUS_CONFIG,
   CA_SEVERITY_CONFIG,
   SOURCE_TYPE_CONFIG,
+  BLOCKED_REASON_CONFIG,
 } from '@/lib/correctiveActions/types';
 import type { BusinessUnit } from '@/lib/business/types';
 
@@ -94,7 +96,7 @@ export default function CorrectiveActionsPage() {
       // オープンタブの場合、ステータスでフィルタ
       if (activeTab === 'open' && !statusFilter) {
         records = records.filter((ca: CorrectiveAction) =>
-          ['open', 'in_progress', 'pending_review'].includes(ca.status)
+          ['open', 'in_progress', 'blocked', 'pending_review'].includes(ca.status)
         );
       }
 
@@ -328,9 +330,9 @@ export default function CorrectiveActionsPage() {
         ) : (
           <div className="space-y-3">
             {items.map((ca) => (
+              <Link key={ca.id} href={`/dashboard/corrective-actions/${ca.id}`}>
               <Card
-                key={ca.id}
-                className={`hover:shadow-md transition-all ${
+                className={`hover:shadow-md transition-all cursor-pointer ${
                   isOverdue(ca) ? 'border-red-300 bg-red-50/30' : ''
                 } ${ca.severity === 'critical' ? 'border-l-4 border-l-red-500' : ''}`}
               >
@@ -355,6 +357,12 @@ export default function CorrectiveActionsPage() {
                           {SOURCE_TYPE_CONFIG[ca.sourceType].icon}{' '}
                           {SOURCE_TYPE_CONFIG[ca.sourceType].label}
                         </Badge>
+                        {ca.status === 'blocked' && ca.meta && (
+                          <Badge className="bg-red-100 text-red-700 text-xs">
+                            {BLOCKED_REASON_CONFIG[(ca.meta as Record<string, unknown>).blockedReasonCode as BlockedReasonCode]?.icon}{' '}
+                            {BLOCKED_REASON_CONFIG[(ca.meta as Record<string, unknown>).blockedReasonCode as BlockedReasonCode]?.label ?? 'ブロック中'}
+                          </Badge>
+                        )}
                         {isOverdue(ca) && (
                           <Badge className="bg-red-100 text-red-700 text-xs flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3" />
@@ -398,6 +406,7 @@ export default function CorrectiveActionsPage() {
                   </div>
                 </CardContent>
               </Card>
+              </Link>
             ))}
           </div>
         )}

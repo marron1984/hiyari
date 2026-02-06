@@ -13,6 +13,7 @@ import type { AppRole } from '@/config/appRoles';
 export type CorrectiveActionStatus =
   | 'open'          // オープン
   | 'in_progress'   // 対応中
+  | 'blocked'       // ブロック中（Ticket 131）
   | 'pending_review'// レビュー待ち
   | 'completed'     // 完了
   | 'closed'        // クローズ
@@ -58,6 +59,7 @@ export interface CorrectiveAction {
   verifiedAt: string | null;
   verifiedByUserId: string | null;
   verifiedByUserName?: string | null;
+  meta?: Record<string, unknown> | null;  // Ticket 131: blocked理由等のメタデータ
   createdAt: string;
   updatedAt: string;
 }
@@ -134,6 +136,7 @@ export const CA_STATUS_CONFIG: Record<
 > = {
   open: { label: 'オープン', color: 'text-blue-700', bg: 'bg-blue-50' },
   in_progress: { label: '対応中', color: 'text-yellow-700', bg: 'bg-yellow-50' },
+  blocked: { label: 'ブロック中', color: 'text-red-700', bg: 'bg-red-50' },
   pending_review: { label: 'レビュー待ち', color: 'text-purple-700', bg: 'bg-purple-50' },
   completed: { label: '完了', color: 'text-green-700', bg: 'bg-green-50' },
   closed: { label: 'クローズ', color: 'text-zinc-600', bg: 'bg-zinc-100' },
@@ -161,6 +164,68 @@ export const SOURCE_TYPE_CONFIG: Record<
   manual: { label: '手動作成', icon: '✏️' },
   mbr_focus: { label: 'MBR改善', icon: '📊' },
 };
+
+// ========== Ticket 131: blocked理由テンプレート ==========
+
+/**
+ * ブロック理由コード
+ */
+export type BlockedReasonCode =
+  | 'waiting_customer'           // 相手待ち
+  | 'waiting_documents'          // 書類待ち
+  | 'waiting_internal_approval'  // 社内承認待ち
+  | 'waiting_vendor'             // 業者待ち
+  | 'resource_shortage'          // 人手不足
+  | 'unclear_requirement'        // 要件不明
+  | 'system_issue'               // システム問題
+  | 'other';                     // その他
+
+export const BLOCKED_REASON_CONFIG: Record<
+  BlockedReasonCode,
+  { label: string; icon: string }
+> = {
+  waiting_customer: { label: '相手待ち', icon: '👤' },
+  waiting_documents: { label: '書類待ち', icon: '📄' },
+  waiting_internal_approval: { label: '社内承認待ち', icon: '✋' },
+  waiting_vendor: { label: '業者待ち', icon: '🏢' },
+  resource_shortage: { label: '人手不足', icon: '👷' },
+  unclear_requirement: { label: '要件不明', icon: '❓' },
+  system_issue: { label: 'システム問題', icon: '🖥️' },
+  other: { label: 'その他', icon: '📝' },
+};
+
+export const BLOCKED_REASON_CODES = Object.keys(BLOCKED_REASON_CONFIG) as BlockedReasonCode[];
+
+/**
+ * ブロックリクエスト
+ */
+export interface BlockCorrectiveActionRequest {
+  blockedReasonCode: BlockedReasonCode;
+  blockedReasonNote?: string;
+  nextReviewAt?: string;  // ISO
+}
+
+/**
+ * 是正措置イベント（監査ログ）
+ */
+export type CorrectiveActionEventAction =
+  | 'created'
+  | 'updated'
+  | 'status_changed'
+  | 'blocked'
+  | 'unblocked'
+  | 'verified';
+
+export interface CorrectiveActionEvent {
+  id: string;
+  correctiveActionId: string;
+  action: CorrectiveActionEventAction;
+  actorUserId: string;
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+  note?: string;
+  createdAt: string;
+}
 
 // ========== 権限チェック ==========
 
