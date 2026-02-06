@@ -20,7 +20,7 @@ import type { VacancyInquiryRequest } from '@/lib/vacancyUnits/types';
 import { createTicket, listTickets } from '@/lib/tickets/repo';
 import { CARE_LEVEL_LABELS } from '@/lib/vacancyUnits/types';
 import { sanitizeString, sanitizeNumber, isValidEmail } from '@/lib/sanitize';
-import { create as createNotification } from '@/lib/notifications/repo';
+import { createNotificationServer } from '@/lib/notifications-server';
 
 /**
  * 冪等キー生成: 日付 + 連絡先hash → 同日同一連絡先からの二重送信を防ぐ
@@ -179,18 +179,20 @@ export async function POST(request: NextRequest) {
       'system'
     );
 
-    // 担当者への通知
+    // 担当者への通知（Admin SDK → Firestore永続化）
     if (ticket.assigneeUserId) {
       try {
-        createNotification({
+        await createNotificationServer({
           tenantId: 'default',
           userId: ticket.assigneeUserId,
           type: 'vacancy_inquiry',
-          severity: 'info',
           title: `空室問い合わせ: ${contactName}様`,
           message: `${buildingName || '施設'}への問い合わせが届きました。${contactPhone ? `TEL: ${contactPhone}` : ''}`,
-          url: `/dashboard/tickets/${ticket.id}`,
-          fingerprint: `vacancy_inquiry:${ticket.id}`,
+          actionUrl: `/dashboard/tickets/${ticket.id}`,
+          metadata: {
+            ticketId: ticket.id,
+            fingerprint: `vacancy_inquiry:${ticket.id}`,
+          },
         });
       } catch {
         // 通知失敗してもチケットは作成済み、エラーにしない
