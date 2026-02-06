@@ -292,6 +292,70 @@ export function handleRejectedInquiry(ticketId: string): void {
   }
 }
 
+/**
+ * vacancy_inquiry キャンセル/不成立時の空室復帰提案生成
+ *
+ * Ticket 091: キャンセル/不成立/退去で空室を戻す
+ *
+ * @param ticketId チケットID
+ * @param businessUnitId 事業単位ID
+ * @param vacancyUnitId 予約確定した空室情報ID（meta.reservedVacancyUnitId）
+ * @param stage 変更後のステージ（rejected/closed）
+ * @returns 作成された提案、または既存の提案がある場合はnull
+ */
+export async function createSuggestionForCanceledInquiry(
+  ticketId: string,
+  businessUnitId: string,
+  vacancyUnitId: string,
+  stage: 'rejected' | 'closed'
+): Promise<VacancyUpdateSuggestion | null> {
+  // 重複チェック：同じソースIDで increase_available かつ open な提案があれば作らない
+  // fingerprint: vacancy:suggest:increase:{ticketId}
+  const existingIncrease = Array.from(suggestionsStore.values()).find(
+    (s) =>
+      s.sourceId === ticketId &&
+      s.sourceType === 'vacancy_inquiry' &&
+      s.suggestionType === 'increase_available' &&
+      s.status === 'open'
+  );
+  if (existingIncrease) {
+    console.log(
+      `[VacancySuggestions] increase_available suggestion already exists for ticket ${ticketId}`
+    );
+    return null;
+  }
+
+  // 対象の vacancy_unit を取得
+  const vacancyUnit = await getVacancyUnitByIdAsync(vacancyUnitId);
+  if (!vacancyUnit) {
+    console.warn(`[VacancySuggestions] vacancyUnit not found: ${vacancyUnitId}`);
+    return null;
+  }
+
+  // 提案内容: availableCount を 1 増やす
+  const newAvailableCount = vacancyUnit.availableCount + 1;
+
+  const stageLabel = stage === 'rejected' ? '不成立' : 'クローズ';
+
+  const suggestion = createSuggestion({
+    businessUnitId,
+    vacancyUnitId,
+    suggestionType: 'increase_available',
+    suggestedPatchJson: {
+      availableCount: newAvailableCount,
+    },
+    reason: `問い合わせチケット(${ticketId})が${stageLabel}のため、空室を ${vacancyUnit.availableCount} → ${newAvailableCount} に戻す提案`,
+    sourceType: 'vacancy_inquiry',
+    sourceId: ticketId,
+  });
+
+  console.log(
+    `[VacancySuggestions] Created increase_available suggestion ${suggestion.id} for ticket ${ticketId}`
+  );
+
+  return suggestion;
+}
+
 // ========== 統計 ==========
 
 export function getSuggestionStats(businessUnitId?: string): {

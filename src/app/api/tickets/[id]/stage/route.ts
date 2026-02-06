@@ -3,6 +3,7 @@
  *
  * Ticket 071: 空室問い合わせ CRM化
  * Ticket 075: 空室更新提案の自動生成（accepted時）
+ * Ticket 091: キャンセル/不成立で空室を戻す（increase_available 提案の自動生成）
  *
  * POST /api/tickets/[id]/stage - ステージ変更
  *
@@ -15,6 +16,7 @@ import type { VacancyInquiryStage, ViewerContext } from '@/lib/tickets/types';
 import type { AppRole } from '@/config/appRoles';
 import {
   createSuggestionForAcceptedInquiry,
+  createSuggestionForCanceledInquiry,
   handleRejectedInquiry,
 } from '@/lib/vacancySuggestions/repo';
 
@@ -77,6 +79,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Ticket 075: 空室更新提案の自動生成
+    // Ticket 091: キャンセル/不成立で空室復帰提案の自動生成
     const ticket = result.ticket;
     if (ticket.relatedType === 'vacancy_inquiry') {
       if (stage === 'accepted') {
@@ -94,6 +97,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       } else if (stage === 'rejected' || stage === 'closed') {
         // rejected/closed の場合は既存の open 提案を通知
         handleRejectedInquiry(id);
+
+        // Ticket 091: reservedVacancyUnitId がある場合は空室復帰提案を生成
+        const reservedVacancyUnitId = ticket.metaJson?.reservedVacancyUnitId;
+        if (reservedVacancyUnitId && ticket.businessUnitId) {
+          createSuggestionForCanceledInquiry(
+            id,
+            ticket.businessUnitId,
+            reservedVacancyUnitId,
+            stage as 'rejected' | 'closed'
+          ).catch((error) => {
+            console.error('[Stage API] Failed to create increase suggestion:', error);
+          });
+        }
       }
     }
 
