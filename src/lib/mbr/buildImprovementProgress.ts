@@ -8,7 +8,8 @@
 import { listCorrectiveActions } from '@/lib/correctiveActions/repo';
 import type { CorrectiveAction, ViewerContext } from '@/lib/correctiveActions/types';
 import { getBlockedReasonsStats } from '@/lib/correctiveActions/statsBlockedReasons';
-import type { MbrImprovementProgressSection, MbrImprovementMonth, BlockedTopReason } from './types';
+import type { MbrImprovementProgressSection, MbrImprovementMonth, BlockedTopReason, BlockedReasonAdvice } from './types';
+import { getAdvicesForReasonCode } from './blockedActionTemplates';
 
 const SYSTEM_VIEWER: ViewerContext = { userId: 'system', role: 'admin' };
 
@@ -142,6 +143,14 @@ export function buildImprovementProgress(
     .slice(0, 3)
     .map((d) => ({ code: d.code, label: d.label, count: d.count }));
 
+  // Ticket 133: blocked理由 + 推奨アクション
+  const blockedReasonAdvices: BlockedReasonAdvice[] = blockedTopReasons.map((r) => ({
+    code: r.code,
+    label: r.label,
+    count: r.count,
+    advices: getAdvicesForReasonCode(r.code, 3),
+  }));
+
   return {
     byMonth,
     totalTasks,
@@ -150,5 +159,6 @@ export function buildImprovementProgress(
     blockedTop: blocked,
     overdueTop: overdue,
     blockedTopReasons,
+    blockedReasonAdvices,
   };
 }

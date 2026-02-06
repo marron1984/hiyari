@@ -589,19 +589,33 @@ ${mbr.sections.sales.resultDistribution.length > 0 ? `<table><tr><th>結果コ�
                 </Card>
               )}
 
-              {/* Ticket 132: blocked理由トップ3 */}
-              {mbr.sections.improvementProgress.blockedTopReasons?.length > 0 && (
+              {/* Ticket 133: 詰まり原因 + 推奨アクション */}
+              {mbr.sections.improvementProgress.blockedReasonAdvices?.length > 0 && (
                 <Card className="border-orange-200">
                   <CardHeader className="py-3 px-4">
-                    <CardTitle className="text-sm">詰まり原因トップ3</CardTitle>
+                    <CardTitle className="text-sm">詰まり原因と推奨アクション</CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 pb-4">
-                    <div className="space-y-2">
-                      {mbr.sections.improvementProgress.blockedTopReasons.map((reason, i) => (
-                        <div key={reason.code} className="flex items-center gap-3 p-2 bg-orange-50 rounded">
-                          <span className="text-sm font-bold text-orange-600 w-5 text-center">{i + 1}</span>
-                          <span className="text-xs text-zinc-700 flex-1">{reason.label}</span>
-                          <span className="text-xs font-medium text-orange-700">{reason.count}件</span>
+                    <div className="space-y-3">
+                      {mbr.sections.improvementProgress.blockedReasonAdvices.map((item, i) => (
+                        <div key={item.code} className="border border-orange-100 rounded-lg overflow-hidden">
+                          <div className="flex items-center gap-3 p-2 bg-orange-50">
+                            <span className="text-sm font-bold text-orange-600 w-5 text-center">{i + 1}</span>
+                            <span className="text-xs font-medium text-zinc-700 flex-1">{item.label}</span>
+                            <span className="text-xs font-medium text-orange-700">{item.count}件</span>
+                          </div>
+                          {item.advices.length > 0 && (
+                            <div className="px-3 py-2 bg-white">
+                              <ul className="space-y-1">
+                                {item.advices.map((advice, j) => (
+                                  <li key={j} className="text-xs text-zinc-600 flex items-start gap-1.5">
+                                    <span className="text-orange-400 mt-0.5 shrink-0">&#x25B8;</span>
+                                    <span>{advice}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
