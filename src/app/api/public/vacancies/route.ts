@@ -14,6 +14,7 @@ import {
   addViewLog,
   seedVacancyUnitsIfEmpty,
 } from '@/lib/vacancyUnits/repo';
+import { listPublic as listPublicFirestore } from '@/lib/vacancyUnits/repo.firestore';
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,7 +25,21 @@ export async function GET(request: NextRequest) {
     const businessUnitId = searchParams.get('businessUnitId') ?? undefined;
     const area = searchParams.get('area') ?? undefined;
 
-    const items = listPublicVacancyUnits({ businessUnitId, area });
+    // In-memory結果
+    const memoryItems = listPublicVacancyUnits({ businessUnitId, area });
+
+    // Firestoreからマージ（永続化された空室を含む）
+    let items = memoryItems;
+    try {
+      const fsItems = await listPublicFirestore({ businessUnitId, area });
+      if (fsItems.length > 0) {
+        const memoryIds = new Set(memoryItems.map((u) => u.id));
+        const newFromFs = fsItems.filter((u) => !memoryIds.has(u.id));
+        items = [...memoryItems, ...newFromFs];
+      }
+    } catch {
+      // Firestore接続失敗時はIn-memoryのみ
+    }
 
     // 閲覧ログ記録
     const forwardedFor = request.headers.get('x-forwarded-for');

@@ -13,6 +13,10 @@ import {
   createVacancyUnit,
   seedVacancyUnitsIfEmpty,
 } from '@/lib/vacancyUnits/repo';
+import {
+  saveUnit as saveUnitFirestore,
+  listAll as listAllFirestore,
+} from '@/lib/vacancyUnits/repo.firestore';
 import { canViewVacancyUnits, canManageVacancyUnits } from '@/lib/vacancyUnits/types';
 import type { VacancyUnitStatus } from '@/lib/vacancyUnits/types';
 import type { AppRole } from '@/config/appRoles';
@@ -50,14 +54,32 @@ export async function GET(request: NextRequest) {
       ? parseInt(searchParams.get('offset')!, 10)
       : 0;
 
-    const { items, total } = listVacancyUnits({
+    const filter = {
       businessUnitId,
       status: status ?? undefined,
       area,
       hasAvailability: hasAvailability || undefined,
       limit,
       offset,
-    });
+    };
+
+    // In-memory結果
+    const { items: memoryItems, total: memoryTotal } = listVacancyUnits(filter);
+
+    // Firestoreからマージ
+    let items = memoryItems;
+    let total = memoryTotal;
+    try {
+      const { items: fsItems } = await listAllFirestore(filter);
+      if (fsItems.length > 0) {
+        const memoryIds = new Set(memoryItems.map((u) => u.id));
+        const newFromFs = fsItems.filter((u) => !memoryIds.has(u.id));
+        items = [...memoryItems, ...newFromFs];
+        total = memoryTotal + newFromFs.length;
+      }
+    } catch {
+      // Firestore接続失敗時はIn-memoryのみ
+    }
 
     return NextResponse.json({
       items,
@@ -136,6 +158,13 @@ export async function POST(request: NextRequest) {
       DEMO_USER.id,
       DEMO_USER.name
     );
+
+    // Firestore永続化
+    try {
+      await saveUnitFirestore(unit);
+    } catch (e) {
+      console.error('vacancy unit firestore save failed:', e);
+    }
 
     return NextResponse.json({ unit }, { status: 201 });
   } catch (error) {

@@ -13,7 +13,14 @@ import {
   getVacancyUnitById,
   updateVacancyUnit,
   deleteVacancyUnit,
+  listVacancyUpdates,
 } from '@/lib/vacancyUnits/repo';
+import {
+  getById as getUnitFromFirestore,
+  saveUnit as saveUnitFirestore,
+  deleteUnit as deleteUnitFirestore,
+  saveUpdateLog as saveUpdateLogFirestore,
+} from '@/lib/vacancyUnits/repo.firestore';
 import {
   canViewVacancyUnits,
   canEditVacancyUnits,
@@ -44,7 +51,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const unit = getVacancyUnitById(id);
+    let unit = getVacancyUnitById(id);
+
+    // In-memoryに無い場合、Firestoreからフォールバック
+    if (!unit) {
+      try {
+        unit = await getUnitFromFirestore(id);
+      } catch {
+        // Firestore接続失敗
+      }
+    }
+
     if (!unit) {
       return NextResponse.json(
         { error: '空室ユニットが見つかりません' },
@@ -127,6 +144,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Firestore永続化（更新後の完全なユニットを保存 + 最新の差分ログ）
+    try {
+      await saveUnitFirestore(unit);
+      // 最新の変更ログをFirestoreにも保存
+      const recentLogs = listVacancyUpdates(id, 1);
+      if (recentLogs.length > 0) {
+        await saveUpdateLogFirestore(recentLogs[0]);
+      }
+    } catch (e) {
+      console.error('vacancy unit firestore update failed:', e);
+    }
+
     return NextResponse.json({ unit });
   } catch (error) {
     console.error('vacancy-units PUT error:', error);
@@ -150,6 +179,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const deleted = deleteVacancyUnit(id);
+
+    // Firestoreからも削除
+    try {
+      await deleteUnitFirestore(id);
+    } catch (e) {
+      console.error('vacancy unit firestore delete failed:', e);
+    }
+
     if (!deleted) {
       return NextResponse.json(
         { error: '空室ユニットが見つかりません' },
