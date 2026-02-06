@@ -2,6 +2,7 @@
  * オンボーディング状態取得API
  *
  * Ticket 093: 初回ログイン時の電子契約完了ゲート
+ * Ticket 094: 文書改訂時の再オンボーディング
  *
  * GET /api/onboarding/status - 現在のユーザーのオンボーディング状態を取得
  */
@@ -9,8 +10,8 @@
 import { NextResponse } from 'next/server';
 import type { AppRole } from '@/config/appRoles';
 import {
-  getUserOnboarding,
-  initializeUserOnboarding,
+  syncOnboardingForUser,
+  getCurrentRequirementsVersion,
 } from '@/lib/onboarding/repo';
 import { getUserById } from '@/lib/roles/user-store';
 
@@ -35,14 +36,13 @@ export async function GET() {
       );
     }
 
-    // オンボーディング情報を取得（なければ初期化）
-    let onboarding = getUserOnboarding(userId);
-    if (!onboarding) {
-      onboarding = initializeUserOnboarding(userId, user.role, []);
-    }
+    // Ticket 094: sync を呼んで最新状態を取得
+    const onboarding = syncOnboardingForUser(userId, user.role, []);
+    const currentVersion = getCurrentRequirementsVersion();
 
     return NextResponse.json({
       onboarding,
+      currentVersion,
       user: {
         id: user.id,
         name: user.name,

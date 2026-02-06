@@ -2,6 +2,7 @@
  * オンボーディング リポジトリ
  *
  * Ticket 093: 初回ログイン時の電子契約完了ゲート（本番対応版）
+ * Ticket 094: 文書改訂時の再オンボーディング
  *
  * - インメモリストレージ（デモ用）
  * - Firestore対応（本番用）
@@ -17,6 +18,8 @@ import type {
   RequiredDocItem,
   CreateOnboardingRequirementRequest,
   UpdateOnboardingRequirementRequest,
+  OnboardingEvent,
+  OnboardingEventAction,
 } from './types';
 import { isOnboardingTargetRole } from './types';
 import { getUserById } from '@/lib/roles/user-store';
@@ -31,9 +34,11 @@ const isFirestore = getStorageDriver() === 'firestore';
 const requirementsStore = new Map<string, OnboardingRequirement>();
 const userOnboardingStore = new Map<string, UserOnboarding>();
 const esignRecordsStore = new Map<string, ESignRecordData>();
+const onboardingEventsStore = new Map<string, OnboardingEvent>();
 
 let reqIdCounter = 1;
 let uobIdCounter = 1;
+let eventIdCounter = 1;
 
 function now(): string {
   return new Date().toISOString();
@@ -45,6 +50,10 @@ function generateReqId(): string {
 
 function generateUserOnboardingId(): string {
   return `uob_${Date.now()}_${uobIdCounter++}`;
+}
+
+function generateEventId(): string {
+  return `obe_${Date.now()}_${eventIdCounter++}`;
 }
 
 // ========== 署名レコード型（冪等ID用） ==========
@@ -103,6 +112,10 @@ export function createRequirement(
     scopeValue: request.scopeValue ?? null,
     requiredDocs: request.requiredDocs,
     isActive: request.isActive ?? true,
+    // Ticket 094: バージョン管理
+    requirementsVersion: 1,
+    updatedByUserId: request.actorUserId ?? null,
+    note: request.note ?? null,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -113,6 +126,8 @@ export function createRequirement(
 
 /**
  * オンボーディング要件を更新
+ *
+ * Ticket 094: requiredDocs変更時はバージョンを+1
  */
 export function updateRequirement(
   id: string,
@@ -121,11 +136,19 @@ export function updateRequirement(
   const requirement = requirementsStore.get(id);
   if (!requirement) return null;
 
+  // requiredDocs変更時はバージョンをインクリメント
   if (request.requiredDocs !== undefined) {
     requirement.requiredDocs = request.requiredDocs;
+    requirement.requirementsVersion += 1;
   }
   if (request.isActive !== undefined) {
     requirement.isActive = request.isActive;
+  }
+  if (request.note !== undefined) {
+    requirement.note = request.note;
+  }
+  if (request.actorUserId !== undefined) {
+    requirement.updatedByUserId = request.actorUserId;
   }
   requirement.updatedAt = now();
 
@@ -137,6 +160,16 @@ export function updateRequirement(
  */
 export function deleteRequirement(id: string): boolean {
   return requirementsStore.delete(id);
+}
+
+/**
+ * 現在のrequirementsVersionを取得
+ * 全アクティブ要件の最大バージョンを返す
+ */
+export function getCurrentRequirementsVersion(): number {
+  const activeRequirements = listRequirements({ isActive: true });
+  if (activeRequirements.length === 0) return 0;
+  return Math.max(...activeRequirements.map((r) => r.requirementsVersion));
 }
 
 // ========== ユーザー向け必須文書取得 ==========
@@ -213,6 +246,8 @@ export function getUserOnboarding(userId: string): UserOnboarding | null {
 
 /**
  * ユーザーオンボーディングを初期化
+ *
+ * Ticket 094: appliedRequirementsVersion を設定
  */
 export function initializeUserOnboarding(
   userId: string,
@@ -227,15 +262,18 @@ export function initializeUserOnboarding(
 
   // 必須文書を取得
   const requiredDocs = getRequiredDocsForUser(userId, role, orgUnitIds);
+  const currentVersion = getCurrentRequirementsVersion();
+  const timestamp = now();
 
   // 必須文書がなければ完了済みとする
   if (requiredDocs.length === 0) {
-    const timestamp = now();
     const onboarding: UserOnboarding = {
       id: generateUserOnboardingId(),
       userId,
       status: 'completed',
       requiredItems: [],
+      appliedRequirementsVersion: currentVersion,
+      appliedAt: timestamp,
       completedAt: timestamp,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -252,12 +290,13 @@ export function initializeUserOnboarding(
     status: 'pending',
   }));
 
-  const timestamp = now();
   const onboarding: UserOnboarding = {
     id: generateUserOnboardingId(),
     userId,
     status: 'pending',
     requiredItems,
+    appliedRequirementsVersion: currentVersion,
+    appliedAt: timestamp,
     completedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -449,6 +488,158 @@ export function reevaluateOnboardingStatus(userId: string): UserOnboarding | nul
   return onboarding;
 }
 
+// ========== オンボーディングイベント（監査ログ） ==========
+
+/**
+ * オンボーディングイベントを記録
+ */
+export function logOnboardingEvent(
+  userId: string,
+  action: OnboardingEventAction,
+  options: {
+    fromVersion?: number | null;
+    toVersion?: number | null;
+    actorUserId?: string | null;
+    note?: string | null;
+  } = {}
+): OnboardingEvent {
+  const event: OnboardingEvent = {
+    id: generateEventId(),
+    userId,
+    action,
+    fromVersion: options.fromVersion ?? null,
+    toVersion: options.toVersion ?? null,
+    actorUserId: options.actorUserId ?? null,
+    note: options.note ?? null,
+    createdAt: now(),
+  };
+  onboardingEventsStore.set(event.id, event);
+  return event;
+}
+
+/**
+ * ユーザーのオンボーディングイベント一覧を取得
+ */
+export function getOnboardingEventsForUser(userId: string): OnboardingEvent[] {
+  const events = Array.from(onboardingEventsStore.values())
+    .filter((e) => e.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return events;
+}
+
+// ========== 同期ロジック ==========
+
+/**
+ * ユーザーのオンボーディング状態を同期
+ *
+ * Ticket 094: requirements が更新されていたら状態を再評価
+ *
+ * 処理:
+ * 1. requiredDocs を取得
+ * 2. requirementsVersion を取得
+ * 3. user_onboarding が無いなら作成
+ * 4. appliedRequirementsVersion が異なる場合:
+ *    - status を pending に戻す
+ *    - requiredItems を再生成（既に署名済みは反映）
+ *    - appliedRequirementsVersion を更新
+ *    - イベントを記録
+ */
+export function syncOnboardingForUser(
+  userId: string,
+  role: AppRole,
+  orgUnitIds: string[] = []
+): UserOnboarding {
+  const currentVersion = getCurrentRequirementsVersion();
+  const requiredDocs = getRequiredDocsForUser(userId, role, orgUnitIds);
+  const signedVersionIds = getSignedDocumentVersionIds(userId);
+  const timestamp = now();
+
+  // 既存のオンボーディング情報を取得
+  let onboarding = userOnboardingStore.get(userId);
+
+  // なければ初期化
+  if (!onboarding) {
+    onboarding = initializeUserOnboarding(userId, role, orgUnitIds);
+
+    // 初期化時にイベントを記録
+    logOnboardingEvent(userId, 'requirement_applied', {
+      fromVersion: null,
+      toVersion: currentVersion,
+      note: '初回オンボーディング作成',
+    });
+
+    return onboarding;
+  }
+
+  // バージョンが同じなら何もしない
+  if (onboarding.appliedRequirementsVersion === currentVersion) {
+    return onboarding;
+  }
+
+  // バージョンが異なる場合は再同期
+  const oldVersion = onboarding.appliedRequirementsVersion;
+  const wasCompleted = onboarding.status === 'completed';
+
+  // 必須文書がなければ完了扱い
+  if (requiredDocs.length === 0) {
+    onboarding.status = 'completed';
+    onboarding.requiredItems = [];
+    onboarding.completedAt = onboarding.completedAt ?? timestamp;
+    onboarding.appliedRequirementsVersion = currentVersion;
+    onboarding.appliedAt = timestamp;
+    onboarding.updatedAt = timestamp;
+
+    logOnboardingEvent(userId, 'requirement_applied', {
+      fromVersion: oldVersion,
+      toVersion: currentVersion,
+      note: '必須文書なし - 完了扱い',
+    });
+
+    return onboarding;
+  }
+
+  // 新しい requiredItems を生成
+  const newRequiredItems: UserRequiredItem[] = requiredDocs.map((doc) => {
+    // 既に署名済みかチェック
+    const isSigned = signedVersionIds.includes(doc.documentVersionId);
+    return {
+      documentVersionId: doc.documentVersionId,
+      documentId: doc.documentId,
+      title: doc.title,
+      status: isSigned ? 'signed' : 'pending',
+      signedAt: isSigned ? timestamp : undefined,
+    };
+  });
+
+  // 全件署名済みかチェック
+  const allSigned = newRequiredItems.every((item) => item.status === 'signed');
+
+  // 状態を更新
+  onboarding.requiredItems = newRequiredItems;
+  onboarding.status = allSigned ? 'completed' : 'pending';
+  onboarding.completedAt = allSigned ? timestamp : null;
+  onboarding.appliedRequirementsVersion = currentVersion;
+  onboarding.appliedAt = timestamp;
+  onboarding.updatedAt = timestamp;
+
+  // イベントを記録
+  if (wasCompleted && !allSigned) {
+    logOnboardingEvent(userId, 'reset_pending', {
+      fromVersion: oldVersion,
+      toVersion: currentVersion,
+      note: '文書改訂により未完了に戻された',
+    });
+  } else {
+    logOnboardingEvent(userId, 'requirement_applied', {
+      fromVersion: oldVersion,
+      toVersion: currentVersion,
+      note: '要件バージョン更新',
+    });
+  }
+
+  return onboarding;
+}
+
 // ========== シードデータ ==========
 
 export function seedOnboardingRequirements(): void {
@@ -495,8 +686,10 @@ export function clearOnboardingStore(): void {
   requirementsStore.clear();
   userOnboardingStore.clear();
   esignRecordsStore.clear();
+  onboardingEventsStore.clear();
   reqIdCounter = 1;
   uobIdCounter = 1;
+  eventIdCounter = 1;
 }
 
 // 初期シード

@@ -2,6 +2,7 @@
  * オンボーディングゲート（サーバーサイド）
  *
  * Ticket 093: 初回ログイン時の電子契約完了ゲート
+ * Ticket 094: 文書改訂時の再オンボーディング
  *
  * Server Component から呼び出してオンボーディング状態をチェックし、
  * 未完了の場合は redirect() でオンボーディングページにリダイレクト
@@ -14,8 +15,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth/requireRole';
 import { isOnboardingTargetRole } from './types';
 import {
-  getUserOnboarding,
-  initializeUserOnboarding,
+  syncOnboardingForUser,
   getRequiredDocsForUser,
 } from './repo';
 
@@ -28,6 +28,10 @@ const EXEMPT_ROLES = ['admin', 'executive', 'manager', 'auditor'] as const;
  * オンボーディングゲートチェック
  *
  * Server Component から呼び出す。
+ *
+ * Ticket 094: ゲート前に syncOnboardingForUser を呼び、
+ *             requirements が更新されていたら状態を再評価
+ *
  * 未完了の場合は /onboarding/contracts にリダイレクト。
  */
 export async function checkOnboardingGate(): Promise<void> {
@@ -44,11 +48,8 @@ export async function checkOnboardingGate(): Promise<void> {
       return;
     }
 
-    // オンボーディング情報を取得（なければ初期化）
-    let onboarding = getUserOnboarding(user.id);
-    if (!onboarding) {
-      onboarding = initializeUserOnboarding(user.id, user.role, []);
-    }
+    // Ticket 094: 必ず sync を呼ぶ（requirements更新に追従）
+    const onboarding = syncOnboardingForUser(user.id, user.role, []);
 
     // 完了済みならスキップ
     if (onboarding.status === 'completed') {
@@ -75,6 +76,8 @@ export async function checkOnboardingGate(): Promise<void> {
 
 /**
  * オンボーディング状態を取得（UI表示用）
+ *
+ * Ticket 094: sync を呼んでから状態を返す
  */
 export async function getOnboardingState(): Promise<{
   isRequired: boolean;
@@ -95,21 +98,12 @@ export async function getOnboardingState(): Promise<{
       return { isRequired: false, isComplete: true, pendingCount: 0, totalCount: 0 };
     }
 
-    const onboarding = getUserOnboarding(user.id);
-    if (!onboarding) {
-      const requiredDocs = getRequiredDocsForUser(user.id, user.role, []);
-      return {
-        isRequired: requiredDocs.length > 0,
-        isComplete: requiredDocs.length === 0,
-        pendingCount: requiredDocs.length,
-        totalCount: requiredDocs.length,
-      };
-    }
-
+    // Ticket 094: sync を呼んで最新状態を取得
+    const onboarding = syncOnboardingForUser(user.id, user.role, []);
     const pendingCount = onboarding.requiredItems.filter((i) => i.status === 'pending').length;
 
     return {
-      isRequired: true,
+      isRequired: onboarding.requiredItems.length > 0,
       isComplete: onboarding.status === 'completed',
       pendingCount,
       totalCount: onboarding.requiredItems.length,
