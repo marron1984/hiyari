@@ -11,6 +11,7 @@ import {
   generateProspectKey,
 } from '@/types/prospect';
 import { getNextInternalNo } from '@/lib/prospect-admin';
+import { sanitizeString } from '@/lib/sanitize';
 
 // Firebase Admin初期化（サーバーサイド用）
 function getAdminFirestore() {
@@ -180,6 +181,15 @@ export async function POST(request: NextRequest) {
 
   const extracted = payload.extracted || {};
 
+  // Webhook入力のサニタイズ（外部データのため必須）
+  const san = (key: string, ...altKeys: string[]): string | null => {
+    for (const k of [key, ...altKeys]) {
+      const v = sanitizeString(extracted[k], 500);
+      if (v) return v;
+    }
+    return null;
+  };
+
   try {
     const db = getAdminFirestore();
     const now = Timestamp.now();
@@ -187,13 +197,13 @@ export async function POST(request: NextRequest) {
     // 社内Noを自動付番（トランザクションで重複を防止）
     const internalNo = await getNextInternalNo();
 
-    // データマッピング
-    const customerName = (extracted['顧客名'] || extracted['お名前'] || '') as string;
+    // データマッピング（サニタイズ済み）
+    const customerName = san('顧客名', 'お名前') || '';
     const ageValue = extracted['年齢'];
     const age = typeof ageValue === 'number' ? ageValue : parseInt(ageValue as string) || null;
-    const inquiryDate = (extracted['問い合わせ日'] || '') as string;
-    const salesCompanyName = (extracted['営業会社名'] || extracted['御社名'] || '') as string;
-    const salesRepName = (extracted['営業担当者名'] || extracted['ご担当者名'] || '') as string;
+    const inquiryDate = san('問い合わせ日') || '';
+    const salesCompanyName = san('営業会社名', '御社名') || '';
+    const salesRepName = san('営業担当者名', 'ご担当者名') || '';
 
     // 重複判定キー生成
     const prospectKey = generateProspectKey({
@@ -234,57 +244,57 @@ export async function POST(request: NextRequest) {
       assigneeId: null,
       assigneeName: null,
 
-      // 顧客情報
+      // 顧客情報（サニタイズ済み）
       customerName: customerName || null,
       age: age,
-      gender: (extracted['性別'] || null) as string | null,
-      careLevel: (extracted['介護度'] || extracted['介護度・障害区分'] || null) as string | null,
-      disabilityCategory: (extracted['障害区分'] || null) as string | null,
+      gender: san('性別'),
+      careLevel: san('介護度', '介護度・障害区分'),
+      disabilityCategory: san('障害区分'),
 
       // 費用
-      budget: (extracted['費用'] || null) as string | null,
-      budgetDetail: (extracted['費用詳細'] || null) as string | null,
-      monthlyBudget: (extracted['月額希望'] || null) as string | null,
+      budget: san('費用'),
+      budgetDetail: san('費用詳細'),
+      monthlyBudget: san('月額希望'),
 
       // ADL
-      adlSummary: (extracted['ADL状況'] || null) as string | null,
-      adlDetail: (extracted['ADL詳細'] || null) as string | null,
+      adlSummary: san('ADL状況'),
+      adlDetail: san('ADL詳細'),
       adl: {
-        standing: (extracted['ADL立位'] || extracted['立位'] || null) as string | null,
-        bathing: (extracted['入浴'] || null) as string | null,
-        eating: (extracted['食事'] || null) as string | null,
-        toileting: (extracted['排泄'] || null) as string | null,
-        other: (extracted['ADLその他'] || null) as string | null,
+        standing: san('ADL立位', '立位'),
+        bathing: san('入浴'),
+        eating: san('食事'),
+        toileting: san('排泄'),
+        other: san('ADLその他'),
       },
 
       // 状況
-      debtStatus: (extracted['借金有無'] || null) as string | null,
-      currentSituation: (extracted['現在状況'] || null) as string | null,
-      currentAddress: (extracted['現在のお住い・入院病院'] || extracted['現在のお住い'] || null) as string | null,
-      currentDetail: (extracted['現在の詳細状況'] || null) as string | null,
+      debtStatus: san('借金有無'),
+      currentSituation: san('現在状況'),
+      currentAddress: san('現在のお住い・入院病院', '現在のお住い'),
+      currentDetail: san('現在の詳細状況'),
 
       // 入居希望
-      desiredFacility: (extracted['入居場所'] || extracted['希望施設'] || null) as string | null,
-      desiredMoveInDate: (extracted['入居予定日'] || null) as string | null,
-      entertainmentWish: (extracted['エント希望'] || extracted['エント'] || null) as string | null,
-      tourRequestDate: (extracted['見学希望日'] || null) as string | null,
+      desiredFacility: san('入居場所', '希望施設'),
+      desiredMoveInDate: san('入居予定日'),
+      entertainmentWish: san('エント希望', 'エント'),
+      tourRequestDate: san('見学希望日'),
 
       // 面談・連絡
-      interviewDateTime: (extracted['面談日時'] || null) as string | null,
-      keyPerson: (extracted['キーパーソン'] || null) as string | null,
-      otherNotes: (extracted['その他備考'] || extracted['その他'] || null) as string | null,
+      interviewDateTime: san('面談日時'),
+      keyPerson: san('キーパーソン'),
+      otherNotes: san('その他備考', 'その他'),
 
       // 営業会社
       salesCompanyName: salesCompanyName || null,
       salesRepName: salesRepName || null,
-      salesRepContact: (extracted['ご連絡先'] || null) as string | null,
+      salesRepContact: san('ご連絡先'),
 
       // 問い合わせ
       inquiryDate: inquiryDate || null,
 
       // ソース
-      source: payload.source,
-      rawTranscript: payload.raw_transcript || null,
+      source: sanitizeString(payload.source, 100) || 'unknown',
+      rawTranscript: sanitizeString(payload.raw_transcript, 50000),
       rawPayload: extracted,
 
       // 重複

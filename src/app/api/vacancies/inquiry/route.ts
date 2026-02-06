@@ -17,6 +17,7 @@ import { getVacancyUnitById, seedVacancyUnitsIfEmpty } from '@/lib/vacancyUnits/
 import type { VacancyInquiryRequest } from '@/lib/vacancyUnits/types';
 import { createTicket } from '@/lib/tickets/repo';
 import { CARE_LEVEL_LABELS } from '@/lib/vacancyUnits/types';
+import { sanitizeString, sanitizeNumber, isValidEmail } from '@/lib/sanitize';
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,18 +25,17 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json() as VacancyInquiryRequest;
 
-    const {
-      vacancyUnitId,
-      businessUnitId,
-      contactName,
-      contactPhone,
-      contactEmail,
-      desiredMoveIn,
-      careLevel,
-      hasSpecialNeeds,
-      specialNeedsDetail,
-      message,
-    } = body;
+    // 入力サニタイズ（公開フォームのため必須）
+    const contactName = sanitizeString(body.contactName, 100);
+    const contactPhone = sanitizeString(body.contactPhone, 20);
+    const contactEmail = sanitizeString(body.contactEmail, 254);
+    const desiredMoveIn = sanitizeString(body.desiredMoveIn, 100);
+    const careLevel = sanitizeNumber(body.careLevel, { min: 0, max: 5 });
+    const hasSpecialNeeds = !!body.hasSpecialNeeds;
+    const specialNeedsDetail = sanitizeString(body.specialNeedsDetail, 2000);
+    const message = sanitizeString(body.message, 5000);
+    const vacancyUnitId = sanitizeString(body.vacancyUnitId, 128);
+    const businessUnitId = sanitizeString(body.businessUnitId, 128);
 
     // バリデーション
     if (!contactName) {
@@ -48,6 +48,13 @@ export async function POST(request: NextRequest) {
     if (!contactPhone && !contactEmail) {
       return NextResponse.json(
         { error: '電話番号またはメールアドレスのいずれかは必須です' },
+        { status: 400 }
+      );
+    }
+
+    if (contactEmail && !isValidEmail(contactEmail)) {
+      return NextResponse.json(
+        { error: 'メールアドレスの形式が正しくありません' },
         { status: 400 }
       );
     }
@@ -86,7 +93,7 @@ export async function POST(request: NextRequest) {
     if (desiredMoveIn) {
       descriptionParts.push(`入居希望時期: ${desiredMoveIn}`);
     }
-    if (careLevel !== undefined) {
+    if (careLevel != null) {
       descriptionParts.push(`介護度: ${CARE_LEVEL_LABELS[careLevel] ?? `要介護${careLevel}`}`);
     }
     if (hasSpecialNeeds) {
