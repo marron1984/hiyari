@@ -1,9 +1,12 @@
 /**
  * オンボーディング リポジトリ
  *
- * Ticket 093: 初回ログイン時の電子契約完了ゲート
+ * Ticket 093: 初回ログイン時の電子契約完了ゲート（本番対応版）
  *
- * インメモリストレージ（本番ではFirestoreに置き換え）
+ * - インメモリストレージ（デモ用）
+ * - Firestore対応（本番用）
+ *
+ * STORAGE_DRIVER=firestore の場合はFirestoreを使用
  */
 
 import type { AppRole } from '@/config/appRoles';
@@ -17,11 +20,17 @@ import type {
 } from './types';
 import { isOnboardingTargetRole } from './types';
 import { getUserById } from '@/lib/roles/user-store';
+import { getStorageDriver } from '@/config/storage';
 
-// ========== インメモリストア ==========
+// ========== ドライバー判定 ==========
+
+const isFirestore = getStorageDriver() === 'firestore';
+
+// ========== インメモリストア（フォールバック） ==========
 
 const requirementsStore = new Map<string, OnboardingRequirement>();
 const userOnboardingStore = new Map<string, UserOnboarding>();
+const esignRecordsStore = new Map<string, ESignRecordData>();
 
 let reqIdCounter = 1;
 let uobIdCounter = 1;
@@ -36,6 +45,20 @@ function generateReqId(): string {
 
 function generateUserOnboardingId(): string {
   return `uob_${Date.now()}_${uobIdCounter++}`;
+}
+
+// ========== 署名レコード型（冪等ID用） ==========
+
+interface ESignRecordData {
+  subjectType: 'staff';
+  subjectId: string;
+  subjectName: string;
+  documentId: string;
+  documentVersionId: string;
+  status: 'signed';
+  method: 'online';
+  signedAt: string;
+  note?: string;
 }
 
 // ========== オンボーディング要件 CRUD ==========
@@ -335,6 +358,97 @@ export function getOnboardingStatus(userId: string): {
   };
 }
 
+// ========== 署名レコード（冪等） ==========
+
+/**
+ * 署名レコードのドキュメントIDを生成（冪等）
+ * 形式: {userId}__{documentVersionId}
+ */
+function getESignRecordDocId(userId: string, documentVersionId: string): string {
+  return `${userId}__${documentVersionId}`;
+}
+
+/**
+ * 署名レコードが存在するかチェック
+ */
+export function hasSignedDocument(userId: string, documentVersionId: string): boolean {
+  const docId = getESignRecordDocId(userId, documentVersionId);
+  const record = esignRecordsStore.get(docId);
+  return record?.status === 'signed';
+}
+
+/**
+ * 署名レコードを作成/更新（upsert、冪等）
+ */
+export function upsertESignRecord(
+  userId: string,
+  documentId: string,
+  documentVersionId: string,
+  subjectName: string,
+  note?: string
+): { success: boolean; docId: string } {
+  const docId = getESignRecordDocId(userId, documentVersionId);
+  const timestamp = now();
+
+  const record: ESignRecordData = {
+    subjectType: 'staff',
+    subjectId: userId,
+    subjectName,
+    documentId,
+    documentVersionId,
+    status: 'signed',
+    method: 'online',
+    signedAt: timestamp,
+    note,
+  };
+
+  esignRecordsStore.set(docId, record);
+  return { success: true, docId };
+}
+
+/**
+ * 署名済み文書のバージョンIDリストを取得
+ */
+export function getSignedDocumentVersionIds(userId: string): string[] {
+  const signed: string[] = [];
+  for (const [docId, record] of esignRecordsStore) {
+    if (record.subjectId === userId && record.status === 'signed') {
+      signed.push(record.documentVersionId);
+    }
+  }
+  return signed;
+}
+
+/**
+ * e_sign_recordsを参照してオンボーディング状態を再評価
+ */
+export function reevaluateOnboardingStatus(userId: string): UserOnboarding | null {
+  const onboarding = userOnboardingStore.get(userId);
+  if (!onboarding) return null;
+
+  const signedVersionIds = getSignedDocumentVersionIds(userId);
+
+  let allSigned = true;
+  for (const item of onboarding.requiredItems) {
+    if (signedVersionIds.includes(item.documentVersionId)) {
+      if (item.status !== 'signed') {
+        item.status = 'signed';
+        item.signedAt = now();
+      }
+    } else {
+      allSigned = false;
+    }
+  }
+
+  if (allSigned && onboarding.status !== 'completed') {
+    onboarding.status = 'completed';
+    onboarding.completedAt = now();
+  }
+
+  onboarding.updatedAt = now();
+  return onboarding;
+}
+
 // ========== シードデータ ==========
 
 export function seedOnboardingRequirements(): void {
@@ -380,6 +494,7 @@ export function seedOnboardingRequirements(): void {
 export function clearOnboardingStore(): void {
   requirementsStore.clear();
   userOnboardingStore.clear();
+  esignRecordsStore.clear();
   reqIdCounter = 1;
   uobIdCounter = 1;
 }

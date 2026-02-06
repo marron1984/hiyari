@@ -1,21 +1,26 @@
 /**
  * オンボーディング署名API
  *
- * Ticket 093: 初回ログイン時の電子契約完了ゲート
+ * Ticket 093: 初回ログイン時の電子契約完了ゲート（本番対応版）
  *
  * POST /api/onboarding/sign - 文書に署名
+ *
+ * 処理:
+ * - 認証ユーザー = staff本人以外は不可（自分の署名のみ）
+ * - requiredDocs に含まれる documentVersionId のみ許可
+ * - e_sign_records を upsert（docId = userId__documentVersionId）冪等
+ * - user_onboarding を再評価して completed 更新
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import type { AppRole } from '@/config/appRoles';
 import {
   getUserOnboarding,
   initializeUserOnboarding,
-  markItemAsSigned,
+  upsertESignRecord,
+  reevaluateOnboardingStatus,
 } from '@/lib/onboarding/repo';
 import { getUserById } from '@/lib/roles/user-store';
-import { createESignRecord } from '@/lib/esign/repo';
 import type { SignDocumentRequest } from '@/lib/onboarding/types';
 
 // デモユーザー情報
@@ -57,13 +62,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // オンボーディング情報を取得
+    // オンボーディング情報を取得（なければ初期化）
     let onboarding = getUserOnboarding(userId);
     if (!onboarding) {
       onboarding = initializeUserOnboarding(userId, user.role, []);
     }
 
     // 対象の文書が必須アイテムに含まれているかチェック
+    // （勝手な署名を作らせない）
     const targetItem = onboarding.requiredItems.find(
       (item) => item.documentVersionId === documentVersionId
     );
@@ -74,61 +80,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (targetItem.status === 'signed') {
-      return NextResponse.json(
-        { error: 'この文書は既に署名済みです' },
-        { status: 400 }
-      );
-    }
-
-    // e_sign_records に署名レコードを作成
-    const signResult = createESignRecord(
-      {
-        subjectType: 'staff',
-        subjectId: userId,
-        subjectName: subjectName.trim(),
-        documentId: documentId || null,
-        documentVersionId,
-        method: 'online',
-        status: 'signed',
-        signedAt: new Date().toISOString(),
-        note: 'オンボーディング契約署名',
-      },
+    // e_sign_records を upsert（冪等：同じ署名は増殖しない）
+    const signResult = upsertESignRecord(
       userId,
-      'manager'  // システムとして記録
+      documentId || targetItem.documentId,
+      documentVersionId,
+      subjectName.trim(),
+      'オンボーディング契約署名'
     );
 
     if (!signResult.success) {
       return NextResponse.json(
-        { error: signResult.error || '署名レコードの作成に失敗しました' },
+        { error: '署名レコードの作成に失敗しました' },
         { status: 500 }
       );
     }
 
-    // user_onboarding を更新
-    const markResult = markItemAsSigned(userId, documentVersionId);
-    if (!markResult.success) {
-      return NextResponse.json(
-        { error: markResult.error || 'オンボーディング状態の更新に失敗しました' },
-        { status: 500 }
-      );
-    }
-
-    // オンボーディング完了の場合はクッキーを設定
-    if (markResult.onboarding?.status === 'completed') {
-      const cookieStore = await cookies();
-      cookieStore.set('onboarding_complete', 'true', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 365, // 1年
-      });
-    }
+    // user_onboarding を再評価（e_sign_recordsを参照して状態更新）
+    const updatedOnboarding = reevaluateOnboardingStatus(userId);
 
     return NextResponse.json({
       success: true,
-      onboarding: markResult.onboarding,
-      signRecord: signResult.record,
+      onboarding: updatedOnboarding,
+      esignDocId: signResult.docId,
     });
   } catch (error) {
     console.error('onboarding/sign POST error:', error);
