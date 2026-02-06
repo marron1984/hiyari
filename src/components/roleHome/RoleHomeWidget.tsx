@@ -26,6 +26,7 @@ import {
   ShieldAlert,
   Home,
   Users,
+  Briefcase,
 } from 'lucide-react';
 import type {
   Widget,
@@ -48,6 +49,7 @@ import type {
   OsMapWidget,
   QualityRiskWidget,
   VacancyInquiryKpisWidget,
+  SalesTasksWidget,
 } from '@/lib/roleHome/types';
 import type { AppRole } from '@/config/appRoles';
 
@@ -114,6 +116,9 @@ export function RoleHomeWidget({
     // Ticket 082: 空室問い合わせKPI
     case 'vacancy_inquiry_kpis':
       return <VacancyInquiryKpisWidgetCard widget={widget as VacancyInquiryKpisWidget} />;
+    // Ticket 122: 営業タスク
+    case 'sales_tasks':
+      return <SalesTasksWidgetCard widget={widget as SalesTasksWidget} role={role} />;
     default:
       return <DefaultWidgetCard widget={widget} />;
   }
@@ -839,6 +844,111 @@ function VacancyInquiryKpisWidgetCard({ widget }: { widget: VacancyInquiryKpisWi
   );
 }
 
+// Ticket 122: 営業タスクウィジェット
+function SalesTasksWidgetCard({
+  widget,
+  role,
+}: {
+  widget: SalesTasksWidget;
+  role: AppRole;
+}) {
+  const isStaffOrLeader = ['staff', 'leader'].includes(role);
+
+  // staff/leader: 自分のタスクを表示
+  if (isStaffOrLeader) {
+    return (
+      <WidgetCard
+        icon={<Briefcase className="w-4 h-4 text-indigo-500" />}
+        title={widget.title}
+        href={widget.href}
+        severity={widget.severity}
+      >
+        <div className="space-y-2">
+          {/* 今日のタスク件数 */}
+          <div className="flex items-center justify-between p-2 bg-indigo-50 rounded">
+            <span className="text-xs text-indigo-700">今日のタスク</span>
+            <span className="text-lg font-bold text-indigo-600">
+              {widget.mySalesTasksToday ?? 0}件
+            </span>
+          </div>
+
+          {/* 上位3タスク */}
+          {widget.myTopTasks && widget.myTopTasks.length > 0 && (
+            <div className="space-y-1">
+              {widget.myTopTasks.slice(0, 3).map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between p-1.5 bg-zinc-50 rounded text-xs"
+                >
+                  <span className="text-zinc-700 truncate flex-1 mr-2">
+                    {task.title}
+                  </span>
+                  {task.dueAt && (
+                    <span className="text-zinc-500 text-[10px] whitespace-nowrap">
+                      {new Date(task.dueAt).toLocaleDateString('ja-JP', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {(!widget.myTopTasks || widget.myTopTasks.length === 0) &&
+            (widget.mySalesTasksToday ?? 0) === 0 && (
+              <div className="text-center text-xs text-zinc-400 py-2">
+                タスクなし
+              </div>
+            )}
+        </div>
+      </WidgetCard>
+    );
+  }
+
+  // manager/admin: 全体状況を表示
+  return (
+    <WidgetCard
+      icon={<Briefcase className="w-4 h-4 text-indigo-500" />}
+      title={widget.title}
+      href={widget.href}
+      severity={widget.severity}
+    >
+      <div className="grid grid-cols-2 gap-2 text-center">
+        <div className="p-2 bg-indigo-50 rounded">
+          <div className="text-lg font-bold text-indigo-600">
+            {widget.salesTasksToday ?? 0}
+          </div>
+          <div className="text-[10px] text-indigo-700">本日の件数</div>
+        </div>
+        <div className="p-2 bg-red-50 rounded">
+          <div className="text-lg font-bold text-red-600">
+            {widget.salesTasksOverdue ?? 0}
+          </div>
+          <div className="text-[10px] text-red-700">期限超過</div>
+        </div>
+      </div>
+
+      {/* 事業別上位（任意） */}
+      {widget.topBusinessUnits && widget.topBusinessUnits.length > 0 && (
+        <div className="mt-2 space-y-1">
+          <div className="text-[10px] text-zinc-500">事業別上位</div>
+          {widget.topBusinessUnits.slice(0, 3).map((bu) => (
+            <div
+              key={bu.businessUnitId}
+              className="flex items-center justify-between p-1.5 bg-zinc-50 rounded text-xs"
+            >
+              <span className="text-zinc-700 truncate">{bu.businessUnitName}</span>
+              <span className="text-indigo-600">{bu.count}件</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </WidgetCard>
+  );
+}
+
 // デフォルトウィジェット
 function DefaultWidgetCard({ widget }: { widget: Widget }) {
   const Icon = getWidgetIcon(widget.type);
@@ -879,6 +989,7 @@ function getWidgetIcon(type: WidgetType) {
     contracts: FileSignature,  // Task 053: 専用アイコン
     receivables: Wallet,
     vacancy_inquiry_kpis: Home, // Ticket 082: 空室問い合わせKPI
+    sales_tasks: Briefcase, // Ticket 122: 営業タスク
   };
   return iconMap[type] ?? FileQuestion;
 }
