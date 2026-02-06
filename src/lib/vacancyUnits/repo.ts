@@ -15,6 +15,7 @@ import type {
   PublicVacancyUnit,
 } from './types';
 import { toPublicVacancyUnit } from './types';
+import * as firestoreRepo from './repo.firestore.compat';
 
 // ========== In-Memory ストレージ ==========
 
@@ -64,6 +65,17 @@ export function createVacancyUnit(
 
   // 作成ログ
   addUpdateLog(id, { created: { before: null, after: unit } }, actorUserId, actorUserName);
+
+  // Firestore write-through (fire-and-forget)
+  firestoreRepo.create(unit).catch((e: unknown) =>
+    console.error('firestore create failed:', e)
+  );
+  const latestLog = vacancyUpdates[vacancyUpdates.length - 1];
+  if (latestLog) {
+    firestoreRepo.saveUpdateLog(latestLog).catch((e: unknown) =>
+      console.error('firestore update log failed:', e)
+    );
+  }
 
   return unit;
 }
@@ -133,11 +145,31 @@ export function updateVacancyUnit(
     addUpdateLog(id, changedFields, actorUserId, actorUserName);
   }
 
+  // Firestore write-through (fire-and-forget)
+  firestoreRepo.update(updated).catch((e: unknown) =>
+    console.error('firestore update failed:', e)
+  );
+  if (Object.keys(changedFields).length > 0) {
+    const latestLog = vacancyUpdates[vacancyUpdates.length - 1];
+    if (latestLog) {
+      firestoreRepo.saveUpdateLog(latestLog).catch((e: unknown) =>
+        console.error('firestore update log failed:', e)
+      );
+    }
+  }
+
   return updated;
 }
 
 export function deleteVacancyUnit(id: string): boolean {
-  return vacancyUnits.delete(id);
+  const deleted = vacancyUnits.delete(id);
+  if (deleted) {
+    // Firestore write-through (fire-and-forget)
+    firestoreRepo.remove(id).catch((e: unknown) =>
+      console.error('firestore delete failed:', e)
+    );
+  }
+  return deleted;
 }
 
 export function getVacancyUnitById(id: string): VacancyUnit | null {
@@ -248,6 +280,11 @@ export function addViewLog(params: {
     createdAt: now(),
   };
   vacancyViewLogs.push(log);
+
+  // Firestore write-through (fire-and-forget)
+  firestoreRepo.logPublicView(params).catch((e: unknown) =>
+    console.error('firestore view log failed:', e)
+  );
 }
 
 export function listViewLogs(limit: number = 100): VacancyViewLog[] {

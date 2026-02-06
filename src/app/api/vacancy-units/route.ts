@@ -14,9 +14,8 @@ import {
   seedVacancyUnitsIfEmpty,
 } from '@/lib/vacancyUnits/repo';
 import {
-  saveUnit as saveUnitFirestore,
-  listAll as listAllFirestore,
-} from '@/lib/vacancyUnits/repo.firestore';
+  listInternal as listInternalFirestore,
+} from '@/lib/vacancyUnits/repo.firestore.compat';
 import { canViewVacancyUnits, canManageVacancyUnits } from '@/lib/vacancyUnits/types';
 import type { VacancyUnitStatus } from '@/lib/vacancyUnits/types';
 import type { AppRole } from '@/config/appRoles';
@@ -70,7 +69,7 @@ export async function GET(request: NextRequest) {
     let items = memoryItems;
     let total = memoryTotal;
     try {
-      const { items: fsItems } = await listAllFirestore(filter);
+      const { items: fsItems } = await listInternalFirestore(filter);
       if (fsItems.length > 0) {
         const memoryIds = new Set(memoryItems.map((u) => u.id));
         const newFromFs = fsItems.filter((u) => !memoryIds.has(u.id));
@@ -159,12 +158,7 @@ export async function POST(request: NextRequest) {
       DEMO_USER.name
     );
 
-    // Firestore永続化
-    try {
-      await saveUnitFirestore(unit);
-    } catch (e) {
-      console.error('vacancy unit firestore save failed:', e);
-    }
+    // Firestore永続化は repo.ts 内で fire-and-forget 実行済
 
     return NextResponse.json({ unit }, { status: 201 });
   } catch (error) {

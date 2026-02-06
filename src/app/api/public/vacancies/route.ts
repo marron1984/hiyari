@@ -14,7 +14,7 @@ import {
   addViewLog,
   seedVacancyUnitsIfEmpty,
 } from '@/lib/vacancyUnits/repo';
-import { listPublic as listPublicFirestore } from '@/lib/vacancyUnits/repo.firestore';
+import { listPublic as listPublicFirestore } from '@/lib/vacancyUnits/repo.firestore.compat';
 
 export async function GET(request: NextRequest) {
   try {

@@ -13,14 +13,10 @@ import {
   getVacancyUnitById,
   updateVacancyUnit,
   deleteVacancyUnit,
-  listVacancyUpdates,
 } from '@/lib/vacancyUnits/repo';
 import {
   getById as getUnitFromFirestore,
-  saveUnit as saveUnitFirestore,
-  deleteUnit as deleteUnitFirestore,
-  saveUpdateLog as saveUpdateLogFirestore,
-} from '@/lib/vacancyUnits/repo.firestore';
+} from '@/lib/vacancyUnits/repo.firestore.compat';
 import {
   canViewVacancyUnits,
   canEditVacancyUnits,
@@ -144,17 +140,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Firestore永続化（更新後の完全なユニットを保存 + 最新の差分ログ）
-    try {
-      await saveUnitFirestore(unit);
-      // 最新の変更ログをFirestoreにも保存
-      const recentLogs = listVacancyUpdates(id, 1);
-      if (recentLogs.length > 0) {
-        await saveUpdateLogFirestore(recentLogs[0]);
-      }
-    } catch (e) {
-      console.error('vacancy unit firestore update failed:', e);
-    }
+    // Firestore永続化は repo.ts 内で fire-and-forget 実行済
 
     return NextResponse.json({ unit });
   } catch (error) {
@@ -179,13 +165,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     const deleted = deleteVacancyUnit(id);
-
-    // Firestoreからも削除
-    try {
-      await deleteUnitFirestore(id);
-    } catch (e) {
-      console.error('vacancy unit firestore delete failed:', e);
-    }
+    // Firestore削除は repo.ts 内で fire-and-forget 実行済
 
     if (!deleted) {
       return NextResponse.json(
