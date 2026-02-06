@@ -14,7 +14,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { buildMorningDigest, formatDigestNotification } from '@/lib/digest/morningDigest';
-import { NOTIFY_DIGEST_SCHEDULE } from '@/config/opsSchedule';
+import { NOTIFY_DIGEST_SCHEDULE, OPS_FAILURE_NOTIFICATION } from '@/config/opsSchedule';
+import { createAlert } from '@/lib/alerts/repo';
 
 // Cron認証用シークレット
 const DIGEST_SECRET = process.env.DIGEST_CRON_SECRET || process.env.ALERT_CRON_SECRET;
@@ -98,10 +99,30 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('[NotifyDigest] Error:', error);
 
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const date = new Date().toISOString().split('T')[0];
+
+    // Ticket 067: 失敗時に system_error アラートを作成
+    createAlert({
+      type: 'system_error',
+      sourceId: 'notify-digest',
+      title: 'ダイジェスト通知失敗',
+      message: `${errorMessage}\n\n日付: ${date}\n\n復旧方法: /api/cron/notify-digest?force=true`,
+      severity: 'critical',
+      fingerprint: `notify_digest:error:${date}`,
+      meta: {
+        opsType: 'digest',
+        date,
+        errorMessage,
+        notifyRoles: OPS_FAILURE_NOTIFICATION.targetRoles,
+        retryUrl: '/dashboard/ops-report',
+      },
+    });
+
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
       },
       { status: 500 }
     );
