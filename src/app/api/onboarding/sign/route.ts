@@ -2,6 +2,7 @@
  * オンボーディング署名API
  *
  * Ticket 093: 初回ログイン時の電子契約完了ゲート（本番対応版）
+ * Ticket 100: オンボーディング完了後の初期設定自動化
  *
  * POST /api/onboarding/sign - 文書に署名
  *
@@ -10,6 +11,7 @@
  * - requiredDocs に含まれる documentVersionId のみ許可
  * - e_sign_records を upsert（docId = userId__documentVersionId）冪等
  * - user_onboarding を再評価して completed 更新
+ * - Ticket 100: 完了時に自動で研修割当・通知作成
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -20,6 +22,7 @@ import {
   upsertESignRecord,
   reevaluateOnboardingStatus,
 } from '@/lib/onboarding/repo';
+import { triggerPostCompleteIfNeeded } from '@/lib/onboarding/postComplete';
 import { getUserById } from '@/lib/roles/user-store';
 import type { SignDocumentRequest } from '@/lib/onboarding/types';
 
@@ -96,13 +99,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ticket 100: 署名前のステータスを記録
+    const previousStatus = onboarding.status;
+
     // user_onboarding を再評価（e_sign_recordsを参照して状態更新）
     const updatedOnboarding = reevaluateOnboardingStatus(userId);
+    const currentStatus = updatedOnboarding?.status ?? 'pending';
+
+    // Ticket 100: 完了時に研修割当・通知作成を実行
+    const postCompleteResult = triggerPostCompleteIfNeeded(
+      userId,
+      previousStatus,
+      currentStatus
+    );
 
     return NextResponse.json({
       success: true,
       onboarding: updatedOnboarding,
       esignDocId: signResult.docId,
+      // Ticket 100: 完了後処理の結果
+      postComplete: postCompleteResult,
     });
   } catch (error) {
     console.error('onboarding/sign POST error:', error);

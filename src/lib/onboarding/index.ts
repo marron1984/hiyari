@@ -15,3 +15,4 @@ export * from './scanPending';
 export * from './reminder';
 export * from './stats';
 export * from './escalation';
+export * from './postComplete';
