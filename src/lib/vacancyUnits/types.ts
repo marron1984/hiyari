@@ -67,6 +67,7 @@ export interface VacancyUnit {
 export interface VacancyUpdate {
   id: string;
   vacancyUnitId: string;
+  businessUnitId: string;
   changedFieldsJson: Record<string, { before: unknown; after: unknown }>;
   createdAt: string;
   createdByUserId: string;
@@ -119,6 +120,7 @@ export interface VacancyUnitListFilter {
   businessUnitId?: string;
   status?: VacancyUnitStatus;
   area?: string;
+  roomType?: string;          // Ticket 075: 部屋タイプフィルタ
   hasAvailability?: boolean;  // availableCount > 0
   limit?: number;
   offset?: number;
@@ -136,16 +138,17 @@ export interface VacancyUnitStats {
   }>;
 }
 
-// ========== 外部閲覧ログ ==========
+// ========== 閲覧ログ（公開ボード用） ==========
 
 export interface VacancyViewLog {
   id: string;
-  vacancyUnitId: string | null;  // null = 一覧閲覧
-  viewerType: 'public' | 'external_account';
-  externalUserId?: string;
-  ipAddress?: string;
-  userAgent?: string;
-  createdAt: string;
+  businessUnitId: string | null;
+  viewedAt: string;
+  ipHint: string | null;      // IPはマスク or hash（生IP保存しない）
+  userAgent: string | null;
+  referer: string | null;
+  path: string;
+  queryJson: Record<string, string>;
 }
 
 // ========== 表示設定 ==========
@@ -182,9 +185,10 @@ export function canViewVacancyUnits(viewer: ViewerContext): boolean {
 
 /**
  * 空室ユニットを編集できるか
+ * Ticket 075: leader も編集可に
  */
 export function canEditVacancyUnits(viewer: ViewerContext): boolean {
-  return ['manager', 'executive', 'admin'].includes(viewer.role);
+  return ['leader', 'manager', 'executive', 'admin'].includes(viewer.role);
 }
 
 /**

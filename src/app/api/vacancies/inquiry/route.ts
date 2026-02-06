@@ -2,67 +2,72 @@
  * 空室問い合わせAPI
  *
  * Ticket 070: 空室 外部提示システム
- * MVP: 問い合わせ → チケット自動作成 → 担当者通知
+ * Ticket 072: CTA最適化（フォーム簡略化・冪等性強化）
+ * Ticket 073: 紹介元refトラッキング（バリデーション強化）
+ * Ticket 076: 軽量本人確認（pending → verified → ticket作成）
+ * Ticket 077: 迷惑フィルタ（NGワード/連投/ブラックリスト）
  *
- * POST /api/vacancies/inquiry
+ * POST /api/vacancies/inquiry - 問い合わせ送信 → pending作成 → 確認URL返却
  *
- * - businessUnitId 必須
- * - 連絡先（電話 or メール）いずれか必須
- * - tickets を自動作成 (relatedType: vacancy_inquiry)
- * - 057 autoAssign で担当を決定
- * - 036 notifications で担当者に通知
- * - relatedId で冪等性（日付+連絡先hash）
+ * フロー:
+ * 1. スパムチェック（ブロックリスト/レートリミット/NGワード）
+ * 2. pending を作成（tickets は作らない）
+ * 3. verify URL を返却（Phase 1: 画面表示、Phase 2: メール送信）
+ * 4. ユーザーが verify URL にアクセスすると tickets が作成される
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getVacancyUnitById, seedVacancyUnitsIfEmpty } from '@/lib/vacancyUnits/repo';
-import type { VacancyInquiryRequest } from '@/lib/vacancyUnits/types';
-import { createTicket } from '@/lib/tickets/repo';
-import { saveTicket, findByRelatedId } from '@/lib/tickets/repo.firestore';
-import { CARE_LEVEL_LABELS } from '@/lib/vacancyUnits/types';
-import { sanitizeString, sanitizeNumber, isValidEmail } from '@/lib/sanitize';
-import { createNotificationServer } from '@/lib/notifications-server';
+import { getByIdAsync, seedIfEmptyAsync } from '@/lib/vacancyUnits/repo';
+import { validateRef, seedRefSourcesIfEmpty, logRefAccess } from '@/lib/refSources/repo';
+import {
+  createPending,
+  generateVerifyUrl,
+} from '@/lib/vacancyInquiryPending/repo';
+import { checkSpam } from '@/lib/spam/check';
 
-/**
- * 冪等キー生成: 日付 + 連絡先hash → 同日同一連絡先からの二重送信を防ぐ
- */
-function buildIdempotencyKey(contactPhone?: string, contactEmail?: string): string {
-  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const contact = (contactPhone || '') + (contactEmail || '');
-  // 簡易hash
-  let hash = 0;
-  for (let i = 0; i < contact.length; i++) {
-    hash = ((hash << 5) - hash + contact.charCodeAt(i)) | 0;
-  }
-  return `vinq:${date}:${Math.abs(hash).toString(36)}`;
+// Ticket 072: 拡張リクエスト型
+// Ticket 074: ref（紹介元）パラメータ追加
+interface VacancyInquiryRequestV2 {
+  vacancyUnitId?: string;
+  businessUnitId?: string;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  desiredMoveIn?: string;
+  careLevel?: number;
+  hasSpecialNeeds?: boolean;
+  specialNeedsDetail?: string;
+  conditions?: string; // Ticket 072: 希望条件（選択式）
+  message?: string;
+  ref?: string;        // Ticket 074: 紹介元コード
+  refName?: string;    // Ticket 074: 紹介元表示名
 }
 
 export async function POST(request: NextRequest) {
   try {
-    seedVacancyUnitsIfEmpty();
+    // シードデータ確認
+    await seedIfEmptyAsync();
+    seedRefSourcesIfEmpty();  // Ticket 073: refシードデータ
 
-    const body = await request.json() as VacancyInquiryRequest;
+    const body = await request.json() as VacancyInquiryRequestV2;
 
-    // 入力サニタイズ（公開フォームのため必須）
-    const contactName = sanitizeString(body.contactName, 100);
-    const contactPhone = sanitizeString(body.contactPhone, 20);
-    const contactEmail = sanitizeString(body.contactEmail, 254);
-    const desiredMoveIn = sanitizeString(body.desiredMoveIn, 100);
-    const careLevel = sanitizeNumber(body.careLevel, { min: 0, max: 5 });
-    const hasSpecialNeeds = !!body.hasSpecialNeeds;
-    const specialNeedsDetail = sanitizeString(body.specialNeedsDetail, 2000);
-    const message = sanitizeString(body.message, 5000);
-    const vacancyUnitId = sanitizeString(body.vacancyUnitId, 128);
-    const businessUnitId = sanitizeString(body.businessUnitId, 128);
+    const {
+      vacancyUnitId,
+      businessUnitId,
+      contactName,
+      contactPhone,
+      contactEmail,
+      desiredMoveIn,
+      careLevel,
+      hasSpecialNeeds,
+      specialNeedsDetail,
+      conditions,  // Ticket 072: 希望条件
+      message,
+      ref,         // Ticket 074: 紹介元
+      refName,     // Ticket 074: 紹介元表示名
+    } = body;
 
-    // バリデーション
-    if (!contactName) {
-      return NextResponse.json(
-        { error: 'お名前は必須です' },
-        { status: 400 }
-      );
-    }
-
+    // バリデーション - Ticket 072: 名前は任意に
     if (!contactPhone && !contactEmail) {
       return NextResponse.json(
         { error: '電話番号またはメールアドレスのいずれかは必須です' },
@@ -70,145 +75,125 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (contactEmail && !isValidEmail(contactEmail)) {
+    // クライアント情報取得
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const clientIp = forwardedFor?.split(',')[0]?.trim();
+    const userAgent = request.headers.get('user-agent') ?? undefined;
+
+    // Ticket 077: スパムチェック（ブロックリスト/レートリミット/NGワード）
+    const spamResult = checkSpam(
+      {
+        name: contactName,
+        email: contactEmail,
+        phone: contactPhone,
+        memo: message,
+        conditions,
+        ref,
+      },
+      {
+        ip: clientIp,
+        userAgent,
+        path: '/api/vacancies/inquiry',
+      }
+    );
+
+    if (!spamResult.ok) {
+      const statusCode = spamResult.action === 'throttle' ? 429 : 403;
       return NextResponse.json(
-        { error: 'メールアドレスの形式が正しくありません' },
-        { status: 400 }
+        { error: spamResult.reason || '送信できません' },
+        { status: statusCode }
       );
     }
 
     // 空室ユニットから事業単位IDを取得
-    let targetBusinessUnitId = businessUnitId;
+    let targetBusinessUnitId = businessUnitId || 'bu_housing'; // デフォルト
     let buildingName: string | undefined;
-    let roomType: string | undefined;
-    let area: string | undefined;
 
     if (vacancyUnitId) {
-      const unit = getVacancyUnitById(vacancyUnitId);
+      const unit = await getByIdAsync(vacancyUnitId);
       if (unit) {
         targetBusinessUnitId = unit.businessUnitId;
         buildingName = unit.buildingName;
-        roomType = unit.roomType;
-        area = unit.area;
       }
     }
 
-    // businessUnitIdが必須
-    if (!targetBusinessUnitId) {
-      return NextResponse.json(
-        { error: '事業単位の指定が必要です' },
-        { status: 400 }
-      );
+    // Ticket 073: refバリデーション
+    let validatedRef: string | undefined;
+    let validatedRefName: string | undefined;
+
+    if (ref && targetBusinessUnitId) {
+      const refSource = validateRef(ref, targetBusinessUnitId);
+      if (refSource) {
+        // 有効な紹介元
+        validatedRef = refSource.ref;
+        validatedRefName = refName || refSource.name;
+
+        // アクセスログ記録
+        logRefAccess(
+          ref,
+          '/api/vacancies/inquiry',
+          clientIp,
+          userAgent
+        );
+      }
+      // 無効な場合は破棄（エラーにせず、通常問い合わせとして扱う）
     }
 
-    // 冪等性チェック: Firestoreで同日同一連絡先を確認（docId=relatedId で高速point read）
-    const idempotencyKey = buildIdempotencyKey(contactPhone ?? undefined, contactEmail ?? undefined);
-    const existingTicket = await findByRelatedId('vacancy_inquiry', idempotencyKey);
-
-    if (existingTicket) {
-      return NextResponse.json({
-        success: true,
-        ticketId: existingTicket.id,
-        message: 'お問い合わせは既に受け付け済みです。',
-        duplicate: true,
-      }, { status: 200 });
+    // Ticket 076: 条件JSON構築
+    const conditionsJson: Record<string, unknown> = {};
+    if (careLevel !== undefined) {
+      conditionsJson.careLevel = careLevel;
     }
-
-    // チケットタイトル構築
-    const titleParts = ['空室問合せ'];
-    if (buildingName) titleParts.push(buildingName);
-    if (area) titleParts.push(area);
-    if (roomType) titleParts.push(roomType);
-    const title = titleParts.join(' ');
-
-    // チケット説明文を構築
-    const descriptionParts: string[] = [
-      '【空室問い合わせ】',
-      '',
-      `お名前: ${contactName}`,
-    ];
-
-    if (contactPhone) {
-      descriptionParts.push(`電話: ${contactPhone}`);
+    if (hasSpecialNeeds !== undefined) {
+      conditionsJson.hasSpecialNeeds = hasSpecialNeeds;
     }
-    if (contactEmail) {
-      descriptionParts.push(`メール: ${contactEmail}`);
+    if (specialNeedsDetail) {
+      conditionsJson.specialNeedsDetail = specialNeedsDetail;
     }
-
-    descriptionParts.push('');
-
+    if (conditions) {
+      conditionsJson.conditions = conditions;
+    }
     if (buildingName) {
-      descriptionParts.push(`希望施設: ${buildingName}`);
-    }
-    if (desiredMoveIn) {
-      descriptionParts.push(`入居希望時期: ${desiredMoveIn}`);
-    }
-    if (careLevel != null) {
-      descriptionParts.push(`介護度: ${CARE_LEVEL_LABELS[careLevel] ?? `要介護${careLevel}`}`);
-    }
-    if (hasSpecialNeeds) {
-      descriptionParts.push(`特別な対応: あり`);
-      if (specialNeedsDetail) {
-        descriptionParts.push(`詳細: ${specialNeedsDetail}`);
-      }
+      conditionsJson.buildingName = buildingName;
     }
 
-    if (message) {
-      descriptionParts.push('');
-      descriptionParts.push('【ご要望・ご質問】');
-      descriptionParts.push(message);
-    }
-
-    const description = descriptionParts.join('\n');
-
-    // チケット作成（autoAssign適用 = skipAutoAssign: false がデフォルト）
-    const ticket = createTicket(
+    // Ticket 076: pending 作成（tickets は作らない）
+    const { pending, token } = createPending(
       {
-        title,
-        description,
-        priority: 'normal',
-        category: 'client',
         businessUnitId: targetBusinessUnitId,
-        relatedType: 'vacancy_inquiry',
-        relatedId: idempotencyKey,
-        tags: ['空室問い合わせ', '新規'],
+        vacancyUnitId,
+        contactEmail,
+        contactPhone,
+        contactName,
+        desiredMoveIn,
+        conditionsJson,
+        memo: message,
+        ref: validatedRef,
+        refName: validatedRefName,
       },
-      'system'
+      clientIp,
+      userAgent
     );
 
-    // Firestore永続化（docId=relatedId で冪等保証）
-    try {
-      await saveTicket(ticket);
-    } catch (e) {
-      console.error('ticket firestore save failed:', e);
-      // Firestore保存失敗でもレスポンスは返す（in-memory には作成済み）
-    }
+    // 確認URLを生成
+    const origin = request.headers.get('origin') ||
+      request.headers.get('x-forwarded-host') ||
+      'http://localhost:3000';
+    const baseUrl = origin.startsWith('http') ? origin : `https://${origin}`;
+    const verifyUrl = generateVerifyUrl(baseUrl, token);
 
-    // 担当者への通知（Admin SDK → Firestore永続化）
-    if (ticket.assigneeUserId) {
-      try {
-        await createNotificationServer({
-          tenantId: 'default',
-          userId: ticket.assigneeUserId,
-          type: 'vacancy_inquiry',
-          title: `空室問い合わせ: ${contactName}様`,
-          message: `${buildingName || '施設'}への問い合わせが届きました。${contactPhone ? `TEL: ${contactPhone}` : ''}`,
-          actionUrl: `/dashboard/tickets/${ticket.id}`,
-          metadata: {
-            ticketId: ticket.id,
-            fingerprint: `vacancy_inquiry:${ticket.id}`,
-          },
-        });
-      } catch {
-        // 通知失敗してもチケットは作成済み、エラーにしない
-        console.error('vacancy inquiry notification failed');
-      }
-    }
-
+    // Phase 1: 確認URLを画面に表示
+    // Phase 2（将来）: メール送信
     return NextResponse.json({
       success: true,
-      ticketId: ticket.id,
-      message: 'お問い合わせを受け付けました。担当者より連絡いたします。',
+      pendingId: pending.id,
+      verifyUrl,
+      message: contactEmail
+        ? '確認メールを送信しました。リンクをクリックして問い合わせを完了してください。'
+        : '下記のリンクをクリックして問い合わせを完了してください。',
+      expiresAt: pending.expiresAt,
+      // Phase 1: デモ用に確認URLを直接返す
+      // Phase 2: メール送信後はこのフィールドを削除
     }, { status: 201 });
   } catch (error) {
     console.error('vacancy inquiry POST error:', error);

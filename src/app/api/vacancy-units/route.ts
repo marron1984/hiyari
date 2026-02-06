@@ -2,6 +2,7 @@
  * 空室ユニット管理API
  *
  * Ticket 070: 空室 外部提示システム
+ * Ticket 076: キャッシュ戦略（作成時にrevalidate）
  *
  * GET /api/vacancy-units - 一覧取得
  * POST /api/vacancy-units - 新規作成
@@ -13,10 +14,8 @@ import {
   createVacancyUnit,
   seedVacancyUnitsIfEmpty,
 } from '@/lib/vacancyUnits/repo';
-import {
-  listInternal as listInternalFirestore,
-} from '@/lib/vacancyUnits/repo.firestore.compat';
 import { canViewVacancyUnits, canManageVacancyUnits } from '@/lib/vacancyUnits/types';
+import { revalidateVacanciesForBusinessUnit } from '@/lib/cache/vacancyTags';
 import type { VacancyUnitStatus } from '@/lib/vacancyUnits/types';
 import type { AppRole } from '@/config/appRoles';
 
@@ -45,6 +44,7 @@ export async function GET(request: NextRequest) {
     const businessUnitId = searchParams.get('businessUnitId') ?? undefined;
     const status = searchParams.get('status') as VacancyUnitStatus | null;
     const area = searchParams.get('area') ?? undefined;
+    const roomType = searchParams.get('roomType') ?? undefined; // Ticket 075
     const hasAvailability = searchParams.get('hasAvailability') === 'true';
     const limit = searchParams.get('limit')
       ? parseInt(searchParams.get('limit')!, 10)
@@ -53,32 +53,15 @@ export async function GET(request: NextRequest) {
       ? parseInt(searchParams.get('offset')!, 10)
       : 0;
 
-    const filter = {
+    const { items, total } = listVacancyUnits({
       businessUnitId,
       status: status ?? undefined,
       area,
+      roomType, // Ticket 075
       hasAvailability: hasAvailability || undefined,
       limit,
       offset,
-    };
-
-    // In-memory結果
-    const { items: memoryItems, total: memoryTotal } = listVacancyUnits(filter);
-
-    // Firestoreからマージ
-    let items = memoryItems;
-    let total = memoryTotal;
-    try {
-      const { items: fsItems } = await listInternalFirestore(filter);
-      if (fsItems.length > 0) {
-        const memoryIds = new Set(memoryItems.map((u) => u.id));
-        const newFromFs = fsItems.filter((u) => !memoryIds.has(u.id));
-        items = [...memoryItems, ...newFromFs];
-        total = memoryTotal + newFromFs.length;
-      }
-    } catch {
-      // Firestore接続失敗時はIn-memoryのみ
-    }
+    });
 
     return NextResponse.json({
       items,
@@ -158,7 +141,8 @@ export async function POST(request: NextRequest) {
       DEMO_USER.name
     );
 
-    // Firestore永続化は repo.ts 内で fire-and-forget 実行済
+    // Ticket 076: 公開キャッシュを無効化
+    revalidateVacanciesForBusinessUnit(businessUnitId);
 
     return NextResponse.json({ unit }, { status: 201 });
   } catch (error) {

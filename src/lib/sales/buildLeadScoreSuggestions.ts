@@ -11,7 +11,7 @@
  */
 
 import { listTickets } from '@/lib/tickets/repo';
-import type { Ticket, ViewerContext } from '@/lib/tickets/types';
+import type { Ticket, TicketMeta, ViewerContext } from '@/lib/tickets/types';
 import { getAiVpConfig } from '@/lib/aiVp/settings';
 import type { AiVpConfig, AiVpWeights } from '@/lib/aiVp/defaultConfig';
 import type {
@@ -38,6 +38,12 @@ const PROGRESSION_CODES: SalesResultCode[] = ['tour_scheduled', 'applied', 'acce
 /** 成功とみなされる結果コード */
 const SUCCESS_CODES: SalesResultCode[] = ['accepted'];
 
+/** metaJson（またはレガシー meta）を安全に取得 */
+function getMeta(t: Ticket): TicketMeta | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return t.metaJson ?? (t as any).meta ?? null;
+}
+
 /** 最低サンプル数（これ未満の場合は提案を生成しない） */
 const MIN_SAMPLE_SIZE = 5;
 
@@ -52,7 +58,7 @@ export function aggregateMetrics(
 ): SalesMetricsAggregation {
   // sales_next_action のみ
   const salesTickets = tickets.filter(
-    (t) => t.relatedType === 'sales_next_action' && t.status === 'closed' && t.meta?.resultCode
+    (t) => t.relatedType === 'sales_next_action' && t.status === 'closed' && getMeta(t)?.resultCode
   );
 
   // 期間フィルタ
@@ -62,7 +68,7 @@ export function aggregateMetrics(
   // resultCode 分布
   const codeCounts = new Map<SalesResultCode, number>();
   for (const t of filtered) {
-    const code = t.meta!.resultCode!;
+    const code = getMeta(t)!.resultCode!;
     codeCounts.set(code, (codeCounts.get(code) || 0) + 1);
   }
 
@@ -77,10 +83,10 @@ export function aggregateMetrics(
   // ステージ進展率
   const stageMap = new Map<string, { total: number; progressed: number }>();
   for (const t of filtered) {
-    const stage = t.meta?.stage || 'unknown';
+    const stage = getMeta(t)?.stage || 'unknown';
     const entry = stageMap.get(stage) || { total: 0, progressed: 0 };
     entry.total++;
-    if (PROGRESSION_CODES.includes(t.meta!.resultCode!)) {
+    if (PROGRESSION_CODES.includes(getMeta(t)!.resultCode!)) {
       entry.progressed++;
     }
     stageMap.set(stage, entry);
@@ -98,10 +104,10 @@ export function aggregateMetrics(
   // ref別成功率
   const refMap = new Map<string, { total: number; accepted: number }>();
   for (const t of filtered) {
-    const ref = t.meta?.ref || 'unknown';
+    const ref = getMeta(t)?.ref || 'unknown';
     const entry = refMap.get(ref) || { total: 0, accepted: 0 };
     entry.total++;
-    if (SUCCESS_CODES.includes(t.meta!.resultCode!)) {
+    if (SUCCESS_CODES.includes(getMeta(t)!.resultCode!)) {
       entry.accepted++;
     }
     refMap.set(ref, entry);
@@ -122,7 +128,7 @@ export function aggregateMetrics(
     const buId = t.businessUnitId || 'unknown';
     const entry = buMap.get(buId) || { total: 0, accepted: 0 };
     entry.total++;
-    if (SUCCESS_CODES.includes(t.meta!.resultCode!)) {
+    if (SUCCESS_CODES.includes(getMeta(t)!.resultCode!)) {
       entry.accepted++;
     }
     buMap.set(buId, entry);

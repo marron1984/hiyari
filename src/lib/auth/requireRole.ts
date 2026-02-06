@@ -19,6 +19,42 @@ const ROLE_HIERARCHY: Record<AppRole, number> = {
 };
 
 /**
+ * 現在のユーザー情報を取得（サーバーサイド）
+ *
+ * 実装メモ:
+ * - 本番ではセッション/Cookie/JWTからユーザー情報を取得
+ * - 暫定としてヘッダーまたはデフォルト値を使用
+ */
+export interface CurrentUser {
+  id: string;
+  role: AppRole;
+}
+
+export async function getCurrentUser(): Promise<CurrentUser> {
+  const headersList = await headers();
+
+  // ヘッダーからユーザー情報を取得（開発/テスト用）
+  const userIdHeader = headersList.get('x-user-id');
+  const roleHeader = headersList.get('x-user-role');
+
+  let role: AppRole = 'admin';
+  if (roleHeader && isValidAppRole(roleHeader)) {
+    role = roleHeader as AppRole;
+  }
+
+  // asRoleパラメータをチェック（プレビューモード用）
+  const asRoleHeader = headersList.get('x-as-role');
+  if (asRoleHeader && isValidAppRole(asRoleHeader)) {
+    role = asRoleHeader as AppRole;
+  }
+
+  return {
+    id: userIdHeader || 'user_001', // デフォルト: admin user
+    role,
+  };
+}
+
+/**
  * 現在のユーザーロールを取得（サーバーサイド）
  *
  * 実装メモ:
@@ -26,23 +62,8 @@ const ROLE_HIERARCHY: Record<AppRole, number> = {
  * - 暫定としてヘッダーまたはデフォルト値を使用
  */
 export async function getCurrentUserRole(): Promise<AppRole> {
-  // ヘッダーからロールを取得（開発/テスト用）
-  const headersList = await headers();
-  const roleHeader = headersList.get('x-user-role');
-
-  if (roleHeader && isValidAppRole(roleHeader)) {
-    return roleHeader as AppRole;
-  }
-
-  // asRoleパラメータをチェック（プレビューモード用）
-  const asRoleHeader = headersList.get('x-as-role');
-  if (asRoleHeader && isValidAppRole(asRoleHeader)) {
-    return asRoleHeader as AppRole;
-  }
-
-  // デフォルト: admin（開発中のため）
-  // 本番では認証から取得した実際のロールを返す
-  return 'admin';
+  const user = await getCurrentUser();
+  return user.role;
 }
 
 /**

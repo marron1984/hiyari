@@ -6,7 +6,6 @@ import { Card, Button } from '@/components/ui';
 import {
   Building2,
   Send,
-  CheckCircle,
   ArrowLeft,
   User,
   Phone,
@@ -14,10 +13,25 @@ import {
   Calendar,
   Heart,
   MessageSquare,
+  MapPin,
+  DollarSign,
 } from 'lucide-react';
 import Link from 'next/link';
 
 // ===== 型定義 =====
+
+interface CareConditions {
+  minCareLevel?: number | null;
+  maxCareLevel?: number | null;
+  acceptsDementia?: boolean;
+  acceptsMedicalCare?: boolean;
+  acceptsTerminalCare?: boolean;
+}
+
+interface PriceRange {
+  monthlyMin?: number | null;
+  monthlyMax?: number | null;
+}
 
 interface PublicVacancyUnit {
   id: string;
@@ -26,6 +40,55 @@ interface PublicVacancyUnit {
   area: string;
   roomType: string;
   availableCount: number;
+  conditionsJson: CareConditions;
+  priceRangeJson: PriceRange;
+}
+
+// ===== ユーティリティ =====
+
+// Ticket 072: コンバージョン計測用セッションID
+function getOrCreateSessionId(): string {
+  if (typeof window === 'undefined') return '';
+  const key = 'vacancy_session_id';
+  let sessionId = sessionStorage.getItem(key);
+  if (!sessionId) {
+    sessionId = `vs_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    sessionStorage.setItem(key, sessionId);
+  }
+  return sessionId;
+}
+
+// Ticket 072: submit イベント記録
+async function trackSubmit(
+  businessUnitId?: string | null,
+  vacancyUnitId?: string | null
+): Promise<void> {
+  try {
+    const sessionId = getOrCreateSessionId();
+    await fetch('/api/vacancy-analytics/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        eventType: 'submit',
+        businessUnitId: businessUnitId || null,
+        vacancyUnitId: vacancyUnitId || null,
+        sessionId,
+      }),
+    });
+  } catch {
+    // 失敗しても無視
+  }
+}
+
+function formatPrice(min: number | null | undefined, max: number | null | undefined): string {
+  if (min == null && max == null) return 'お問い合わせ';
+  if (min != null && max != null) {
+    if (min === max) return `${min}万円/月`;
+    return `${min}〜${max}万円/月`;
+  }
+  if (min != null) return `${min}万円〜/月`;
+  if (max != null) return `〜${max}万円/月`;
+  return 'お問い合わせ';
 }
 
 // ===== フォームコンポーネント =====
@@ -33,36 +96,41 @@ interface PublicVacancyUnit {
 function InquiryFormContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const unitId = searchParams.get('unitId');
-  const businessUnitIdParam = searchParams.get('businessUnitId');
+
+  // Ticket 072: 新しいURL設計に対応
+  const businessUnitId = searchParams.get('businessUnitId');
+  const vacancyUnitId = searchParams.get('vacancyUnitId') || searchParams.get('unitId'); // 後方互換
+  // Ticket 074: 紹介元パラメータ
+  const ref = searchParams.get('ref');
+  const refName = searchParams.get('refName');
 
   const [unit, setUnit] = useState<PublicVacancyUnit | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ticket 076: 本人確認フロー
+  const [verifyUrl, setVerifyUrl] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
-  // フォーム状態
-  const [contactName, setContactName] = useState('');
+  // フォーム状態 - Ticket 072: 最小限に
+  const [contactName, setContactName] = useState(''); // 任意
   const [contactPhone, setContactPhone] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [desiredMoveIn, setDesiredMoveIn] = useState('');
-  const [careLevel, setCareLevel] = useState<string>('');
-  const [hasSpecialNeeds, setHasSpecialNeeds] = useState(false);
-  const [specialNeedsDetail, setSpecialNeedsDetail] = useState('');
+  const [conditions, setConditions] = useState(''); // 希望条件（選択）
   const [message, setMessage] = useState('');
 
   // 施設情報取得
   useEffect(() => {
-    if (unitId) {
+    if (vacancyUnitId) {
       fetch('/api/public/vacancies')
         .then((res) => res.json())
         .then((data) => {
-          const found = data.items?.find((u: PublicVacancyUnit) => u.id === unitId);
+          const found = data.items?.find((u: PublicVacancyUnit) => u.id === vacancyUnitId);
           setUnit(found || null);
         })
         .catch(console.error);
     }
-  }, [unitId]);
+  }, [vacancyUnitId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,16 +142,16 @@ function InquiryFormContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          vacancyUnitId: unitId || undefined,
-          businessUnitId: businessUnitIdParam || unit?.businessUnitId || 'bu_housing',
-          contactName,
+          vacancyUnitId: vacancyUnitId || undefined,
+          businessUnitId: unit?.businessUnitId || businessUnitId || undefined,
+          contactName: contactName || undefined,
           contactPhone: contactPhone || undefined,
           contactEmail: contactEmail || undefined,
           desiredMoveIn: desiredMoveIn || undefined,
-          careLevel: careLevel ? parseInt(careLevel, 10) : undefined,
-          hasSpecialNeeds,
-          specialNeedsDetail: hasSpecialNeeds ? specialNeedsDetail : undefined,
+          conditions: conditions || undefined,
           message: message || undefined,
+          ref: ref || undefined,          // Ticket 074: 紹介元
+          refName: refName || undefined,  // Ticket 074: 紹介元表示名
         }),
       });
 
@@ -93,7 +161,18 @@ function InquiryFormContent() {
         throw new Error(data.error || '送信に失敗しました');
       }
 
-      setSubmitted(true);
+      // Ticket 072: submit イベント記録
+      await trackSubmit(unit?.businessUnitId || businessUnitId, vacancyUnitId);
+
+      // Ticket 076: 本人確認フロー
+      if (data.verifyUrl) {
+        // Phase 1: 確認URLを画面に表示
+        setVerifyUrl(data.verifyUrl);
+        setPendingMessage(data.message);
+      } else {
+        // 従来のフロー（後方互換）
+        router.push('/vacancies/thanks');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '送信に失敗しました');
     } finally {
@@ -101,24 +180,53 @@ function InquiryFormContent() {
     }
   };
 
-  // 送信完了画面
-  if (submitted) {
+  // 連絡先が入力されているか
+  const hasContact = contactPhone.trim() || contactEmail.trim();
+
+  // Ticket 076: 本人確認URL表示画面
+  if (verifyUrl) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-green-50 to-white flex items-center justify-center p-4">
-        <Card className="max-w-md w-full p-8 text-center">
-          <CheckCircle className="w-16 h-16 mx-auto mb-4 text-green-500" />
-          <h1 className="text-2xl font-bold mb-2">お問い合わせを受け付けました</h1>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
+            <Mail className="w-8 h-8 text-blue-600" />
+          </div>
+          <h1 className="text-xl font-bold text-gray-800 mb-2">
+            あと1ステップ！
+          </h1>
           <p className="text-gray-600 mb-6">
-            担当者より折り返しご連絡いたします。
-            しばらくお待ちください。
+            {pendingMessage || '下記のリンクをクリックして問い合わせを完了してください。'}
           </p>
-          <Link href="/vacancies">
-            <Button variant="secondary" className="flex items-center gap-2 mx-auto">
-              <ArrowLeft className="w-4 h-4" />
-              空室一覧に戻る
-            </Button>
-          </Link>
-        </Card>
+
+          {/* Phase 1: 確認リンクを直接表示（デモ用） */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-gray-600 mb-2">確認リンク:</p>
+            <a
+              href={verifyUrl}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              <Send className="w-5 h-5" />
+              問い合わせを完了する
+            </a>
+          </div>
+
+          <div className="text-sm text-gray-500 space-y-2">
+            <p>※ 30分以内に確認を完了してください</p>
+            <p>※ このリンクは一度のみ有効です</p>
+          </div>
+
+          <div className="mt-6 pt-4 border-t">
+            <button
+              onClick={() => {
+                setVerifyUrl(null);
+                setPendingMessage(null);
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              別の連絡先で問い合わせる
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -140,166 +248,178 @@ function InquiryFormContent() {
             お問い合わせ
           </h1>
           <p className="text-gray-600 mt-1">
-            空室・入居についてのお問い合わせフォーム
+            最短30秒で送信完了
           </p>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-8">
-        {/* 施設情報（選択済みの場合） */}
+        {/* 施設情報（選択済みの場合） - Ticket 072: 詳細表示 */}
         {unit && (
           <Card className="p-4 mb-6 bg-blue-50 border-blue-200">
-            <div className="flex items-center gap-3">
-              <Building2 className="w-8 h-8 text-blue-600" />
-              <div>
-                <div className="font-bold">{unit.buildingName}</div>
-                <div className="text-sm text-gray-600">
-                  {unit.area} / {unit.roomType} / 空室 {unit.availableCount}
+            <div className="flex items-start gap-3">
+              <Building2 className="w-10 h-10 text-blue-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-lg">{unit.buildingName}</div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 mt-1">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-4 h-4" />
+                    {unit.area}
+                  </span>
+                  <span>{unit.roomType}</span>
+                  <span className="text-blue-600 font-medium">
+                    空室 {unit.availableCount}室
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-sm mt-1">
+                  <DollarSign className="w-4 h-4 text-yellow-600" />
+                  <span>{formatPrice(unit.priceRangeJson?.monthlyMin, unit.priceRangeJson?.monthlyMax)}</span>
                 </div>
               </div>
             </div>
           </Card>
         )}
 
-        {/* フォーム */}
+        {/* フォーム - Ticket 072: 最小限に */}
         <Card className="p-6 bg-white">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                 {error}
               </div>
             )}
 
-            {/* お名前 */}
+            {/* 連絡先（必須） */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                連絡先 <span className="text-red-500">*</span>
+                <span className="text-xs text-gray-500 ml-2">
+                  （電話またはメールどちらか必須）
+                </span>
+              </label>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="tel"
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="電話番号"
+                    className="w-full border rounded-lg pl-10 pr-4 py-2.5"
+                  />
+                </div>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="email"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    placeholder="メールアドレス"
+                    className="w-full border rounded-lg pl-10 pr-4 py-2.5"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 希望入居時期 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Calendar className="w-4 h-4 inline mr-1" />
+                入居希望時期
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {['すぐに', '1ヶ月以内', '3ヶ月以内', '半年以内', '未定'].map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setDesiredMoveIn(option)}
+                    className={`px-4 py-2 rounded-full text-sm border transition-colors ${
+                      desiredMoveIn === option
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 希望条件 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Heart className="w-4 h-4 inline mr-1" />
+                ご希望・ご状況（複数選択可）
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  '認知症がある',
+                  '医療ケアが必要',
+                  '看取り対応希望',
+                  '見学したい',
+                  '資料がほしい',
+                ].map((option) => {
+                  const isSelected = conditions.includes(option);
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setConditions(conditions.replace(option, '').replace(/、+/g, '、').replace(/^、|、$/g, ''));
+                        } else {
+                          setConditions(conditions ? `${conditions}、${option}` : option);
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-full text-sm border transition-colors ${
+                        isSelected
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'
+                      }`}
+                    >
+                      {option}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* メッセージ（任意） */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <MessageSquare className="w-4 h-4 inline mr-1" />
+                ご質問・ご要望
+                <span className="text-xs text-gray-500 ml-2">（任意）</span>
+              </label>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="気になることがあればお書きください"
+                className="w-full border rounded-lg px-4 py-2 h-24 resize-none"
+              />
+            </div>
+
+            {/* お名前（任意） */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 <User className="w-4 h-4 inline mr-1" />
-                お名前 <span className="text-red-500">*</span>
+                お名前
+                <span className="text-xs text-gray-500 ml-2">（任意）</span>
               </label>
               <input
                 type="text"
                 value={contactName}
                 onChange={(e) => setContactName(e.target.value)}
                 placeholder="山田 太郎"
-                className="w-full border rounded-lg px-4 py-2"
-                required
-              />
-            </div>
-
-            {/* 連絡先 */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Phone className="w-4 h-4 inline mr-1" />
-                  電話番号
-                </label>
-                <input
-                  type="tel"
-                  value={contactPhone}
-                  onChange={(e) => setContactPhone(e.target.value)}
-                  placeholder="090-1234-5678"
-                  className="w-full border rounded-lg px-4 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Mail className="w-4 h-4 inline mr-1" />
-                  メールアドレス
-                </label>
-                <input
-                  type="email"
-                  value={contactEmail}
-                  onChange={(e) => setContactEmail(e.target.value)}
-                  placeholder="example@email.com"
-                  className="w-full border rounded-lg px-4 py-2"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 -mt-2">
-              ※ 電話番号またはメールアドレスのいずれかは必須です
-            </p>
-
-            {/* 入居希望時期 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Calendar className="w-4 h-4 inline mr-1" />
-                入居希望時期
-              </label>
-              <select
-                value={desiredMoveIn}
-                onChange={(e) => setDesiredMoveIn(e.target.value)}
-                className="w-full border rounded-lg px-4 py-2"
-              >
-                <option value="">選択してください</option>
-                <option value="すぐに">すぐに入居したい</option>
-                <option value="1ヶ月以内">1ヶ月以内</option>
-                <option value="3ヶ月以内">3ヶ月以内</option>
-                <option value="半年以内">半年以内</option>
-                <option value="未定">まだ決まっていない</option>
-              </select>
-            </div>
-
-            {/* 介護度 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <Heart className="w-4 h-4 inline mr-1" />
-                現在の介護度
-              </label>
-              <select
-                value={careLevel}
-                onChange={(e) => setCareLevel(e.target.value)}
-                className="w-full border rounded-lg px-4 py-2"
-              >
-                <option value="">選択してください</option>
-                <option value="0">自立・要支援</option>
-                <option value="1">要介護1</option>
-                <option value="2">要介護2</option>
-                <option value="3">要介護3</option>
-                <option value="4">要介護4</option>
-                <option value="5">要介護5</option>
-              </select>
-            </div>
-
-            {/* 特別な対応 */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={hasSpecialNeeds}
-                  onChange={(e) => setHasSpecialNeeds(e.target.checked)}
-                  className="rounded border-gray-300"
-                />
-                特別な対応が必要（医療ケア・認知症など）
-              </label>
-              {hasSpecialNeeds && (
-                <textarea
-                  value={specialNeedsDetail}
-                  onChange={(e) => setSpecialNeedsDetail(e.target.value)}
-                  placeholder="必要な対応の詳細をお書きください（例：胃ろう、インスリン注射など）"
-                  className="w-full border rounded-lg px-4 py-2 mt-2 h-24 resize-none"
-                />
-              )}
-            </div>
-
-            {/* メッセージ */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <MessageSquare className="w-4 h-4 inline mr-1" />
-                ご質問・ご要望
-              </label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="その他ご質問やご要望がありましたらお書きください"
-                className="w-full border rounded-lg px-4 py-2 h-32 resize-none"
+                className="w-full border rounded-lg px-4 py-2.5"
               />
             </div>
 
             {/* 送信ボタン */}
             <Button
               type="submit"
-              disabled={submitting || !contactName || (!contactPhone && !contactEmail)}
-              className="w-full flex items-center justify-center gap-2 py-3"
+              disabled={submitting || !hasContact}
+              className="w-full flex items-center justify-center gap-2 py-3 text-base"
             >
               {submitting ? (
                 '送信中...'
@@ -310,19 +430,18 @@ function InquiryFormContent() {
                 </>
               )}
             </Button>
+
+            {!hasContact && (
+              <p className="text-center text-sm text-amber-600">
+                電話番号またはメールアドレスを入力してください
+              </p>
+            )}
           </form>
         </Card>
 
         {/* 注意事項 */}
-        <div className="mt-6 text-sm text-gray-500 space-y-2">
-          <p>
-            ※ お問い合わせいただいた内容は、担当者が確認の上、
-            電話またはメールにてご連絡いたします。
-          </p>
-          <p>
-            ※ 通常、1〜2営業日以内にご連絡いたします。
-            お急ぎの場合はお電話でお問い合わせください。
-          </p>
+        <div className="mt-6 text-xs text-gray-500 text-center">
+          <p>担当者より1〜2営業日以内にご連絡いたします</p>
         </div>
       </main>
     </div>

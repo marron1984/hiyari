@@ -220,6 +220,9 @@ export function getAlertStats(): AlertStats {
       unassigned_item: 0,
       // Ticket 130: MBR改善タスク期限超過
       mbr_action_overdue: 0,
+      // Ticket 088: 空室棚卸し
+      vacancy_stale: 0,
+      vacancy_suggestion_backlog: 0,
     },
   };
 

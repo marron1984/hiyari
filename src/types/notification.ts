@@ -31,6 +31,9 @@ export type NotificationType =
   | 'mbr_action_created'    // Ticket 128: MBR改善タスク自動起票
   | 'mbr_action_overdue'    // Ticket 130: MBR改善タスク期限超過
   | 'vacancy_inquiry'       // 空室問い合わせ通知
+  | 'vacancy_inquiry_sla_breach'   // Ticket 071: 空室問い合わせSLA超過
+  | 'vacancy_unit_updated'         // Ticket 075: 空室ユニット更新
+  | 'vacancy_suggestion_created'   // Ticket 075: 空室更新提案
   | 'system';               // システム通知
 
 // 通知
@@ -87,6 +90,9 @@ export interface Notification {
     ticketId?: string;
     businessUnitId?: string;
     fingerprint?: string;
+    // vacancy_inquiry_sla_breach (Ticket 071)
+    slaDueAt?: string;
+    hoursOverdue?: number;
   };
 }
 

@@ -12,7 +12,7 @@
  */
 
 import { listTickets } from '@/lib/tickets/repo';
-import type { Ticket, ViewerContext, SalesResultCode } from '@/lib/tickets/types';
+import type { Ticket, TicketMeta, ViewerContext, SalesResultCode } from '@/lib/tickets/types';
 import { getAiVpSettingsEvents } from '@/lib/aiVp/settings';
 import { getSuggestions } from '@/lib/sales/suggestionsRepo';
 import { listRecentRuns } from '@/lib/weeklyOps/repo';
@@ -30,6 +30,12 @@ import { buildImprovementProgress } from './buildImprovementProgress';
 // ======== ヘルパー ========
 
 const SYSTEM_VIEWER: ViewerContext = { userId: 'system', role: 'admin' };
+
+/** metaJson（またはレガシー meta）を安全に取得 */
+function getMeta(t: Ticket): TicketMeta | null {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return t.metaJson ?? (t as any).meta ?? null;
+}
 
 /** 月の開始日・終了日を取得 */
 export function getMonthRange(month: string): { start: Date; end: Date } {
@@ -124,7 +130,7 @@ export function buildSalesSection(tickets: Ticket[], start: Date, end: Date): Mb
   // resultCode分布
   const codeCounts = new Map<string, number>();
   for (const t of completed) {
-    const code = t.meta?.resultCode || 'unknown';
+    const code = getMeta(t)?.resultCode || 'unknown';
     codeCounts.set(code, (codeCounts.get(code) || 0) + 1);
   }
 

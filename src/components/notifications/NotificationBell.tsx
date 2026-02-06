@@ -45,6 +45,12 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   mbr_action_created: { icon: FileText, color: 'text-indigo-600', bg: 'bg-indigo-50' },
   mbr_action_overdue: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
   vacancy_inquiry: { icon: Bell, color: 'text-blue-600', bg: 'bg-blue-50' },
+  // Ticket 071: 空室問い合わせSLA超過
+  vacancy_inquiry_sla_breach: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+  // Ticket 075: 空室ユニット更新
+  vacancy_unit_updated: { icon: Bell, color: 'text-blue-600', bg: 'bg-blue-50' },
+  // Ticket 075: 空室更新提案
+  vacancy_suggestion_created: { icon: AlertTriangle, color: 'text-yellow-600', bg: 'bg-yellow-50' },
   system: { icon: Bell, color: 'text-zinc-600', bg: 'bg-zinc-50' },
 };
 

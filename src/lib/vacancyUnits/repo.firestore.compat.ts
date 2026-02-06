@@ -9,7 +9,6 @@
 
 import {
   saveUnit,
-  updateUnit,
   deleteUnit,
   getById,
   listPublic,
@@ -18,44 +17,175 @@ import {
   listUpdateLogs,
 } from './repo.firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { createHash } from 'crypto';
 import type {
   VacancyUnit,
   VacancyUpdate,
   VacancyViewLog,
   VacancyUnitListFilter,
   VacancyUnitStats,
-  PublicVacancyUnit,
   CreateVacancyUnitRequest,
+  UpdateVacancyUnitRequest,
 } from './types';
-import { toPublicVacancyUnit } from './types';
 
 const VIEW_LOGS_COLLECTION = 'vacancy_view_logs';
 const UNITS_COLLECTION = 'vacancy_units';
 
+// ========== ユーティリティ ==========
+
+function now(): string {
+  return new Date().toISOString();
+}
+
+function generateId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function hashIp(ip: string | null | undefined): string | null {
+  if (!ip) return null;
+  const parts = ip.split('.');
+  if (parts.length >= 3) {
+    const prefix = parts.slice(0, 3).join('.');
+    const hash = createHash('sha256').update(ip).digest('hex').slice(0, 8);
+    return `${prefix}.x (${hash})`;
+  }
+  const hash = createHash('sha256').update(ip).digest('hex').slice(0, 12);
+  return `masked:${hash}`;
+}
+
 // ========== CRUD ==========
 
-/** VacancyUnit を Firestore に保存（新規） */
-export async function create(unit: VacancyUnit): Promise<void> {
+/** 空室ユニットを作成（Firestore に保存 + 作成ログ） */
+export async function create(
+  request: CreateVacancyUnitRequest,
+  actorUserId: string,
+  actorUserName?: string
+): Promise<VacancyUnit> {
+  const timestamp = now();
+  const id = generateId('vunit');
+
+  const unit: VacancyUnit = {
+    id,
+    businessUnitId: request.businessUnitId,
+    buildingName: request.buildingName,
+    area: request.area,
+    roomType: request.roomType,
+    capacity: request.capacity,
+    availableCount: request.availableCount,
+    availableFrom: request.availableFrom ?? null,
+    conditionsJson: request.conditionsJson ?? {},
+    priceRangeJson: request.priceRangeJson ?? {},
+    status: request.status ?? 'active',
+    updatedAt: timestamp,
+    updatedByUserId: actorUserId,
+    updatedByUserName: actorUserName,
+    createdAt: timestamp,
+  };
+
   await saveUnit(unit);
+
+  // 作成ログ
+  await saveUpdateLog({
+    id: generateId('vupd'),
+    vacancyUnitId: id,
+    businessUnitId: request.businessUnitId,
+    changedFieldsJson: { created: { before: null, after: unit } },
+    createdAt: timestamp,
+    createdByUserId: actorUserId,
+    createdByUserName: actorUserName,
+  });
+
+  return unit;
 }
 
-/** VacancyUnit を Firestore に上書き保存（更新） */
-export async function update(unit: VacancyUnit): Promise<void> {
-  await saveUnit(unit);
+/** 空室ユニットを更新（Firestore に保存 + 変更ログ） */
+export async function update(
+  id: string,
+  request: UpdateVacancyUnitRequest,
+  actorUserId: string,
+  actorUserName?: string
+): Promise<VacancyUnit | null> {
+  const existing = await getById(id);
+  if (!existing) return null;
+
+  const timestamp = now();
+  const changedFields: Record<string, { before: unknown; after: unknown }> = {};
+
+  if (request.buildingName !== undefined && request.buildingName !== existing.buildingName) {
+    changedFields.buildingName = { before: existing.buildingName, after: request.buildingName };
+  }
+  if (request.area !== undefined && request.area !== existing.area) {
+    changedFields.area = { before: existing.area, after: request.area };
+  }
+  if (request.roomType !== undefined && request.roomType !== existing.roomType) {
+    changedFields.roomType = { before: existing.roomType, after: request.roomType };
+  }
+  if (request.capacity !== undefined && request.capacity !== existing.capacity) {
+    changedFields.capacity = { before: existing.capacity, after: request.capacity };
+  }
+  if (request.availableCount !== undefined && request.availableCount !== existing.availableCount) {
+    changedFields.availableCount = { before: existing.availableCount, after: request.availableCount };
+  }
+  if (request.availableFrom !== undefined && request.availableFrom !== existing.availableFrom) {
+    changedFields.availableFrom = { before: existing.availableFrom, after: request.availableFrom };
+  }
+  if (request.conditionsJson !== undefined) {
+    changedFields.conditionsJson = { before: existing.conditionsJson, after: request.conditionsJson };
+  }
+  if (request.priceRangeJson !== undefined) {
+    changedFields.priceRangeJson = { before: existing.priceRangeJson, after: request.priceRangeJson };
+  }
+  if (request.status !== undefined && request.status !== existing.status) {
+    changedFields.status = { before: existing.status, after: request.status };
+  }
+
+  const updated: VacancyUnit = {
+    ...existing,
+    buildingName: request.buildingName ?? existing.buildingName,
+    area: request.area ?? existing.area,
+    roomType: request.roomType ?? existing.roomType,
+    capacity: request.capacity ?? existing.capacity,
+    availableCount: request.availableCount ?? existing.availableCount,
+    availableFrom: request.availableFrom !== undefined ? request.availableFrom : existing.availableFrom,
+    conditionsJson: request.conditionsJson ?? existing.conditionsJson,
+    priceRangeJson: request.priceRangeJson ?? existing.priceRangeJson,
+    status: request.status ?? existing.status,
+    updatedAt: timestamp,
+    updatedByUserId: actorUserId,
+    updatedByUserName: actorUserName,
+  };
+
+  await saveUnit(updated);
+
+  if (Object.keys(changedFields).length > 0) {
+    await saveUpdateLog({
+      id: generateId('vupd'),
+      vacancyUnitId: id,
+      businessUnitId: existing.businessUnitId,
+      changedFieldsJson: changedFields,
+      createdAt: timestamp,
+      createdByUserId: actorUserId,
+      createdByUserName: actorUserName,
+    });
+  }
+
+  return updated;
 }
 
-/** VacancyUnit を Firestore から削除 */
-export async function remove(id: string): Promise<void> {
-  await deleteUnit(id);
+/** 空室ユニットを Firestore から削除 */
+export async function remove(id: string): Promise<boolean> {
+  try {
+    await deleteUnit(id);
+    return true;
+  } catch (error) {
+    console.error('[VacancyUnits compat] remove error:', error);
+    return false;
+  }
 }
 
 // ========== 読み取り ==========
 
-/** Firestore から ID で取得 */
 export { getById } from './repo.firestore';
-
-/** Firestore から公開一覧（status=active） */
 export { listPublic } from './repo.firestore';
 
 /** Firestore から管理一覧（内部） */
@@ -67,7 +197,6 @@ export async function listInternal(
 
 // ========== 変更ログ ==========
 
-/** 変更ログを Firestore に保存 */
 export { saveUpdateLog } from './repo.firestore';
 
 /** Firestore から変更ログ一覧 */
@@ -80,94 +209,145 @@ export async function listUpdates(
 
 // ========== 閲覧ログ ==========
 
-/** 閲覧ログを Firestore に書き込む */
+/** 公開ボード閲覧ログを Firestore に書き込む */
 export async function logPublicView(params: {
-  vacancyUnitId?: string;
-  viewerType: 'public' | 'external_account';
-  externalUserId?: string;
-  ipAddress?: string;
+  businessUnitId?: string;
+  ip?: string;
   userAgent?: string;
+  referer?: string;
+  path?: string;
+  query?: Record<string, string>;
 }): Promise<void> {
-  const db = getAdminDb();
-  const id = `vlog_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-  const log: VacancyViewLog = {
-    id,
-    vacancyUnitId: params.vacancyUnitId ?? null,
-    viewerType: params.viewerType,
-    externalUserId: params.externalUserId,
-    ipAddress: params.ipAddress,
-    userAgent: params.userAgent,
-    createdAt: new Date().toISOString(),
-  };
-  await db
-    .collection(VIEW_LOGS_COLLECTION)
-    .doc(id)
-    .set({
-      ...log,
-      _createdAt: Timestamp.now(),
-    });
+  try {
+    const db = getAdminDb();
+    const log: Omit<VacancyViewLog, 'id'> = {
+      businessUnitId: params.businessUnitId ?? null,
+      viewedAt: now(),
+      ipHint: hashIp(params.ip),
+      userAgent: params.userAgent?.slice(0, 256) ?? null,
+      referer: params.referer?.slice(0, 512) ?? null,
+      path: params.path ?? '/vacancies',
+      queryJson: params.query ?? {},
+    };
+    await db.collection(VIEW_LOGS_COLLECTION).add(log);
+  } catch (error) {
+    console.error('[VacancyUnits compat] logPublicView error:', error);
+  }
 }
 
 // ========== 統計 ==========
 
 /** Firestore から統計を算出 */
 export async function getStats(): Promise<VacancyUnitStats> {
-  const { items } = await listAll({});
-  const activeItems = items.filter((u) => u.status === 'active');
+  try {
+    const { items } = await listAll({ limit: 1000 });
+    const activeItems = items.filter((u) => u.status === 'active');
 
-  const byBusinessUnit: Record<string, { units: number; available: number }> =
-    {};
-  for (const unit of items) {
-    const entry = byBusinessUnit[unit.businessUnitId] ?? {
-      units: 0,
-      available: 0,
+    const byBusinessUnit: Record<string, { units: number; available: number }> = {};
+    for (const unit of items) {
+      if (!byBusinessUnit[unit.businessUnitId]) {
+        byBusinessUnit[unit.businessUnitId] = { units: 0, available: 0 };
+      }
+      byBusinessUnit[unit.businessUnitId].units += 1;
+      byBusinessUnit[unit.businessUnitId].available += unit.availableCount;
+    }
+
+    return {
+      totalUnits: items.length,
+      activeUnits: activeItems.length,
+      totalAvailable: items.reduce((sum, u) => sum + u.availableCount, 0),
+      byBusinessUnit,
     };
-    entry.units += 1;
-    entry.available += unit.availableCount;
-    byBusinessUnit[unit.businessUnitId] = entry;
+  } catch (error) {
+    console.error('[VacancyUnits compat] getStats error:', error);
+    return { totalUnits: 0, activeUnits: 0, totalAvailable: 0, byBusinessUnit: {} };
   }
-
-  return {
-    totalUnits: items.length,
-    activeUnits: activeItems.length,
-    totalAvailable: items.reduce((sum, u) => sum + u.availableCount, 0),
-    byBusinessUnit,
-  };
 }
 
 // ========== シード ==========
 
 /** Firestore にユニットが 0 件なら seed データを投入 */
-export async function seedIfEmpty(
-  seeds: CreateVacancyUnitRequest[],
-  actorUserId: string = 'system',
-  actorUserName: string = 'システム初期化'
-): Promise<boolean> {
-  const db = getAdminDb();
-  const snap = await db.collection(UNITS_COLLECTION).limit(1).get();
-  if (!snap.empty) return false;
+export async function seedIfEmpty(): Promise<void> {
+  try {
+    const db = getAdminDb();
+    const snap = await db.collection(UNITS_COLLECTION).limit(1).get();
+    if (!snap.empty) return;
 
-  for (const seed of seeds) {
-    const id = `vunit_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    const timestamp = new Date().toISOString();
-    const unit: VacancyUnit = {
-      id,
-      businessUnitId: seed.businessUnitId,
-      buildingName: seed.buildingName,
-      area: seed.area,
-      roomType: seed.roomType,
-      capacity: seed.capacity,
-      availableCount: seed.availableCount,
-      availableFrom: seed.availableFrom ?? null,
-      conditionsJson: seed.conditionsJson ?? {},
-      priceRangeJson: seed.priceRangeJson ?? {},
-      status: seed.status ?? 'active',
-      updatedAt: timestamp,
-      updatedByUserId: actorUserId,
-      updatedByUserName: actorUserName,
-      createdAt: timestamp,
-    };
-    await saveUnit(unit);
+    const seeds: CreateVacancyUnitRequest[] = [
+      {
+        businessUnitId: 'bu_housing',
+        buildingName: 'パシフィック',
+        area: '東京都',
+        roomType: '個室',
+        capacity: 22,
+        availableCount: 10,
+        availableFrom: '2026-02-15',
+        conditionsJson: {
+          minCareLevel: 1,
+          maxCareLevel: 5,
+          acceptsDementia: true,
+          acceptsMedicalCare: true,
+          acceptsTerminalCare: true,
+        },
+        priceRangeJson: {
+          monthlyMin: 15,
+          monthlyMax: 25,
+          depositMin: 0,
+          depositMax: 30,
+        },
+      },
+      {
+        businessUnitId: 'bu_housing',
+        buildingName: 'ルネッサンス',
+        area: '東京都',
+        roomType: '個室',
+        capacity: 9,
+        availableCount: 2,
+        availableFrom: '2026-03-01',
+        conditionsJson: {
+          minCareLevel: 1,
+          maxCareLevel: 4,
+          acceptsDementia: true,
+          acceptsMedicalCare: false,
+          acceptsTerminalCare: false,
+        },
+        priceRangeJson: {
+          monthlyMin: 12,
+          monthlyMax: 18,
+          depositMin: 0,
+          depositMax: 20,
+        },
+      },
+      {
+        businessUnitId: 'bu_housing',
+        buildingName: 'セレーネ',
+        area: '神奈川県',
+        roomType: '個室',
+        capacity: 9,
+        availableCount: 4,
+        availableFrom: '2026-02-20',
+        conditionsJson: {
+          minCareLevel: 1,
+          maxCareLevel: 5,
+          acceptsDementia: true,
+          acceptsMedicalCare: true,
+          acceptsTerminalCare: true,
+        },
+        priceRangeJson: {
+          monthlyMin: 14,
+          monthlyMax: 22,
+          depositMin: 0,
+          depositMax: 25,
+        },
+      },
+    ];
+
+    for (const seed of seeds) {
+      await create(seed, 'system', 'システム初期化');
+    }
+
+    console.log('[VacancyUnits] Seeded', seeds.length, 'records');
+  } catch (error) {
+    console.error('[VacancyUnits compat] seedIfEmpty error:', error);
   }
-  return true;
 }

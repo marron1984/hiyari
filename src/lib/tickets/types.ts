@@ -42,10 +42,28 @@ export type TicketRelatedType =
   | 'incident'
   | 'approval'
   | 'alert'
-  | 'ai_vp'             // Task 043: AI VP Business Top3 generated tickets
-  | 'vacancy_inquiry'   // Ticket 070: 空室問い合わせ
-  | 'sales_next_action' // Ticket 123: 営業ネクストアクション
+  | 'ai_vp'                 // Task 043: AI VP Business Top3 generated tickets
+  | 'vacancy_inquiry'       // Ticket 070: 空室問い合わせ
+  | 'onboarding_followup'   // Ticket 099: 未署名者フォローアップ
+  | 'sales_next_action'     // Ticket 122: 営業タスク
   | null;
+
+/**
+ * Ticket 071: パイプラインタイプ
+ */
+export type TicketPipeline = 'vacancy_inquiry' | null;
+
+/**
+ * Ticket 071: 空室問い合わせステージ
+ */
+export type VacancyInquiryStage =
+  | 'new'              // 新規（初動待ち）
+  | 'contacted'        // 連絡済み
+  | 'tour_scheduled'   // 見学予定
+  | 'applied'          // 申込み
+  | 'accepted'         // 成約
+  | 'rejected'         // 不成約
+  | 'closed';          // クローズ
 
 /**
  * 営業タスク結果コード（Ticket 123/124）
@@ -70,6 +88,10 @@ export type TicketEventAction =
   | 'status_change'
   | 'priority_change'
   | 'category_change'
+  | 'stage_change'      // Ticket 071: ステージ変更
+  | 'merge_inquiry'     // Ticket 079: 重複問い合わせ統合
+  | 'mark_applied'      // Ticket 084: 申込記録
+  | 'mark_accepted'     // Ticket 085: 受入決定
   | 'comment'
   | 'resolve'
   | 'close'
@@ -77,21 +99,50 @@ export type TicketEventAction =
   | 'update';
 
 /**
- * チケット
- */
-/**
- * チケットメタデータ（Ticket 123/124: 営業タスク結果等）
+ * Ticket 074: チケットメタデータ（紹介元など）
  */
 export interface TicketMeta {
+  ref?: string;           // 紹介元（ref）コード
+  refName?: string;       // 紹介元表示名
+  vacancyUnitId?: string; // Ticket 072: 空室ユニットID
+  contactHash?: string;   // Ticket 079: 連絡先ハッシュ（重複検出用）
+  mergedCount?: number;   // Ticket 079: 統合された問い合わせ数
+  // Ticket 123/124: 営業タスク結果
   leadScore?: number;
   nextBestAction?: string;
   resultCode?: SalesResultCode;
   resultNote?: string;
-  ref?: string;           // 紹介元
-  stage?: string;         // 営業ステージ
+  stage?: string;           // 営業ステージ
   originTicketId?: string;
+  // Ticket 084: 申込関連
+  appliedAt?: string;                // 申込日時（ISO）
+  desiredMoveInDate?: string;        // 希望入居日（YYYY-MM-DD）
+  requiredDocsStatus?: RequiredDocsStatus; // 必要書類ステータス
+  applicationNote?: string;          // 申込メモ
+  applicationChannel?: ApplicationChannel; // 申込チャネル
+  // Ticket 085: 受入決定関連
+  acceptedAt?: string;               // 受入決定日時（ISO）
+  acceptedNote?: string;             // 受入決定メモ
+  reservedVacancyUnitId?: string;    // 予約確定した空室ユニットID
+  acceptedByUserId?: string;         // 受入決定した担当者ID
   [key: string]: unknown;
 }
+
+/**
+ * Ticket 084: 必要書類ステータス
+ */
+export interface RequiredDocsStatus {
+  id?: boolean;           // 身分証明書
+  insurance?: boolean;    // 保険証
+  guarantor?: boolean;    // 保証人書類
+  incomeProof?: boolean;  // 収入証明
+  other?: string;         // その他
+}
+
+/**
+ * Ticket 084: 申込チャネル
+ */
+export type ApplicationChannel = 'in_person' | 'online' | 'other';
 
 /**
  * チケット
@@ -113,10 +164,15 @@ export interface Ticket {
   resolvedAt: string | null;
   closedAt: string | null;
   tagsJson: string[] | null;
+  metaJson: TicketMeta | null;        // Ticket 074: メタデータ（ref等）
   relatedType: TicketRelatedType;
   relatedId: string | null;
   location: string | null;
-  meta: TicketMeta | null;            // Ticket 123/124: 拡張メタデータ
+  // Ticket 071: パイプライン属性
+  pipeline: TicketPipeline;
+  stage: VacancyInquiryStage | null;
+  slaDueAt: string | null;            // 初動SLA期限
+  stageChangedAt: string | null;      // ステージ最終変更日時
   createdAt: string;
   updatedAt: string;
 }
@@ -169,10 +225,14 @@ export interface CreateTicketRequest {
   businessUnitId?: string | null;     // Task 030: 事業単位スコープ
   dueAt?: string | null;
   tags?: string[] | null;
+  meta?: TicketMeta | null;           // Ticket 074: メタデータ（ref等）
   relatedType?: TicketRelatedType;
   relatedId?: string | null;
   location?: string | null;
-  meta?: TicketMeta | null;           // Ticket 123/124: 拡張メタデータ
+  // Ticket 071: パイプライン属性
+  pipeline?: TicketPipeline;
+  stage?: VacancyInquiryStage | null;
+  slaDueAt?: string | null;
 }
 
 /**
@@ -187,6 +247,8 @@ export interface UpdateTicketRequest {
   dueAt?: string | null;
   tags?: string[] | null;
   location?: string | null;
+  // Ticket 071: ステージ更新
+  stage?: VacancyInquiryStage | null;
 }
 
 /**
@@ -197,11 +259,15 @@ export interface TicketListFilter {
   priority?: TicketPriority;
   category?: TicketCategory;
   businessUnitId?: string | null;     // Task 030: 事業単位スコープ
-  relatedType?: TicketRelatedType;    // MVP: 問い合わせ冪等性
-  relatedId?: string;                 // MVP: 問い合わせ冪等性
   q?: string;
   my?: 'assigned' | 'requested' | 'watching';
   overdue?: boolean;
+  // Ticket 071: パイプライン絞り込み
+  relatedType?: TicketRelatedType;
+  relatedId?: string;                  // Ticket B1: Firestore idempotency filter
+  pipeline?: TicketPipeline;
+  stage?: VacancyInquiryStage;
+  slaBreached?: boolean;              // SLA超過のみ
   limit?: number;
   offset?: number;
 }
@@ -337,12 +403,99 @@ export const TICKET_EVENT_ACTION_LABELS: Record<TicketEventAction, string> = {
   status_change: 'ステータス変更',
   priority_change: '優先度変更',
   category_change: 'カテゴリ変更',
+  stage_change: 'ステージ変更',  // Ticket 071
+  merge_inquiry: '問い合わせ統合', // Ticket 079
+  mark_applied: '申込記録',       // Ticket 084
+  mark_accepted: '受入決定',      // Ticket 085
   comment: 'コメント',
   resolve: '解決',
   close: 'クローズ',
   reopen: '再オープン',
   update: '更新',
 };
+
+/**
+ * Ticket 071: 空室問い合わせステージ表示設定
+ */
+export const VACANCY_INQUIRY_STAGE_CONFIG: Record<
+  VacancyInquiryStage,
+  { label: string; color: string; bg: string; border: string; order: number }
+> = {
+  new: {
+    label: '新規',
+    color: 'text-blue-700',
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+    order: 0,
+  },
+  contacted: {
+    label: '連絡済み',
+    color: 'text-cyan-700',
+    bg: 'bg-cyan-50',
+    border: 'border-cyan-200',
+    order: 1,
+  },
+  tour_scheduled: {
+    label: '見学予定',
+    color: 'text-purple-700',
+    bg: 'bg-purple-50',
+    border: 'border-purple-200',
+    order: 2,
+  },
+  applied: {
+    label: '申込み',
+    color: 'text-yellow-700',
+    bg: 'bg-yellow-50',
+    border: 'border-yellow-200',
+    order: 3,
+  },
+  accepted: {
+    label: '成約',
+    color: 'text-green-700',
+    bg: 'bg-green-50',
+    border: 'border-green-200',
+    order: 4,
+  },
+  rejected: {
+    label: '不成約',
+    color: 'text-red-700',
+    bg: 'bg-red-50',
+    border: 'border-red-200',
+    order: 5,
+  },
+  closed: {
+    label: 'クローズ',
+    color: 'text-zinc-600',
+    bg: 'bg-zinc-100',
+    border: 'border-zinc-300',
+    order: 6,
+  },
+};
+
+/**
+ * Ticket 071: 空室問い合わせ統計
+ */
+export interface VacancyInquiryStats {
+  total: number;
+  byStage: Record<VacancyInquiryStage, number>;
+  slaBreached: number;
+  thisWeek: {
+    newCount: number;
+    contactedCount: number;
+    tourScheduledCount: number;
+    appliedCount: number;
+    acceptedCount: number;
+    rejectedCount: number;
+  };
+  slaComplianceRate: number;  // 初動SLA遵守率（%）
+}
+
+/**
+ * Ticket 071: 初動SLA時間（ミリ秒）
+ * デフォルト: 4時間
+ */
+export const VACANCY_INQUIRY_SLA_HOURS = 4;
+export const VACANCY_INQUIRY_SLA_MS = VACANCY_INQUIRY_SLA_HOURS * 60 * 60 * 1000;
 
 /**
  * 権限チェック：チケットを閲覧できるか

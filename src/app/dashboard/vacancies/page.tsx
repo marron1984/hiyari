@@ -1,16 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Button, Card, Badge } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import {
   Building2,
   RefreshCw,
   Plus,
+  Minus,
   Edit2,
-  Trash2,
   History,
-  Eye,
   ExternalLink,
   MapPin,
   Users,
@@ -18,6 +18,9 @@ import {
   DollarSign,
   Heart,
   X,
+  Filter,
+  Check,
+  Pause,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -53,6 +56,7 @@ interface VacancyUnit {
   priceRangeJson: PriceRange;
   status: 'active' | 'paused';
   updatedAt: string;
+  updatedByUserId: string;
   updatedByUserName?: string;
 }
 
@@ -67,8 +71,8 @@ interface VacancyUpdate {
 // ===== ステータス設定 =====
 
 const STATUS_CONFIG = {
-  active: { label: '公開中', color: 'text-green-700', bg: 'bg-green-50' },
-  paused: { label: '一時停止', color: 'text-zinc-600', bg: 'bg-zinc-100' },
+  active: { label: '公開中', color: 'text-green-700', bg: 'bg-green-50', icon: Check },
+  paused: { label: '一時停止', color: 'text-zinc-600', bg: 'bg-zinc-100', icon: Pause },
 };
 
 const CARE_LEVEL_LABELS: Record<number, string> = {
@@ -103,129 +107,202 @@ function formatPrice(min: number | null | undefined, max: number | null | undefi
   return '-';
 }
 
-// ===== 編集モーダル =====
+// ===== インライン編集コンポーネント =====
 
-interface EditModalProps {
-  unit: VacancyUnit | null;
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (id: string, data: Partial<VacancyUnit>) => Promise<void>;
+interface InlineCountEditorProps {
+  value: number;
+  onChange: (value: number) => Promise<void>;
+  max?: number;
+  disabled?: boolean;
 }
 
-function EditModal({ unit, isOpen, onClose, onSave }: EditModalProps) {
-  const [availableCount, setAvailableCount] = useState(0);
-  const [availableFrom, setAvailableFrom] = useState('');
-  const [status, setStatus] = useState<'active' | 'paused'>('active');
+function InlineCountEditor({ value, onChange, max, disabled }: InlineCountEditorProps) {
+  const [editing, setEditing] = useState(false);
+  const [inputValue, setInputValue] = useState(value.toString());
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (unit) {
-      setAvailableCount(unit.availableCount);
-      setAvailableFrom(unit.availableFrom?.split('T')[0] || '');
-      setStatus(unit.status);
-    }
-  }, [unit]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!unit) return;
-
-    setError(null);
+  const handleIncrement = async () => {
+    if (saving || disabled) return;
+    if (max !== undefined && value >= max) return;
     setSaving(true);
-
     try {
-      await onSave(unit.id, {
-        availableCount,
-        availableFrom: availableFrom || null,
-        status,
-      });
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '保存に失敗しました');
+      await onChange(value + 1);
     } finally {
       setSaving(false);
     }
   };
 
-  if (!isOpen || !unit) return null;
+  const handleDecrement = async () => {
+    if (saving || disabled || value <= 0) return;
+    setSaving(true);
+    try {
+      await onChange(value - 1);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDirectInput = async () => {
+    const newValue = parseInt(inputValue, 10);
+    if (isNaN(newValue) || newValue < 0) {
+      setInputValue(value.toString());
+      setEditing(false);
+      return;
+    }
+    if (max !== undefined && newValue > max) {
+      setInputValue(value.toString());
+      setEditing(false);
+      return;
+    }
+    if (newValue !== value) {
+      setSaving(true);
+      try {
+        await onChange(newValue);
+      } finally {
+        setSaving(false);
+      }
+    }
+    setEditing(false);
+  };
+
+  useEffect(() => {
+    setInputValue(value.toString());
+  }, [value]);
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Edit2 className="w-5 h-5" />
-            {unit.buildingName} を編集
-          </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              空室数
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={availableCount}
-              onChange={(e) => setAvailableCount(Number(e.target.value))}
-              className="w-full border rounded-lg px-3 py-2"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              入居可能日
-            </label>
-            <input
-              type="date"
-              value={availableFrom}
-              onChange={(e) => setAvailableFrom(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              公開ステータス
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as 'active' | 'paused')}
-              className="w-full border rounded-lg px-3 py-2"
-            >
-              <option value="active">公開中</option>
-              <option value="paused">一時停止</option>
-            </select>
-          </div>
-
-          <div className="flex gap-3 pt-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={onClose}
-              className="flex-1"
-              disabled={saving}
-            >
-              キャンセル
-            </Button>
-            <Button type="submit" className="flex-1" disabled={saving}>
-              {saving ? '保存中...' : '保存'}
-            </Button>
-          </div>
-        </form>
-      </div>
+    <div className="flex items-center gap-1">
+      <button
+        onClick={handleDecrement}
+        disabled={saving || disabled || value <= 0}
+        className="w-7 h-7 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <Minus className="w-4 h-4" />
+      </button>
+      {editing ? (
+        <input
+          type="number"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onBlur={handleDirectInput}
+          onKeyDown={(e) => e.key === 'Enter' && handleDirectInput()}
+          className="w-12 h-7 text-center border rounded text-sm"
+          autoFocus
+          min={0}
+          max={max}
+        />
+      ) : (
+        <button
+          onClick={() => !disabled && setEditing(true)}
+          disabled={disabled}
+          className="w-12 h-7 text-center font-bold text-lg hover:bg-gray-50 rounded disabled:cursor-not-allowed"
+        >
+          {saving ? '...' : value}
+        </button>
+      )}
+      <button
+        onClick={handleIncrement}
+        disabled={saving || disabled || (max !== undefined && value >= max)}
+        className="w-7 h-7 flex items-center justify-center rounded bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <Plus className="w-4 h-4" />
+      </button>
     </div>
+  );
+}
+
+// ===== インラインステータストグル =====
+
+interface InlineStatusToggleProps {
+  value: 'active' | 'paused';
+  onChange: (value: 'active' | 'paused') => Promise<void>;
+  disabled?: boolean;
+}
+
+function InlineStatusToggle({ value, onChange, disabled }: InlineStatusToggleProps) {
+  const [saving, setSaving] = useState(false);
+
+  const handleToggle = async () => {
+    if (saving || disabled) return;
+    setSaving(true);
+    try {
+      await onChange(value === 'active' ? 'paused' : 'active');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const config = STATUS_CONFIG[value];
+
+  return (
+    <button
+      onClick={handleToggle}
+      disabled={saving || disabled}
+      className={`px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1 transition-colors ${config.bg} ${config.color} hover:opacity-80 disabled:cursor-not-allowed`}
+    >
+      {saving ? (
+        <RefreshCw className="w-3 h-3 animate-spin" />
+      ) : (
+        <config.icon className="w-3 h-3" />
+      )}
+      {config.label}
+    </button>
+  );
+}
+
+// ===== インライン日付編集 =====
+
+interface InlineDateEditorProps {
+  value: string | null;
+  onChange: (value: string | null) => Promise<void>;
+  disabled?: boolean;
+}
+
+function InlineDateEditor({ value, onChange, disabled }: InlineDateEditorProps) {
+  const [editing, setEditing] = useState(false);
+  const [inputValue, setInputValue] = useState(value?.split('T')[0] || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (saving) return;
+    const newValue = inputValue || null;
+    if (newValue !== value?.split('T')[0] && newValue !== (value === null ? null : value)) {
+      setSaving(true);
+      try {
+        await onChange(newValue);
+      } finally {
+        setSaving(false);
+      }
+    }
+    setEditing(false);
+  };
+
+  useEffect(() => {
+    setInputValue(value?.split('T')[0] || '');
+  }, [value]);
+
+  if (editing) {
+    return (
+      <input
+        type="date"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+        className="w-32 px-2 py-1 border rounded text-sm"
+        autoFocus
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => !disabled && setEditing(true)}
+      disabled={disabled}
+      className="text-sm text-gray-600 hover:text-gray-900 hover:underline disabled:cursor-not-allowed flex items-center gap-1"
+    >
+      <Calendar className="w-4 h-4" />
+      {saving ? '...' : formatDate(value)}
+    </button>
   );
 }
 
@@ -244,7 +321,7 @@ function HistoryModal({ unit, isOpen, onClose }: HistoryModalProps) {
   useEffect(() => {
     if (isOpen && unit) {
       setLoading(true);
-      fetch(`/api/vacancy-units/${unit.id}/history`)
+      fetch(`/api/vacancy-units/${unit.id}/history?limit=20`)
         .then((res) => res.json())
         .then((data) => setUpdates(data.updates || []))
         .catch(console.error)
@@ -253,6 +330,23 @@ function HistoryModal({ unit, isOpen, onClose }: HistoryModalProps) {
   }, [isOpen, unit]);
 
   if (!isOpen || !unit) return null;
+
+  const formatChangeValue = (value: unknown): string => {
+    if (value === null || value === undefined) return '未設定';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  };
+
+  const fieldLabels: Record<string, string> = {
+    availableCount: '空室数',
+    availableFrom: '入居可能日',
+    status: 'ステータス',
+    buildingName: '施設名',
+    area: 'エリア',
+    roomType: '部屋タイプ',
+    capacity: '定員',
+    created: '作成',
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -280,10 +374,13 @@ function HistoryModal({ unit, isOpen, onClose }: HistoryModalProps) {
                     <span className="font-medium">{update.createdByUserName || '不明'}</span>
                     <span className="text-gray-500">{formatDateTime(update.createdAt)}</span>
                   </div>
-                  <div className="text-gray-600">
+                  <div className="space-y-1 text-gray-600">
                     {Object.entries(update.changedFieldsJson).map(([field, change]) => (
-                      <div key={field}>
-                        {field}: {String(change.before)} → {String(change.after)}
+                      <div key={field} className="flex items-center gap-2">
+                        <span className="font-medium text-gray-700">{fieldLabels[field] || field}:</span>
+                        <span className="text-red-600 line-through">{formatChangeValue(change.before)}</span>
+                        <span>→</span>
+                        <span className="text-green-600">{formatChangeValue(change.after)}</span>
                       </div>
                     ))}
                   </div>
@@ -297,20 +394,96 @@ function HistoryModal({ unit, isOpen, onClose }: HistoryModalProps) {
   );
 }
 
+// ===== フィルターパネル =====
+
+interface FiltersProps {
+  businessUnitId: string;
+  status: string;
+  roomType: string;
+  onBusinessUnitChange: (value: string) => void;
+  onStatusChange: (value: string) => void;
+  onRoomTypeChange: (value: string) => void;
+  businessUnits: string[];
+  roomTypes: string[];
+}
+
+function FiltersPanel({
+  businessUnitId,
+  status,
+  roomType,
+  onBusinessUnitChange,
+  onStatusChange,
+  onRoomTypeChange,
+  businessUnits,
+  roomTypes,
+}: FiltersProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 p-4 bg-gray-50 rounded-lg mb-4">
+      <div className="flex items-center gap-2">
+        <Filter className="w-4 h-4 text-gray-500" />
+        <span className="text-sm text-gray-600">フィルタ:</span>
+      </div>
+
+      <select
+        value={businessUnitId}
+        onChange={(e) => onBusinessUnitChange(e.target.value)}
+        className="text-sm border rounded px-2 py-1"
+      >
+        <option value="">全事業所</option>
+        {businessUnits.map((bu) => (
+          <option key={bu} value={bu}>{bu}</option>
+        ))}
+      </select>
+
+      <select
+        value={status}
+        onChange={(e) => onStatusChange(e.target.value)}
+        className="text-sm border rounded px-2 py-1"
+      >
+        <option value="">全ステータス</option>
+        <option value="active">公開中</option>
+        <option value="paused">一時停止</option>
+      </select>
+
+      <select
+        value={roomType}
+        onChange={(e) => onRoomTypeChange(e.target.value)}
+        className="text-sm border rounded px-2 py-1"
+      >
+        <option value="">全部屋タイプ</option>
+        {roomTypes.map((rt) => (
+          <option key={rt} value={rt}>{rt}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 // ===== メインコンポーネント =====
 
 export default function VacanciesPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [units, setUnits] = useState<VacancyUnit[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  const [editUnit, setEditUnit] = useState<VacancyUnit | null>(null);
   const [historyUnit, setHistoryUnit] = useState<VacancyUnit | null>(null);
 
-  const fetchData = async () => {
+  // フィルター状態
+  const [filterBusinessUnit, setFilterBusinessUnit] = useState(searchParams.get('businessUnitId') || '');
+  const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || '');
+  const [filterRoomType, setFilterRoomType] = useState(searchParams.get('roomType') || '');
+
+  const fetchData = useCallback(async () => {
     setRefreshing(true);
     try {
-      const res = await fetch('/api/vacancy-units');
+      const params = new URLSearchParams();
+      if (filterBusinessUnit) params.set('businessUnitId', filterBusinessUnit);
+      if (filterStatus) params.set('status', filterStatus);
+      if (filterRoomType) params.set('roomType', filterRoomType);
+
+      const res = await fetch(`/api/vacancy-units?${params.toString()}`);
       const data = await res.json();
       setUnits(data.items || []);
     } catch (error) {
@@ -319,30 +492,48 @@ export default function VacanciesPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [filterBusinessUnit, filterStatus, filterRoomType]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
-  const handleSave = async (id: string, data: Partial<VacancyUnit>) => {
+  // フィルター変更時にURLを更新
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filterBusinessUnit) params.set('businessUnitId', filterBusinessUnit);
+    if (filterStatus) params.set('status', filterStatus);
+    if (filterRoomType) params.set('roomType', filterRoomType);
+    const query = params.toString();
+    router.replace(query ? `?${query}` : '/dashboard/vacancies', { scroll: false });
+  }, [filterBusinessUnit, filterStatus, filterRoomType, router]);
+
+  // インライン更新用のPATCH関数
+  const patchUnit = useCallback(async (id: string, data: Partial<VacancyUnit>) => {
     const res = await fetch(`/api/vacancy-units/${id}`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
     if (!res.ok) {
       const error = await res.json();
-      throw new Error(error.error || '保存に失敗しました');
+      throw new Error(error.error || '更新に失敗しました');
     }
 
-    await fetchData();
-  };
+    const result = await res.json();
+    // ローカル状態を更新
+    setUnits((prev) => prev.map((u) => (u.id === id ? result.unit : u)));
+    return result.unit;
+  }, []);
 
   if (loading) {
     return <Loading text="読み込み中..." />;
   }
+
+  // フィルター用のユニークな値を抽出
+  const allBusinessUnits = [...new Set(units.map((u) => u.businessUnitId))];
+  const allRoomTypes = [...new Set(units.map((u) => u.roomType))];
 
   const activeUnits = units.filter((u) => u.status === 'active');
   const totalAvailable = units.reduce((sum, u) => sum + u.availableCount, 0);
@@ -354,10 +545,10 @@ export default function VacanciesPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Building2 className="w-6 h-6" />
-            空室外部公開管理
+            空室管理
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            外部向け空室情報を管理します
+            空室情報をリアルタイムで更新できます
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -395,107 +586,111 @@ export default function VacanciesPage() {
         </Card>
       </div>
 
-      {/* 施設一覧 */}
+      {/* フィルター */}
+      <FiltersPanel
+        businessUnitId={filterBusinessUnit}
+        status={filterStatus}
+        roomType={filterRoomType}
+        onBusinessUnitChange={setFilterBusinessUnit}
+        onStatusChange={setFilterStatus}
+        onRoomTypeChange={setFilterRoomType}
+        businessUnits={allBusinessUnits}
+        roomTypes={allRoomTypes}
+      />
+
+      {/* 施設一覧テーブル */}
       {units.length === 0 ? (
         <Card className="p-8 text-center">
           <Building2 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-          <p className="text-gray-500">空室情報が登録されていません</p>
+          <p className="text-gray-500">空室情報がありません</p>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {units.map((unit) => {
-            const statusConfig = STATUS_CONFIG[unit.status];
-            return (
-              <Card key={unit.id} className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-bold text-lg">{unit.buildingName}</h3>
-                      <Badge className={`${statusConfig.bg} ${statusConfig.color}`}>
-                        {statusConfig.label}
-                      </Badge>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b">
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">施設名</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">エリア</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">部屋タイプ</th>
+                <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">空室数</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">入居可能日</th>
+                <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">ステータス</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-600">最終更新</th>
+                <th className="text-center px-4 py-3 text-sm font-medium text-gray-600">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {units.map((unit) => (
+                <tr key={unit.id} className="border-b hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{unit.buildingName}</div>
+                    <div className="text-xs text-gray-500">{unit.businessUnitId}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1 text-sm text-gray-600">
+                      <MapPin className="w-4 h-4" />
+                      {unit.area}
                     </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <MapPin className="w-4 h-4" />
-                        {unit.area}
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Users className="w-4 h-4" />
-                        空室 {unit.availableCount} / {unit.capacity}
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Calendar className="w-4 h-4" />
-                        {formatDate(unit.availableFrom)}〜
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <DollarSign className="w-4 h-4" />
-                        {formatPrice(unit.priceRangeJson?.monthlyMin, unit.priceRangeJson?.monthlyMax)}
-                      </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm">{unit.roomType}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-center">
+                      <InlineCountEditor
+                        value={unit.availableCount}
+                        max={unit.capacity}
+                        onChange={async (value) => {
+                          await patchUnit(unit.id, { availableCount: value });
+                        }}
+                      />
                     </div>
-
-                    {unit.conditionsJson && (
-                      <div className="flex items-center gap-2 mt-2 text-sm">
-                        <Heart className="w-4 h-4 text-pink-500" />
-                        {unit.conditionsJson.minCareLevel && unit.conditionsJson.maxCareLevel ? (
-                          <span>
-                            {CARE_LEVEL_LABELS[unit.conditionsJson.minCareLevel]}〜
-                            {CARE_LEVEL_LABELS[unit.conditionsJson.maxCareLevel]}
-                          </span>
-                        ) : (
-                          <span>条件なし</span>
-                        )}
-                        {unit.conditionsJson.acceptsDementia && (
-                          <Badge className="bg-purple-100 text-purple-700 text-xs">認知症可</Badge>
-                        )}
-                        {unit.conditionsJson.acceptsMedicalCare && (
-                          <Badge className="bg-blue-100 text-blue-700 text-xs">医療対応</Badge>
-                        )}
-                        {unit.conditionsJson.acceptsTerminalCare && (
-                          <Badge className="bg-pink-100 text-pink-700 text-xs">看取り可</Badge>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="text-xs text-gray-400 mt-2">
-                      最終更新: {formatDateTime(unit.updatedAt)}
-                      {unit.updatedByUserName && ` by ${unit.updatedByUserName}`}
+                    <div className="text-xs text-gray-400 text-center mt-1">
+                      / {unit.capacity}
                     </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      variant="secondary"
-                      className="flex items-center gap-1 text-sm"
-                      onClick={() => setEditUnit(unit)}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                      編集
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      className="flex items-center gap-1 text-sm"
-                      onClick={() => setHistoryUnit(unit)}
-                    >
-                      <History className="w-4 h-4" />
-                      履歴
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <InlineDateEditor
+                      value={unit.availableFrom}
+                      onChange={async (value) => {
+                        await patchUnit(unit.id, { availableFrom: value });
+                      }}
+                    />
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-center">
+                      <InlineStatusToggle
+                        value={unit.status}
+                        onChange={async (value) => {
+                          await patchUnit(unit.id, { status: value });
+                        }}
+                      />
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-xs text-gray-500">
+                      {formatDateTime(unit.updatedAt)}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {unit.updatedByUserName || '-'}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-center">
+                      <Button
+                        variant="secondary"
+                        className="flex items-center gap-1 text-xs px-2 py-1"
+                        onClick={() => setHistoryUnit(unit)}
+                      >
+                        <History className="w-3 h-3" />
+                        履歴
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
-
-      {/* 編集モーダル */}
-      <EditModal
-        unit={editUnit}
-        isOpen={!!editUnit}
-        onClose={() => setEditUnit(null)}
-        onSave={handleSave}
-      />
 
       {/* 履歴モーダル */}
       <HistoryModal
