@@ -76,12 +76,25 @@ export async function findByRelatedId(
 
 /**
  * IDでチケット取得
+ *
+ * vacancy_inquiry はdocId=relatedIdのため、ticket.idで直接参照できない。
+ * docIdルックアップ失敗時、idフィールドでクエリにフォールバックする。
  */
 export async function getById(id: string): Promise<Ticket | null> {
   const db = getAdminDb();
+  // まずdocIdとして試行
   const doc = await db.collection(TICKETS_COLLECTION).doc(id).get();
-  if (!doc.exists) return null;
-  return docToTicket(doc);
+  if (doc.exists) return docToTicket(doc);
+
+  // vacancy_inquiryはdocId≠ticket.idのため、idフィールドでフォールバック
+  const snap = await db
+    .collection(TICKETS_COLLECTION)
+    .where('id', '==', id)
+    .limit(1)
+    .get();
+  if (!snap.empty) return docToTicket(snap.docs[0]);
+
+  return null;
 }
 
 /**

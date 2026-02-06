@@ -89,8 +89,14 @@ export function pickFields<T extends Record<string, unknown>>(
  */
 export function isValidDateString(dateStr: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
-  const date = new Date(dateStr);
-  return !isNaN(date.getTime());
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  // カレンダー上の実日付と一致するか検証（2026-02-31 等を弾く）
+  return (
+    date.getFullYear() === y &&
+    date.getMonth() === m - 1 &&
+    date.getDate() === d
+  );
 }
 
 /**

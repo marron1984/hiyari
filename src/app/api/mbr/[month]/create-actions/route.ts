@@ -11,6 +11,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyIdToken } from '@/lib/firebase-admin';
 import { getMbrByMonth } from '@/lib/mbr/mbrRepo';
 import { createCorrectiveActionsFromMbr } from '@/lib/mbr/createCorrectiveActionsFromMbr';
+import type { AppRole } from '@/config/appRoles';
+
+/** admin / manager / executive のみ許可 */
+const ALLOWED_ROLES: AppRole[] = ['admin', 'manager', 'executive'];
 
 async function getAuthUser(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -29,6 +33,15 @@ export async function POST(
   const user = await getAuthUser(request);
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // ロールチェック（ヘッダーまたはデフォルト）
+  const role = (request.headers.get('x-user-role') || 'staff') as AppRole;
+  if (!ALLOWED_ROLES.includes(role)) {
+    return NextResponse.json(
+      { error: 'この操作には管理者権限が必要です' },
+      { status: 403 }
+    );
   }
 
   const { month } = await params;
