@@ -26,7 +26,8 @@ export type AlertType =
   | 'agreement_risk'         // 同意書リスク
   | 'business_scope_unclassified'  // Task 038: 未分類スコープ（正式名称）
   | 'unclassified_scope'     // Task 033: 未分類スコープ（レガシー、後方互換）
-  | 'unassigned_item';       // Task 058: 未割当アイテム
+  | 'unassigned_item'        // Task 058: 未割当アイテム
+  | 'mbr_action_overdue';   // Ticket 130: MBR改善タスク期限超過
 
 /**
  * アラート重要度
@@ -131,6 +132,7 @@ export const ALERT_TYPE_LABELS: Record<AlertType, string> = {
   business_scope_unclassified: '未分類スコープ',  // Task 038: 正式名称
   unclassified_scope: '未分類スコープ',  // Task 033: レガシー
   unassigned_item: '未割当アイテム',  // Task 058: 未割当アイテム
+  mbr_action_overdue: 'MBR改善タスク超過',  // Ticket 130
 };
 
 /**

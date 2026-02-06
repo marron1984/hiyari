@@ -16,7 +16,8 @@ export type DailyOpsStepName =
   | 'tickets_backlog_scan'       // チケット滞留（Task 010/002）
   | 'repairs_risk_scan'          // 修繕リスク（Task 011/002）
   | 'corrective_actions_scan'    // 是正措置遅延（Task 017/002）
-  | 'collection_flow_scan';      // 回収フロー遅延（Task 021）
+  | 'collection_flow_scan'        // 回収フロー遅延（Task 021）
+  | 'mbr_actions_overdue_scan';  // MBR改善タスク期限超過（Ticket 130）
 
 /**
  * ステップ実行結果

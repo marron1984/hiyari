@@ -546,6 +546,14 @@ function DailyOpsWidgetCard({
           </div>
         </div>
       )}
+      {/* Ticket 130: MBR改善タスク期限超過 */}
+      {widget.mbrOverdueCount != null && widget.mbrOverdueCount > 0 && (
+        <div className="mt-2 p-2 bg-amber-50 rounded">
+          <div className="text-[10px] text-amber-700 font-medium">
+            MBR改善タスク期限超過: {widget.mbrOverdueCount}件
+          </div>
+        </div>
+      )}
     </WidgetCard>
   );
 }

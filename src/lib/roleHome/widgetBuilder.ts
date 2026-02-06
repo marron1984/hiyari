@@ -45,6 +45,7 @@ import { countUnreadHandoverItems } from '@/lib/handover/repo';
 import { listAnnouncementsForUser } from '@/lib/announcements/store';
 import { listReadIds } from '@/lib/readTracking/repo';
 import { listMbrs } from '@/lib/mbr/mbrRepo';
+import { getMbrOverdueSummary } from '@/lib/dailyOps/scanMbrActionsOverdue';
 
 /**
  * ビューアーコンテキストを生成
@@ -268,6 +269,8 @@ export function buildDailyOpsWidget(): DailyOpsWidget {
   const stats = getDailyOpsStats();
   const recentRuns = listDailyOpsRuns(5);
   const failedSteps = getDailyFailedSteps();
+  // Ticket 130: MBR改善タスク期限超過件数
+  const mbrOverdue = getMbrOverdueSummary();
 
   const hasFailedRecently = stats.lastFailedRun !== null &&
     (!stats.lastSuccessfulRun ||
@@ -278,13 +281,15 @@ export function buildDailyOpsWidget(): DailyOpsWidget {
     title: WIDGET_LABELS.daily_ops,
     href: '/api/cron/daily-ops?preview=true',
     count: stats.totalRuns,
-    severity: hasFailedRecently ? 'critical' : 'info',
+    severity: hasFailedRecently ? 'critical' : (mbrOverdue.overdueCount > 0 ? 'warning' : 'info'),
     lastRunAt: stats.lastSuccessfulRun?.startedAt ?? stats.lastFailedRun?.startedAt ?? null,
     lastRunOk: stats.lastSuccessfulRun ? true : (stats.lastFailedRun ? false : null),
     totalRuns: stats.totalRuns,
     hasFailedRecently,
     // Ticket 067: 失敗ステップ名を表示
     failedSteps: failedSteps.length > 0 ? failedSteps : undefined,
+    // Ticket 130: MBR改善タスク期限超過件数
+    mbrOverdueCount: mbrOverdue.overdueCount > 0 ? mbrOverdue.overdueCount : undefined,
     isEmpty: stats.totalRuns === 0,
   };
 }

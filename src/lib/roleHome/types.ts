@@ -154,6 +154,8 @@ export interface DailyOpsWidget extends BaseWidget {
   hasFailedRecently: boolean;
   /** 失敗したステップ名（Ticket 067: 復旧導線用） */
   failedSteps?: string[];
+  /** Ticket 130: MBR改善タスク期限超過件数 */
+  mbrOverdueCount?: number;
 }
 
 /**

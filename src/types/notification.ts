@@ -29,6 +29,7 @@ export type NotificationType =
   | 'business_scope_unclassified'  // Task 038: 未分類スコープ警告（正式名称）
   | 'unclassified_scope'    // Task 033: 未分類スコープ警告（レガシー）
   | 'mbr_action_created'    // Ticket 128: MBR改善タスク自動起票
+  | 'mbr_action_overdue'    // Ticket 130: MBR改善タスク期限超過
   | 'system';               // システム通知
 
 // 通知

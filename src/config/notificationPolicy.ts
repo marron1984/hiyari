@@ -218,6 +218,16 @@ export const NOTIFY_POLICIES: NotifyPolicy[] = [
     description: '重要申し送りは即時通知',
   },
 
+  // ========== MBR改善タスク期限超過（Ticket 130） ==========
+  {
+    alertType: 'mbr_action_overdue' as AlertType,
+    minSeverityToNotify: 'warning',
+    mode: 'immediate',
+    throttleMinutes: 1440,  // 24時間（日次スキャンなので1日1回で十分）
+    targetRoles: ['admin', 'manager'],
+    description: 'MBR改善タスク期限超過は即時通知（criticalは必ず即時）',
+  },
+
   // ========== デフォルト（フォールバック） ==========
   {
     alertType: '*',
