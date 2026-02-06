@@ -1,36 +1,26 @@
-'use client';
-
 /**
- * ダッシュボードレイアウト
+ * ダッシュボードレイアウト（Server Component）
  *
  * Ticket 093: オンボーディングゲート追加
  * - staff/leader は必須文書署名が完了するまで /onboarding/contracts にリダイレクト
+ * - ゲートはサーバーサイドで実行（Edge Runtime 制約回避）
  */
 
 import { ReactNode } from 'react';
-import { AuthGuard } from '@/components/AuthGuard';
-import { OnboardingGuard } from '@/components/OnboardingGuard';
-import { Header } from '@/components/Header';
-import { PreviewBadge } from '@/components/PreviewBadge';
-import { RolePreviewBanner } from '@/components/navigation/RolePreviewBanner';
+import { checkOnboardingGate } from '@/lib/onboarding';
+import { DashboardClientLayout } from '@/components/layouts/DashboardClientLayout';
+
+// headers() を使用するため動的レンダリングを強制
+export const dynamic = 'force-dynamic';
 
 interface DashboardLayoutProps {
   children: ReactNode;
 }
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  return (
-    <AuthGuard>
-      <OnboardingGuard>
-        <div className="min-h-screen bg-zinc-50">
-          <Header />
-          <RolePreviewBanner />
-          <PreviewBadge />
-          <main className="pb-20 md:pb-8">
-            {children}
-          </main>
-        </div>
-      </OnboardingGuard>
-    </AuthGuard>
-  );
+export default async function DashboardLayout({ children }: DashboardLayoutProps) {
+  // サーバーサイドでオンボーディングゲートをチェック
+  // 未完了の場合は /onboarding/contracts にリダイレクト
+  await checkOnboardingGate();
+
+  return <DashboardClientLayout>{children}</DashboardClientLayout>;
 }
