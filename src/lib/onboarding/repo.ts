@@ -245,6 +245,13 @@ export function getUserOnboarding(userId: string): UserOnboarding | null {
 }
 
 /**
+ * 全ユーザーのオンボーディング情報を取得
+ */
+export function getAllUserOnboardings(): UserOnboarding[] {
+  return Array.from(userOnboardingStore.values());
+}
+
+/**
  * ユーザーオンボーディングを初期化
  *
  * Ticket 094: appliedRequirementsVersion を設定
