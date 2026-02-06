@@ -17,7 +17,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getVacancyUnitById, seedVacancyUnitsIfEmpty } from '@/lib/vacancyUnits/repo';
 import type { VacancyInquiryRequest } from '@/lib/vacancyUnits/types';
-import { createTicket, listTickets } from '@/lib/tickets/repo';
+import { createTicket } from '@/lib/tickets/repo';
+import { saveTicket, findByRelatedId } from '@/lib/tickets/repo.firestore';
 import { CARE_LEVEL_LABELS } from '@/lib/vacancyUnits/types';
 import { sanitizeString, sanitizeNumber, isValidEmail } from '@/lib/sanitize';
 import { createNotificationServer } from '@/lib/notifications-server';
@@ -100,18 +101,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 冪等性チェック: 同日同一連絡先
+    // 冪等性チェック: Firestoreで同日同一連絡先を確認（docId=relatedId で高速point read）
     const idempotencyKey = buildIdempotencyKey(contactPhone ?? undefined, contactEmail ?? undefined);
-    const SYSTEM_VIEWER = { userId: 'system', role: 'admin' as const };
-    const { items: existingTickets } = listTickets(
-      { relatedType: 'vacancy_inquiry', relatedId: idempotencyKey, limit: 1 },
-      SYSTEM_VIEWER
-    );
+    const existingTicket = await findByRelatedId('vacancy_inquiry', idempotencyKey);
 
-    if (existingTickets.length > 0) {
+    if (existingTicket) {
       return NextResponse.json({
         success: true,
-        ticketId: existingTickets[0].id,
+        ticketId: existingTicket.id,
         message: 'お問い合わせは既に受け付け済みです。',
         duplicate: true,
       }, { status: 200 });
@@ -178,6 +175,14 @@ export async function POST(request: NextRequest) {
       },
       'system'
     );
+
+    // Firestore永続化（docId=relatedId で冪等保証）
+    try {
+      await saveTicket(ticket);
+    } catch (e) {
+      console.error('ticket firestore save failed:', e);
+      // Firestore保存失敗でもレスポンスは返す（in-memory には作成済み）
+    }
 
     // 担当者への通知（Admin SDK → Firestore永続化）
     if (ticket.assigneeUserId) {

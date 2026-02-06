@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getTicketById, updateTicket } from '@/lib/tickets/repo';
+import { getById as getTicketFromFirestore } from '@/lib/tickets/repo.firestore';
 import type { AppRole } from '@/config/appRoles';
 
 // デモユーザー情報（本番ではセッションから取得）
@@ -27,6 +28,16 @@ export async function GET(
     const result = getTicketById(id, viewer);
 
     if (!result.success) {
+      // In-memoryに無い場合、Firestoreからフォールバック取得
+      try {
+        const fsTicket = await getTicketFromFirestore(id);
+        if (fsTicket) {
+          return NextResponse.json({ ticket: fsTicket });
+        }
+      } catch {
+        // Firestore接続失敗時は元のエラーを返す
+      }
+
       return NextResponse.json(
         { error: result.error },
         { status: result.error === 'チケットが見つかりません' ? 404 : 403 }
