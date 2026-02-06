@@ -24,6 +24,7 @@ import {
   FileSignature,
   Layers,
   ShieldAlert,
+  BarChart3,
 } from 'lucide-react';
 import type {
   Widget,
@@ -45,6 +46,7 @@ import type {
   ContractsWidget,
   OsMapWidget,
   QualityRiskWidget,
+  MbrWidget,
 } from '@/lib/roleHome/types';
 import type { AppRole } from '@/config/appRoles';
 
@@ -108,6 +110,9 @@ export function RoleHomeWidget({
       return <OsMapWidgetCard widget={widget as OsMapWidget} />;
     case 'quality_risk':
       return <QualityRiskWidgetCard widget={widget as QualityRiskWidget} />;
+    // Ticket 127: MBRウィジェット
+    case 'mbr':
+      return <MbrWidgetCard widget={widget as MbrWidget} />;
     default:
       return <DefaultWidgetCard widget={widget} />;
   }
@@ -767,6 +772,48 @@ function QualityRiskWidgetCard({ widget }: { widget: QualityRiskWidget }) {
   );
 }
 
+// Ticket 127: MBRウィジェット
+function MbrWidgetCard({ widget }: { widget: MbrWidget }) {
+  return (
+    <WidgetCard
+      icon={<BarChart3 className="w-4 h-4 text-indigo-500" />}
+      title={widget.title}
+      href={widget.href}
+      severity={widget.severity}
+    >
+      {widget.available ? (
+        <div className="space-y-2">
+          <div className="text-center">
+            <div className="text-xl font-bold text-indigo-600">{widget.latestMonth}</div>
+            <div className="text-[10px] text-zinc-500">最新MBR</div>
+          </div>
+          <div className="text-center">
+            <Badge className="bg-green-100 text-green-700 text-[10px]">
+              生成済み
+            </Badge>
+          </div>
+          {widget.generatedAt && (
+            <div className="text-center text-[10px] text-zinc-400">
+              {new Date(widget.generatedAt).toLocaleDateString('ja-JP')}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="text-center">
+            <div className="text-sm text-zinc-500">MBR未生成</div>
+          </div>
+          <div className="text-center">
+            <Badge className="bg-amber-100 text-amber-700 text-[10px]">
+              生成忘れ
+            </Badge>
+          </div>
+        </div>
+      )}
+    </WidgetCard>
+  );
+}
+
 // デフォルトウィジェット
 function DefaultWidgetCard({ widget }: { widget: Widget }) {
   const Icon = getWidgetIcon(widget.type);
@@ -806,6 +853,7 @@ function getWidgetIcon(type: WidgetType) {
     quality_risk: ShieldAlert, // Task 053: 専用アイコン
     contracts: FileSignature,  // Task 053: 専用アイコン
     receivables: Wallet,
+    mbr: BarChart3,            // Ticket 127: MBRアイコン
   };
   return iconMap[type] ?? FileQuestion;
 }

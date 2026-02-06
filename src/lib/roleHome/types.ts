@@ -27,7 +27,8 @@ export type WidgetType =
   | 'os_map'             // OSマップリンク
   | 'quality_risk'       // 品質/リスク統合
   | 'contracts'          // 契約/未収ハイライト
-  | 'receivables';       // 未収金
+  | 'receivables'        // 未収金
+  | 'mbr';               // 月次改善レビュー（Ticket 127）
 
 /**
  * ウィジェット共通インターフェース
@@ -222,6 +223,16 @@ export interface QualityRiskWidget extends BaseWidget {
 }
 
 /**
+ * MBRウィジェット（Ticket 127追加）
+ */
+export interface MbrWidget extends BaseWidget {
+  type: 'mbr';
+  latestMonth: string | null;    // 最新MBRの対象月（YYYY-MM）
+  generatedAt: string | null;    // 最新MBRの生成日時
+  available: boolean;            // MBRが存在するか
+}
+
+/**
  * ウィジェット型のユニオン
  */
 export type Widget =
@@ -242,6 +253,7 @@ export type Widget =
   | ContractsWidget
   | OsMapWidget
   | QualityRiskWidget
+  | MbrWidget
   | BaseWidget;
 
 /**
@@ -320,6 +332,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
     'receivables',        // 未収金
     'daily_ops',          // 日次オペステータス
     'weekly_ops',         // 週次オペステータス
+    'mbr',                // 月次改善レビュー（Ticket 127）
   ],
 
   // executive: 事業全体俯瞰
@@ -336,6 +349,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
     'receivables',        // 未収金ハイライト
     'unclassified',       // 未分類スコープ
     'weekly_ops',         // WBRへの導線
+    'mbr',                // 月次改善レビュー（Ticket 127）
   ],
 
   // admin: システム運用・全体管理
@@ -357,6 +371,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
     'corrective_actions', // 是正措置
     'licenses',           // 資格期限
     'receivables',        // 未収金
+    'mbr',                // 月次改善レビュー（Ticket 127）
   ],
 
   // auditor: 監査用ビュー
@@ -390,4 +405,5 @@ export const WIDGET_LABELS: Record<WidgetType, string> = {
   quality_risk: '品質/リスク',
   contracts: '契約',
   receivables: '未収金',
+  mbr: '月次改善レビュー',
 };

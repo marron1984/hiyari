@@ -25,6 +25,7 @@ import type {
   ContractsWidget,
   OsMapWidget,
   QualityRiskWidget,
+  MbrWidget,
 } from './types';
 import { WIDGET_LABELS } from './types';
 import type { ViewerContext } from '@/lib/business/types';
@@ -43,6 +44,7 @@ import { getStats as getReceivablesStats } from '@/lib/receivables/repo';
 import { countUnreadHandoverItems } from '@/lib/handover/repo';
 import { listAnnouncementsForUser } from '@/lib/announcements/store';
 import { listReadIds } from '@/lib/readTracking/repo';
+import { listMbrs } from '@/lib/mbr/mbrRepo';
 
 /**
  * ビューアーコンテキストを生成
@@ -444,6 +446,27 @@ export function buildQualityRiskWidget(): QualityRiskWidget {
 }
 
 /**
+ * Ticket 127: MBRウィジェットを構築
+ */
+export function buildMbrWidget(): MbrWidget {
+  const mbrs = listMbrs(1);
+  const latest = mbrs[0] ?? null;
+
+  const available = latest !== null;
+
+  return {
+    type: 'mbr',
+    title: WIDGET_LABELS.mbr,
+    href: '/dashboard/mbr',
+    severity: available ? 'info' : 'warning',
+    latestMonth: latest?.month ?? null,
+    generatedAt: latest?.generatedAt ?? null,
+    available,
+    isEmpty: false, // 未生成でも warning カードを表示
+  };
+}
+
+/**
  * ウィジェットタイプに応じてウィジェットを構築
  */
 export function buildWidget(
@@ -487,6 +510,9 @@ export function buildWidget(
       return buildOsMapWidget();
     case 'quality_risk':
       return buildQualityRiskWidget();
+    // Ticket 127: MBRウィジェット
+    case 'mbr':
+      return buildMbrWidget();
     default:
       return {
         type: widgetType,

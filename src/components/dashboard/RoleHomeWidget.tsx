@@ -21,6 +21,7 @@ import {
   ChevronRight,
   CheckCircle2,
   XCircle,
+  BarChart3,
 } from 'lucide-react';
 
 /**
@@ -44,6 +45,7 @@ const WIDGET_ICONS: Record<WidgetType, React.ComponentType<{ className?: string 
   quality_risk: AlertTriangle,
   contracts: FileText,
   receivables: Banknote,
+  mbr: BarChart3,
 };
 
 /**

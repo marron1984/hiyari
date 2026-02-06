@@ -129,5 +129,5 @@ export function saveMbr(mbr: Mbr): void {
  */
 export function clearAllMbrs(): void {
   mbrStore = [];
-  isInitialized = false;
+  isInitialized = true; // ディスクから再読み込みしない
 }
