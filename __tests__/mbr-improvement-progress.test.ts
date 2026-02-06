@@ -73,6 +73,7 @@ describe('buildImprovementProgress', () => {
     expect(result.overallCompletionRate).toBe(0);
     expect(result.blockedTop).toEqual([]);
     expect(result.overdueTop).toEqual([]);
+    expect(result.blockedTopReasons).toEqual([]);
     expect(result.byMonth).toHaveLength(3);
   });
 
@@ -170,6 +171,7 @@ describe('generateMbr improvementProgress統合', () => {
     expect(Array.isArray(mbr.sections.improvementProgress.byMonth)).toBe(true);
     expect(Array.isArray(mbr.sections.improvementProgress.blockedTop)).toBe(true);
     expect(Array.isArray(mbr.sections.improvementProgress.overdueTop)).toBe(true);
+    expect(Array.isArray(mbr.sections.improvementProgress.blockedTopReasons)).toBe(true);
   });
 
   it('byMonthが3ヶ月分の構造を持つ', () => {

@@ -7,7 +7,8 @@
 
 import { listCorrectiveActions } from '@/lib/correctiveActions/repo';
 import type { CorrectiveAction, ViewerContext } from '@/lib/correctiveActions/types';
-import type { MbrImprovementProgressSection, MbrImprovementMonth } from './types';
+import { getBlockedReasonsStats } from '@/lib/correctiveActions/statsBlockedReasons';
+import type { MbrImprovementProgressSection, MbrImprovementMonth, BlockedTopReason } from './types';
 
 const SYSTEM_VIEWER: ViewerContext = { userId: 'system', role: 'admin' };
 
@@ -123,9 +124,9 @@ export function buildImprovementProgress(
   const totalDone = allRelevant.filter(isDone).length;
   const overallCompletionRate = totalTasks > 0 ? Math.round((totalDone / totalTasks) * 100) : 0;
 
-  // 詰まり上位: blocked = in_progress + pending_review で長期化しているもの
+  // 詰まり上位: blocked / in_progress / pending_review で長期化しているもの
   const blocked = allRelevant
-    .filter((ca) => ca.status === 'in_progress' || ca.status === 'pending_review')
+    .filter((ca) => ca.status === 'in_progress' || ca.status === 'pending_review' || ca.status === 'blocked')
     .slice(0, 3)
     .map((ca) => ({ id: ca.id, title: ca.title }));
 
@@ -135,6 +136,12 @@ export function buildImprovementProgress(
     .slice(0, 3)
     .map((ca) => ({ id: ca.id, title: ca.title }));
 
+  // Ticket 132: blocked理由トップ3（mbr_focus のみ集計）
+  const reasonsStats = getBlockedReasonsStats({ sourceType: 'mbr_focus' });
+  const blockedTopReasons: BlockedTopReason[] = reasonsStats.distribution
+    .slice(0, 3)
+    .map((d) => ({ code: d.code, label: d.label, count: d.count }));
+
   return {
     byMonth,
     totalTasks,
@@ -142,5 +149,6 @@ export function buildImprovementProgress(
     overallCompletionRate,
     blockedTop: blocked,
     overdueTop: overdue,
+    blockedTopReasons,
   };
 }

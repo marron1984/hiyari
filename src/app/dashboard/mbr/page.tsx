@@ -589,6 +589,26 @@ ${mbr.sections.sales.resultDistribution.length > 0 ? `<table><tr><th>結果コ�
                 </Card>
               )}
 
+              {/* Ticket 132: blocked理由トップ3 */}
+              {mbr.sections.improvementProgress.blockedTopReasons?.length > 0 && (
+                <Card className="border-orange-200">
+                  <CardHeader className="py-3 px-4">
+                    <CardTitle className="text-sm">詰まり原因トップ3</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4">
+                    <div className="space-y-2">
+                      {mbr.sections.improvementProgress.blockedTopReasons.map((reason, i) => (
+                        <div key={reason.code} className="flex items-center gap-3 p-2 bg-orange-50 rounded">
+                          <span className="text-sm font-bold text-orange-600 w-5 text-center">{i + 1}</span>
+                          <span className="text-xs text-zinc-700 flex-1">{reason.label}</span>
+                          <span className="text-xs font-medium text-orange-700">{reason.count}件</span>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* 詰まり: blocked */}
               {mbr.sections.improvementProgress.blockedTop.length > 0 && (
                 <Card className="border-amber-200">

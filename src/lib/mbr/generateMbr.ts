@@ -298,6 +298,14 @@ function buildExecSummary(
     );
   }
 
+  // Ticket 132: blocked理由トップ
+  if (improvementProgress.blockedTopReasons.length > 0) {
+    const top = improvementProgress.blockedTopReasons
+      .map((r) => `${r.label}(${r.count}件)`)
+      .join('、');
+    lines.push(`改善タスク詰まり原因: ${top}`);
+  }
+
   return lines;
 }
 
@@ -308,6 +316,7 @@ function buildNextMonthFocus(
   sales: MbrSalesSection,
   suggestions: MbrSuggestionsSection,
   ops: MbrOpsSection,
+  improvementProgress: MbrImprovementProgressSection,
 ): string[] {
   const focus: string[] = [];
 
@@ -329,6 +338,12 @@ function buildNextMonthFocus(
   // 運用失敗がある
   if (ops.failedRunCount > 0) {
     focus.push(`運用ジョブ失敗（${ops.failedSteps.join(', ')}）の根本原因を調査・修正。`);
+  }
+
+  // Ticket 132: blocked理由がある場合
+  if (improvementProgress.blockedTopReasons.length > 0) {
+    const topReason = improvementProgress.blockedTopReasons[0];
+    focus.push(`改善タスクの詰まり原因「${topReason.label}」（${topReason.count}件）を解消する。`);
   }
 
   if (focus.length === 0) {
@@ -362,7 +377,7 @@ export function generateMbr(month?: string): Mbr {
 
   // サマリー生成
   const execSummary = buildExecSummary(funnel, sales, aiVpChanges, suggestions, ops, improvementProgress);
-  const nextMonthFocus = buildNextMonthFocus(funnel, sales, suggestions, ops);
+  const nextMonthFocus = buildNextMonthFocus(funnel, sales, suggestions, ops, improvementProgress);
 
   return {
     id: `mbr_${targetMonth}_${Date.now()}`,

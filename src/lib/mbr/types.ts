@@ -52,6 +52,13 @@ export interface MbrOpsSection {
   totalAlertsCreated: number;
 }
 
+/** blocked理由トップ（Ticket 132） */
+export interface BlockedTopReason {
+  code: string;
+  label: string;
+  count: number;
+}
+
 /** F) 改善タスク進捗（Ticket 129） */
 export interface MbrImprovementProgressSection {
   /** 月別の進捗集計（最新3ヶ月分） */
@@ -63,6 +70,8 @@ export interface MbrImprovementProgressSection {
   /** 詰まり上位（blocked/overdue） */
   blockedTop: { id: string; title: string }[];
   overdueTop: { id: string; title: string }[];
+  /** blocked理由トップ3（Ticket 132） */
+  blockedTopReasons: BlockedTopReason[];
 }
 
 /** 月別改善タスク進捗 */
