@@ -42,6 +42,7 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   // Task 038: 未分類スコープ（正式名称 + レガシー）
   business_scope_unclassified: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
   unclassified_scope: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
+  mbr_action_created: { icon: FileText, color: 'text-indigo-600', bg: 'bg-indigo-50' },
   system: { icon: Bell, color: 'text-zinc-600', bg: 'bg-zinc-50' },
 };
 

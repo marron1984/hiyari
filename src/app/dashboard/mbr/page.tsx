@@ -14,6 +14,8 @@ export default function MbrPage() {
   const [mbrList, setMbrList] = useState<Mbr[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [creatingActions, setCreatingActions] = useState(false);
+  const [actionResult, setActionResult] = useState<{ createdCount: number; skippedCount: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ViewTab>('summary');
 
@@ -67,6 +69,30 @@ export default function MbrPage() {
       setError(e instanceof Error ? e.message : 'MBR生成に失敗しました');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleCreateActions = async () => {
+    if (!firebaseUser || !mbr) return;
+    setCreatingActions(true);
+    setError(null);
+    setActionResult(null);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/mbr/${mbr.month}/create-actions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to create actions');
+      }
+      const data = await res.json();
+      setActionResult({ createdCount: data.createdCount, skippedCount: data.skippedCount });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '改善タスク起票に失敗しました');
+    } finally {
+      setCreatingActions(false);
     }
   };
 
@@ -288,6 +314,26 @@ ${mbr.sections.sales.resultDistribution.length > 0 ? `<table><tr><th>結果コ�
                       </li>
                     ))}
                   </ul>
+                  {/* Ticket 128: 改善タスク起票ボタン */}
+                  <div className="mt-4 pt-3 border-t border-zinc-100">
+                    <div className="flex items-center gap-3">
+                      <Button
+                        onClick={handleCreateActions}
+                        disabled={creatingActions || (actionResult !== null && actionResult.createdCount === 0 && actionResult.skippedCount > 0)}
+                        className="text-xs"
+                      >
+                        {creatingActions ? '起票中...' : '改善タスクを起票'}
+                      </Button>
+                      {actionResult && (
+                        <span className="text-xs text-zinc-500">
+                          {actionResult.createdCount > 0
+                            ? `${actionResult.createdCount}件起票`
+                            : '全件起票済み'}
+                          {actionResult.skippedCount > 0 && ` (${actionResult.skippedCount}件スキップ)`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 

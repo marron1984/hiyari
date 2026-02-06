@@ -28,6 +28,7 @@ export type NotificationType =
   | 'ai_vp_ticket_created'  // Task 043: AI副社長・チケット自動生成
   | 'business_scope_unclassified'  // Task 038: 未分類スコープ警告（正式名称）
   | 'unclassified_scope'    // Task 033: 未分類スコープ警告（レガシー）
+  | 'mbr_action_created'    // Ticket 128: MBR改善タスク自動起票
   | 'system';               // システム通知
 
 // 通知

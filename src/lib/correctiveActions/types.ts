@@ -32,7 +32,8 @@ export type SourceType =
   | 'audit'         // 監査
   | 'committee'     // 委員会
   | 'repair'        // 修繕
-  | 'manual';       // 手動作成
+  | 'manual'        // 手動作成
+  | 'mbr_focus';    // Ticket 128: MBR改善フォーカス
 
 /**
  * 是正措置
@@ -158,6 +159,7 @@ export const SOURCE_TYPE_CONFIG: Record<
   committee: { label: '委員会', icon: '👥' },
   repair: { label: '修繕', icon: '🔧' },
   manual: { label: '手動作成', icon: '✏️' },
+  mbr_focus: { label: 'MBR改善', icon: '📊' },
 };
 
 // ========== 権限チェック ==========
