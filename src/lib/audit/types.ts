@@ -18,7 +18,10 @@ export type AuditSource =
   | 'ai_vp_settings'
   | 'scope_backfill'
   | 'daily_ops'
-  | 'weekly_ops';
+  | 'weekly_ops'
+  | 'e_sign_events'
+  | 'onboarding_events'
+  | 'collection_events';
 
 export const AUDIT_SOURCE_LABELS: Record<AuditSource, string> = {
   approval_actions: '承認アクション',
@@ -29,6 +32,9 @@ export const AUDIT_SOURCE_LABELS: Record<AuditSource, string> = {
   scope_backfill: 'スコープ一括',
   daily_ops: '日次オペ',
   weekly_ops: '週次オペ',
+  e_sign_events: '電子署名',
+  onboarding_events: 'オンボーディング',
+  collection_events: '督促フロー',
 };
 
 // ========== 重要度 ==========

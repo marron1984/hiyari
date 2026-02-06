@@ -32,6 +32,12 @@ import { listRecentRuns as listDailyOpsRuns } from '@/lib/dailyOps/repo';
 import type { DailyOpsRun } from '@/lib/dailyOps/types';
 import { listRecentRuns as listWeeklyOpsRuns } from '@/lib/weeklyOps/repo';
 import type { WeeklyOpsRun } from '@/lib/weeklyOps/types';
+import { getAllESignEvents } from '@/lib/esign/repo';
+import type { ESignEvent } from '@/lib/esign/types';
+import { getAllOnboardingEvents } from '@/lib/onboarding/repo';
+import type { OnboardingEvent } from '@/lib/onboarding/types';
+import { getAllCollectionEvents } from '@/lib/collection/repo';
+import type { CollectionEvent } from '@/lib/collection/types';
 import { getUserById } from '@/lib/roles/user-store';
 
 // ========== ソース変換関数 ==========
@@ -209,6 +215,77 @@ function convertWeeklyOpsRuns(runs: WeeklyOpsRun[]): AuditEntry[] {
   }));
 }
 
+/**
+ * 電子署名イベントを変換
+ */
+function convertESignEvents(events: ESignEvent[]): AuditEntry[] {
+  return events.map((e) => {
+    const actorUser = e.actorUserId ? getUserById(e.actorUserId) : null;
+    return {
+      id: `esign_${e.id}`,
+      occurredAt: e.createdAt,
+      source: 'e_sign_events' as AuditSource,
+      action: e.action,
+      severity: determineSeverity(e.action, 'esign'),
+      actorUserId: e.actorUserId,
+      actorName: actorUser?.name ?? null,
+      targetType: 'esign_record',
+      targetId: e.recordId,
+      summary: buildESignSummary(e),
+      metaJson: JSON.stringify({ beforeJson: e.beforeJson, afterJson: e.afterJson, note: e.note }),
+    };
+  });
+}
+
+/**
+ * オンボーディングイベントを変換
+ */
+function convertOnboardingEvents(events: OnboardingEvent[]): AuditEntry[] {
+  return events.map((e) => {
+    const targetUser = getUserById(e.userId);
+    const actorUser = e.actorUserId ? getUserById(e.actorUserId) : null;
+    return {
+      id: `onboarding_${e.id}`,
+      occurredAt: e.createdAt,
+      source: 'onboarding_events' as AuditSource,
+      action: e.action,
+      severity: determineSeverity(e.action, 'onboarding'),
+      actorUserId: e.actorUserId,
+      actorName: actorUser?.name ?? null,
+      targetType: 'user_onboarding',
+      targetId: e.userId,
+      summary: buildOnboardingSummary(e, targetUser?.name ?? null),
+      metaJson: JSON.stringify({
+        fromVersion: e.fromVersion,
+        toVersion: e.toVersion,
+        note: e.note,
+      }),
+    };
+  });
+}
+
+/**
+ * 督促フローイベントを変換
+ */
+function convertCollectionEvents(events: CollectionEvent[]): AuditEntry[] {
+  return events.map((e) => {
+    const actorUser = getUserById(e.actorUserId);
+    return {
+      id: `collection_${e.id}`,
+      occurredAt: e.createdAt,
+      source: 'collection_events' as AuditSource,
+      action: e.action,
+      severity: determineSeverity(e.action, 'collection'),
+      actorUserId: e.actorUserId,
+      actorName: actorUser?.name ?? null,
+      targetType: e.entityType,
+      targetId: e.entityId,
+      summary: buildCollectionSummary(e),
+      metaJson: JSON.stringify({ beforeJson: e.beforeJson, afterJson: e.afterJson, note: e.note }),
+    };
+  });
+}
+
 // ========== ヘルパー関数 ==========
 
 /**
@@ -281,6 +358,56 @@ function buildExternalSummary(log: ExternalAuditLog): string {
   return `外部ユーザー: ${label}${target}`;
 }
 
+/**
+ * 電子署名サマリー生成
+ */
+function buildESignSummary(event: ESignEvent): string {
+  const actionLabels: Record<string, string> = {
+    create: '作成',
+    update: '更新',
+    request: '依頼',
+    sign: '署名',
+    void: '無効化',
+    expire: '期限切れ',
+    decline: '拒否',
+  };
+  const label = actionLabels[event.action] ?? event.action;
+  return `電子署名: ${label}${event.note ? ` - ${event.note.substring(0, 50)}` : ''}`;
+}
+
+/**
+ * オンボーディングサマリー生成
+ */
+function buildOnboardingSummary(event: OnboardingEvent, targetUserName: string | null): string {
+  const actionLabels: Record<string, string> = {
+    requirement_applied: '要件適用',
+    reset_pending: '未完了に戻す',
+    completed: '完了',
+    signed: '署名',
+    post_complete: '完了後処理',
+  };
+  const label = actionLabels[event.action] ?? event.action;
+  const target = targetUserName ? ` (${maskPII(targetUserName)})` : '';
+  return `オンボーディング: ${label}${target}`;
+}
+
+/**
+ * 督促フローサマリー生成
+ */
+function buildCollectionSummary(event: CollectionEvent): string {
+  const actionLabels: Record<string, string> = {
+    create: '作成',
+    update: '更新',
+    assign: '割当',
+    pause: '一時停止',
+    resume: '再開',
+    complete_step: 'ステップ完了',
+    skip_step: 'ステップスキップ',
+  };
+  const label = actionLabels[event.action] ?? event.action;
+  return `督促フロー (${event.entityType}): ${label}${event.note ? ` - ${event.note.substring(0, 50)}` : ''}`;
+}
+
 // ========== メインクエリ関数 ==========
 
 /**
@@ -344,6 +471,24 @@ export function queryAuditLogs(filter: AuditQueryFilter): AuditQueryResult {
   if (!requestedSources || requestedSources.includes('weekly_ops')) {
     const runs = listWeeklyOpsRuns(100);
     allEntries = allEntries.concat(convertWeeklyOpsRuns(runs));
+  }
+
+  // e_sign_events
+  if (!requestedSources || requestedSources.includes('e_sign_events')) {
+    const events = getAllESignEvents(1000);
+    allEntries = allEntries.concat(convertESignEvents(events));
+  }
+
+  // onboarding_events
+  if (!requestedSources || requestedSources.includes('onboarding_events')) {
+    const events = getAllOnboardingEvents(1000);
+    allEntries = allEntries.concat(convertOnboardingEvents(events));
+  }
+
+  // collection_events
+  if (!requestedSources || requestedSources.includes('collection_events')) {
+    const events = getAllCollectionEvents(1000);
+    allEntries = allEntries.concat(convertCollectionEvents(events));
   }
 
   // フィルタ適用

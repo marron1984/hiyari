@@ -73,6 +73,16 @@ function logEvent(
   eventsStore.set(event.id, event);
 }
 
+/**
+ * 全督促イベント取得（監査ビュー用）
+ * Ticket 064-final
+ */
+export function getAllCollectionEvents(limit: number = 1000): CollectionEvent[] {
+  return Array.from(eventsStore.values())
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
+}
+
 // ========== テンプレート CRUD ==========
 
 export interface CreateTemplateInput {

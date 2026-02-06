@@ -534,6 +534,16 @@ export function getOnboardingEventsForUser(userId: string): OnboardingEvent[] {
   return events;
 }
 
+/**
+ * 全オンボーディングイベント取得（監査ビュー用）
+ * Ticket 064-final
+ */
+export function getAllOnboardingEvents(limit: number = 1000): OnboardingEvent[] {
+  return Array.from(onboardingEventsStore.values())
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+}
+
 // ========== 同期ロジック ==========
 
 /**
