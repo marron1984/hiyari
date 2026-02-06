@@ -590,6 +590,16 @@ export function getEvents(entityId: string): AgreementEvent[] {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
+/**
+ * 全イベントを取得（監査ビュー用）
+ * Ticket 064-final
+ */
+export function getEventsAll(limit: number = 1000): AgreementEvent[] {
+  return Array.from(eventsStore.values())
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
+}
+
 // ========== デモデータ ==========
 
 function initDemoData(): void {

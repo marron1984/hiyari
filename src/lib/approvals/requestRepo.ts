@@ -550,6 +550,21 @@ export function listRequestActions(requestId: string): ApprovalAction[] {
 }
 
 /**
+ * 全アクション取得（監査ビュー用）
+ * Ticket 064-final
+ */
+export function listAllActions(limit: number = 1000): ApprovalAction[] {
+  initializeStore();
+
+  const actions = Array.from(actionsStore.values());
+
+  // 日時降順（新しい順）
+  actions.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  return actions.slice(0, limit);
+}
+
+/**
  * 承認待ち件数取得
  */
 export function countPendingRequests(): number {
