@@ -24,19 +24,28 @@ import {
   UserPlus,
   ChevronDown,
   ChevronUp,
+  FileText,
+  X,
+  Copy,
+  Check,
+  ClipboardCheck,
 } from 'lucide-react';
 import type {
   Ticket,
   TicketComment,
   TicketEvent,
   TicketStatus,
+  VacancyInquiryStage,
+  ApplicationChannel,
 } from '@/lib/tickets/types';
 import {
   TICKET_STATUS_CONFIG,
   TICKET_PRIORITY_CONFIG,
   TICKET_CATEGORY_CONFIG,
   TICKET_EVENT_ACTION_LABELS,
+  VACANCY_INQUIRY_STAGE_CONFIG,
 } from '@/lib/tickets/types';
+import type { ReplyTemplate, TemplateVariable } from '@/lib/replyTemplates/types';
 
 // デモユーザー一覧（本番ではAPIから取得）
 const DEMO_USERS = [
@@ -62,6 +71,57 @@ export default function TicketDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showEvents, setShowEvents] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+
+  // Ticket 081: 返信テンプレート
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templates, setTemplates] = useState<ReplyTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<ReplyTemplate | null>(null);
+  const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
+  const [expandedContent, setExpandedContent] = useState<string | null>(null);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Ticket 084: 申込記録
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [applyLoading, setApplyLoading] = useState(false);
+  const [applyForm, setApplyForm] = useState<{
+    desiredMoveInDate: string;
+    applicationNote: string;
+    applicationChannel: ApplicationChannel | '';
+    requiredDocsStatus: {
+      id: boolean;
+      insurance: boolean;
+      guarantor: boolean;
+      incomeProof: boolean;
+      other: string;
+    };
+  }>({
+    desiredMoveInDate: '',
+    applicationNote: '',
+    applicationChannel: '',
+    requiredDocsStatus: {
+      id: false,
+      insurance: false,
+      guarantor: false,
+      incomeProof: false,
+      other: '',
+    },
+  });
+
+  // Ticket 085: 受入決定
+  const [showAcceptModal, setShowAcceptModal] = useState(false);
+  const [acceptLoading, setAcceptLoading] = useState(false);
+  const [acceptForm, setAcceptForm] = useState<{
+    vacancyUnitId: string;
+    acceptedNote: string;
+  }>({
+    vacancyUnitId: '',
+    acceptedNote: '',
+  });
+  const [vacancyUnits, setVacancyUnits] = useState<
+    { id: string; name: string; unitType: string; availableCount: number }[]
+  >([]);
+  const [vacancyUnitsLoading, setVacancyUnitsLoading] = useState(false);
 
   const fetchTicket = useCallback(async () => {
     try {
@@ -98,6 +158,257 @@ export default function TicketDetailPage() {
       console.error('Failed to fetch events:', err);
     }
   }, [id]);
+
+  // Ticket 081: テンプレート一覧取得
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const res = await fetch('/api/reply-templates?category=vacancy_reply&activeOnly=true');
+      const data = await res.json();
+      setTemplates(data.templates || []);
+    } catch (err) {
+      console.error('Failed to fetch templates:', err);
+    }
+  }, []);
+
+  // Ticket 081: テンプレート選択時の処理
+  const handleSelectTemplate = (template: ReplyTemplate) => {
+    setSelectedTemplate(template);
+    // チケットから自動補完できる変数を初期化
+    const vars: Record<string, string> = {};
+    if (ticket) {
+      // metaからデータを取得
+      const meta = ticket.metaJson as Record<string, unknown> | undefined;
+      // name: contactNameがあれば使う
+      const descMatch = ticket.description.match(/お名前:\s*(.+)/);
+      if (descMatch) {
+        vars.name = descMatch[1].trim();
+      }
+      // buildingName: metaから
+      if (meta?.vacancyUnitId) {
+        const buildingMatch = ticket.description.match(/希望施設:\s*(.+)/);
+        if (buildingMatch) {
+          vars.buildingName = buildingMatch[1].trim();
+        }
+      }
+      // businessUnitName
+      if (ticket.businessUnitId) {
+        vars.businessUnitName = ticket.businessUnitId;
+      }
+    }
+    setTemplateVariables(vars);
+    setExpandedContent(null);
+  };
+
+  // Ticket 081: テンプレート展開
+  const handleExpandTemplate = async () => {
+    if (!selectedTemplate) return;
+    setTemplateLoading(true);
+    try {
+      const res = await fetch(`/api/reply-templates/${selectedTemplate.id}/expand`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variables: templateVariables }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setExpandedContent(data.content);
+      }
+    } catch (err) {
+      console.error('Failed to expand template:', err);
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
+
+  // Ticket 081: コメントに挿入
+  const handleInsertToComment = () => {
+    if (expandedContent) {
+      setNewComment((prev) => (prev ? prev + '\n\n' : '') + expandedContent);
+      setShowTemplateModal(false);
+      setSelectedTemplate(null);
+      setTemplateVariables({});
+      setExpandedContent(null);
+    }
+  };
+
+  // Ticket 081: クリップボードにコピー
+  const handleCopyContent = async () => {
+    if (expandedContent) {
+      await navigator.clipboard.writeText(expandedContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  // Ticket 084: 申込記録の送信
+  const handleApplySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (applyLoading) return;
+
+    setApplyLoading(true);
+    try {
+      const body: Record<string, unknown> = {};
+
+      if (applyForm.desiredMoveInDate) {
+        body.desiredMoveInDate = applyForm.desiredMoveInDate;
+      }
+      if (applyForm.applicationNote) {
+        body.applicationNote = applyForm.applicationNote;
+      }
+      if (applyForm.applicationChannel) {
+        body.applicationChannel = applyForm.applicationChannel;
+      }
+
+      // requiredDocsStatus に何か入力があれば追加
+      const docs = applyForm.requiredDocsStatus;
+      if (docs.id || docs.insurance || docs.guarantor || docs.incomeProof || docs.other) {
+        body.requiredDocsStatus = {
+          id: docs.id || undefined,
+          insurance: docs.insurance || undefined,
+          guarantor: docs.guarantor || undefined,
+          incomeProof: docs.incomeProof || undefined,
+          other: docs.other || undefined,
+        };
+      }
+
+      const res = await fetch(`/api/vacancy-inquiries/${id}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        setShowApplyModal(false);
+        // フォームをリセット
+        setApplyForm({
+          desiredMoveInDate: '',
+          applicationNote: '',
+          applicationChannel: '',
+          requiredDocsStatus: {
+            id: false,
+            insurance: false,
+            guarantor: false,
+            incomeProof: false,
+            other: '',
+          },
+        });
+        // データを再取得
+        fetchTicket();
+        fetchEvents();
+      } else {
+        const data = await res.json();
+        alert(data.error || '申込記録に失敗しました');
+      }
+    } catch (err) {
+      console.error('Failed to apply:', err);
+      alert('申込記録に失敗しました');
+    } finally {
+      setApplyLoading(false);
+    }
+  };
+
+  // Ticket 084: 申込可能かどうかを判定
+  const canApply = (t: Ticket): boolean => {
+    if (t.pipeline !== 'vacancy_inquiry') return false;
+    if (t.relatedType !== 'vacancy_inquiry') return false;
+    // 既に applied 以降のステージなら不可
+    const notApplyableStages: VacancyInquiryStage[] = ['applied', 'accepted', 'rejected', 'closed'];
+    if (t.stage && notApplyableStages.includes(t.stage)) return false;
+    return true;
+  };
+
+  // Ticket 085: 受入決定可能かどうかを判定
+  const canAccept = (t: Ticket): boolean => {
+    if (t.pipeline !== 'vacancy_inquiry') return false;
+    if (t.relatedType !== 'vacancy_inquiry') return false;
+    // applied ステージのときのみ受入決定可能
+    return t.stage === 'applied';
+  };
+
+  // Ticket 085: 空室ユニット一覧を取得
+  const fetchVacancyUnits = useCallback(async (businessUnitId: string) => {
+    setVacancyUnitsLoading(true);
+    try {
+      const res = await fetch(`/api/vacancy-units?businessUnitId=${businessUnitId}&status=active`);
+      const data = await res.json();
+      setVacancyUnits(data.items || []);
+    } catch (err) {
+      console.error('Failed to fetch vacancy units:', err);
+      setVacancyUnits([]);
+    } finally {
+      setVacancyUnitsLoading(false);
+    }
+  }, []);
+
+  // Ticket 085: 受入決定モーダルを開く
+  const openAcceptModal = () => {
+    if (!ticket) return;
+    // 既存のvacancyUnitIdがあれば初期値に設定
+    const existingVacancyUnitId = ticket.metaJson?.vacancyUnitId || '';
+    setAcceptForm({
+      vacancyUnitId: existingVacancyUnitId as string,
+      acceptedNote: '',
+    });
+    // 空室ユニット一覧を取得
+    if (ticket.businessUnitId) {
+      fetchVacancyUnits(ticket.businessUnitId);
+    }
+    setShowAcceptModal(true);
+  };
+
+  // Ticket 085: 受入決定の送信
+  const handleAcceptSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (acceptLoading) return;
+
+    setAcceptLoading(true);
+    try {
+      const body: Record<string, unknown> = {};
+
+      if (acceptForm.vacancyUnitId) {
+        body.vacancyUnitId = acceptForm.vacancyUnitId;
+      }
+      if (acceptForm.acceptedNote) {
+        body.acceptedNote = acceptForm.acceptedNote;
+      }
+
+      const res = await fetch(`/api/vacancy-inquiries/${id}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setShowAcceptModal(false);
+        setAcceptForm({ vacancyUnitId: '', acceptedNote: '' });
+        // データを再取得
+        fetchTicket();
+        fetchEvents();
+        // 提案が作成されたら通知
+        if (data.suggestionCreated) {
+          alert('受入決定を記録しました。空室更新提案が作成されました。');
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || '受入決定の記録に失敗しました');
+      }
+    } catch (err) {
+      console.error('Failed to accept:', err);
+      alert('受入決定の記録に失敗しました');
+    } finally {
+      setAcceptLoading(false);
+    }
+  };
+
+  // Ticket 081: モーダルを開く
+  const openTemplateModal = () => {
+    fetchTemplates();
+    setShowTemplateModal(true);
+    setSelectedTemplate(null);
+    setTemplateVariables({});
+    setExpandedContent(null);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -491,6 +802,151 @@ export default function TicketDetailPage() {
               </CardContent>
             </Card>
 
+            {/* Ticket 081: 返信テンプレート（空室問い合わせの場合のみ） */}
+            {ticket.relatedType === 'vacancy_inquiry' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">返信テンプレート</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-zinc-500 text-sm mb-3">
+                    定型文を使って返信メモを作成できます
+                  </p>
+                  <button
+                    onClick={openTemplateModal}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm"
+                  >
+                    <FileText className="w-4 h-4" />
+                    テンプレを挿入
+                  </button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Ticket 084: 申込記録（空室問い合わせの場合のみ） */}
+            {ticket.relatedType === 'vacancy_inquiry' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ClipboardCheck className="w-4 h-4" />
+                    申込管理
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {/* 現在のステージ表示 */}
+                  {ticket.stage && (
+                    <div className="mb-3">
+                      <span className="text-xs text-zinc-500">現在のステージ</span>
+                      <div className={`mt-1 inline-flex px-2 py-1 rounded text-sm font-medium ${VACANCY_INQUIRY_STAGE_CONFIG[ticket.stage].bg} ${VACANCY_INQUIRY_STAGE_CONFIG[ticket.stage].color}`}>
+                        {VACANCY_INQUIRY_STAGE_CONFIG[ticket.stage].label}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 申込済みの場合は情報表示 */}
+                  {ticket.metaJson?.appliedAt && (
+                    <div className="space-y-2 text-sm mb-3">
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="font-medium">申込済み</span>
+                      </div>
+                      <div className="text-zinc-600">
+                        <span className="text-xs text-zinc-400">申込日時:</span>{' '}
+                        {new Date(ticket.metaJson.appliedAt as string).toLocaleDateString('ja-JP', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </div>
+                      {ticket.metaJson.desiredMoveInDate && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">希望入居日:</span>{' '}
+                          {ticket.metaJson.desiredMoveInDate as string}
+                        </div>
+                      )}
+                      {ticket.metaJson.applicationChannel && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">申込チャネル:</span>{' '}
+                          {ticket.metaJson.applicationChannel === 'in_person' && '来店'}
+                          {ticket.metaJson.applicationChannel === 'online' && 'オンライン'}
+                          {ticket.metaJson.applicationChannel === 'other' && 'その他'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Ticket 085: 受入決定済みの場合は情報表示 */}
+                  {ticket.metaJson?.acceptedAt && (
+                    <div className="space-y-2 text-sm mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                      <div className="flex items-center gap-2 text-green-700">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="font-medium">成約</span>
+                      </div>
+                      <div className="text-zinc-600">
+                        <span className="text-xs text-zinc-400">決定日時:</span>{' '}
+                        {new Date(ticket.metaJson.acceptedAt as string).toLocaleDateString('ja-JP', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </div>
+                      {ticket.metaJson.reservedVacancyUnitId && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">空室ユニット:</span>{' '}
+                          {ticket.metaJson.reservedVacancyUnitId as string}
+                        </div>
+                      )}
+                      {ticket.metaJson.acceptedNote && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">メモ:</span>{' '}
+                          {ticket.metaJson.acceptedNote as string}
+                        </div>
+                      )}
+                      <a
+                        href="/dashboard/vacancies/suggestions"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-2"
+                      >
+                        空室更新提案を見る →
+                      </a>
+                    </div>
+                  )}
+
+                  {/* 申込ボタン */}
+                  {canApply(ticket) ? (
+                    <>
+                      <p className="text-zinc-500 text-sm mb-3">
+                        申込を受け付けたら記録してください
+                      </p>
+                      <button
+                        onClick={() => setShowApplyModal(true)}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm"
+                      >
+                        <ClipboardCheck className="w-4 h-4" />
+                        申込を記録
+                      </button>
+                    </>
+                  ) : canAccept(ticket) ? (
+                    <>
+                      <p className="text-zinc-500 text-sm mb-3">
+                        受入が決定したら記録してください
+                      </p>
+                      <button
+                        onClick={openAcceptModal}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        受入決定（成約）
+                      </button>
+                    </>
+                  ) : null}
+                </CardContent>
+              </Card>
+            )}
+
             {/* 詳細情報 */}
             <Card>
               <CardHeader>
@@ -571,6 +1027,463 @@ export default function TicketDetailPage() {
               >
                 キャンセル
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Ticket 081: 返信テンプレートモーダル */}
+        {showTemplateModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl w-full max-w-2xl mx-4 p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">返信テンプレートを挿入</h3>
+                <button
+                  onClick={() => setShowTemplateModal(false)}
+                  className="p-1 hover:bg-zinc-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {!selectedTemplate ? (
+                /* テンプレート選択 */
+                <div className="space-y-2">
+                  <p className="text-sm text-zinc-600 mb-3">
+                    使用するテンプレートを選択してください
+                  </p>
+                  {templates.length === 0 ? (
+                    <p className="text-zinc-500 text-sm py-4 text-center">
+                      利用可能なテンプレートがありません
+                    </p>
+                  ) : (
+                    templates.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => handleSelectTemplate(t)}
+                        className="w-full text-left px-4 py-3 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors"
+                      >
+                        <div className="font-medium text-sm">{t.name}</div>
+                        {t.description && (
+                          <div className="text-xs text-zinc-500 mt-1">
+                            {t.description}
+                          </div>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : !expandedContent ? (
+                /* 変数入力 */
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <button
+                      onClick={() => setSelectedTemplate(null)}
+                      className="text-sm text-zinc-500 hover:text-zinc-700"
+                    >
+                      ← テンプレート選択に戻る
+                    </button>
+                  </div>
+                  <div className="bg-zinc-50 px-3 py-2 rounded-lg">
+                    <span className="font-medium text-sm">{selectedTemplate.name}</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-sm text-zinc-600">変数を入力してください</p>
+                    {selectedTemplate.variablesJson.map((v: TemplateVariable) => (
+                      <div key={v.key}>
+                        <label className="block text-sm font-medium text-zinc-700 mb-1">
+                          {v.label}
+                          {v.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        <input
+                          type="text"
+                          value={templateVariables[v.key] || ''}
+                          onChange={(e) =>
+                            setTemplateVariables((prev) => ({
+                              ...prev,
+                              [v.key]: e.target.value,
+                            }))
+                          }
+                          placeholder={v.defaultValue || `${v.label}を入力`}
+                          className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleExpandTemplate}
+                    disabled={templateLoading}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors text-sm"
+                  >
+                    {templateLoading ? '生成中...' : 'プレビューを生成'}
+                  </button>
+                </div>
+              ) : (
+                /* プレビュー */
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <button
+                      onClick={() => setExpandedContent(null)}
+                      className="text-sm text-zinc-500 hover:text-zinc-700"
+                    >
+                      ← 変数入力に戻る
+                    </button>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-zinc-700">プレビュー</span>
+                      <button
+                        onClick={handleCopyContent}
+                        className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700"
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="w-3 h-3" />
+                            コピーしました
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            コピー
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="bg-zinc-50 p-4 rounded-lg text-sm whitespace-pre-wrap border border-zinc-200">
+                      {expandedContent}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleInsertToComment}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                      コメントに挿入
+                    </button>
+                    <button
+                      onClick={() => setShowTemplateModal(false)}
+                      className="px-4 py-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                    >
+                      閉じる
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Ticket 084: 申込記録モーダル */}
+        {showApplyModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl w-full max-w-md mx-4 p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">申込を記録</h3>
+                <button
+                  onClick={() => setShowApplyModal(false)}
+                  className="p-1 hover:bg-zinc-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleApplySubmit} className="space-y-4">
+                {/* 希望入居日 */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    希望入居日
+                  </label>
+                  <input
+                    type="date"
+                    value={applyForm.desiredMoveInDate}
+                    onChange={(e) =>
+                      setApplyForm((prev) => ({
+                        ...prev,
+                        desiredMoveInDate: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                  />
+                </div>
+
+                {/* 申込チャネル */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    申込方法
+                  </label>
+                  <select
+                    value={applyForm.applicationChannel}
+                    onChange={(e) =>
+                      setApplyForm((prev) => ({
+                        ...prev,
+                        applicationChannel: e.target.value as ApplicationChannel | '',
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                  >
+                    <option value="">選択してください</option>
+                    <option value="in_person">来店</option>
+                    <option value="online">オンライン</option>
+                    <option value="other">その他</option>
+                  </select>
+                </div>
+
+                {/* 必要書類チェックリスト */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">
+                    必要書類の受領状況
+                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={applyForm.requiredDocsStatus.id}
+                        onChange={(e) =>
+                          setApplyForm((prev) => ({
+                            ...prev,
+                            requiredDocsStatus: {
+                              ...prev.requiredDocsStatus,
+                              id: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="w-4 h-4 rounded border-zinc-300"
+                      />
+                      身分証明書
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={applyForm.requiredDocsStatus.insurance}
+                        onChange={(e) =>
+                          setApplyForm((prev) => ({
+                            ...prev,
+                            requiredDocsStatus: {
+                              ...prev.requiredDocsStatus,
+                              insurance: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="w-4 h-4 rounded border-zinc-300"
+                      />
+                      保険証
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={applyForm.requiredDocsStatus.guarantor}
+                        onChange={(e) =>
+                          setApplyForm((prev) => ({
+                            ...prev,
+                            requiredDocsStatus: {
+                              ...prev.requiredDocsStatus,
+                              guarantor: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="w-4 h-4 rounded border-zinc-300"
+                      />
+                      保証人書類
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={applyForm.requiredDocsStatus.incomeProof}
+                        onChange={(e) =>
+                          setApplyForm((prev) => ({
+                            ...prev,
+                            requiredDocsStatus: {
+                              ...prev.requiredDocsStatus,
+                              incomeProof: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="w-4 h-4 rounded border-zinc-300"
+                      />
+                      収入証明
+                    </label>
+                    <div>
+                      <label className="block text-xs text-zinc-500 mb-1">
+                        その他の書類
+                      </label>
+                      <input
+                        type="text"
+                        value={applyForm.requiredDocsStatus.other}
+                        onChange={(e) =>
+                          setApplyForm((prev) => ({
+                            ...prev,
+                            requiredDocsStatus: {
+                              ...prev.requiredDocsStatus,
+                              other: e.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="その他必要書類があれば入力"
+                        className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 申込メモ */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    メモ
+                  </label>
+                  <textarea
+                    value={applyForm.applicationNote}
+                    onChange={(e) =>
+                      setApplyForm((prev) => ({
+                        ...prev,
+                        applicationNote: e.target.value,
+                      }))
+                    }
+                    placeholder="特記事項があれば入力"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={applyLoading}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors text-sm"
+                  >
+                    <ClipboardCheck className="w-4 h-4" />
+                    {applyLoading ? '記録中...' : '申込を記録'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowApplyModal(false)}
+                    className="px-4 py-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Ticket 085: 受入決定モーダル */}
+        {showAcceptModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl w-full max-w-md mx-4 p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">受入決定（成約）</h3>
+                <button
+                  onClick={() => setShowAcceptModal(false)}
+                  className="p-1 hover:bg-zinc-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAcceptSubmit} className="space-y-4">
+                {/* 空室ユニット選択 */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    空室ユニット <span className="text-red-500">*</span>
+                  </label>
+                  {vacancyUnitsLoading ? (
+                    <p className="text-zinc-500 text-sm">読み込み中...</p>
+                  ) : vacancyUnits.length === 0 ? (
+                    <div>
+                      <p className="text-zinc-500 text-sm mb-2">
+                        空室ユニットがありません
+                      </p>
+                      <input
+                        type="text"
+                        value={acceptForm.vacancyUnitId}
+                        onChange={(e) =>
+                          setAcceptForm((prev) => ({
+                            ...prev,
+                            vacancyUnitId: e.target.value,
+                          }))
+                        }
+                        placeholder="空室ユニットIDを入力"
+                        className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                        required
+                      />
+                    </div>
+                  ) : (
+                    <select
+                      value={acceptForm.vacancyUnitId}
+                      onChange={(e) =>
+                        setAcceptForm((prev) => ({
+                          ...prev,
+                          vacancyUnitId: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                      required
+                    >
+                      <option value="">選択してください</option>
+                      {vacancyUnits.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {unit.name} ({unit.unitType}) - 空き: {unit.availableCount}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {ticket?.metaJson?.vacancyUnitId && !acceptForm.vacancyUnitId && (
+                    <p className="text-xs text-zinc-500 mt-1">
+                      ※ 既存の設定: {ticket.metaJson.vacancyUnitId as string}
+                    </p>
+                  )}
+                </div>
+
+                {/* 受入メモ */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    メモ
+                  </label>
+                  <textarea
+                    value={acceptForm.acceptedNote}
+                    onChange={(e) =>
+                      setAcceptForm((prev) => ({
+                        ...prev,
+                        acceptedNote: e.target.value,
+                      }))
+                    }
+                    placeholder="特記事項があれば入力"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm resize-none"
+                  />
+                </div>
+
+                <div className="bg-blue-50 p-3 rounded-lg text-sm">
+                  <p className="text-blue-700 font-medium mb-1">確認事項</p>
+                  <ul className="text-blue-600 text-xs space-y-1 list-disc list-inside">
+                    <li>ステージが「成約」に更新されます</li>
+                    <li>空室更新提案が自動生成されます</li>
+                    <li>この操作は取り消せません</li>
+                  </ul>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={acceptLoading || !acceptForm.vacancyUnitId}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors text-sm"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {acceptLoading ? '処理中...' : '受入決定を確定'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAcceptModal(false)}
+                    className="px-4 py-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

@@ -24,6 +24,9 @@ import {
   FileSignature,
   Layers,
   ShieldAlert,
+  Home,
+  Users,
+  Briefcase,
 } from 'lucide-react';
 import type {
   Widget,
@@ -45,6 +48,8 @@ import type {
   ContractsWidget,
   OsMapWidget,
   QualityRiskWidget,
+  VacancyInquiryKpisWidget,
+  SalesTasksWidget,
 } from '@/lib/roleHome/types';
 import type { AppRole } from '@/config/appRoles';
 
@@ -108,6 +113,12 @@ export function RoleHomeWidget({
       return <OsMapWidgetCard widget={widget as OsMapWidget} />;
     case 'quality_risk':
       return <QualityRiskWidgetCard widget={widget as QualityRiskWidget} />;
+    // Ticket 082: 空室問い合わせKPI
+    case 'vacancy_inquiry_kpis':
+      return <VacancyInquiryKpisWidgetCard widget={widget as VacancyInquiryKpisWidget} />;
+    // Ticket 122: 営業タスク
+    case 'sales_tasks':
+      return <SalesTasksWidgetCard widget={widget as SalesTasksWidget} role={role} />;
     default:
       return <DefaultWidgetCard widget={widget} />;
   }
@@ -767,6 +778,177 @@ function QualityRiskWidgetCard({ widget }: { widget: QualityRiskWidget }) {
   );
 }
 
+// Ticket 082: 空室問い合わせKPIウィジェット
+function VacancyInquiryKpisWidgetCard({ widget }: { widget: VacancyInquiryKpisWidget }) {
+  const formatRate = (rate: number) => `${Math.round(rate * 100)}%`;
+
+  return (
+    <WidgetCard
+      icon={<Home className="w-4 h-4 text-teal-500" />}
+      title={widget.title}
+      href={widget.href}
+      severity={widget.severity}
+    >
+      {/* サマリー行 */}
+      <div className="grid grid-cols-3 gap-2 text-center mb-3">
+        <div className="p-2 bg-teal-50 rounded">
+          <div className="text-lg font-bold text-teal-600">{widget.summary.totalInquiries}</div>
+          <div className="text-[10px] text-teal-700">問合せ</div>
+        </div>
+        <div className="p-2 bg-green-50 rounded">
+          <div className="text-lg font-bold text-green-600">{formatRate(widget.summary.overallSlaOkRate)}</div>
+          <div className="text-[10px] text-green-700">SLA達成</div>
+        </div>
+        <div className="p-2 bg-blue-50 rounded">
+          <div className="text-lg font-bold text-blue-600">{formatRate(widget.summary.overallAcceptRate)}</div>
+          <div className="text-[10px] text-blue-700">成約率</div>
+        </div>
+      </div>
+
+      {/* SLA超過がある場合は警告 */}
+      {widget.summary.totalSlaBreach > 0 && (
+        <div className="mb-2">
+          <Badge className="bg-red-100 text-red-700 text-[10px]">
+            SLA超過 {widget.summary.totalSlaBreach}件
+          </Badge>
+        </div>
+      )}
+
+      {/* 担当者別（上位3名） */}
+      {widget.assignees.length > 0 && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-1 text-[10px] text-zinc-500 mb-1">
+            <Users className="w-3 h-3" />
+            担当者別（直近{widget.periodDays}日）
+          </div>
+          {widget.assignees.slice(0, 3).map((row) => (
+            <div
+              key={row.assigneeUserId}
+              className="flex items-center justify-between p-1.5 bg-zinc-50 rounded text-xs"
+            >
+              <span className="text-zinc-700 truncate" style={{ maxWidth: '80px' }}>
+                {row.assigneeName || row.assigneeUserId}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-teal-600">{row.inquiriesAssigned}件</span>
+                <span className={row.slaOkRate >= 0.8 ? 'text-green-600' : 'text-amber-600'}>
+                  {formatRate(row.slaOkRate)}
+                </span>
+                <span className="text-blue-600">{formatRate(row.acceptRate)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </WidgetCard>
+  );
+}
+
+// Ticket 122: 営業タスクウィジェット
+function SalesTasksWidgetCard({
+  widget,
+  role,
+}: {
+  widget: SalesTasksWidget;
+  role: AppRole;
+}) {
+  const isStaffOrLeader = ['staff', 'leader'].includes(role);
+
+  // staff/leader: 自分のタスクを表示
+  if (isStaffOrLeader) {
+    return (
+      <WidgetCard
+        icon={<Briefcase className="w-4 h-4 text-indigo-500" />}
+        title={widget.title}
+        href={widget.href}
+        severity={widget.severity}
+      >
+        <div className="space-y-2">
+          {/* 今日のタスク件数 */}
+          <div className="flex items-center justify-between p-2 bg-indigo-50 rounded">
+            <span className="text-xs text-indigo-700">今日のタスク</span>
+            <span className="text-lg font-bold text-indigo-600">
+              {widget.mySalesTasksToday ?? 0}件
+            </span>
+          </div>
+
+          {/* 上位3タスク */}
+          {widget.myTopTasks && widget.myTopTasks.length > 0 && (
+            <div className="space-y-1">
+              {widget.myTopTasks.slice(0, 3).map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between p-1.5 bg-zinc-50 rounded text-xs"
+                >
+                  <span className="text-zinc-700 truncate flex-1 mr-2">
+                    {task.title}
+                  </span>
+                  {task.dueAt && (
+                    <span className="text-zinc-500 text-[10px] whitespace-nowrap">
+                      {new Date(task.dueAt).toLocaleDateString('ja-JP', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {(!widget.myTopTasks || widget.myTopTasks.length === 0) &&
+            (widget.mySalesTasksToday ?? 0) === 0 && (
+              <div className="text-center text-xs text-zinc-400 py-2">
+                タスクなし
+              </div>
+            )}
+        </div>
+      </WidgetCard>
+    );
+  }
+
+  // manager/admin: 全体状況を表示
+  return (
+    <WidgetCard
+      icon={<Briefcase className="w-4 h-4 text-indigo-500" />}
+      title={widget.title}
+      href={widget.href}
+      severity={widget.severity}
+    >
+      <div className="grid grid-cols-2 gap-2 text-center">
+        <div className="p-2 bg-indigo-50 rounded">
+          <div className="text-lg font-bold text-indigo-600">
+            {widget.salesTasksToday ?? 0}
+          </div>
+          <div className="text-[10px] text-indigo-700">本日の件数</div>
+        </div>
+        <div className="p-2 bg-red-50 rounded">
+          <div className="text-lg font-bold text-red-600">
+            {widget.salesTasksOverdue ?? 0}
+          </div>
+          <div className="text-[10px] text-red-700">期限超過</div>
+        </div>
+      </div>
+
+      {/* 事業別上位（任意） */}
+      {widget.topBusinessUnits && widget.topBusinessUnits.length > 0 && (
+        <div className="mt-2 space-y-1">
+          <div className="text-[10px] text-zinc-500">事業別上位</div>
+          {widget.topBusinessUnits.slice(0, 3).map((bu) => (
+            <div
+              key={bu.businessUnitId}
+              className="flex items-center justify-between p-1.5 bg-zinc-50 rounded text-xs"
+            >
+              <span className="text-zinc-700 truncate">{bu.businessUnitName}</span>
+              <span className="text-indigo-600">{bu.count}件</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </WidgetCard>
+  );
+}
+
 // デフォルトウィジェット
 function DefaultWidgetCard({ widget }: { widget: Widget }) {
   const Icon = getWidgetIcon(widget.type);
@@ -806,6 +988,8 @@ function getWidgetIcon(type: WidgetType) {
     quality_risk: ShieldAlert, // Task 053: 専用アイコン
     contracts: FileSignature,  // Task 053: 専用アイコン
     receivables: Wallet,
+    vacancy_inquiry_kpis: Home, // Ticket 082: 空室問い合わせKPI
+    sales_tasks: Briefcase, // Ticket 122: 営業タスク
   };
   return iconMap[type] ?? FileQuestion;
 }

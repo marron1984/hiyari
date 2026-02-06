@@ -42,6 +42,12 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   // Task 038: 未分類スコープ（正式名称 + レガシー）
   business_scope_unclassified: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
   unclassified_scope: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
+  // Ticket 071: 空室問い合わせSLA超過
+  vacancy_inquiry_sla_breach: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+  // Ticket 075: 空室ユニット更新
+  vacancy_unit_updated: { icon: Bell, color: 'text-blue-600', bg: 'bg-blue-50' },
+  // Ticket 075: 空室更新提案
+  vacancy_suggestion_created: { icon: AlertTriangle, color: 'text-yellow-600', bg: 'bg-yellow-50' },
   system: { icon: Bell, color: 'text-zinc-600', bg: 'bg-zinc-50' },
 };
 

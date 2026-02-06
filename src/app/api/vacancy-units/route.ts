@@ -2,6 +2,7 @@
  * 空室ユニット管理API
  *
  * Ticket 070: 空室 外部提示システム
+ * Ticket 076: キャッシュ戦略（作成時にrevalidate）
  *
  * GET /api/vacancy-units - 一覧取得
  * POST /api/vacancy-units - 新規作成
@@ -14,6 +15,7 @@ import {
   seedVacancyUnitsIfEmpty,
 } from '@/lib/vacancyUnits/repo';
 import { canViewVacancyUnits, canManageVacancyUnits } from '@/lib/vacancyUnits/types';
+import { revalidateVacanciesForBusinessUnit } from '@/lib/cache/vacancyTags';
 import type { VacancyUnitStatus } from '@/lib/vacancyUnits/types';
 import type { AppRole } from '@/config/appRoles';
 
@@ -42,6 +44,7 @@ export async function GET(request: NextRequest) {
     const businessUnitId = searchParams.get('businessUnitId') ?? undefined;
     const status = searchParams.get('status') as VacancyUnitStatus | null;
     const area = searchParams.get('area') ?? undefined;
+    const roomType = searchParams.get('roomType') ?? undefined; // Ticket 075
     const hasAvailability = searchParams.get('hasAvailability') === 'true';
     const limit = searchParams.get('limit')
       ? parseInt(searchParams.get('limit')!, 10)
@@ -54,6 +57,7 @@ export async function GET(request: NextRequest) {
       businessUnitId,
       status: status ?? undefined,
       area,
+      roomType, // Ticket 075
       hasAvailability: hasAvailability || undefined,
       limit,
       offset,
@@ -136,6 +140,9 @@ export async function POST(request: NextRequest) {
       DEMO_USER.id,
       DEMO_USER.name
     );
+
+    // Ticket 076: 公開キャッシュを無効化
+    revalidateVacanciesForBusinessUnit(businessUnitId);
 
     return NextResponse.json({ unit }, { status: 201 });
   } catch (error) {

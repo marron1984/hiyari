@@ -25,6 +25,8 @@ import type {
   ContractsWidget,
   OsMapWidget,
   QualityRiskWidget,
+  VacancyInquiryKpisWidget,
+  SalesTasksWidget,
 } from './types';
 import { WIDGET_LABELS } from './types';
 import type { ViewerContext } from '@/lib/business/types';
@@ -33,7 +35,8 @@ import type { AlertSeverity } from '@/lib/alerts/types';
 // リポジトリインポート
 import { getAlertStats, listAlerts } from '@/lib/alerts/repo';
 import { getUnclassifiedCounts } from '@/lib/scope/detectUnclassifiedBusinessUnit';
-import { getTicketStats } from '@/lib/tickets/repo';
+import { getTicketStats, listTickets, listTicketEvents } from '@/lib/tickets/repo';
+import { buildAssigneeKpis } from '@/lib/vacancies/buildAssigneeKpis';
 import { getStats as getRepairsStats } from '@/lib/repairs/repo';
 import { getStats as getCorrectiveActionsStats } from '@/lib/correctiveActions/repo';
 import { scanExpiring, scanExpired } from '@/lib/licenses/repo';
@@ -444,6 +447,121 @@ export function buildQualityRiskWidget(): QualityRiskWidget {
 }
 
 /**
+ * Ticket 082: 空室問い合わせKPIウィジェットを構築
+ */
+export function buildVacancyInquiryKpisWidget(userId: string, role: AppRole): VacancyInquiryKpisWidget {
+  // tickets/types の ViewerContext を使用
+  const viewer = { userId, role };
+
+  // チケット一覧を取得（vacancy_inquiry のみ）
+  const { items: tickets } = listTickets(
+    { pipeline: 'vacancy_inquiry', limit: 1000 },
+    viewer
+  );
+
+  // イベント一覧を取得（関連チケットのみ）
+  const ticketIds = tickets.map(t => t.id);
+  const events = ticketIds.flatMap(id => listTicketEvents(id));
+
+  // KPI集計（直近7日）
+  const kpiResult = buildAssigneeKpis(tickets, events, { days: 7 });
+
+  // 重要度判定
+  let severity: AlertSeverity = 'info';
+  if (kpiResult.summary.totalSlaBreach > 0) severity = 'warning';
+  if (kpiResult.summary.overallSlaOkRate < 0.7) severity = 'critical';
+
+  return {
+    type: 'vacancy_inquiry_kpis',
+    title: WIDGET_LABELS.vacancy_inquiry_kpis,
+    href: '/dashboard/vacancy-inquiries',
+    count: kpiResult.summary.totalInquiries,
+    severity,
+    assignees: kpiResult.rows,
+    summary: kpiResult.summary,
+    periodDays: kpiResult.period.days,
+    isEmpty: kpiResult.summary.totalInquiries === 0,
+  };
+}
+
+/**
+ * Ticket 122: 営業タスクウィジェットを構築
+ */
+export function buildSalesTasksWidget(userId: string, role: AppRole): SalesTasksWidget {
+  const viewer = { userId, role };
+  const isStaffOrLeader = ['staff', 'leader'].includes(role);
+
+  // sales_next_action チケットを取得
+  const { items: salesTasks } = listTickets(
+    {
+      relatedType: 'sales_next_action',
+      limit: 100,
+    },
+    viewer
+  );
+
+  // open/in_progress/waiting のみ対象
+  const openTasks = salesTasks.filter(t =>
+    ['open', 'in_progress', 'waiting'].includes(t.status)
+  );
+
+  // 今日の日付
+  const today = new Date().toISOString().split('T')[0];
+
+  // 期限超過件数
+  const overdue = openTasks.filter(t => t.dueAt && t.dueAt < today).length;
+
+  // staff/leader: 自分の担当のみ
+  const myTasks = isStaffOrLeader
+    ? openTasks.filter(t => t.assigneeUserId === userId)
+    : [];
+
+  // 上位3件（dueAt近い順）
+  const sortedMyTasks = [...myTasks].sort((a, b) => {
+    if (!a.dueAt && !b.dueAt) return 0;
+    if (!a.dueAt) return 1;
+    if (!b.dueAt) return -1;
+    return a.dueAt.localeCompare(b.dueAt);
+  });
+  const topTasks = sortedMyTasks.slice(0, 3).map(t => ({
+    id: t.id,
+    title: t.title.length > 30 ? t.title.slice(0, 30) + '...' : t.title,
+    dueAt: t.dueAt ?? null,
+  }));
+
+  // 重要度判定
+  let severity: AlertSeverity = 'info';
+  if (overdue > 0) severity = 'warning';
+  if (overdue >= 5) severity = 'critical';
+
+  // staff/leader と manager/admin で表示内容を分岐
+  if (isStaffOrLeader) {
+    return {
+      type: 'sales_tasks',
+      title: '今日の営業タスク',
+      href: `/dashboard/tickets?relatedType=sales_next_action&assigneeUserId=${userId}`,
+      count: myTasks.length,
+      severity: myTasks.some(t => t.dueAt && t.dueAt < today) ? 'warning' : 'info',
+      mySalesTasksToday: myTasks.length,
+      myTopTasks: topTasks,
+      isEmpty: myTasks.length === 0,
+    };
+  }
+
+  // manager/admin: 全体の状況
+  return {
+    type: 'sales_tasks',
+    title: '営業タスク状況',
+    href: '/dashboard/tickets?relatedType=sales_next_action',
+    count: openTasks.length,
+    severity,
+    salesTasksToday: openTasks.length,
+    salesTasksOverdue: overdue,
+    isEmpty: openTasks.length === 0,
+  };
+}
+
+/**
  * ウィジェットタイプに応じてウィジェットを構築
  */
 export function buildWidget(
@@ -487,6 +605,12 @@ export function buildWidget(
       return buildOsMapWidget();
     case 'quality_risk':
       return buildQualityRiskWidget();
+    // Ticket 082: 空室問い合わせKPI
+    case 'vacancy_inquiry_kpis':
+      return buildVacancyInquiryKpisWidget(userId, role);
+    // Ticket 122: 営業タスク
+    case 'sales_tasks':
+      return buildSalesTasksWidget(userId, role);
     default:
       return {
         type: widgetType,

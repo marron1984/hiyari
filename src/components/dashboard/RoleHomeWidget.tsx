@@ -21,6 +21,8 @@ import {
   ChevronRight,
   CheckCircle2,
   XCircle,
+  Home,
+  Briefcase,
 } from 'lucide-react';
 
 /**
@@ -44,6 +46,8 @@ const WIDGET_ICONS: Record<WidgetType, React.ComponentType<{ className?: string 
   quality_risk: AlertTriangle,
   contracts: FileText,
   receivables: Banknote,
+  vacancy_inquiry_kpis: Home, // Ticket 082: 空室問い合わせKPI
+  sales_tasks: Briefcase, // Ticket 122: 営業タスク
 };
 
 /**
@@ -290,6 +294,45 @@ function WidgetDetails({ widget }: { widget: Widget }) {
       return (
         <p className="mt-1 text-xs text-zinc-500">
           {w.totalOverdue}件 / {(w.overdueAmount / 10000).toFixed(0)}万円
+        </p>
+      );
+    }
+
+    case 'sales_tasks': {
+      const w = widget as Widget & {
+        mySalesTasksToday?: number;
+        myTopTasks?: Array<{ id: string; title: string; dueAt: string | null }>;
+        salesTasksToday?: number;
+        salesTasksOverdue?: number;
+      };
+      // staff/leader向け: 自分のタスク表示
+      if (w.mySalesTasksToday !== undefined) {
+        return (
+          <div className="mt-1 text-xs text-zinc-500">
+            <p>今日のタスク {w.mySalesTasksToday}件</p>
+            {w.myTopTasks && w.myTopTasks.length > 0 && (
+              <ul className="mt-1 space-y-0.5">
+                {w.myTopTasks.slice(0, 3).map((task) => (
+                  <li key={task.id} className="truncate">
+                    ・{task.title}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      }
+      // manager/admin向け: 全体状況
+      const parts = [];
+      if (w.salesTasksToday !== undefined && w.salesTasksToday > 0) {
+        parts.push(`本日${w.salesTasksToday}件`);
+      }
+      if (w.salesTasksOverdue !== undefined && w.salesTasksOverdue > 0) {
+        parts.push(`期限超過${w.salesTasksOverdue}件`);
+      }
+      return (
+        <p className="mt-1 text-xs text-zinc-500">
+          {parts.join(' / ') || '営業タスク状況'}
         </p>
       );
     }

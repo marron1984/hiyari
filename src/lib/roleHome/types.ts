@@ -27,7 +27,9 @@ export type WidgetType =
   | 'os_map'             // OSマップリンク
   | 'quality_risk'       // 品質/リスク統合
   | 'contracts'          // 契約/未収ハイライト
-  | 'receivables';       // 未収金
+  | 'receivables'        // 未収金
+  | 'vacancy_inquiry_kpis' // Ticket 082: 空室問い合わせKPI
+  | 'sales_tasks';       // Ticket 122: 今日の営業タスク
 
 /**
  * ウィジェット共通インターフェース
@@ -222,6 +224,58 @@ export interface QualityRiskWidget extends BaseWidget {
 }
 
 /**
+ * 空室問い合わせKPIウィジェット（Ticket 082）
+ */
+export interface VacancyInquiryKpisWidget extends BaseWidget {
+  type: 'vacancy_inquiry_kpis';
+  /** 担当者別KPI行 */
+  assignees: Array<{
+    assigneeUserId: string;
+    assigneeName?: string;
+    inquiriesAssigned: number;
+    slaBreach: number;
+    slaOkRate: number;
+    accepted: number;
+    acceptRate: number;
+  }>;
+  /** サマリー */
+  summary: {
+    totalInquiries: number;
+    totalSlaBreach: number;
+    totalAccepted: number;
+    overallSlaOkRate: number;
+    overallAcceptRate: number;
+  };
+  /** 集計期間（日数） */
+  periodDays: number;
+}
+
+/**
+ * 営業タスクウィジェット（Ticket 122）
+ */
+export interface SalesTasksWidget extends BaseWidget {
+  type: 'sales_tasks';
+  /** 今日の自分の営業タスク件数（staff/leader用） */
+  mySalesTasksToday?: number;
+  /** 自分の営業タスク上位3件（dueAt近い順） */
+  myTopTasks?: Array<{
+    id: string;
+    title: string;
+    dueAt: string | null;
+  }>;
+  /** 全体の営業タスク件数（manager/admin用） */
+  salesTasksToday?: number;
+  /** 期限超過件数 */
+  salesTasksOverdue?: number;
+  /** 事業別件数上位（任意） */
+  topBusinessUnits?: Array<{
+    businessUnitId: string;
+    businessUnitName: string;
+    count: number;
+  }>;
+}
+
+/**
  * ウィジェット型のユニオン
  */
 export type Widget =
@@ -242,6 +296,8 @@ export type Widget =
   | ContractsWidget
   | OsMapWidget
   | QualityRiskWidget
+  | VacancyInquiryKpisWidget
+  | SalesTasksWidget
   | BaseWidget;
 
 /**
@@ -282,6 +338,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
   // - announcements unread
   // - handover unread
   staff: [
+    'sales_tasks',    // Ticket 122: 今日の営業タスク
     'tickets',        // 自分の担当/依頼
     'training',       // 研修未受講（自分）
     'licenses',       // 資格期限（自分）
@@ -295,6 +352,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
   // - handover unread
   // - alerts（warning以上）
   leader: [
+    'sales_tasks',    // Ticket 122: 今日の営業タスク
     'tickets',        // 担当チケット
     'repairs',        // 担当修繕（highRisk）
     'handover',       // 申し送り
@@ -310,8 +368,11 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
   // - correctiveActions overdue/critical
   // - licenses expired/expiring30（org scope）
   // - daily_ops / weekly_ops status
+  // - Ticket 082: vacancy_inquiry_kpis（担当者別SLA/成約率）
   manager: [
     'alerts',             // アラート（critical優先）
+    'sales_tasks',        // Ticket 122: 営業タスク状況
+    'vacancy_inquiry_kpis', // Ticket 082: 空室問い合わせKPI
     'unclassified',       // 未分類スコープ + 導線
     'tickets',            // チケット（overdue/urgent）
     'repairs',            // 修繕（highRisk/overdue）
@@ -390,4 +451,6 @@ export const WIDGET_LABELS: Record<WidgetType, string> = {
   quality_risk: '品質/リスク',
   contracts: '契約',
   receivables: '未収金',
+  vacancy_inquiry_kpis: '空室問い合わせKPI', // Ticket 082
+  sales_tasks: '営業タスク', // Ticket 122
 };

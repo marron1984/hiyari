@@ -303,6 +303,16 @@ export function getESignEvents(recordId: string): ESignEvent[] {
 }
 
 /**
+ * 全監査ログ取得（監査ビュー用）
+ * Ticket 064-final
+ */
+export function getAllESignEvents(limit: number = 1000): ESignEvent[] {
+  return [...esignEventsStore]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, limit);
+}
+
+/**
  * 統計情報取得
  */
 export function getStats(viewer: ViewerContext): ESignStats | null {
