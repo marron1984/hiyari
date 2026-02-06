@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/compo
 import { useAuth } from '@/contexts/AuthContext';
 import type { Mbr } from '@/lib/mbr/types';
 
-type ViewTab = 'summary' | 'funnel' | 'sales' | 'aiVp' | 'suggestions' | 'ops';
+type ViewTab = 'summary' | 'funnel' | 'sales' | 'aiVp' | 'suggestions' | 'ops' | 'improvement';
 
 export default function MbrPage() {
   const { firebaseUser } = useAuth();
@@ -178,6 +178,7 @@ ${mbr.sections.sales.resultDistribution.length > 0 ? `<table><tr><th>結果コ�
     { key: 'aiVp', label: 'AI VP' },
     { key: 'suggestions', label: '提案' },
     { key: 'ops', label: '運用' },
+    { key: 'improvement', label: '改善進捗' },
   ];
 
   if (loading) {
@@ -535,6 +536,96 @@ ${mbr.sections.sales.resultDistribution.length > 0 ? `<table><tr><th>結果コ�
                         <Badge key={step}>{step}</Badge>
                       ))}
                     </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* 改善進捗タブ (Ticket 129) */}
+          {activeTab === 'improvement' && (
+            <div className="space-y-4">
+              {/* 全体サマリー */}
+              <div className="grid grid-cols-3 gap-3">
+                <MetricCard label="改善タスク" value={mbr.sections.improvementProgress.totalTasks} unit="件" />
+                <MetricCard label="完了" value={mbr.sections.improvementProgress.totalDone} unit="件" />
+                <MetricCard label="完了率" value={mbr.sections.improvementProgress.overallCompletionRate} unit="%" alert={mbr.sections.improvementProgress.overallCompletionRate < 50 && mbr.sections.improvementProgress.totalTasks > 0} />
+              </div>
+
+              {/* 月別進捗 */}
+              {mbr.sections.improvementProgress.byMonth.filter((m) => m.total > 0).length > 0 && (
+                <Card>
+                  <CardHeader className="py-3 px-4">
+                    <CardTitle className="text-sm">月別進捗</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-1 text-zinc-500">月</th>
+                          <th className="text-right py-1 text-zinc-500">合計</th>
+                          <th className="text-right py-1 text-zinc-500">未着手</th>
+                          <th className="text-right py-1 text-zinc-500">対応中</th>
+                          <th className="text-right py-1 text-zinc-500">完了</th>
+                          <th className="text-right py-1 text-zinc-500">超過</th>
+                          <th className="text-right py-1 text-zinc-500">完了率</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mbr.sections.improvementProgress.byMonth.map((m) => (
+                          <tr key={m.month} className="border-b border-zinc-100">
+                            <td className="py-1.5 font-medium">{m.month}</td>
+                            <td className="text-right">{m.total}</td>
+                            <td className="text-right">{m.openCount}</td>
+                            <td className="text-right">{m.inProgressCount}</td>
+                            <td className="text-right text-green-600">{m.completedCount}</td>
+                            <td className="text-right text-red-600">{m.overdueCount > 0 ? m.overdueCount : '-'}</td>
+                            <td className="text-right font-medium">{m.total > 0 ? `${m.completionRate}%` : '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 詰まり: blocked */}
+              {mbr.sections.improvementProgress.blockedTop.length > 0 && (
+                <Card className="border-amber-200">
+                  <CardHeader className="py-3 px-4">
+                    <CardTitle className="text-sm">対応中（長期化）</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 space-y-1">
+                    {mbr.sections.improvementProgress.blockedTop.map((item) => (
+                      <div key={item.id} className="p-2 bg-amber-50 rounded text-xs text-zinc-700 truncate">
+                        {item.title}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 詰まり: overdue */}
+              {mbr.sections.improvementProgress.overdueTop.length > 0 && (
+                <Card className="border-red-200">
+                  <CardHeader className="py-3 px-4">
+                    <CardTitle className="text-sm">期限超過</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 space-y-1">
+                    {mbr.sections.improvementProgress.overdueTop.map((item) => (
+                      <div key={item.id} className="p-2 bg-red-50 rounded text-xs text-zinc-700 truncate">
+                        {item.title}
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* データなし */}
+              {mbr.sections.improvementProgress.totalTasks === 0 && (
+                <Card>
+                  <CardContent className="p-6 text-center">
+                    <p className="text-xs text-zinc-400">MBR改善タスクはまだありません</p>
                   </CardContent>
                 </Card>
               )}

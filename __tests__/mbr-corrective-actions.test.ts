@@ -61,6 +61,14 @@ function createTestMbr(month: string, focusItems: string[]): Mbr {
         totalItemsProcessed: 100,
         totalAlertsCreated: 5,
       },
+      improvementProgress: {
+        byMonth: [],
+        totalTasks: 0,
+        totalDone: 0,
+        overallCompletionRate: 0,
+        blockedTop: [],
+        overdueTop: [],
+      },
       nextMonthFocus: focusItems,
     },
   };

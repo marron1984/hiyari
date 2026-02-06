@@ -52,6 +52,30 @@ export interface MbrOpsSection {
   totalAlertsCreated: number;
 }
 
+/** F) 改善タスク進捗（Ticket 129） */
+export interface MbrImprovementProgressSection {
+  /** 月別の進捗集計（最新3ヶ月分） */
+  byMonth: MbrImprovementMonth[];
+  /** 全体サマリー */
+  totalTasks: number;
+  totalDone: number;
+  overallCompletionRate: number;
+  /** 詰まり上位（blocked/overdue） */
+  blockedTop: { id: string; title: string }[];
+  overdueTop: { id: string; title: string }[];
+}
+
+/** 月別改善タスク進捗 */
+export interface MbrImprovementMonth {
+  month: string;           // 起票元MBRの月（YYYY-MM）
+  openCount: number;
+  inProgressCount: number;
+  completedCount: number;  // completed + closed + cancelled
+  completionRate: number;
+  overdueCount: number;
+  total: number;
+}
+
 // ======== MBR本体 ========
 
 export interface MbrSections {
@@ -61,6 +85,7 @@ export interface MbrSections {
   aiVpChanges: MbrAiVpChangesSection;
   suggestions: MbrSuggestionsSection;
   ops: MbrOpsSection;
+  improvementProgress: MbrImprovementProgressSection; // Ticket 129
   nextMonthFocus: string[];
 }
 

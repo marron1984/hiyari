@@ -23,7 +23,9 @@ import type {
   MbrAiVpChangesSection,
   MbrSuggestionsSection,
   MbrOpsSection,
+  MbrImprovementProgressSection,
 } from './types';
+import { buildImprovementProgress } from './buildImprovementProgress';
 
 // ======== ヘルパー ========
 
@@ -252,6 +254,7 @@ function buildExecSummary(
   aiVpChanges: MbrAiVpChangesSection,
   suggestions: MbrSuggestionsSection,
   ops: MbrOpsSection,
+  improvementProgress: MbrImprovementProgressSection,
 ): string[] {
   const lines: string[] = [];
 
@@ -286,6 +289,13 @@ function buildExecSummary(
     );
   } else if (ops.weeklyRunCount > 0) {
     lines.push(`運用: ${ops.weeklyRunCount}回実行、全て正常`);
+  }
+
+  // 改善タスク進捗（Ticket 129）
+  if (improvementProgress.totalTasks > 0) {
+    lines.push(
+      `改善タスク: ${improvementProgress.totalTasks}件中 ${improvementProgress.totalDone}件完了（完了率 ${improvementProgress.overallCompletionRate}%）`
+    );
   }
 
   return lines;
@@ -348,9 +358,10 @@ export function generateMbr(month?: string): Mbr {
   const aiVpChanges = buildAiVpChangesSection(start, end);
   const suggestions = buildSuggestionsSection(start, end);
   const ops = buildOpsSection(start, end);
+  const improvementProgress = buildImprovementProgress(targetMonth);
 
   // サマリー生成
-  const execSummary = buildExecSummary(funnel, sales, aiVpChanges, suggestions, ops);
+  const execSummary = buildExecSummary(funnel, sales, aiVpChanges, suggestions, ops, improvementProgress);
   const nextMonthFocus = buildNextMonthFocus(funnel, sales, suggestions, ops);
 
   return {
@@ -364,6 +375,7 @@ export function generateMbr(month?: string): Mbr {
       aiVpChanges,
       suggestions,
       ops,
+      improvementProgress,
       nextMonthFocus,
     },
   };

@@ -361,6 +361,7 @@ describe('generateMbr', () => {
     expect(mbr.sections.aiVpChanges).toBeDefined();
     expect(mbr.sections.suggestions).toBeDefined();
     expect(mbr.sections.ops).toBeDefined();
+    expect(mbr.sections.improvementProgress).toBeDefined();
     expect(mbr.sections.nextMonthFocus).toBeDefined();
     expect(Array.isArray(mbr.sections.nextMonthFocus)).toBe(true);
   });
