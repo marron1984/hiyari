@@ -42,8 +42,9 @@ export type TicketRelatedType =
   | 'incident'
   | 'approval'
   | 'alert'
-  | 'ai_vp'             // Task 043: AI VP Business Top3 generated tickets
-  | 'vacancy_inquiry'   // Ticket 070: 空室問い合わせ
+  | 'ai_vp'                 // Task 043: AI VP Business Top3 generated tickets
+  | 'vacancy_inquiry'       // Ticket 070: 空室問い合わせ
+  | 'onboarding_followup'   // Ticket 099: 未署名者フォローアップ
   | null;
 
 /**

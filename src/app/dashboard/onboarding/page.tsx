@@ -4,12 +4,13 @@
  * オンボーディング統計ダッシュボード
  *
  * Ticket 097: 署名完了率ダッシュボード
+ * Ticket 099: 未署名者への強制連絡オペ（チケットリンク追加）
  *
  * - 全体完了率
  * - 文書別署名率
  * - 組織別完了率
  * - 滞留バケット
- * - 未完了ユーザー一覧
+ * - 未完了ユーザー一覧（チケットリンク付き）
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -25,6 +26,8 @@ import {
   AlertTriangle,
   TrendingUp,
   Send,
+  Ticket,
+  ExternalLink,
 } from 'lucide-react';
 
 // 型定義
@@ -67,7 +70,13 @@ interface OnboardingStats {
     orgUnitName: string | null;
     pendingCount: number;
     oldestDays: number;
+    followupTicketId: string | null;
+    followupTicketStatus: string | null;
   }>;
+  ticketStats?: {
+    withTicket: number;
+    withoutTicket: number;
+  };
   scope: string;
 }
 
@@ -101,7 +110,7 @@ export default function OnboardingStatsPage() {
 
   // リマインド送信
   const handleSendReminder = async () => {
-    if (!confirm('未完了ユーザーにリマインド通知を送信しますか？')) {
+    if (!confirm('未完了ユーザーにリマインド通知を送信しますか？\n（3日以上経過のユーザーにはフォローアップチケットも作成されます）')) {
       return;
     }
     setSendingReminder(true);
@@ -109,7 +118,21 @@ export default function OnboardingStatsPage() {
       const res = await fetch('/api/cron/onboarding-reminder');
       const data = await res.json();
       if (data.success) {
-        alert(`リマインドを送信しました。\n・本人通知: ${data.reminder?.userNotificationsCreated ?? 0}件\n・管理者ダイジェスト: ${data.reminder?.managerDigestsCreated ?? 0}件`);
+        const lines = [
+          'リマインドを送信しました。',
+          `・本人通知: ${data.reminder?.userNotificationsCreated ?? 0}件`,
+          `・管理者ダイジェスト: ${data.reminder?.managerDigestsCreated ?? 0}件`,
+        ];
+        // Ticket 099: チケット生成結果を追加
+        if (data.escalation) {
+          lines.push(`・フォローアップチケット: ${data.escalation.ticketsCreated ?? 0}件作成`);
+          if (data.escalation.ticketsSkipped > 0) {
+            lines.push(`  (${data.escalation.ticketsSkipped}件は既存のためスキップ)`);
+          }
+        }
+        alert(lines.join('\n'));
+        // データを再取得
+        fetchStats();
       } else {
         throw new Error(data.error || 'リマインド送信に失敗しました');
       }
@@ -370,10 +393,18 @@ export default function OnboardingStatsPage() {
         {stats.topPendingUsers.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="w-5 h-5 text-zinc-600" />
-                未完了ユーザー（上位{stats.topPendingUsers.length}件）
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="w-5 h-5 text-zinc-600" />
+                  未完了ユーザー（上位{stats.topPendingUsers.length}件）
+                </CardTitle>
+                {stats.ticketStats && (
+                  <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <Ticket className="w-4 h-4" />
+                    <span>チケット: {stats.ticketStats.withTicket}件</span>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -385,6 +416,7 @@ export default function OnboardingStatsPage() {
                       <th className="text-center py-2 px-2">ロール</th>
                       <th className="text-center py-2 px-2">未署名</th>
                       <th className="text-center py-2 px-2">経過日数</th>
+                      <th className="text-center py-2 px-2">チケット</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -410,6 +442,22 @@ export default function OnboardingStatsPage() {
                           <span className={user.oldestDays >= 7 ? 'text-red-600 font-medium' : user.oldestDays >= 3 ? 'text-amber-600' : ''}>
                             {user.oldestDays}日
                           </span>
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          {user.followupTicketId ? (
+                            <Link
+                              href={`/dashboard/tickets/${user.followupTicketId}`}
+                              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                            >
+                              <Ticket className="w-3 h-3" />
+                              <span className="text-xs">{user.followupTicketStatus}</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </Link>
+                          ) : user.oldestDays >= 3 ? (
+                            <span className="text-xs text-zinc-400">自動生成待ち</span>
+                          ) : (
+                            <span className="text-xs text-zinc-300">-</span>
+                          )}
                         </td>
                       </tr>
                     ))}

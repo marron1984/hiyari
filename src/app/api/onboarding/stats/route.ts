@@ -2,6 +2,7 @@
  * オンボーディング統計API
  *
  * Ticket 097: 署名完了率ダッシュボード
+ * Ticket 099: 未署名者への強制連絡オペ（チケット情報追加）
  *
  * GET /api/onboarding/stats
  *   - admin: 全体統計を返す
@@ -12,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { AppRole } from '@/config/appRoles';
 import { computeOnboardingStats, getManagerScopeOrgUnitIds } from '@/lib/onboarding/stats';
+import { getUserFollowupTicket } from '@/lib/onboarding/escalation';
 import { getUserById } from '@/lib/roles/user-store';
 
 // デモユーザー情報（実際はセッションから取得）
@@ -87,8 +89,26 @@ export async function GET(request: NextRequest) {
       maskPII: false, // admin/manager は名前を見られる
     });
 
+    // Ticket 099: 未完了ユーザーにチケット情報を追加
+    const topPendingUsersWithTickets = stats.topPendingUsers.map((user) => {
+      const ticket = getUserFollowupTicket(user.userId);
+      return {
+        ...user,
+        followupTicketId: ticket?.id ?? null,
+        followupTicketStatus: ticket?.status ?? null,
+      };
+    });
+
+    // 全体のチケット統計
+    const ticketStats = {
+      withTicket: topPendingUsersWithTickets.filter((u) => u.followupTicketId).length,
+      withoutTicket: topPendingUsersWithTickets.filter((u) => !u.followupTicketId).length,
+    };
+
     return NextResponse.json({
       ...stats,
+      topPendingUsers: topPendingUsersWithTickets,
+      ticketStats,
       scope: role === 'manager' ? 'manager' : 'all',
       scopeOrgUnitIds: scopeOrgUnitIds ?? null,
     });

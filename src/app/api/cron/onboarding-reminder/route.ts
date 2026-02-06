@@ -2,15 +2,17 @@
  * オンボーディング未完了リマインド Cron API
  *
  * Ticket 095: 未署名放置の自動リマインド
+ * Ticket 099: 未署名者への強制連絡オペ（エスカレーション→チケット自動生成）
  *
  * GET /api/cron/onboarding-reminder?secret=...
  *   - 未完了ユーザーをスキャン
  *   - 本人通知を作成（1日1回、冪等）
  *   - manager/admin ダイジェストを作成
  *   - escalation 通知を作成
+ *   - Ticket 099: escalationLevel >= 2 でチケットを自動生成
  *
  * GET /api/cron/onboarding-reminder?secret=...&preview=true
- *   - プレビュー実行（通知を作成しない）
+ *   - プレビュー実行（通知・チケットを作成しない）
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -18,6 +20,7 @@ import {
   scanPendingUsers,
   executeReminders,
   getAllUserOnboardings,
+  createEscalationTickets,
 } from '@/lib/onboarding';
 import { listUsers, getUserById } from '@/lib/roles/user-store';
 import type { AppRole } from '@/config/appRoles';
@@ -74,8 +77,13 @@ export async function GET(request: NextRequest) {
     // 1. 未完了ユーザーをスキャン
     const scanResult = scanPendingUsers(getAllUserOnboardings, getUserInfo);
 
-    // プレビューの場合は通知を作成しない
+    // プレビューの場合は通知・チケットを作成しない
     if (preview) {
+      // エスカレーション対象をカウント
+      const escalationTargets = scanResult.pendingUsers.filter(
+        (u) => u.escalationLevel !== 'normal' || u.oldestPendingDays >= 3
+      );
+
       return NextResponse.json({
         success: true,
         mode: 'preview',
@@ -92,6 +100,14 @@ export async function GET(request: NextRequest) {
           oldestPendingDays: u.oldestPendingDays,
           escalationLevel: u.escalationLevel,
         })),
+        escalationPreview: {
+          targetCount: escalationTargets.length,
+          targets: escalationTargets.map((u) => ({
+            userId: u.userId,
+            escalationLevel: u.escalationLevel,
+            oldestPendingDays: u.oldestPendingDays,
+          })),
+        },
       });
     }
 
@@ -110,6 +126,9 @@ export async function GET(request: NextRequest) {
       adminUserIds
     );
 
+    // 4. Ticket 099: エスカレーションチケットを作成
+    const escalationResult = createEscalationTickets(scanResult.pendingUsers);
+
     return NextResponse.json({
       success: true,
       mode: 'execute',
@@ -125,6 +144,13 @@ export async function GET(request: NextRequest) {
         escalationsCreated: reminderResult.escalationsCreated,
         skippedDuplicates: reminderResult.skippedDuplicates,
         errors: reminderResult.errors,
+      },
+      escalation: {
+        ticketsCreated: escalationResult.ticketsCreated,
+        ticketsSkipped: escalationResult.ticketsSkipped,
+        notificationsCreated: escalationResult.notificationsCreated,
+        createdTickets: escalationResult.createdTickets,
+        errors: escalationResult.errors,
       },
     });
   } catch (error) {
