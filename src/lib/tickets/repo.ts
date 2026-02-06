@@ -144,6 +144,14 @@ export function listTickets(
     tickets = tickets.filter((t) => t.category === filter.category);
   }
 
+  // relatedType / relatedId フィルタ（MVP: 冪等性チェック）
+  if (filter.relatedType) {
+    tickets = tickets.filter((t) => t.relatedType === filter.relatedType);
+  }
+  if (filter.relatedId) {
+    tickets = tickets.filter((t) => t.relatedId === filter.relatedId);
+  }
+
   // 検索
   if (filter.q) {
     const q = filter.q.toLowerCase();

@@ -44,6 +44,7 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   unclassified_scope: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
   mbr_action_created: { icon: FileText, color: 'text-indigo-600', bg: 'bg-indigo-50' },
   mbr_action_overdue: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+  vacancy_inquiry: { icon: Bell, color: 'text-blue-600', bg: 'bg-blue-50' },
   system: { icon: Bell, color: 'text-zinc-600', bg: 'bg-zinc-50' },
 };
 

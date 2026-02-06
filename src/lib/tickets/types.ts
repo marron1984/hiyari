@@ -197,6 +197,8 @@ export interface TicketListFilter {
   priority?: TicketPriority;
   category?: TicketCategory;
   businessUnitId?: string | null;     // Task 030: 事業単位スコープ
+  relatedType?: TicketRelatedType;    // MVP: 問い合わせ冪等性
+  relatedId?: string;                 // MVP: 問い合わせ冪等性
   q?: string;
   my?: 'assigned' | 'requested' | 'watching';
   overdue?: boolean;

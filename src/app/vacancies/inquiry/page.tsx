@@ -21,6 +21,7 @@ import Link from 'next/link';
 
 interface PublicVacancyUnit {
   id: string;
+  businessUnitId: string;
   buildingName: string;
   area: string;
   roomType: string;
@@ -33,6 +34,7 @@ function InquiryFormContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const unitId = searchParams.get('unitId');
+  const businessUnitIdParam = searchParams.get('businessUnitId');
 
   const [unit, setUnit] = useState<PublicVacancyUnit | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -73,6 +75,7 @@ function InquiryFormContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vacancyUnitId: unitId || undefined,
+          businessUnitId: businessUnitIdParam || unit?.businessUnitId || 'bu_housing',
           contactName,
           contactPhone: contactPhone || undefined,
           contactEmail: contactEmail || undefined,

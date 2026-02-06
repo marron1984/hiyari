@@ -35,14 +35,19 @@ export async function GET(request: NextRequest) {
       userAgent: userAgent ?? undefined,
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       items,
       totalCount: items.length,
     });
+
+    // MVP: 60秒キャッシュ（CDN/ブラウザ両方）
+    response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=60, stale-while-revalidate=120');
+
+    return response;
   } catch (error) {
     console.error('public vacancies GET error:', error);
     return NextResponse.json(
-      { error: '空室情報の取得に失敗しました' },
+      { error: '空室情報の取得に失敗しました', items: [], totalCount: 0 },
       { status: 500 }
     );
   }

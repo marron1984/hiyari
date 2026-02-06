@@ -2,22 +2,39 @@
  * 空室問い合わせAPI
  *
  * Ticket 070: 空室 外部提示システム
+ * MVP: 問い合わせ → チケット自動作成 → 担当者通知
  *
- * POST /api/vacancies/inquiry - 問い合わせ送信 → チケット自動作成
+ * POST /api/vacancies/inquiry
  *
- * - フォーム: 連絡先、希望条件
+ * - businessUnitId 必須
+ * - 連絡先（電話 or メール）いずれか必須
  * - tickets を自動作成 (relatedType: vacancy_inquiry)
- * - businessUnitId を付与
- * - 057の自動割当を適用可能
- * - 通知を担当者へ
+ * - 057 autoAssign で担当を決定
+ * - 036 notifications で担当者に通知
+ * - relatedId で冪等性（日付+連絡先hash）
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getVacancyUnitById, seedVacancyUnitsIfEmpty } from '@/lib/vacancyUnits/repo';
 import type { VacancyInquiryRequest } from '@/lib/vacancyUnits/types';
-import { createTicket } from '@/lib/tickets/repo';
+import { createTicket, listTickets } from '@/lib/tickets/repo';
 import { CARE_LEVEL_LABELS } from '@/lib/vacancyUnits/types';
 import { sanitizeString, sanitizeNumber, isValidEmail } from '@/lib/sanitize';
+import { create as createNotification } from '@/lib/notifications/repo';
+
+/**
+ * 冪等キー生成: 日付 + 連絡先hash → 同日同一連絡先からの二重送信を防ぐ
+ */
+function buildIdempotencyKey(contactPhone?: string, contactEmail?: string): string {
+  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const contact = (contactPhone || '') + (contactEmail || '');
+  // 簡易hash
+  let hash = 0;
+  for (let i = 0; i < contact.length; i++) {
+    hash = ((hash << 5) - hash + contact.charCodeAt(i)) | 0;
+  }
+  return `vinq:${date}:${Math.abs(hash).toString(36)}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,14 +79,50 @@ export async function POST(request: NextRequest) {
     // 空室ユニットから事業単位IDを取得
     let targetBusinessUnitId = businessUnitId;
     let buildingName: string | undefined;
+    let roomType: string | undefined;
+    let area: string | undefined;
 
     if (vacancyUnitId) {
       const unit = getVacancyUnitById(vacancyUnitId);
       if (unit) {
         targetBusinessUnitId = unit.businessUnitId;
         buildingName = unit.buildingName;
+        roomType = unit.roomType;
+        area = unit.area;
       }
     }
+
+    // businessUnitIdが必須
+    if (!targetBusinessUnitId) {
+      return NextResponse.json(
+        { error: '事業単位の指定が必要です' },
+        { status: 400 }
+      );
+    }
+
+    // 冪等性チェック: 同日同一連絡先
+    const idempotencyKey = buildIdempotencyKey(contactPhone ?? undefined, contactEmail ?? undefined);
+    const SYSTEM_VIEWER = { userId: 'system', role: 'admin' as const };
+    const { items: existingTickets } = listTickets(
+      { relatedType: 'vacancy_inquiry', relatedId: idempotencyKey, limit: 1 },
+      SYSTEM_VIEWER
+    );
+
+    if (existingTickets.length > 0) {
+      return NextResponse.json({
+        success: true,
+        ticketId: existingTickets[0].id,
+        message: 'お問い合わせは既に受け付け済みです。',
+        duplicate: true,
+      }, { status: 200 });
+    }
+
+    // チケットタイトル構築
+    const titleParts = ['空室問合せ'];
+    if (buildingName) titleParts.push(buildingName);
+    if (area) titleParts.push(area);
+    if (roomType) titleParts.push(roomType);
+    const title = titleParts.join(' ');
 
     // チケット説明文を構築
     const descriptionParts: string[] = [
@@ -111,22 +164,39 @@ export async function POST(request: NextRequest) {
 
     const description = descriptionParts.join('\n');
 
-    // チケット作成（外部からの問い合わせなのでシステムユーザーとして作成）
+    // チケット作成（autoAssign適用 = skipAutoAssign: false がデフォルト）
     const ticket = createTicket(
       {
-        title: `空室問い合わせ: ${contactName}様${buildingName ? ` (${buildingName})` : ''}`,
+        title,
         description,
         priority: 'normal',
         category: 'client',
         businessUnitId: targetBusinessUnitId,
         relatedType: 'vacancy_inquiry',
-        relatedId: vacancyUnitId,
+        relatedId: idempotencyKey,
         tags: ['空室問い合わせ', '新規'],
       },
-      'system' // システムユーザーとして作成
+      'system'
     );
 
-    // TODO: 担当者への通知（実装済みの通知システムと連携）
+    // 担当者への通知
+    if (ticket.assigneeUserId) {
+      try {
+        createNotification({
+          tenantId: 'default',
+          userId: ticket.assigneeUserId,
+          type: 'vacancy_inquiry',
+          severity: 'info',
+          title: `空室問い合わせ: ${contactName}様`,
+          message: `${buildingName || '施設'}への問い合わせが届きました。${contactPhone ? `TEL: ${contactPhone}` : ''}`,
+          url: `/dashboard/tickets/${ticket.id}`,
+          fingerprint: `vacancy_inquiry:${ticket.id}`,
+        });
+      } catch {
+        // 通知失敗してもチケットは作成済み、エラーにしない
+        console.error('vacancy inquiry notification failed');
+      }
+    }
 
     return NextResponse.json({
       success: true,
