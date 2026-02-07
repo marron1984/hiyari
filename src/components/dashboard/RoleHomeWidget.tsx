@@ -48,6 +48,7 @@ const WIDGET_ICONS: Record<WidgetType, React.ComponentType<{ className?: string 
   receivables: Banknote,
   vacancy_inquiry_kpis: Home, // Ticket 082: 空室問い合わせKPI
   sales_tasks: Briefcase, // Ticket 122: 営業タスク
+  mbr: ClipboardCheck, // Ticket 127: 月次改善レビュー
 };
 
 /**

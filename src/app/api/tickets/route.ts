@@ -10,8 +10,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { listTickets, createTicket } from '@/lib/tickets/repo';
+import { listByFilter as listTicketsFirestore } from '@/lib/tickets/repo.firestore';
 import type { AppRole } from '@/config/appRoles';
-import type { TicketStatus, TicketPriority, TicketCategory } from '@/lib/tickets/types';
+import type { TicketStatus, TicketPriority, TicketCategory, TicketRelatedType } from '@/lib/tickets/types';
 import { validateApiGuardrail } from '@/lib/scope/guardrail';
 import { processStaffCreation, requiresInference } from '@/lib/scope/inferBusinessUnit';
 
@@ -42,11 +43,15 @@ export async function GET(request: NextRequest) {
       ? null
       : (businessUnitIdParam ?? undefined);
 
+    // relatedType フィルタ（vacancy_inquiry等）
+    const relatedTypeParam = searchParams.get('relatedType') as TicketRelatedType | null;
+
     const filter = {
       status: status ?? undefined,
       priority: priority ?? undefined,
       category: category ?? undefined,
       businessUnitId,                    // Task 030
+      relatedType: relatedTypeParam ?? undefined,
       q: q ?? undefined,
       my: my ?? undefined,
       overdue: overdueParam === 'true' ? true : undefined,
@@ -55,7 +60,25 @@ export async function GET(request: NextRequest) {
     };
 
     const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
-    const { items, total } = listTickets(filter, viewer);
+
+    // In-memory結果
+    const { items: memoryItems, total: memoryTotal } = listTickets(filter, viewer);
+
+    // Firestore永続チケットをマージ（vacancy_inquiry等）
+    let items = memoryItems;
+    let total = memoryTotal;
+    try {
+      const { items: fsItems } = await listTicketsFirestore(filter, viewer);
+      if (fsItems.length > 0) {
+        // In-memoryと重複除去（idベース）
+        const memoryIds = new Set(memoryItems.map((t) => t.id));
+        const newFromFs = fsItems.filter((t) => !memoryIds.has(t.id));
+        items = [...memoryItems, ...newFromFs];
+        total = memoryTotal + newFromFs.length;
+      }
+    } catch {
+      // Firestore接続失敗時はIn-memoryのみで続行
+    }
 
     return NextResponse.json({
       items,

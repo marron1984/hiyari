@@ -38,6 +38,7 @@ import { getOverdueTickets, getTicketStats } from '@/lib/tickets/repo';
 import { scanHighRiskOpen as scanHighRiskRepairs, getStats as getRepairsStats } from '@/lib/repairs/repo';
 import { getStats as getCorrectiveActionsStats } from '@/lib/correctiveActions/repo';
 import { scanOverdueSteps as scanOverdueCollectionSteps } from '@/lib/collection/repo';
+import { scanMbrActionsOverdue, buildMbrOverdueAlert } from './scanMbrActionsOverdue';
 import { scanExpiredConsents, getStats as getAgreementsStats, getAgreementTypeById } from '@/lib/agreements/repo';
 import type { ViewerContext } from '@/lib/business/types';
 
@@ -748,6 +749,105 @@ async function runCollectionFlowScan(
   }
 }
 
+/**
+ * MBR改善タスク期限超過スキャン（Ticket 130）
+ */
+async function runMbrActionsOverdueScan(
+  options: DailyOpsOptions,
+  date: string
+): Promise<DailyOpsStepResult> {
+  const start = Date.now();
+  const stepName: DailyOpsStepName = 'mbr_actions_overdue_scan';
+
+  try {
+    const overdueItems = scanMbrActionsOverdue();
+    const alertRequest = buildMbrOverdueAlert(overdueItems, date);
+
+    if (!alertRequest) {
+      return {
+        name: stepName,
+        ok: true,
+        alertsCreated: 0,
+        alertsSkipped: 0,
+        notificationsCreated: 0,
+        durationMs: Date.now() - start,
+      };
+    }
+
+    if (options.dryRun) {
+      return {
+        name: stepName,
+        ok: true,
+        alertsCreated: 0,
+        alertsSkipped: 1,
+        notificationsCreated: 0,
+        durationMs: Date.now() - start,
+      };
+    }
+
+    // 重要度フィルタ
+    if (!meetsSeverityThreshold(alertRequest.severity, options.notificationThreshold ?? 'warning')) {
+      return {
+        name: stepName,
+        ok: true,
+        alertsCreated: 0,
+        alertsSkipped: 1,
+        notificationsCreated: 0,
+        durationMs: Date.now() - start,
+      };
+    }
+
+    const result = createAlertsFromScan([alertRequest]);
+
+    // 通知作成（manager/admin向け）
+    let notificationsCreated = 0;
+    if (result.created > 0) {
+      const notifFingerprint = `notif:mbr_overdue:${date}`;
+      const overdue7Count = overdueItems.filter((i) => i.overdueDays >= 7).length;
+      const notifSeverity = overdue7Count > 0 ? 'critical' : 'warning';
+
+      const notifResult = createNotification({
+        tenantId: 'default',
+        userId: 'role:manager',
+        type: 'mbr_action_overdue' as Parameters<typeof createNotification>[0]['type'],
+        title: 'MBR改善タスク 期限超過',
+        message: alertRequest.message,
+        severity: notifSeverity,
+        fingerprint: notifFingerprint,
+        url: '/dashboard/corrective-actions?sourceType=mbr_focus&overdue=true',
+        metadata: {
+          targetRole: 'manager',
+          detectedAt: new Date().toISOString(),
+        },
+      });
+      if (notifResult.isNew) notificationsCreated++;
+    }
+
+    return {
+      name: stepName,
+      ok: true,
+      alertsCreated: result.created,
+      alertsSkipped: result.skipped,
+      notificationsCreated,
+      durationMs: Date.now() - start,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (!options.dryRun) {
+      createSystemErrorAlert(stepName, errorMessage, date);
+    }
+    return {
+      name: stepName,
+      ok: false,
+      alertsCreated: 0,
+      alertsSkipped: 0,
+      notificationsCreated: 0,
+      errorMessage,
+      durationMs: Date.now() - start,
+    };
+  }
+}
+
 // ========== ステップ実行マップ ==========
 
 const STEP_EXECUTORS: Record<
@@ -763,6 +863,7 @@ const STEP_EXECUTORS: Record<
   repairs_risk_scan: runRepairsRiskScan,
   corrective_actions_scan: runCorrectiveActionsScan,
   collection_flow_scan: runCollectionFlowScan,
+  mbr_actions_overdue_scan: runMbrActionsOverdueScan,
 };
 
 const DEFAULT_STEPS: DailyOpsStepName[] = [
@@ -775,6 +876,7 @@ const DEFAULT_STEPS: DailyOpsStepName[] = [
   'repairs_risk_scan',
   'corrective_actions_scan',
   'collection_flow_scan',
+  'mbr_actions_overdue_scan',
 ];
 
 // ========== メイン実行関数 ==========

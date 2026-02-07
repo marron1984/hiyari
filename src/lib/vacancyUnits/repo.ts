@@ -8,7 +8,7 @@
  */
 
 import { getStorageDriver } from '@/config/storage';
-import * as firestoreRepo from './repo.firestore';
+import * as firestoreRepo from './repo.firestore.compat';
 import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 import { autoAssign } from '@/lib/assignment/autoAssign';
 import type {
