@@ -150,7 +150,28 @@ src/config/featureGate.ts
 
 ---
 
-## 7. 今後の推奨事項
+## 7. 追加修正 (2026-02-08 第2回)
+
+### 7-1. 稟議 (ringi) tenantId フィルタ欠落 [CRITICAL]
+
+**根本原因**: `getRingisByUser()`, `getPendingRingis()`, `getAllRingis()` の3関数が
+`tenantId` パラメータを受け取りながら Firestore クエリに `where('tenantId', '==', tenantId)` を含めていなかった。
+
+**影響**:
+- 別テナントの稟議データが表示される可能性（マルチテナント分離違反）
+- 別アカウントから申請した稟議が見えない問題の原因
+
+**修正**: 3関数すべてに `where('tenantId', '==', tenantId)` を追加。
+Firestore composite index `ringis(tenantId ASC, authorId ASC, createdAt DESC)` も追加。
+
+### 7-2. 打刻 clockIn の employeeCode パラメータ
+
+**根本原因**: `clockIn()` に `user.email` を渡していた。
+**修正**: `user.name || user.email` に変更。
+
+---
+
+## 8. 今後の推奨事項
 
 1. **デプロイ後の確認 SOP**: `api/version` の SHA と UI の Build 表示で一致確認
 2. **Vercel 環境変数**: `NEXT_PUBLIC_GIT_SHA` に `VERCEL_GIT_COMMIT_SHA` を設定

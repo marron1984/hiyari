@@ -148,7 +148,7 @@ export default function AttendancePage() {
     try {
       await clockIn(
         user.id,
-        user.email,
+        user.name || user.email,
         selectedBranchId,
         user.tenantId
       );
