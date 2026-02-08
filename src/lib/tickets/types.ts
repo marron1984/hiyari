@@ -192,19 +192,6 @@ export type VacancyInquiryStage =
   | 'closed';          // クローズ
 
 /**
- * 営業タスク結果コード（Ticket 123/124）
- */
-export type SalesResultCode =
-  | 'contacted'         // 連絡済み
-  | 'tour_scheduled'    // 見学日程確定
-  | 'applied'           // 申込
-  | 'accepted'          // 入居決定
-  | 'not_interested'    // 興味なし
-  | 'no_answer'         // 不通
-  | 'rescheduled'       // リスケ
-  | 'other';            // その他
-
-/**
  * チケットイベントアクション
  */
 export type TicketEventAction =
@@ -237,10 +224,13 @@ export interface TicketMeta {
   // Ticket 123/124: 営業タスク結果
   leadScore?: number;
   nextBestAction?: string;
-  resultCode?: SalesResultCode;
+  resultCode?: SalesTaskResultCode;           // 結果コード（詳細・表示用）
+  normalizedResultCode?: SalesResultCode;     // 結果コード（正規化・分析用）
   resultNote?: string;
   stage?: string;           // 営業ステージ
-  originTicketId?: string;
+  originTicketId?: string;  // 元の問い合わせチケットID
+  completedAt?: string;     // 完了日時（ISO）
+  nextFollowUpAt?: string;  // 次回フォローアップ日時（ISO）
   // Ticket 084: 申込関連
   appliedAt?: string;                // 申込日時（ISO）
   desiredMoveInDate?: string;        // 希望入居日（YYYY-MM-DD）
@@ -252,13 +242,6 @@ export interface TicketMeta {
   acceptedNote?: string;             // 受入決定メモ
   reservedVacancyUnitId?: string;    // 予約確定した空室ユニットID
   acceptedByUserId?: string;         // 受入決定した担当者ID
-  // Ticket 123: 営業タスク完了結果
-  originTicketId?: string;              // 元の問い合わせチケットID
-  resultCode?: SalesTaskResultCode;     // 結果コード（詳細・表示用）
-  normalizedResultCode?: SalesResultCode; // 結果コード（正規化・分析用）
-  resultNote?: string;                  // 結果メモ
-  completedAt?: string;                 // 完了日時（ISO）
-  nextFollowUpAt?: string;              // 次回フォローアップ日時（ISO）
   [key: string]: unknown;
 }
 
