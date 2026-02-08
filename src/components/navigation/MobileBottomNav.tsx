@@ -31,27 +31,7 @@ import {
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
 import { LAUNCH_MODE } from '@/config/launchMode';
-
-// Launch Mode で許可するその他メニューのhref（4機能）
-const LAUNCH_MODE_MORE_HREFS = [
-  '/dashboard/prospects',
-  '/dashboard/vacancy',
-];
-
-// Launch Mode で許可する管理メニューのhref（リーダー以上のみ）
-const LAUNCH_MODE_ADMIN_HREFS = [
-  '/admin/attendance/dashboard',
-  '/dashboard/admin/ringi',
-];
-
-// Launch Mode 専用のメインナビゲーション
-const LAUNCH_MODE_MAIN_NAV = [
-  { href: '/launch', label: 'ホーム', icon: Home, matchPaths: ['/launch'] },
-  { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus, matchPaths: ['/dashboard/prospects'] },
-  { href: '/dashboard/vacancy', label: '空室', icon: Building2, matchPaths: ['/dashboard/vacancy'] },
-  { href: '/attendance', label: '打刻', icon: Clock, matchPaths: ['/attendance'] },
-  { href: '/dashboard/approvals', label: '承認', icon: ClipboardCheck, matchPaths: ['/dashboard/approvals'] },
-];
+import { filterNavItems, isModuleEnabled } from '@/config/featureGate';
 
 interface NavItem {
   href: string;
@@ -67,9 +47,16 @@ export function MobileBottomNav() {
 
   if (!user) return null;
 
-  // Launch Mode: 専用ナビゲーション（5機能のみ、管理/その他なし）
+  // Launch Mode: 専用ナビゲーション（featureGate で有効なモジュールのみ）
   if (LAUNCH_MODE) {
-    const launchNavItems: NavItem[] = LAUNCH_MODE_MAIN_NAV;
+    const launchNavAll: NavItem[] = [
+      { href: '/launch', label: 'ホーム', icon: Home, matchPaths: ['/launch'] },
+      { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus, matchPaths: ['/dashboard/prospects'] },
+      { href: '/dashboard/vacancy', label: '空室', icon: Building2, matchPaths: ['/dashboard/vacancy'] },
+      { href: '/attendance', label: '打刻', icon: Clock, matchPaths: ['/attendance'] },
+      { href: '/dashboard/approvals', label: '承認', icon: ClipboardCheck, matchPaths: ['/dashboard/approvals'] },
+    ];
+    const launchNavItems = filterNavItems(launchNavAll);
 
     const isActiveLaunch = (item: NavItem) => {
       if (item.matchPaths && item.matchPaths.length > 0) {
@@ -139,10 +126,8 @@ export function MobileBottomNav() {
     { href: '/dashboard/os', label: '経営OS', icon: Activity },
   ];
 
-  // Launch Mode: 許可されたその他メニューのみ表示
-  const moreItems = LAUNCH_MODE
-    ? allMoreItems.filter(item => LAUNCH_MODE_MORE_HREFS.includes(item.href))
-    : allMoreItems;
+  // featureGate でフィルタ
+  const moreItems = filterNavItems(allMoreItems);
 
   // 管理者メニュー（その他内）
   const allAdminMoreItems: NavItem[] = isLeaderOrAbove
@@ -159,13 +144,11 @@ export function MobileBottomNav() {
       ]
     : [];
 
-  // Launch Mode: 許可された管理メニューのみ表示
-  const adminMoreItems = LAUNCH_MODE
-    ? allAdminMoreItems.filter(item => LAUNCH_MODE_ADMIN_HREFS.includes(item.href))
-    : allAdminMoreItems;
+  // featureGate でフィルタ
+  const adminMoreItems = filterNavItems(allAdminMoreItems);
 
-  // AI副社長メニュー - Launch Mode では非表示
-  const aiVpItems: NavItem[] = !LAUNCH_MODE && isAiVpOwner(user?.email)
+  // AI副社長メニュー - featureGate で制御
+  const aiVpItems: NavItem[] = isModuleEnabled('ai-vp') && isAiVpOwner(user?.email)
     ? [
         { href: '/dashboard/ai/inbox', label: 'AI受信箱', icon: Bot },
         { href: '/admin/ai-vp', label: 'AI抽出', icon: Brain },

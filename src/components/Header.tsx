@@ -11,21 +11,7 @@ import { RoleSwitcher } from '@/components/navigation/RoleSwitcher';
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
 import { LAUNCH_MODE } from '@/config/launchMode';
-
-// Launch Mode で許可するナビゲーションのhref（4機能 + ホーム）
-const LAUNCH_MODE_NAV_HREFS = [
-  '/launch',
-  '/dashboard/prospects',
-  '/dashboard/vacancy',
-  '/attendance',
-  '/dashboard/approvals',
-];
-
-// Launch Mode で許可する管理メニューのhref（リーダー以上のみ）
-const LAUNCH_MODE_ADMIN_HREFS = [
-  '/admin/attendance/dashboard',
-  '/dashboard/admin/ringi',
-];
+import { filterNavItems, isModuleEnabled } from '@/config/featureGate';
 
 export function Header() {
   const { user, isLeaderOrAbove, signOut } = useAuth();
@@ -53,19 +39,15 @@ export function Header() {
 
   if (!user) return null;
 
-  // Launch Mode: 4機能 + ホームのみ表示
-  const launchModeNavItems = [
-    { href: '/launch', label: 'ホーム', icon: Home },
-    { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus },
-    { href: '/dashboard/vacancy', label: '空室', icon: Building2 },
-    { href: '/attendance', label: '打刻', icon: Clock },
-    { href: '/dashboard/approvals', label: '承認', icon: ClipboardList },
-  ];
+  // メニュー順序（確定版）
+  // Launch Mode: /launch がホーム, 通常: /dashboard がホーム
+  const homeItem = LAUNCH_MODE
+    ? { href: '/launch', label: 'ホーム', icon: Home }
+    : { href: '/dashboard', label: 'ホーム', icon: Home };
 
-  // 通常モード: メニュー順序（確定版）
-  // 1.打刻 2.稟議 3.入居希望 4.営業進捗 5.空室 6.改善 7.ランク 8.経営OS 9.報告(ヒヤリ)
+  // 全ナビゲーション定義 → featureGate でフィルタ
   const allNavItems = [
-    { href: '/dashboard', label: 'ホーム', icon: Home },
+    homeItem,
     { href: '/attendance', label: '打刻', icon: Clock },
     { href: '/dashboard/approvals', label: '承認', icon: ClipboardList },
     { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus },
@@ -89,12 +71,9 @@ export function Header() {
     { href: '/admin/settings', label: '設定', icon: Settings },
   ];
 
-  // Launch Mode: 専用ナビゲーション、通常モード: 全ナビゲーション
-  const navItems = LAUNCH_MODE ? launchModeNavItems : allNavItems;
-
-  const adminItems = LAUNCH_MODE
-    ? allAdminItems.filter(item => LAUNCH_MODE_ADMIN_HREFS.includes(item.href))
-    : allAdminItems;
+  // featureGate でフィルタ（Launch Mode = 有効モジュールのみ、通常 = 全表示）
+  const navItems = filterNavItems(allNavItems);
+  const adminItems = filterNavItems(allAdminItems);
 
   const handleSignOut = async () => {
     await signOut();
@@ -188,8 +167,8 @@ export function Header() {
               </div>
             )}
 
-            {/* AI副社長 (吉田専用) - Launch Mode では非表示 */}
-            {!LAUNCH_MODE && isAiVpOwner(user?.email) && (
+            {/* AI副社長 (吉田専用) - モジュール無効時は非表示 */}
+            {isModuleEnabled('ai-vp') && isAiVpOwner(user?.email) && (
               <>
                 <Link
                   href="/dashboard/ai/inbox"
