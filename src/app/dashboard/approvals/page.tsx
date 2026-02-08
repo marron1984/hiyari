@@ -29,6 +29,7 @@ import {
   ExpensePayload,
   OvertimePayload,
 } from '@/types/application';
+import { LAUNCH_MODE } from '@/config/launchMode';
 
 const AUTO_REFRESH_INTERVAL = 60000;
 
@@ -286,22 +287,26 @@ export default function ApprovalsListPage() {
                       <ClipboardList className="w-5 h-5 text-blue-600" />
                       <span className="font-medium">稟議</span>
                     </Link>
-                    <Link
-                      href="/dashboard/applications/expense/new"
-                      onClick={() => setShowNewMenu(false)}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 transition-colors"
-                    >
-                      <Wallet className="w-5 h-5 text-green-600" />
-                      <span className="font-medium">経費申請</span>
-                    </Link>
-                    <Link
-                      href="/dashboard/attendance/overtime/new"
-                      onClick={() => setShowNewMenu(false)}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 transition-colors"
-                    >
-                      <Timer className="w-5 h-5 text-purple-600" />
-                      <span className="font-medium">残業申請</span>
-                    </Link>
+                    {!LAUNCH_MODE && (
+                      <>
+                        <Link
+                          href="/dashboard/applications/expense/new"
+                          onClick={() => setShowNewMenu(false)}
+                          className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 transition-colors"
+                        >
+                          <Wallet className="w-5 h-5 text-green-600" />
+                          <span className="font-medium">経費申請</span>
+                        </Link>
+                        <Link
+                          href="/dashboard/attendance/overtime/new"
+                          onClick={() => setShowNewMenu(false)}
+                          className="flex items-center gap-3 px-4 py-3 hover:bg-zinc-50 transition-colors"
+                        >
+                          <Timer className="w-5 h-5 text-purple-600" />
+                          <span className="font-medium">残業申請</span>
+                        </Link>
+                      </>
+                    )}
                   </div>
                 </>
               )}
@@ -327,7 +332,7 @@ export default function ApprovalsListPage() {
 
         {/* Type Tabs */}
         <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          {(['ALL', 'RINGI', 'EXPENSE', 'OVERTIME'] as ApprovalType[]).map((type) => (
+          {(LAUNCH_MODE ? ['ALL', 'RINGI'] as ApprovalType[] : ['ALL', 'RINGI', 'EXPENSE', 'OVERTIME'] as ApprovalType[]).map((type) => (
             <button
               key={type}
               onClick={() => setTypeFilter(type)}

@@ -11,6 +11,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "seed:chaos": "ts-node scripts/seed-chaos.ts",
+    "purge:approvals:dry": "ALLOW_DEMO_PURGE=true PURGE_MODE=DRY_RUN ts-node --project tsconfig.json scripts/purge-demo-approvals.ts",
+    "purge:approvals:exec": "ALLOW_DEMO_PURGE=true PURGE_MODE=EXECUTE ts-node --project tsconfig.json scripts/purge-demo-approvals.ts",
     "deploy:indexes": "firebase deploy --only firestore:indexes"
   },
   "dependencies": {

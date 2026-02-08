@@ -16,6 +16,7 @@ import type {
 } from './types';
 import { getApprovalFlow } from './flowRepo';
 import { selectFlowForRequest } from './selectFlow';
+import { guardDemoSeed } from '@/config/runtimeFlags';
 
 // インメモリストレージ
 const requestsStore = new Map<string, ApprovalRequest>();
@@ -37,10 +38,13 @@ function generateActionId(): string {
 }
 
 /**
- * デモデータで初期化
+ * デモデータで初期化（本番では空ストアのまま）
  */
 function initializeStore(): void {
   if (isInitialized) return;
+  isInitialized = true;
+
+  if (!guardDemoSeed('requestRepo.initializeStore')) return;
 
   const now = new Date();
   const yesterday = new Date(now);
