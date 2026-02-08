@@ -33,6 +33,7 @@ import {
   TrendingUp,
   Upload,
 } from 'lucide-react';
+import { LAUNCH_MODE } from '@/config/launchMode';
 
 export default function ProspectsPage() {
   const { user } = useAuth();
@@ -159,12 +160,14 @@ export default function ProspectsPage() {
               </Button>
               {canManage && (
                 <>
-                  <Link href="/admin/prospects/import">
-                    <Button variant="secondary">
-                      <Upload className="w-4 h-4 mr-1" />
-                      インポート
-                    </Button>
-                  </Link>
+                  {!LAUNCH_MODE && (
+                    <Link href="/admin/prospects/import">
+                      <Button variant="secondary">
+                        <Upload className="w-4 h-4 mr-1" />
+                        インポート
+                      </Button>
+                    </Link>
+                  )}
                   <Link href="/dashboard/prospects/new">
                     <Button>
                       <Plus className="w-4 h-4 mr-1" />

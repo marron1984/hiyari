@@ -1163,6 +1163,7 @@ function convertTimeEntryDoc(doc: { id: string; data: () => Record<string, unkno
     status: data.status as ClockStatus,
     isEdited: data.isEdited as boolean,
     editedBy: data.editedBy as string | undefined,
+    editedByName: data.editedByName as string | undefined,
     editedAt: toDate(data.editedAt) ?? undefined,
     editReason: data.editReason as string | undefined,
     createdAt: toDate(data.createdAt) || new Date(),

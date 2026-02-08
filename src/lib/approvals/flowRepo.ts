@@ -15,6 +15,7 @@ import type {
   ApprovalFlowFilter,
   FlowStatus,
 } from './types';
+import { guardDemoSeed } from '@/config/runtimeFlags';
 
 // インメモリストレージ
 const flowsStore = new Map<string, ApprovalFlow>();
@@ -36,10 +37,13 @@ function generateStepId(): string {
 }
 
 /**
- * デモデータで初期化
+ * デモデータで初期化（本番では空ストアのまま）
  */
 function initializeStore(): void {
   if (isInitialized) return;
+  isInitialized = true;
+
+  if (!guardDemoSeed('flowRepo.initializeStore')) return;
 
   const now = new Date().toISOString();
 
@@ -224,8 +228,6 @@ function initializeStore(): void {
   stepsStore.set(shareStep2.id, shareStep2);
   shareIssueFlow.steps = [shareStep1, shareStep2];
   flowsStore.set(shareIssueFlow.id, shareIssueFlow);
-
-  isInitialized = true;
 }
 
 // ========================================

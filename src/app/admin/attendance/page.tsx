@@ -19,8 +19,8 @@ import {
 } from '@/lib/attendance';
 import { formatTimeJST, formatMinutesToHHMM } from '@/lib/attendance-calc';
 import { TimeEntry, OvertimeRequest, ClockStatus, AttendanceAuditLog } from '@/types/attendance';
-import { getBranches } from '@/lib/firestore';
-import { Branch } from '@/types';
+import { getBranches, getUsers } from '@/lib/firestore';
+import { Branch, User } from '@/types';
 import { X, Edit2, History, AlertTriangle } from 'lucide-react';
 
 const STATUS_LABELS: Record<ClockStatus, string> = {
@@ -45,6 +45,7 @@ export default function AdminAttendancePage() {
   const [overtimeRequests, setOvertimeRequests] = useState<OvertimeRequest[]>([]);
   const [auditLogs, setAuditLogs] = useState<AttendanceAuditLog[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [userMap, setUserMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -72,8 +73,16 @@ export default function AdminAttendancePage() {
     try {
       setLoading(true);
 
-      const branchList = await getBranches(user.tenantId);
+      const [branchList, users] = await Promise.all([
+        getBranches(user.tenantId),
+        getUsers(user.tenantId),
+      ]);
       setBranches(branchList);
+      const nameMap = new Map<string, string>();
+      for (const u of users) {
+        nameMap.set(u.id, u.name);
+      }
+      setUserMap(nameMap);
 
       const [year, month] = selectedMonth.split('-').map(Number);
       const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
@@ -375,7 +384,7 @@ export default function AdminAttendancePage() {
                       <tr key={entry.id} className="hover:bg-zinc-50">
                         <td className="px-4 py-3 text-sm">{entry.workDate}</td>
                         <td className="px-4 py-3 text-sm">
-                          {entry.employeeCode}
+                          {userMap.get(entry.userId) || entry.employeeCode}
                           {entry.isEdited && (
                             <span className="ml-1 text-xs text-amber-600">(修正済)</span>
                           )}
@@ -611,7 +620,7 @@ export default function AdminAttendancePage() {
 
                 <div>
                   <p className="text-sm text-zinc-600 mb-2">
-                    {editingEntry.workDate} / {editingEntry.employeeCode}
+                    {editingEntry.workDate} / {userMap.get(editingEntry.userId) || editingEntry.employeeCode}
                   </p>
                 </div>
 
