@@ -352,9 +352,9 @@ export async function getRingisByUser(
   limitCount: number = 50
 ): Promise<Ringi[]> {
   const firestore = getDb();
-  // シンプルなクエリ（インデックス不要）
   const q = query(
     collection(firestore, 'ringis'),
+    where('tenantId', '==', tenantId),
     where('authorId', '==', userId),
     limit(limitCount)
   );
@@ -387,9 +387,9 @@ export async function getPendingRingis(
 ): Promise<Ringi[]> {
   const firestore = getDb();
 
-  // シンプルなクエリ（インデックス不要）
   const q = query(
     collection(firestore, 'ringis'),
+    where('tenantId', '==', tenantId),
     where('status', '==', 'submitted'),
     limit(limitCount)
   );
@@ -430,9 +430,9 @@ export async function getAllRingis(
 ): Promise<Ringi[]> {
   const firestore = getDb();
 
-  // シンプルなクエリ（インデックス不要）
   const q = query(
     collection(firestore, 'ringis'),
+    where('tenantId', '==', tenantId),
     limit(limitCount * 2) // フィルタ後も十分な件数が残るように
   );
 
