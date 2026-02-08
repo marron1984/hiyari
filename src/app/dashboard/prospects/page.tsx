@@ -181,59 +181,59 @@ export default function ProspectsPage() {
 
           {/* 統計カード */}
           {stats && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-              <Card className="p-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+              <Card className="p-3 border-zinc-200">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Users className="w-5 h-5 text-blue-600" />
+                  <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center">
+                    <Users className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{stats.total}</p>
-                    <p className="text-xs text-gray-500">総件数</p>
+                    <p className="text-2xl font-bold tabular-nums text-zinc-900">{stats.total}</p>
+                    <p className="text-xs text-zinc-500">総件数</p>
                   </div>
                 </div>
               </Card>
-              <Card className="p-4">
+              <Card className="p-3 border-zinc-200">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <TrendingUp className="w-5 h-5 text-green-600" />
+                  <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{stats.newThisWeek}</p>
-                    <p className="text-xs text-gray-500">今週の新規</p>
+                    <p className="text-2xl font-bold tabular-nums text-zinc-900">{stats.newThisWeek}</p>
+                    <p className="text-xs text-zinc-500">今週の新規</p>
                   </div>
                 </div>
               </Card>
-              <Card className="p-4">
+              <Card className="p-3 border-zinc-200">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 rounded-lg">
-                    <Calendar className="w-5 h-5 text-purple-600" />
+                  <div className="w-10 h-10 bg-violet-500 rounded-xl flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{stats.newThisMonth}</p>
-                    <p className="text-xs text-gray-500">今月の新規</p>
+                    <p className="text-2xl font-bold tabular-nums text-zinc-900">{stats.newThisMonth}</p>
+                    <p className="text-xs text-zinc-500">今月の新規</p>
                   </div>
                 </div>
               </Card>
-              <Card className="p-4">
+              <Card className="p-3 border-zinc-200">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-orange-100 rounded-lg">
-                    <Clock className="w-5 h-5 text-orange-600" />
+                  <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{stats.avgDaysElapsed}</p>
-                    <p className="text-xs text-gray-500">平均滞留日数</p>
+                    <p className="text-2xl font-bold tabular-nums text-zinc-900">{stats.avgDaysElapsed}</p>
+                    <p className="text-xs text-zinc-500">平均滞留日数</p>
                   </div>
                 </div>
               </Card>
-              <Card className="p-4">
+              <Card className="p-3 border-zinc-200">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <Building2 className="w-5 h-5 text-green-600" />
+                  <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{stats.byStatus['入居決定'] || 0}</p>
-                    <p className="text-xs text-gray-500">入居決定</p>
+                    <p className="text-2xl font-bold tabular-nums text-zinc-900">{stats.byStatus['入居決定'] || 0}</p>
+                    <p className="text-xs text-zinc-500">入居決定</p>
                   </div>
                 </div>
               </Card>
@@ -328,82 +328,95 @@ export default function ProspectsPage() {
 
                 return (
                   <Link key={prospect.id} href={`/dashboard/prospects/${prospect.id}`}>
-                    <Card className="p-4 hover:bg-gray-50 transition-colors cursor-pointer">
-                      <div className="flex items-start gap-4">
-                        {/* ステータスバッジ */}
-                        <div className="flex flex-col gap-2">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color}`}
-                          >
-                            {prospect.status}
-                          </span>
-                          {isNew && (
-                            <Badge variant="info" className="text-xs">
-                              NEW
-                            </Badge>
-                          )}
-                          {hasDuplicates && (
-                            <Badge variant="warning" className="text-xs flex items-center gap-1">
-                              <AlertTriangle className="w-3 h-3" />
-                              重複?
-                            </Badge>
-                          )}
-                        </div>
-
-                        {/* 顧客情報 */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold text-gray-900 truncate">
-                              {prospect.customerName || '名前未登録'}
-                            </h3>
-                            {prospect.age && (
-                              <span className="text-sm text-gray-500">
-                                {prospect.age}歳
-                              </span>
+                    <Card className="relative overflow-hidden hover:bg-zinc-50 transition-colors cursor-pointer border-zinc-200">
+                      {/* 左アクセントバー */}
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                        prospect.status === '新規受付' ? 'bg-blue-500' :
+                        prospect.status === '折返し待ち' ? 'bg-amber-500' :
+                        prospect.status === '面談設定済' ? 'bg-violet-500' :
+                        prospect.status === '見学設定済' ? 'bg-violet-500' :
+                        prospect.status === '申込中' ? 'bg-orange-500' :
+                        prospect.status === '入居待ち' ? 'bg-emerald-500' :
+                        prospect.status === '見送り' || prospect.status === 'クローズ' ? 'bg-zinc-300' :
+                        'bg-zinc-300'
+                      }`} />
+                      <div className="p-4 pl-5">
+                        <div className="flex items-start gap-3">
+                          {/* ステータスバッジ */}
+                          <div className="flex flex-col gap-1.5 shrink-0">
+                            <span
+                              className={`px-2 py-1 rounded-md text-xs font-medium ${statusConfig.bgColor} ${statusConfig.color}`}
+                            >
+                              {prospect.status}
+                            </span>
+                            {isNew && (
+                              <Badge variant="info" className="text-xs">
+                                NEW
+                              </Badge>
                             )}
-                            {prospect.gender && (
-                              <span className="text-sm text-gray-500">
-                                {prospect.gender}
-                              </span>
-                            )}
-                            {prospect.careLevel && (
-                              <Badge variant="default" className="text-xs">
-                                {prospect.careLevel}
+                            {hasDuplicates && (
+                              <Badge variant="warning" className="text-xs flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                重複?
                               </Badge>
                             )}
                           </div>
 
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
-                            {prospect.desiredFacility && (
-                              <span className="flex items-center gap-1">
-                                <Building2 className="w-3 h-3" />
-                                {prospect.desiredFacility}
-                              </span>
-                            )}
-                            {prospect.salesCompanyName && (
-                              <span>営業: {prospect.salesCompanyName}</span>
-                            )}
-                            {prospect.interviewDateTime && (
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                面談: {prospect.interviewDateTime}
-                              </span>
-                            )}
+                          {/* 顧客情報 */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-zinc-900 truncate">
+                                {prospect.customerName || '名前未登録'}
+                              </h3>
+                              {prospect.age && (
+                                <span className="text-sm text-zinc-500">
+                                  {prospect.age}歳
+                                </span>
+                              )}
+                              {prospect.gender && (
+                                <span className="text-sm text-zinc-500">
+                                  {prospect.gender}
+                                </span>
+                              )}
+                              {prospect.careLevel && (
+                                <Badge variant="default" className="text-xs">
+                                  {prospect.careLevel}
+                                </Badge>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-600">
+                              {prospect.desiredFacility && (
+                                <span className="flex items-center gap-1">
+                                  <Building2 className="w-3 h-3" />
+                                  {prospect.desiredFacility}
+                                </span>
+                              )}
+                              {prospect.salesCompanyName && (
+                                <span>営業: {prospect.salesCompanyName}</span>
+                              )}
+                              {prospect.interviewDateTime && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  面談: {prospect.interviewDateTime}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-2 text-xs text-zinc-400">
+                              受信: {prospect.receivedAt.toLocaleDateString('ja-JP')}
+                              {prospect.assigneeName && ` / 担当: ${prospect.assigneeName}`}
+                              {daysElapsed > 7 && (
+                                <span className="ml-2 text-orange-500 font-medium">
+                                  滞留{daysElapsed}日
+                                </span>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="mt-2 text-xs text-gray-400">
-                            受信: {prospect.receivedAt.toLocaleDateString('ja-JP')}
-                            {prospect.assigneeName && ` / 担当: ${prospect.assigneeName}`}
-                            {daysElapsed > 7 && (
-                              <span className="ml-2 text-orange-500">
-                                滞留{daysElapsed}日
-                              </span>
-                            )}
-                          </div>
+                          {/* 詳細へ */}
+                          <ArrowRight className="w-5 h-5 text-zinc-300" />
                         </div>
-
-                        {/* 詳細へ */}
-                        <ArrowRight className="w-5 h-5 text-gray-400" />
                       </div>
                     </Card>
                   </Link>
