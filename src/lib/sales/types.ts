@@ -5,13 +5,11 @@
  */
 
 import type { AiVpConfig } from '@/lib/aiVp/defaultConfig';
-import type { SalesResultCode } from '@/lib/tickets/types';
 
 // ======== 集計指標 ========
 
 /** 結果コード別の集計 */
 export interface ResultCodeDistribution {
-  code: SalesResultCode;
   count: number;
   percentage: number;
 }
