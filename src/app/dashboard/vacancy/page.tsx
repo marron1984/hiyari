@@ -441,21 +441,22 @@ function FacilityDrawer({
 
   const facilityRooms = rooms.filter((r) => r.buildingName === facility.name);
 
-  // 部屋データがある場合は部屋から集計、なければ facility の集計データを使用
-  const summary = facilityRooms.length > 0
+  // vacancyStatus を優先、なければ rooms から集計
+  const cap = facility.capacity || 0;
+  const summary = (facility.vacantCount !== null && cap > 0)
     ? {
+        total: cap,
+        available: facility.vacantCount,
+        locked: 0,
+        occupied: Math.max(0, cap - facility.vacantCount),
+        maintenance: 0,
+      }
+    : {
         total: facilityRooms.length,
         available: facilityRooms.filter((r) => r.status === '空室').length,
         locked: facilityRooms.filter((r) => r.status === '予約').length,
         occupied: facilityRooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length,
         maintenance: facilityRooms.filter((r) => r.status === 'メンテナンス').length,
-      }
-    : {
-        total: facility.capacity || 0,
-        available: facility.vacantCount ?? 0,
-        locked: 0,
-        occupied: Math.max(0, (facility.capacity || 0) - (facility.vacantCount ?? 0)),
-        maintenance: 0,
       };
 
   return (
@@ -691,29 +692,14 @@ export default function VacancyPage() {
   const isLeader = hasMinRole(user?.role, 'leader');
 
   // 施設ごとのサマリーを計算
-  // rooms が存在すれば部屋単位で集計、なければ facilities.capacity + vacancyStatus を使用
+  // vacancyStatus がある場合はそちらを優先（ダッシュボードと同じデータソース）
+  // rooms は施設ドリルダウン（ドロワー）での部屋一覧表示に使用
   const facilitySummaries: Record<string, FacilitySummary> = {};
   facilities.forEach((f) => {
-    const facilityRooms = rooms.filter((r) => r.buildingName === f.name);
-
-    if (facilityRooms.length > 0) {
-      // 部屋データがある場合：部屋単位で集計
-      const occupied = facilityRooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length;
-      const total = facilityRooms.length;
-      facilitySummaries[f.id] = {
-        facilityId: f.id,
-        facilityName: f.name,
-        totalRooms: total,
-        available: facilityRooms.filter((r) => r.status === '空室').length,
-        locked: facilityRooms.filter((r) => r.status === '予約').length,
-        occupied,
-        maintenance: facilityRooms.filter((r) => r.status === 'メンテナンス').length,
-        occupancyRate: total > 0 ? Math.round((occupied / total) * 100) : null,
-      };
-    } else {
-      // 部屋データなし：facilities.capacity + vacancyStatus から集計
-      const cap = f.capacity || 0;
-      const vacant = f.vacantCount ?? 0;
+    const cap = f.capacity || 0;
+    if (f.vacantCount !== null && cap > 0) {
+      // vacancyStatus データあり：ダッシュボードと同一ソースで集計
+      const vacant = f.vacantCount;
       const occupied = cap - vacant;
       facilitySummaries[f.id] = {
         facilityId: f.id,
@@ -723,7 +709,22 @@ export default function VacancyPage() {
         locked: 0,
         occupied: Math.max(0, occupied),
         maintenance: 0,
-        occupancyRate: cap > 0 ? Math.round((Math.max(0, occupied) / cap) * 100) : null,
+        occupancyRate: Math.round((Math.max(0, occupied) / cap) * 100),
+      };
+    } else {
+      // vacancyStatus なし：rooms から集計
+      const facilityRooms = rooms.filter((r) => r.buildingName === f.name);
+      const occupied = facilityRooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length;
+      const total = facilityRooms.length || cap;
+      facilitySummaries[f.id] = {
+        facilityId: f.id,
+        facilityName: f.name,
+        totalRooms: total,
+        available: facilityRooms.filter((r) => r.status === '空室').length,
+        locked: facilityRooms.filter((r) => r.status === '予約').length,
+        occupied,
+        maintenance: facilityRooms.filter((r) => r.status === 'メンテナンス').length,
+        occupancyRate: total > 0 ? Math.round((occupied / total) * 100) : null,
       };
     }
   });
