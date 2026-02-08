@@ -48,28 +48,28 @@ export const ALL_MODULES: ModuleConfig[] = [
     id: 'approvals',
     label: '承認',
     labelEn: 'Approvals',
-    routes: ['/dashboard/approvals', '/ringi', '/dashboard/admin/ringi', '/admin/ringi'],
+    routes: ['/dashboard/approvals', '/ringi', '/dashboard/admin/ringi', '/admin/ringi', '/admin/approval-routes', '/requests', '/dashboard/applications', '/dashboard/approval-flow', '/dashboard/approval-log'],
     apiRoutes: ['/api/approvals', '/api/ringi'],
   },
   {
     id: 'prospects',
     label: '入居希望',
     labelEn: 'Prospects',
-    routes: ['/dashboard/prospects'],
+    routes: ['/dashboard/prospects', '/admin/prospects'],
     apiRoutes: ['/api/prospects'],
   },
   {
     id: 'vacancies',
     label: '空室',
     labelEn: 'Vacancies',
-    routes: ['/dashboard/vacancy', '/dashboard/vacancies', '/vacancies', '/dashboard/vacancy-inquiries'],
-    apiRoutes: ['/api/vacancies', '/api/vacancy'],
+    routes: ['/dashboard/vacancy', '/dashboard/vacancies', '/vacancies', '/dashboard/vacancy-inquiries', '/dashboard/vacancy-analytics'],
+    apiRoutes: ['/api/vacancies', '/api/vacancy', '/api/admin/vacancies'],
   },
   {
     id: 'incidents',
     label: '報告',
     labelEn: 'Incidents',
-    routes: ['/submit', '/admin/incidents'],
+    routes: ['/submit', '/admin/incidents', '/incident'],
     apiRoutes: ['/api/incidents'],
   },
   {
@@ -162,7 +162,8 @@ export function isRouteEnabledByGate(pathname: string): boolean {
     '/launch', '/coming-soon', '/settings',
     '/_next', '/favicon', '/api/health', '/api/version',
     '/api/users', '/api/notifications', '/api/business-units',
-    '/api/tickets', '/dashboard/notifications',
+    '/api/tickets', '/api/admin/bootstrap', '/api/dashboard',
+    '/dashboard/notifications',
   ];
   for (const prefix of commonPrefixes) {
     if (pathname === prefix || pathname.startsWith(prefix + '/') || pathname.startsWith(prefix + '?')) {
