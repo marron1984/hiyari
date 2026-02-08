@@ -876,6 +876,125 @@ export function getSlaBreachedTickets(): Ticket[] {
     .filter(isSlaBreached);
 }
 
+// ========== Ticket 123: 営業タスク完了 ==========
+
+import type { SalesTaskResultCode } from './types';
+
+export interface CompleteSalesTaskRequest {
+  resultCode: SalesTaskResultCode;
+  resultNote?: string;
+  nextFollowUpAt?: string;
+}
+
+export interface CompleteSalesTaskResult {
+  success: boolean;
+  error?: string;
+  ticket?: Ticket;
+}
+
+/**
+ * 営業タスク（sales_next_action）を完了させる
+ *
+ * - resultCode が必須
+ * - チケットステータスを closed に変更
+ * - meta に結果情報を保存
+ * - events に sales_task_completed を記録
+ * - originTicketId がある場合、元チケットへの連動処理（任意）
+ */
+export function completeSalesTask(
+  ticketId: string,
+  data: CompleteSalesTaskRequest,
+  viewer: ViewerContext
+): CompleteSalesTaskResult {
+  const ticket = ticketsStore.get(ticketId);
+
+  if (!ticket) {
+    return { success: false, error: 'チケットが見つかりません' };
+  }
+
+  // sales_next_action チケットのみ対象
+  if (ticket.relatedType !== 'sales_next_action') {
+    return { success: false, error: 'このチケットは営業タスクではありません' };
+  }
+
+  // 既にクローズ済みなら不可
+  if (ticket.status === 'closed' || ticket.status === 'archived') {
+    return { success: false, error: 'このチケットは既にクローズ済みです' };
+  }
+
+  // RBAC: assignee または manager以上
+  const isAssignee = ticket.assigneeUserId === viewer.userId;
+  const isManager = ['manager', 'executive', 'admin'].includes(viewer.role);
+
+  if (!isAssignee && !isManager) {
+    return { success: false, error: '営業タスクを完了する権限がありません' };
+  }
+
+  const now = new Date().toISOString();
+  const beforeStatus = ticket.status;
+  const beforeMeta = { ...(ticket.metaJson || {}) };
+
+  // meta を更新
+  const newMeta = {
+    ...ticket.metaJson,
+    resultCode: data.resultCode,
+    resultNote: data.resultNote ?? undefined,
+    completedAt: now,
+    nextFollowUpAt: data.nextFollowUpAt ?? undefined,
+  };
+  ticket.metaJson = newMeta;
+
+  // ステータスを closed に変更
+  ticket.status = 'closed';
+  ticket.closedAt = now;
+  ticket.updatedAt = now;
+
+  // イベント記録
+  recordEvent(
+    ticketId,
+    'sales_task_completed',
+    viewer.userId,
+    { status: beforeStatus, meta: beforeMeta },
+    { status: 'closed', meta: newMeta, resultCode: data.resultCode },
+    data.resultNote || null
+  );
+
+  // 元チケットがある場合、結果に応じたステージ更新（任意）
+  const originTicketId = ticket.metaJson?.originTicketId as string | undefined;
+  if (originTicketId) {
+    const originTicket = ticketsStore.get(originTicketId);
+    if (originTicket && originTicket.pipeline === 'vacancy_inquiry') {
+      // 結果コードに応じたステージ更新提案
+      // tour_scheduled → tour_scheduled
+      // applied → applied
+      // accepted → accepted
+      const stageMapping: Partial<Record<SalesTaskResultCode, VacancyInquiryStage>> = {
+        tour_scheduled: 'tour_scheduled',
+        applied: 'applied',
+        accepted: 'accepted',
+        rejected: 'rejected',
+      };
+
+      const suggestedStage = stageMapping[data.resultCode];
+      if (suggestedStage && originTicket.stage !== suggestedStage) {
+        // コメントを追加して記録（自動更新はしない）
+        const comment: TicketComment = {
+          id: generateCommentId(),
+          ticketId: originTicketId,
+          userId: viewer.userId,
+          userName: getUserName(viewer.userId),
+          message: `営業タスク完了: ${data.resultCode}${data.resultNote ? ` - ${data.resultNote}` : ''}`,
+          createdAt: now,
+        };
+        commentsStore.set(comment.id, comment);
+        originTicket.updatedAt = now;
+      }
+    }
+  }
+
+  return { success: true, ticket };
+}
+
 // ========== コメント追加 ==========
 
 export function addTicketComment(
