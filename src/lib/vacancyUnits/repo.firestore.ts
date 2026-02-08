@@ -210,5 +210,13 @@ function docToUnit(doc: FirebaseFirestore.DocumentSnapshot): VacancyUnit {
     updatedByUserId: data.updatedByUserId ?? 'system',
     updatedByUserName: data.updatedByUserName,
     createdAt: data.createdAt ?? new Date().toISOString(),
+    source: data.source,
+    sourcePriority: data.sourcePriority,
+    sourceUpdatedAt: data.sourceUpdatedAt,
+    roomNo: data.roomNo,
+    residentName: data.residentName,
+    residentKana: data.residentKana,
+    careLevel: data.careLevel,
+    notes: data.notes,
   };
 }

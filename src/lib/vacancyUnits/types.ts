@@ -18,6 +18,20 @@ import type { AppRole } from '@/config/appRoles';
 export type VacancyUnitStatus = 'active' | 'paused';
 
 /**
+ * データソース種別
+ */
+export type VacancySource = 'system' | 'manual' | 'sheet';
+
+/**
+ * ソース優先度（高い方が優先）
+ */
+export const SOURCE_PRIORITY: Record<VacancySource, number> = {
+  system: 100,
+  manual: 90,
+  sheet: 80,
+};
+
+/**
  * 介護度条件
  */
 export interface CareConditions {
@@ -59,6 +73,14 @@ export interface VacancyUnit {
   updatedByUserId: string;
   updatedByUserName?: string;
   createdAt: string;
+  source?: VacancySource;
+  sourcePriority?: number;
+  sourceUpdatedAt?: string;
+  roomNo?: string;
+  residentName?: string;
+  residentKana?: string;
+  careLevel?: string;
+  notes?: string;
 }
 
 /**
