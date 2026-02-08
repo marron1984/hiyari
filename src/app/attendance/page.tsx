@@ -36,11 +36,11 @@ import {
 
 // 状態表示ラベル
 const STATUS_LABELS: Record<ClockStatus, { label: string; color: string; bgColor: string }> = {
-  not_started: { label: '未出勤', color: 'text-gray-700', bgColor: 'bg-gray-100' },
-  working: { label: '勤務中', color: 'text-green-700', bgColor: 'bg-green-100' },
-  on_break: { label: '休憩中', color: 'text-amber-700', bgColor: 'bg-amber-100' },
-  completed: { label: '退勤済', color: 'text-blue-700', bgColor: 'bg-blue-100' },
-  missing_out: { label: '退勤漏れ', color: 'text-red-700', bgColor: 'bg-red-100' },
+  not_started: { label: '未出勤', color: 'text-zinc-700', bgColor: 'bg-zinc-100' },
+  working: { label: '勤務中', color: 'text-emerald-700', bgColor: 'bg-emerald-50' },
+  on_break: { label: '休憩中', color: 'text-amber-700', bgColor: 'bg-amber-50' },
+  completed: { label: '退勤済', color: 'text-blue-700', bgColor: 'bg-blue-50' },
+  missing_out: { label: '退勤漏れ', color: 'text-red-700', bgColor: 'bg-red-50' },
 };
 
 // 打刻履歴アイテムの型
@@ -408,7 +408,7 @@ export default function AttendancePage() {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-zinc-50">
         <Header />
 
         {/* トースト通知 */}
@@ -469,20 +469,20 @@ export default function AttendancePage() {
 
         <main className="max-w-lg mx-auto px-4 py-6 safe-area-inset-bottom pb-24">
           {/* A: ステータスカード */}
-          <Card className="mb-6 overflow-hidden">
-            <div className={`px-6 py-4 ${statusInfo.bgColor}`}>
+          <Card className="mb-5 overflow-hidden border-zinc-200">
+            <div className={`px-5 py-4 ${statusInfo.bgColor}`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-gray-600">今の状態</div>
-                  <div className={`text-2xl font-bold ${statusInfo.color}`}>
+                  <div className="text-xs font-medium text-zinc-500 mb-0.5">今の状態</div>
+                  <div className={`text-xl font-bold ${statusInfo.color}`}>
                     {statusInfo.label}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-3xl font-bold text-gray-800">
+                  <div className="text-3xl font-bold text-zinc-800 tabular-nums">
                     {currentTime.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
                   </div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-xs text-zinc-500">
                     {currentTime.toLocaleDateString('ja-JP', {
                       month: 'short',
                       day: 'numeric',
@@ -496,15 +496,15 @@ export default function AttendancePage() {
             <div className="p-4">
               {/* 勤務時間サマリー */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 rounded-xl p-3 text-center">
-                  <div className="text-xs text-gray-500 mb-1">出勤</div>
-                  <div className="text-lg font-bold text-gray-800">
+                <div className="bg-zinc-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-zinc-500 mb-1">出勤</div>
+                  <div className="text-lg font-bold text-zinc-800 tabular-nums">
                     {state?.clockIn ? formatTimeJST(state.clockIn) : '--:--'}
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-3 text-center">
-                  <div className="text-xs text-gray-500 mb-1">退勤</div>
-                  <div className="text-lg font-bold text-gray-800">
+                <div className="bg-zinc-50 rounded-xl p-3 text-center">
+                  <div className="text-xs text-zinc-500 mb-1">退勤</div>
+                  <div className="text-lg font-bold text-zinc-800 tabular-nums">
                     {state?.clockOut ? formatTimeJST(state.clockOut) : '--:--'}
                   </div>
                 </div>
@@ -514,7 +514,7 @@ export default function AttendancePage() {
               {state?.totalWorkMinutes !== undefined && state.totalWorkMinutes > 0 && (
                 <div className="mt-3 bg-blue-50 rounded-xl p-3 text-center">
                   <div className="text-xs text-blue-600 mb-1">本日の勤務時間</div>
-                  <div className="text-xl font-bold text-blue-700">
+                  <div className="text-xl font-bold text-blue-700 tabular-nums">
                     {formatMinutesToHHMM(state.totalWorkMinutes)}
                   </div>
                 </div>
@@ -902,22 +902,22 @@ export default function AttendancePage() {
           )}
 
           {/* ナビゲーション */}
-          <div className="pt-4 border-t">
+          <div className="pt-4 border-t border-zinc-200">
             <div className="grid grid-cols-2 gap-3">
-              <Button
-                variant="secondary"
+              <button
                 onClick={() => router.push('/attendance/history')}
-                className="py-3"
+                className="flex items-center justify-center gap-2 py-3 px-4 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 active:scale-[0.98] transition-all"
               >
+                <History className="w-4 h-4" />
                 勤務履歴
-              </Button>
-              <Button
-                variant="secondary"
+              </button>
+              <button
                 onClick={() => router.push('/attendance/overtime')}
-                className="py-3"
+                className="flex items-center justify-center gap-2 py-3 px-4 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 active:scale-[0.98] transition-all"
               >
+                <Clock className="w-4 h-4" />
                 残業届
-              </Button>
+              </button>
             </div>
           </div>
         </main>

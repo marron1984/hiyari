@@ -582,65 +582,75 @@ function FacilityCard({ facility, summary, onClick }: FacilityCardProps) {
 
   return (
     <Card
-      className="p-4 hover:shadow-lg transition-shadow cursor-pointer border-l-4 border-l-blue-500"
+      className="relative overflow-hidden hover:shadow-md transition-all cursor-pointer border-zinc-200 active:scale-[0.99]"
       onClick={onClick}
     >
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h3 className="font-bold text-lg flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-blue-600" />
-            {facility.name}
-          </h3>
-          {facility.address && (
-            <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
-              <MapPin className="w-3 h-3" />
-              {facility.address}
-            </p>
-          )}
-        </div>
-        <ChevronRight className="w-5 h-5 text-gray-400" />
-      </div>
+      {/* 左アクセントバー */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+        occupancyRate === null ? 'bg-zinc-300' :
+        occupancyRate >= 95 ? 'bg-emerald-500' :
+        occupancyRate >= 85 ? 'bg-blue-500' :
+        occupancyRate >= 70 ? 'bg-amber-500' : 'bg-red-500'
+      }`} />
 
-      {/* サマリー数字 */}
-      <div className="grid grid-cols-4 gap-2 mb-3">
-        <div className="text-center p-2 bg-blue-50 rounded">
-          <div className="text-lg font-bold text-blue-600">{summary.available}</div>
-          <div className="text-xs text-gray-500">空室</div>
+      <div className="p-4 pl-5">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            <h3 className="font-bold text-base flex items-center gap-2 text-zinc-900">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              {facility.name}
+            </h3>
+            {facility.address && (
+              <p className="text-xs text-zinc-500 mt-1 flex items-center gap-1">
+                <MapPin className="w-3 h-3" />
+                {facility.address}
+              </p>
+            )}
+          </div>
+          <ChevronRight className="w-5 h-5 text-zinc-300" />
         </div>
-        <div className="text-center p-2 bg-purple-50 rounded">
-          <div className="text-lg font-bold text-purple-600">{summary.locked}</div>
-          <div className="text-xs text-gray-500">ロック</div>
-        </div>
-        <div className="text-center p-2 bg-green-50 rounded">
-          <div className="text-lg font-bold text-green-600">{summary.occupied}</div>
-          <div className="text-xs text-gray-500">入居中</div>
-        </div>
-        <div className="text-center p-2 bg-yellow-50 rounded">
-          <div className="text-lg font-bold text-yellow-600">{summary.maintenance}</div>
-          <div className="text-xs text-gray-500">修繕</div>
-        </div>
-      </div>
 
-      {/* 稼働率バー */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div
-            className={`h-full ${
-              occupancyRate === null ? 'bg-gray-300' :
-              occupancyRate >= 95 ? 'bg-green-500' :
-              occupancyRate >= 85 ? 'bg-blue-500' :
-              occupancyRate >= 70 ? 'bg-yellow-500' : 'bg-red-500'
-            }`}
-            style={{ width: `${occupancyRate || 0}%` }}
-          />
+        {/* サマリー数字 */}
+        <div className="grid grid-cols-4 gap-2 mb-3">
+          <div className="text-center p-2 bg-blue-50 rounded-lg">
+            <div className="text-lg font-bold tabular-nums text-blue-600">{summary.available}</div>
+            <div className="text-[10px] text-zinc-500">空室</div>
+          </div>
+          <div className="text-center p-2 bg-violet-50 rounded-lg">
+            <div className="text-lg font-bold tabular-nums text-violet-600">{summary.locked}</div>
+            <div className="text-[10px] text-zinc-500">ロック</div>
+          </div>
+          <div className="text-center p-2 bg-emerald-50 rounded-lg">
+            <div className="text-lg font-bold tabular-nums text-emerald-600">{summary.occupied}</div>
+            <div className="text-[10px] text-zinc-500">入居中</div>
+          </div>
+          <div className="text-center p-2 bg-amber-50 rounded-lg">
+            <div className="text-lg font-bold tabular-nums text-amber-600">{summary.maintenance}</div>
+            <div className="text-[10px] text-zinc-500">修繕</div>
+          </div>
         </div>
-        <span className={`text-sm font-medium ${getOccupancyColor(occupancyRate)}`}>
-          {occupancyRate !== null ? `${occupancyRate}%` : '--'}
-        </span>
+
+        {/* 稼働率バー */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-2 bg-zinc-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                occupancyRate === null ? 'bg-zinc-300' :
+                occupancyRate >= 95 ? 'bg-emerald-500' :
+                occupancyRate >= 85 ? 'bg-blue-500' :
+                occupancyRate >= 70 ? 'bg-amber-500' : 'bg-red-500'
+              }`}
+              style={{ width: `${occupancyRate || 0}%` }}
+            />
+          </div>
+          <span className={`text-sm font-bold tabular-nums ${getOccupancyColor(occupancyRate)}`}>
+            {occupancyRate !== null ? `${occupancyRate}%` : '--'}
+          </span>
+        </div>
+        <p className="text-xs text-zinc-400 mt-1">
+          稼働率 ({summary.occupied}/{summary.totalRooms}室)
+        </p>
       </div>
-      <p className="text-xs text-gray-400 mt-1">
-        稼働率 ({summary.occupied}/{summary.totalRooms}室)
-      </p>
     </Card>
   );
 }
@@ -890,43 +900,53 @@ export default function VacancyPage() {
           )}
 
           {/* 全体サマリー */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-            <Card className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+            <Card className="p-3 border-zinc-200">
               <div className="flex items-center gap-2 mb-1">
-                <TrendingUp className="w-4 h-4 text-blue-600" />
-                <span className="text-xs font-medium text-gray-600">稼働率</span>
+                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-xs font-medium text-zinc-500">稼働率</span>
               </div>
-              <div className={`text-2xl font-bold ${getOccupancyColor(totalSummary.occupancyRate)}`}>
+              <div className={`text-2xl font-bold tabular-nums ${getOccupancyColor(totalSummary.occupancyRate)}`}>
                 {totalSummary.occupancyRate !== null ? `${totalSummary.occupancyRate}%` : '--'}
               </div>
             </Card>
-            <Card className="p-4 bg-blue-50 border-blue-200">
+            <Card className="p-3 border-zinc-200">
               <div className="flex items-center gap-2 mb-1">
-                <Home className="w-4 h-4 text-blue-600" />
-                <span className="text-xs font-medium text-gray-600">空室</span>
+                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <Home className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-xs font-medium text-zinc-500">空室</span>
               </div>
-              <div className="text-2xl font-bold text-blue-600">{totalSummary.available}</div>
+              <div className="text-2xl font-bold tabular-nums text-blue-600">{totalSummary.available}</div>
             </Card>
-            <Card className="p-4 bg-purple-50 border-purple-200">
+            <Card className="p-3 border-zinc-200">
               <div className="flex items-center gap-2 mb-1">
-                <Lock className="w-4 h-4 text-purple-600" />
-                <span className="text-xs font-medium text-gray-600">ロック</span>
+                <div className="w-8 h-8 bg-violet-500 rounded-lg flex items-center justify-center">
+                  <Lock className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-xs font-medium text-zinc-500">ロック</span>
               </div>
-              <div className="text-2xl font-bold text-purple-600">{totalSummary.locked}</div>
+              <div className="text-2xl font-bold tabular-nums text-violet-600">{totalSummary.locked}</div>
             </Card>
-            <Card className="p-4 bg-green-50 border-green-200">
+            <Card className="p-3 border-zinc-200">
               <div className="flex items-center gap-2 mb-1">
-                <Users className="w-4 h-4 text-green-600" />
-                <span className="text-xs font-medium text-gray-600">入居中</span>
+                <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
+                  <Users className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-xs font-medium text-zinc-500">入居中</span>
               </div>
-              <div className="text-2xl font-bold text-green-600">{totalSummary.occupied}</div>
+              <div className="text-2xl font-bold tabular-nums text-emerald-600">{totalSummary.occupied}</div>
             </Card>
-            <Card className="p-4 bg-yellow-50 border-yellow-200">
+            <Card className="p-3 border-zinc-200">
               <div className="flex items-center gap-2 mb-1">
-                <Wrench className="w-4 h-4 text-yellow-600" />
-                <span className="text-xs font-medium text-gray-600">修繕中</span>
+                <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center">
+                  <Wrench className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-xs font-medium text-zinc-500">修繕中</span>
               </div>
-              <div className="text-2xl font-bold text-yellow-600">{totalSummary.maintenance}</div>
+              <div className="text-2xl font-bold tabular-nums text-amber-600">{totalSummary.maintenance}</div>
             </Card>
           </div>
 

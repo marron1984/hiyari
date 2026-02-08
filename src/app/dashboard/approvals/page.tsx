@@ -361,33 +361,53 @@ export default function ApprovalsListPage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-3 gap-3 mb-6">
-          <Card className="p-3 text-center">
-            <p className={`text-2xl font-bold ${error ? 'text-zinc-400' : 'text-zinc-900'}`}>
+          <Card className="p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 rounded-md bg-zinc-100 flex items-center justify-center">
+                <Edit className="w-3.5 h-3.5 text-zinc-500" />
+              </div>
+              <span className="text-xs text-zinc-500">下書き</span>
+            </div>
+            <p className={`text-2xl font-bold tabular-nums ${error ? 'text-zinc-400' : 'text-zinc-900'}`}>
               {displayCount(draftCount)}
             </p>
-            <p className="text-xs text-zinc-500">下書き</p>
           </Card>
           <Card
-            className={`p-3 text-center ${
+            className={`p-3 ${
               submittedCount && submittedCount > 0 ? 'bg-amber-50 border-amber-200' : ''
             }`}
           >
-            <p className={`text-2xl font-bold ${error ? 'text-zinc-400' : 'text-amber-600'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 rounded-md bg-amber-100 flex items-center justify-center">
+                <Clock className="w-3.5 h-3.5 text-amber-600" />
+              </div>
+              <span className="text-xs text-zinc-500">申請中</span>
+            </div>
+            <p className={`text-2xl font-bold tabular-nums ${error ? 'text-zinc-400' : 'text-amber-600'}`}>
               {displayCount(submittedCount)}
             </p>
-            <p className="text-xs text-zinc-500">申請中</p>
           </Card>
           {returnedCount && returnedCount > 0 ? (
-            <Card className="p-3 text-center bg-orange-50 border-orange-200">
-              <p className="text-2xl font-bold text-orange-600">{displayCount(returnedCount)}</p>
-              <p className="text-xs text-orange-600">差戻し</p>
+            <Card className="p-3 bg-orange-50 border-orange-200">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-md bg-orange-100 flex items-center justify-center">
+                  <RotateCcw className="w-3.5 h-3.5 text-orange-600" />
+                </div>
+                <span className="text-xs text-orange-600">差戻し</span>
+              </div>
+              <p className="text-2xl font-bold tabular-nums text-orange-600">{displayCount(returnedCount)}</p>
             </Card>
           ) : (
-            <Card className="p-3 text-center">
-              <p className={`text-2xl font-bold ${error ? 'text-zinc-400' : 'text-emerald-600'}`}>
+            <Card className="p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-md bg-emerald-100 flex items-center justify-center">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                </div>
+                <span className="text-xs text-zinc-500">承認済</span>
+              </div>
+              <p className={`text-2xl font-bold tabular-nums ${error ? 'text-zinc-400' : 'text-emerald-600'}`}>
                 {displayCount(approvedCount)}
               </p>
-              <p className="text-xs text-zinc-500">承認済</p>
             </Card>
           )}
         </div>
@@ -445,45 +465,60 @@ export default function ApprovalsListPage() {
               const colors = RINGI_STATUS_COLORS[item.status];
               return (
                 <Link key={`${item.type}-${item.id}`} href={getItemLink(item)}>
-                  <Card className="p-4 hover:bg-zinc-50 transition-colors">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <Badge
-                            className={`${
-                              item.type === 'RINGI'
-                                ? 'bg-blue-100 text-blue-700'
-                                : item.type === 'EXPENSE'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-purple-100 text-purple-700'
-                            }`}
-                          >
-                            {typeIcon(item.type)}
-                            <span className="ml-1">{APPLICATION_TYPE_LABELS[item.type]}</span>
-                          </Badge>
-                          <Badge className={`${colors.bg} ${colors.text}`}>
-                            {statusIcon(item.status)}
-                            <span className="ml-1">{RINGI_STATUS_LABELS[item.status]}</span>
-                          </Badge>
-                          <span className="text-xs text-zinc-400">{getSubtitle(item)}</span>
-                          {item.urgency === '至急' && (
-                            <Badge className="bg-red-100 text-red-700 text-xs">至急</Badge>
+                  <Card className={`relative overflow-hidden hover:bg-zinc-50 transition-colors border-zinc-200 ${
+                    item.status === 'returned' ? 'border-l-orange-500' :
+                    item.status === 'submitted' ? 'border-l-amber-500' : ''
+                  }`}>
+                    {/* 左アクセントバー */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${
+                      item.status === 'draft' ? 'bg-zinc-300' :
+                      item.status === 'submitted' ? 'bg-amber-500' :
+                      item.status === 'approved' ? 'bg-emerald-500' :
+                      item.status === 'rejected' ? 'bg-red-500' :
+                      item.status === 'returned' ? 'bg-orange-500' : 'bg-zinc-300'
+                    }`} />
+                    <div className="p-4 pl-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                            <Badge
+                              className={`${
+                                item.type === 'RINGI'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : item.type === 'EXPENSE'
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-purple-100 text-purple-700'
+                              }`}
+                            >
+                              {typeIcon(item.type)}
+                              <span className="ml-1">{APPLICATION_TYPE_LABELS[item.type]}</span>
+                            </Badge>
+                            <Badge className={`${colors.bg} ${colors.text}`}>
+                              {statusIcon(item.status)}
+                              <span className="ml-1">{RINGI_STATUS_LABELS[item.status]}</span>
+                            </Badge>
+                            {item.urgency === '至急' && (
+                              <Badge className="bg-red-100 text-red-700 text-xs">至急</Badge>
+                            )}
+                          </div>
+                          <h3 className="font-medium text-zinc-900 truncate">{item.title}</h3>
+                          {getSubtitle(item) && (
+                            <p className="text-xs text-zinc-400 mt-0.5">{getSubtitle(item)}</p>
                           )}
                         </div>
-                        <h3 className="font-medium text-zinc-900 truncate">{item.title}</h3>
-                      </div>
-                      <div className="text-right shrink-0">
-                        {item.amount && (
-                          <p className="text-sm font-medium text-zinc-900">
-                            ¥{item.amount.toLocaleString()}
-                          </p>
-                        )}
-                        {item.type === 'OVERTIME' && item.payload && (
-                          <p className="text-sm font-medium text-zinc-900">
-                            {(item.payload as OvertimePayload).hours}h
-                          </p>
-                        )}
-                        <p className="text-xs text-zinc-400 mt-1">{formatDate(item.createdAt)}</p>
+                        <div className="text-right shrink-0">
+                          {item.amount && (
+                            <p className="text-sm font-bold text-zinc-900 tabular-nums">
+                              ¥{item.amount.toLocaleString()}
+                            </p>
+                          )}
+                          {item.type === 'OVERTIME' && item.payload && (
+                            <p className="text-sm font-bold text-zinc-900 tabular-nums">
+                              {(item.payload as OvertimePayload).hours}h
+                            </p>
+                          )}
+                          <p className="text-xs text-zinc-400 mt-1">{formatDate(item.createdAt)}</p>
+                        </div>
                       </div>
                     </div>
                   </Card>

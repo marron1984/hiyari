@@ -1,10 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, Building2, Clock, CheckCircle, Sparkles, ChevronRight } from 'lucide-react';
+import {
+  Users,
+  Building2,
+  Clock,
+  CheckCircle,
+  ChevronRight,
+  Bell,
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { LAUNCH_NAV_ITEMS } from '@/config/launchRoutes';
-import { getEnvironmentLabel } from '@/config/launchMode';
 
 const iconMap: Record<string, React.ElementType> = {
   Users,
@@ -13,159 +19,181 @@ const iconMap: Record<string, React.ElementType> = {
   CheckCircle,
 };
 
-// カラーテーマ（各機能）
-const colorThemes: Record<string, { bg: string; hover: string; icon: string; border: string }> = {
+// カードデザインテーマ
+const cardThemes: Record<
+  string,
+  {
+    gradient: string;
+    iconBg: string;
+    iconColor: string;
+    hoverBorder: string;
+    accentBar: string;
+  }
+> = {
   '/dashboard/prospects': {
-    bg: 'bg-blue-50',
-    hover: 'hover:bg-blue-100 hover:border-blue-300',
-    icon: 'text-blue-600',
-    border: 'border-blue-200',
+    gradient: 'from-blue-50 to-blue-100/50',
+    iconBg: 'bg-blue-500',
+    iconColor: 'text-white',
+    hoverBorder: 'hover:border-blue-300',
+    accentBar: 'bg-blue-500',
   },
   '/dashboard/vacancy': {
-    bg: 'bg-emerald-50',
-    hover: 'hover:bg-emerald-100 hover:border-emerald-300',
-    icon: 'text-emerald-600',
-    border: 'border-emerald-200',
+    gradient: 'from-emerald-50 to-emerald-100/50',
+    iconBg: 'bg-emerald-500',
+    iconColor: 'text-white',
+    hoverBorder: 'hover:border-emerald-300',
+    accentBar: 'bg-emerald-500',
   },
   '/attendance': {
-    bg: 'bg-amber-50',
-    hover: 'hover:bg-amber-100 hover:border-amber-300',
-    icon: 'text-amber-600',
-    border: 'border-amber-200',
+    gradient: 'from-amber-50 to-amber-100/50',
+    iconBg: 'bg-amber-500',
+    iconColor: 'text-white',
+    hoverBorder: 'hover:border-amber-300',
+    accentBar: 'bg-amber-500',
   },
   '/dashboard/approvals': {
-    bg: 'bg-violet-50',
-    hover: 'hover:bg-violet-100 hover:border-violet-300',
-    icon: 'text-violet-600',
-    border: 'border-violet-200',
+    gradient: 'from-violet-50 to-violet-100/50',
+    iconBg: 'bg-violet-500',
+    iconColor: 'text-white',
+    hoverBorder: 'hover:border-violet-300',
+    accentBar: 'bg-violet-500',
   },
 };
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 6) return 'お疲れさまです';
+  if (hour < 11) return 'おはようございます';
+  if (hour < 14) return 'こんにちは';
+  if (hour < 18) return 'お疲れさまです';
+  return 'お疲れさまです';
+}
+
+function formatDate(): string {
+  const now = new Date();
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  const weekday = weekdays[now.getDay()];
+  return `${month}月${day}日（${weekday}）`;
+}
 
 /**
  * Launch Mode ダッシュボード
  *
  * 先行公開4機能（入居希望・空室・打刻・承認）に特化したUI
+ * スマホ・ウェブ両対応のモダンデザイン
  */
 export function LaunchModeDashboard() {
   const { user } = useAuth();
-  const envLabel = getEnvironmentLabel();
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900" />
-          <p className="text-sm text-slate-500">読み込み中...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+          <p className="text-sm text-zinc-500">読み込み中...</p>
         </div>
       </div>
     );
   }
 
+  const greeting = getGreeting();
+  const dateStr = formatDate();
+  const displayName = user.name || user.email?.split('@')[0];
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-zinc-50 pb-24 md:pb-8">
       {/* ヘッダーエリア */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="bg-white">
+        <div className="max-w-3xl mx-auto px-4 pt-6 pb-5">
+          {/* 日付 */}
+          <p className="text-xs font-medium text-zinc-400 mb-1">
+            {dateStr}
+          </p>
+
+          {/* 挨拶 */}
           <div className="flex items-center justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-2xl font-bold text-slate-800">
-                  こんにちは、{user.name || user.email?.split('@')[0]}さん
-                </h1>
-              </div>
-              <p className="text-slate-500 text-sm">
+              <h1 className="text-xl font-bold text-zinc-900">
+                {greeting}、{displayName}さん
+              </h1>
+              <p className="text-sm text-zinc-500 mt-0.5">
                 今日も一日よろしくお願いします
               </p>
             </div>
 
-            {/* 環境バッジ */}
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-full">
-                {envLabel}
-              </span>
-              <span className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                Launch Mode
-              </span>
-            </div>
+            {/* 通知アイコン（デスクトップのみ - モバイルはヘッダーにある） */}
+            <Link
+              href="/dashboard/notifications"
+              className="hidden md:flex w-10 h-10 items-center justify-center rounded-full bg-zinc-100 hover:bg-zinc-200 transition-colors"
+            >
+              <Bell className="w-5 h-5 text-zinc-600" />
+            </Link>
           </div>
         </div>
       </div>
 
       {/* メインコンテンツ */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* セクションタイトル */}
-        <div className="mb-6">
-          <h2 className="text-lg font-semibold text-slate-700">
-            ご利用いただける機能
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            業務に必要な機能をお選びください
-          </p>
-        </div>
-
+      <div className="max-w-3xl mx-auto px-4 py-5">
         {/* 4機能カード */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {LAUNCH_NAV_ITEMS.map((item) => {
             const Icon = iconMap[item.icon] || Users;
-            const theme = colorThemes[item.href] || colorThemes['/dashboard/prospects'];
+            const theme = cardThemes[item.href] || cardThemes['/dashboard/prospects'];
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group block p-6 rounded-2xl border-2 transition-all duration-200 ${theme.bg} ${theme.border} ${theme.hover} hover:shadow-lg hover:-translate-y-0.5`}
+                className={`group relative block overflow-hidden rounded-2xl border border-zinc-200 bg-white transition-all duration-200 ${theme.hoverBorder} hover:shadow-md active:scale-[0.98]`}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-14 h-14 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:shadow transition-shadow`}>
-                      <Icon className={`w-7 h-7 ${theme.icon}`} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-800 mb-1 group-hover:text-slate-900">
-                        {item.label}
-                      </h3>
-                      <p className="text-sm text-slate-600">
-                        {item.description}
-                      </p>
-                      <p className="text-xs text-slate-400 mt-2 font-medium">
-                        {item.labelEn}
-                      </p>
-                    </div>
+                {/* 左アクセントバー */}
+                <div className={`absolute left-0 top-0 bottom-0 w-1 ${theme.accentBar}`} />
+
+                <div className="flex items-center gap-4 p-4 pl-5">
+                  {/* アイコン */}
+                  <div
+                    className={`w-12 h-12 rounded-xl ${theme.iconBg} flex items-center justify-center flex-shrink-0 shadow-sm`}
+                  >
+                    <Icon className={`w-6 h-6 ${theme.iconColor}`} />
                   </div>
-                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-slate-600 group-hover:translate-x-1 transition-all" />
+
+                  {/* テキスト */}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-bold text-zinc-900 group-hover:text-zinc-800">
+                      {item.label}
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {item.description}
+                    </p>
+                  </div>
+
+                  {/* 矢印 */}
+                  <ChevronRight className="w-5 h-5 text-zinc-300 group-hover:text-zinc-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                 </div>
               </Link>
             );
           })}
         </div>
 
-        {/* 補足情報 */}
-        <div className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+        {/* お知らせエリア */}
+        <div className="mt-5 bg-white rounded-2xl border border-zinc-200 p-4">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-slate-600" />
+            <div className="w-8 h-8 bg-zinc-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Bell className="w-4 h-4 text-zinc-500" />
             </div>
             <div>
-              <h3 className="font-semibold text-slate-700 mb-1">
-                その他の機能について
+              <h3 className="text-sm font-semibold text-zinc-700">
+                ご利用ガイド
               </h3>
-              <p className="text-sm text-slate-500 leading-relaxed">
-                現在、先行公開として上記4機能をご利用いただけます。
-                その他の機能は順次追加していく予定です。
-                ご不便をおかけしますが、今しばらくお待ちください。
+              <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+                現在、上記4つの機能をご利用いただけます。
+                その他の機能は順次追加予定です。
+                操作でお困りの際は管理者までお問い合わせください。
               </p>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* フッター */}
-      <div className="border-t border-slate-200 bg-white mt-auto">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <p className="text-center text-xs text-slate-400">
-            お困りの際は管理者までお問い合わせください
-          </p>
         </div>
       </div>
     </div>
