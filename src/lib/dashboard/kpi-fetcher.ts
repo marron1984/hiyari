@@ -9,6 +9,9 @@ import { getRingisByUser, getPendingRingis } from '@/lib/ringi';
 import { calculateBatchMoveInProbability, calculateExpectedMoveIns } from '@/lib/scoring';
 import { safeRate, calcOccupancyRate, calcInterventionRate, formatPercent } from '@/lib/dashboard/calc';
 import { getMeterColor, METER_LABELS, type MeterColor } from '@/types/chaos';
+import { listTickets } from '@/lib/tickets/repo';
+import { getMonthlyOvertimeTotal } from '@/lib/application';
+import { listCorrectiveActions } from '@/lib/correctiveActions/repo';
 import {
   type DashboardRole,
   type KPIValue,
@@ -48,6 +51,9 @@ export async function fetchKPIData(
     ringiData,
     salesData,
     occupancyData,
+    taskData,
+    overtimeData,
+    correctiveData,
   ] = await Promise.all([
     fetchCheckinData(user).catch(e => { errors.push('checkin'); return null; }),
     fetchChaosData().catch(e => { errors.push('chaos'); return null; }),
@@ -55,6 +61,9 @@ export async function fetchKPIData(
     fetchRingiData(user, role).catch(e => { errors.push('ringi'); return null; }),
     role === 'exec' ? fetchSalesData().catch(e => { errors.push('sales'); return null; }) : null,
     role === 'exec' ? fetchOccupancyData().catch(e => { errors.push('occupancy'); return null; }) : null,
+    fetchTaskData(user).catch(e => { errors.push('tasks'); return null; }),
+    fetchOvertimeData(user, role).catch(e => { errors.push('overtime'); return null; }),
+    role !== 'staff' ? fetchCorrectiveData(user).catch(e => { errors.push('corrective'); return null; }) : null,
   ]);
 
   // 各KPIの値を計算
@@ -64,7 +73,7 @@ export async function fetchKPIData(
 
     const kpiValue = calculateKPIValue(
       kpiId,
-      { checkinData, chaosData, interventionData, ringiData, salesData, occupancyData },
+      { checkinData, chaosData, interventionData, ringiData, salesData, occupancyData, taskData, overtimeData, correctiveData },
       user,
       role
     );
@@ -233,6 +242,72 @@ async function fetchOccupancyData(): Promise<OccupancyData> {
   return { rate, totalCapacity, totalVacant };
 }
 
+// ======== 新規データ取得関数 ========
+
+interface TaskData {
+  openCount: number;
+}
+
+function fetchTaskData(user: User): Promise<TaskData> {
+  try {
+    const result = listTickets(
+      { status: 'open' },
+      { userId: user.id, role: user.role as 'staff' | 'leader' | 'manager' | 'executive' | 'admin' | 'auditor' }
+    );
+    const assigned = result.items.filter(t => t.assigneeUserId === user.id);
+    return Promise.resolve({ openCount: assigned.length });
+  } catch {
+    return Promise.resolve({ openCount: 0 });
+  }
+}
+
+interface OvertimeKPIData {
+  myHours: number;
+  teamHours: number;
+  teamCount: number;
+}
+
+async function fetchOvertimeData(user: User, role: DashboardRole): Promise<OvertimeKPIData> {
+  const now = new Date();
+  const data = await getMonthlyOvertimeTotal(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    role !== 'staff' ? user.branchId : undefined,
+    user.tenantId
+  );
+
+  const myHours = data.byUser[user.name] || 0;
+
+  return {
+    myHours,
+    teamHours: data.totalHours,
+    teamCount: data.count,
+  };
+}
+
+interface CorrectiveData {
+  openCount: number;
+  overdueCount: number;
+}
+
+function fetchCorrectiveData(user: User): Promise<CorrectiveData> {
+  try {
+    const result = listCorrectiveActions(
+      { userId: user.id, role: user.role as 'staff' | 'leader' | 'manager' | 'executive' | 'admin' | 'auditor' },
+      { status: 'open' }
+    );
+    const openItems = result.items.filter(ca =>
+      ['open', 'in_progress', 'blocked'].includes(ca.status)
+    );
+    const overdueItems = result.items.filter(ca =>
+      ca.dueAt && !['completed', 'closed', 'cancelled'].includes(ca.status) && new Date(ca.dueAt) < new Date()
+    );
+    return Promise.resolve({ openCount: openItems.length, overdueCount: overdueItems.length });
+  } catch {
+    return Promise.resolve({ openCount: 0, overdueCount: 0 });
+  }
+}
+
 // ======== KPI値計算 ========
 
 interface AllData {
@@ -242,6 +317,9 @@ interface AllData {
   ringiData: RingiData | null;
   salesData: SalesData | null;
   occupancyData: OccupancyData | null;
+  taskData: TaskData | null;
+  overtimeData: OvertimeKPIData | null;
+  correctiveData: CorrectiveData | null;
 }
 
 function calculateKPIValue(
@@ -270,9 +348,11 @@ function calculateKPIValue(
       break;
 
     case 'my_tasks':
-      value = 0; // TODO: タスク数を実装
-      status = getKPIStatus(value, definition);
-      meaning = getKPIMeaning(kpiId, value, status);
+      if (data.taskData) {
+        value = data.taskData.openCount;
+        status = getKPIStatus(value, definition);
+        meaning = value > 0 ? `${value}件の未完了タスク` : 'タスクなし';
+      }
       break;
 
     case 'my_approvals':
@@ -286,9 +366,11 @@ function calculateKPIValue(
       break;
 
     case 'my_overtime':
-      value = 0; // TODO: 残業時間を実装
-      status = getKPIStatus(value, definition);
-      meaning = getKPIMeaning(kpiId, value, status);
+      if (data.overtimeData) {
+        value = Math.round(data.overtimeData.myHours * 10) / 10;
+        status = getKPIStatus(value, definition);
+        meaning = value > 0 ? `今月${value}時間` : '残業なし';
+      }
       break;
 
     case 'team_support':
@@ -323,9 +405,11 @@ function calculateKPIValue(
       break;
 
     case 'team_overtime':
-      value = 0; // TODO: チーム残業を実装
-      status = getKPIStatus(value, definition);
-      meaning = getKPIMeaning(kpiId, value, status);
+      if (data.overtimeData) {
+        value = Math.round(data.overtimeData.teamHours * 10) / 10;
+        status = getKPIStatus(value, definition);
+        meaning = value > 0 ? `チーム合計${value}時間（${data.overtimeData.teamCount}件）` : 'チーム残業なし';
+      }
       break;
 
     case 'support_queue':
@@ -345,9 +429,14 @@ function calculateKPIValue(
       break;
 
     case 'wbr_tasks':
-      value = 0; // TODO: WBRタスクを実装
-      status = getKPIStatus(value, definition);
-      meaning = getKPIMeaning(kpiId, value, status);
+      if (data.correctiveData) {
+        value = data.correctiveData.openCount;
+        status = getKPIStatus(value, definition);
+        meaning = data.correctiveData.overdueCount > 0
+          ? `${value}件（期限超過${data.correctiveData.overdueCount}件）`
+          : value > 0 ? `${value}件の改善タスク` : '改善タスクなし';
+        if (data.correctiveData.overdueCount > 0) status = 'warning';
+      }
       break;
 
     // 経営向け
@@ -377,9 +466,18 @@ function calculateKPIValue(
       break;
 
     case 'human_risk':
-      value = 0; // TODO: 人材リスクスコアを実装
-      status = getKPIStatus(value, definition);
-      meaning = getKPIMeaning(kpiId, value, status);
+      if (data.chaosData) {
+        const redMembers = data.chaosData.teamData.filter(m => m.level === 'red');
+        const yellowMembers = data.chaosData.teamData.filter(m => m.level === 'yellow');
+        const totalMembers = data.chaosData.teamData.length;
+        value = totalMembers > 0
+          ? Math.round(((redMembers.length * 2 + yellowMembers.length) / totalMembers) * 50)
+          : 0;
+        status = redMembers.length > 0 ? 'critical' : yellowMembers.length >= 3 ? 'warning' : 'normal';
+        meaning = redMembers.length > 0
+          ? `高リスク${redMembers.length}人`
+          : yellowMembers.length > 0 ? `注意${yellowMembers.length}人` : 'リスクなし';
+      }
       break;
 
     case 'cashflow':
