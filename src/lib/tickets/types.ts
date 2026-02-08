@@ -49,6 +49,90 @@ export type TicketRelatedType =
   | null;
 
 /**
+ * Ticket 123: 営業タスク結果コード
+ */
+export type SalesTaskResultCode =
+  | 'contacted_success'   // 連絡成功
+  | 'no_answer'           // 不在
+  | 'wrong_number'        // 番号違い
+  | 'not_interested'      // 興味なし
+  | 'needs_more_time'     // 検討継続
+  | 'tour_scheduled'      // 内覧日程確定
+  | 'applied'             // 申込へ
+  | 'accepted'            // 受入決定
+  | 'rejected'            // 失注
+  | 'other';              // その他
+
+/**
+ * Ticket 123: 営業タスク結果コード表示設定
+ */
+export const SALES_TASK_RESULT_CONFIG: Record<
+  SalesTaskResultCode,
+  { label: string; color: string; bg: string; icon: string }
+> = {
+  contacted_success: {
+    label: '連絡成功',
+    color: 'text-green-700',
+    bg: 'bg-green-50',
+    icon: '✓',
+  },
+  no_answer: {
+    label: '不在',
+    color: 'text-amber-700',
+    bg: 'bg-amber-50',
+    icon: '📞',
+  },
+  wrong_number: {
+    label: '番号違い',
+    color: 'text-red-700',
+    bg: 'bg-red-50',
+    icon: '✗',
+  },
+  not_interested: {
+    label: '興味なし',
+    color: 'text-zinc-700',
+    bg: 'bg-zinc-50',
+    icon: '−',
+  },
+  needs_more_time: {
+    label: '検討継続',
+    color: 'text-blue-700',
+    bg: 'bg-blue-50',
+    icon: '⏳',
+  },
+  tour_scheduled: {
+    label: '内覧日程確定',
+    color: 'text-purple-700',
+    bg: 'bg-purple-50',
+    icon: '📅',
+  },
+  applied: {
+    label: '申込へ',
+    color: 'text-yellow-700',
+    bg: 'bg-yellow-50',
+    icon: '📝',
+  },
+  accepted: {
+    label: '受入決定',
+    color: 'text-green-700',
+    bg: 'bg-green-50',
+    icon: '🎉',
+  },
+  rejected: {
+    label: '失注',
+    color: 'text-red-700',
+    bg: 'bg-red-50',
+    icon: '✗',
+  },
+  other: {
+    label: 'その他',
+    color: 'text-zinc-600',
+    bg: 'bg-zinc-50',
+    icon: '•',
+  },
+};
+
+/**
  * Ticket 071: パイプラインタイプ
  */
 export type TicketPipeline = 'vacancy_inquiry' | null;
@@ -92,6 +176,7 @@ export type TicketEventAction =
   | 'merge_inquiry'     // Ticket 079: 重複問い合わせ統合
   | 'mark_applied'      // Ticket 084: 申込記録
   | 'mark_accepted'     // Ticket 085: 受入決定
+  | 'sales_task_completed'  // Ticket 123: 営業タスク完了
   | 'comment'
   | 'resolve'
   | 'close'
@@ -125,6 +210,12 @@ export interface TicketMeta {
   acceptedNote?: string;             // 受入決定メモ
   reservedVacancyUnitId?: string;    // 予約確定した空室ユニットID
   acceptedByUserId?: string;         // 受入決定した担当者ID
+  // Ticket 123: 営業タスク完了結果
+  originTicketId?: string;           // 元の問い合わせチケットID
+  resultCode?: SalesTaskResultCode;  // 結果コード
+  resultNote?: string;               // 結果メモ
+  completedAt?: string;              // 完了日時（ISO）
+  nextFollowUpAt?: string;           // 次回フォローアップ日時（ISO）
   [key: string]: unknown;
 }
 
@@ -407,6 +498,7 @@ export const TICKET_EVENT_ACTION_LABELS: Record<TicketEventAction, string> = {
   merge_inquiry: '問い合わせ統合', // Ticket 079
   mark_applied: '申込記録',       // Ticket 084
   mark_accepted: '受入決定',      // Ticket 085
+  sales_task_completed: '営業タスク完了', // Ticket 123
   comment: 'コメント',
   resolve: '解決',
   close: 'クローズ',

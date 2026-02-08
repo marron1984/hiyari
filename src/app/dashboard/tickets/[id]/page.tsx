@@ -37,6 +37,7 @@ import type {
   TicketStatus,
   VacancyInquiryStage,
   ApplicationChannel,
+  SalesTaskResultCode,
 } from '@/lib/tickets/types';
 import {
   TICKET_STATUS_CONFIG,
@@ -44,6 +45,7 @@ import {
   TICKET_CATEGORY_CONFIG,
   TICKET_EVENT_ACTION_LABELS,
   VACANCY_INQUIRY_STAGE_CONFIG,
+  SALES_TASK_RESULT_CONFIG,
 } from '@/lib/tickets/types';
 import type { ReplyTemplate, TemplateVariable } from '@/lib/replyTemplates/types';
 
@@ -122,6 +124,19 @@ export default function TicketDetailPage() {
     { id: string; name: string; unitType: string; availableCount: number }[]
   >([]);
   const [vacancyUnitsLoading, setVacancyUnitsLoading] = useState(false);
+
+  // Ticket 123: 営業タスク完了
+  const [showCompleteSalesTaskModal, setShowCompleteSalesTaskModal] = useState(false);
+  const [completeSalesTaskLoading, setCompleteSalesTaskLoading] = useState(false);
+  const [completeSalesTaskForm, setCompleteSalesTaskForm] = useState<{
+    resultCode: SalesTaskResultCode | '';
+    resultNote: string;
+    nextFollowUpAt: string;
+  }>({
+    resultCode: '',
+    resultNote: '',
+    nextFollowUpAt: '',
+  });
 
   const fetchTicket = useCallback(async () => {
     try {
@@ -408,6 +423,64 @@ export default function TicketDetailPage() {
     setSelectedTemplate(null);
     setTemplateVariables({});
     setExpandedContent(null);
+  };
+
+  // Ticket 123: 営業タスク完了可能かどうかを判定
+  const canCompleteSalesTask = (t: Ticket): boolean => {
+    if (t.relatedType !== 'sales_next_action') return false;
+    // 既にクローズ済みなら不可
+    if (t.status === 'closed' || t.status === 'archived') return false;
+    return true;
+  };
+
+  // Ticket 123: 営業タスク完了の送信
+  const handleCompleteSalesTaskSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (completeSalesTaskLoading) return;
+    if (!completeSalesTaskForm.resultCode) {
+      alert('結果コードを選択してください');
+      return;
+    }
+
+    setCompleteSalesTaskLoading(true);
+    try {
+      const body: Record<string, unknown> = {
+        resultCode: completeSalesTaskForm.resultCode,
+      };
+
+      if (completeSalesTaskForm.resultNote) {
+        body.resultNote = completeSalesTaskForm.resultNote;
+      }
+      if (completeSalesTaskForm.nextFollowUpAt) {
+        body.nextFollowUpAt = completeSalesTaskForm.nextFollowUpAt;
+      }
+
+      const res = await fetch(`/api/tickets/${id}/complete-sales-task`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        setShowCompleteSalesTaskModal(false);
+        setCompleteSalesTaskForm({
+          resultCode: '',
+          resultNote: '',
+          nextFollowUpAt: '',
+        });
+        // データを再取得
+        fetchTicket();
+        fetchEvents();
+      } else {
+        const data = await res.json();
+        alert(data.error || '営業タスクの完了に失敗しました');
+      }
+    } catch (err) {
+      console.error('Failed to complete sales task:', err);
+      alert('営業タスクの完了に失敗しました');
+    } finally {
+      setCompleteSalesTaskLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -947,6 +1020,79 @@ export default function TicketDetailPage() {
               </Card>
             )}
 
+            {/* Ticket 123: 営業タスク完了（sales_next_actionの場合） */}
+            {ticket.relatedType === 'sales_next_action' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <ClipboardCheck className="w-4 h-4" />
+                    営業タスク
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {/* 完了済みの場合は結果表示 */}
+                  {ticket.metaJson?.resultCode && (
+                    <div className="space-y-2 text-sm mb-3 p-3 bg-zinc-50 rounded-lg border border-zinc-200">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <span className="font-medium">完了</span>
+                      </div>
+                      <div className="text-zinc-600">
+                        <span className="text-xs text-zinc-400">結果:</span>{' '}
+                        <span className={SALES_TASK_RESULT_CONFIG[ticket.metaJson.resultCode as SalesTaskResultCode]?.color || ''}>
+                          {SALES_TASK_RESULT_CONFIG[ticket.metaJson.resultCode as SalesTaskResultCode]?.label || ticket.metaJson.resultCode}
+                        </span>
+                      </div>
+                      {ticket.metaJson.completedAt && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">完了日時:</span>{' '}
+                          {new Date(ticket.metaJson.completedAt as string).toLocaleDateString('ja-JP', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </div>
+                      )}
+                      {ticket.metaJson.resultNote && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">メモ:</span>{' '}
+                          {ticket.metaJson.resultNote as string}
+                        </div>
+                      )}
+                      {ticket.metaJson.nextFollowUpAt && (
+                        <div className="text-zinc-600">
+                          <span className="text-xs text-zinc-400">次回フォロー:</span>{' '}
+                          {new Date(ticket.metaJson.nextFollowUpAt as string).toLocaleDateString('ja-JP', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 完了ボタン */}
+                  {canCompleteSalesTask(ticket) && (
+                    <>
+                      <p className="text-zinc-500 text-sm mb-3">
+                        営業タスクを完了したら結果を記録してください
+                      </p>
+                      <button
+                        onClick={() => setShowCompleteSalesTaskModal(true)}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        完了する
+                      </button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* 詳細情報 */}
             <Card>
               <CardHeader>
@@ -1478,6 +1624,116 @@ export default function TicketDetailPage() {
                   <button
                     type="button"
                     onClick={() => setShowAcceptModal(false)}
+                    className="px-4 py-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Ticket 123: 営業タスク完了モーダル */}
+        {showCompleteSalesTaskModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl w-full max-w-md mx-4 p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">営業タスクを完了</h3>
+                <button
+                  onClick={() => setShowCompleteSalesTaskModal(false)}
+                  className="p-1 hover:bg-zinc-100 rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCompleteSalesTaskSubmit} className="space-y-4">
+                {/* 結果コード（必須） */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    結果 <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={completeSalesTaskForm.resultCode}
+                    onChange={(e) =>
+                      setCompleteSalesTaskForm((prev) => ({
+                        ...prev,
+                        resultCode: e.target.value as SalesTaskResultCode | '',
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                    required
+                  >
+                    <option value="">選択してください</option>
+                    {Object.entries(SALES_TASK_RESULT_CONFIG).map(([code, config]) => (
+                      <option key={code} value={code}>
+                        {config.icon} {config.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 結果メモ（任意） */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    メモ
+                  </label>
+                  <textarea
+                    value={completeSalesTaskForm.resultNote}
+                    onChange={(e) =>
+                      setCompleteSalesTaskForm((prev) => ({
+                        ...prev,
+                        resultNote: e.target.value,
+                      }))
+                    }
+                    placeholder="対応内容や結果の詳細を入力"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm resize-none"
+                  />
+                </div>
+
+                {/* 次回フォローアップ日（任意） */}
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-1">
+                    次回フォローアップ日
+                  </label>
+                  <input
+                    type="date"
+                    value={completeSalesTaskForm.nextFollowUpAt}
+                    onChange={(e) =>
+                      setCompleteSalesTaskForm((prev) => ({
+                        ...prev,
+                        nextFollowUpAt: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm"
+                  />
+                  <p className="text-xs text-zinc-500 mt-1">
+                    検討継続などの場合に次の連絡予定日を入力
+                  </p>
+                </div>
+
+                <div className="bg-indigo-50 p-3 rounded-lg text-sm">
+                  <p className="text-indigo-700 font-medium mb-1">確認事項</p>
+                  <ul className="text-indigo-600 text-xs space-y-1 list-disc list-inside">
+                    <li>タスクが完了（クローズ）されます</li>
+                    <li>結果は分析・学習に使用されます</li>
+                  </ul>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={completeSalesTaskLoading || !completeSalesTaskForm.resultCode}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors text-sm"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {completeSalesTaskLoading ? '処理中...' : '完了を確定'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCompleteSalesTaskModal(false)}
                     className="px-4 py-2 border border-zinc-200 rounded-lg hover:bg-zinc-50 transition-colors text-sm"
                   >
                     キャンセル
