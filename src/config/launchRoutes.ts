@@ -26,6 +26,8 @@ export const ALWAYS_ALLOWED_ROUTES = [
   '/_next',
   '/favicon.ico',
   '/api/health',
+  '/api/version',
+  '/api/admin/bootstrap',
 ];
 
 /**

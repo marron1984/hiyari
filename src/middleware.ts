@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { isAllowedInLaunchMode } from '@/config/launchRoutes';
+import { isRouteEnabledByGate } from '@/config/featureGate';
 
 // ======== Launch Mode ========
 
@@ -115,8 +115,8 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    // 未公開ページは /coming-soon にリダイレクト
-    if (!isAllowedInLaunchMode(pathname)) {
+    // 未公開ページは /coming-soon にリダイレクト（featureGate で判定）
+    if (!isRouteEnabledByGate(pathname)) {
       const url = request.nextUrl.clone();
       url.pathname = '/coming-soon';
       return NextResponse.redirect(url);
@@ -132,6 +132,11 @@ export function middleware(request: NextRequest) {
 
   // CSPヘッダーを設定
   response.headers.set('Content-Security-Policy', cspHeader);
+
+  // ダッシュボード・API のキャッシュ無効化（デプロイ直後に古い表示が残る問題対策）
+  if (pathname.startsWith('/dashboard') || pathname.startsWith('/launch') || pathname.startsWith('/api/')) {
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  }
 
   // API ルートへのレートリミット
   if (pathname.startsWith('/api/')) {

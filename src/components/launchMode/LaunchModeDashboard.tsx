@@ -1,64 +1,124 @@
 'use client';
 
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
-  Users,
+  UserPlus,
   Building2,
   Clock,
-  CheckCircle,
+  ClipboardCheck,
   ChevronRight,
   Bell,
+  RefreshCw,
+  TrendingUp,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { LAUNCH_NAV_ITEMS } from '@/config/launchRoutes';
+import { BuildInfo } from '@/components/BuildInfo';
+import { cn } from '@/lib/utils';
 
-const iconMap: Record<string, React.ElementType> = {
-  Users,
-  Building2,
-  Clock,
-  CheckCircle,
-};
+// ── モジュールカード定義 ──
 
-// カードデザインテーマ
-const cardThemes: Record<
-  string,
+interface ModuleCardConfig {
+  id: string;
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  iconBg: string;
+  accentBar: string;
+  hoverBorder: string;
+  getMetrics: (counts: DashboardCounts) => MetricItem[];
+}
+
+interface MetricItem {
+  label: string;
+  value: number | string;
+  highlight?: boolean; // 赤ハイライト（要対応）
+}
+
+interface DashboardCounts {
+  prospects: {
+    total: number;
+    newThisWeek: number;
+    byStatus: Record<string, number>;
+  };
+  vacancies: {
+    totalCapacity: number;
+    totalVacant: number;
+    occupancyRate: number;
+    facilityCount: number;
+  };
+  attendance: {
+    todayClockedIn: number;
+    working: number;
+    pendingOvertime: number;
+  };
+  approvals: {
+    pending: number;
+    todayNew: number;
+    total: number;
+  };
+}
+
+const MODULE_CARDS: ModuleCardConfig[] = [
   {
-    gradient: string;
-    iconBg: string;
-    iconColor: string;
-    hoverBorder: string;
-    accentBar: string;
-  }
-> = {
-  '/dashboard/prospects': {
-    gradient: 'from-blue-50 to-blue-100/50',
-    iconBg: 'bg-blue-500',
-    iconColor: 'text-white',
-    hoverBorder: 'hover:border-blue-300',
-    accentBar: 'bg-blue-500',
-  },
-  '/dashboard/vacancy': {
-    gradient: 'from-emerald-50 to-emerald-100/50',
-    iconBg: 'bg-emerald-500',
-    iconColor: 'text-white',
-    hoverBorder: 'hover:border-emerald-300',
-    accentBar: 'bg-emerald-500',
-  },
-  '/attendance': {
-    gradient: 'from-amber-50 to-amber-100/50',
+    id: 'attendance',
+    href: '/attendance',
+    label: '打刻',
+    icon: Clock,
     iconBg: 'bg-amber-500',
-    iconColor: 'text-white',
-    hoverBorder: 'hover:border-amber-300',
     accentBar: 'bg-amber-500',
+    hoverBorder: 'hover:border-amber-300',
+    getMetrics: (c) => [
+      { label: '今日の出勤', value: c.attendance.todayClockedIn },
+      { label: '勤務中', value: c.attendance.working },
+      { label: '残業申請待ち', value: c.attendance.pendingOvertime, highlight: c.attendance.pendingOvertime > 0 },
+    ],
   },
-  '/dashboard/approvals': {
-    gradient: 'from-violet-50 to-violet-100/50',
+  {
+    id: 'approvals',
+    href: '/dashboard/approvals',
+    label: '承認',
+    icon: ClipboardCheck,
     iconBg: 'bg-violet-500',
-    iconColor: 'text-white',
-    hoverBorder: 'hover:border-violet-300',
     accentBar: 'bg-violet-500',
+    hoverBorder: 'hover:border-violet-300',
+    getMetrics: (c) => [
+      { label: '承認待ち', value: c.approvals.pending, highlight: c.approvals.pending > 0 },
+      { label: '今日の新規', value: c.approvals.todayNew },
+      { label: '総件数', value: c.approvals.total },
+    ],
   },
-};
+  {
+    id: 'prospects',
+    href: '/dashboard/prospects',
+    label: '入居希望',
+    icon: UserPlus,
+    iconBg: 'bg-blue-500',
+    accentBar: 'bg-blue-500',
+    hoverBorder: 'hover:border-blue-300',
+    getMetrics: (c) => [
+      { label: '今週の新規', value: c.prospects.newThisWeek },
+      { label: '総件数', value: c.prospects.total },
+    ],
+  },
+  {
+    id: 'vacancies',
+    href: '/dashboard/vacancy',
+    label: '空室',
+    icon: Building2,
+    iconBg: 'bg-emerald-500',
+    accentBar: 'bg-emerald-500',
+    hoverBorder: 'hover:border-emerald-300',
+    getMetrics: (c) => [
+      { label: '空室数', value: c.vacancies.totalVacant },
+      { label: '入居率', value: `${c.vacancies.occupancyRate}%` },
+      { label: '定員', value: c.vacancies.totalCapacity },
+    ],
+  },
+];
+
+// ── ヘルパー ──
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -78,14 +138,49 @@ function formatDate(): string {
   return `${month}月${day}日（${weekday}）`;
 }
 
+const EMPTY_COUNTS: DashboardCounts = {
+  prospects: { total: 0, newThisWeek: 0, byStatus: {} },
+  vacancies: { totalCapacity: 0, totalVacant: 0, occupancyRate: 0, facilityCount: 0 },
+  attendance: { todayClockedIn: 0, working: 0, pendingOvertime: 0 },
+  approvals: { pending: 0, todayNew: 0, total: 0 },
+};
+
 /**
  * Launch Mode ダッシュボード
  *
- * 先行公開4機能（入居希望・空室・打刻・承認）に特化したUI
- * スマホ・ウェブ両対応のモダンデザイン
+ * 先行公開4機能のモジュールカードにライブカウントを表示
  */
 export function LaunchModeDashboard() {
   const { user } = useAuth();
+  const [counts, setCounts] = useState<DashboardCounts>(EMPTY_COUNTS);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchCounts = useCallback(async (isRefresh = false) => {
+    if (!user?.tenantId) return;
+    if (isRefresh) setRefreshing(true);
+
+    try {
+      const res = await fetch(`/api/dashboard/counts?tenantId=${encodeURIComponent(user.tenantId)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setCounts(data);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'データ取得エラー');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user?.tenantId]);
+
+  useEffect(() => {
+    fetchCounts();
+    // 60秒ごとに自動更新
+    const interval = setInterval(() => fetchCounts(), 60_000);
+    return () => clearInterval(interval);
+  }, [fetchCounts]);
 
   if (!user) {
     return (
@@ -105,14 +200,9 @@ export function LaunchModeDashboard() {
   return (
     <div className="min-h-screen bg-zinc-50 pb-24 md:pb-8">
       {/* ヘッダーエリア */}
-      <div className="bg-white">
+      <div className="bg-white border-b border-zinc-100">
         <div className="max-w-3xl mx-auto px-4 pt-6 pb-5">
-          {/* 日付 */}
-          <p className="text-xs font-medium text-zinc-400 mb-1">
-            {dateStr}
-          </p>
-
-          {/* 挨拶 */}
+          <p className="text-xs font-medium text-zinc-400 mb-1">{dateStr}</p>
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-zinc-900">
@@ -123,54 +213,96 @@ export function LaunchModeDashboard() {
               </p>
             </div>
 
-            {/* 通知アイコン（デスクトップのみ - モバイルはヘッダーにある） */}
-            <Link
-              href="/dashboard/notifications"
-              className="hidden md:flex w-10 h-10 items-center justify-center rounded-full bg-zinc-100 hover:bg-zinc-200 transition-colors"
-            >
-              <Bell className="w-5 h-5 text-zinc-600" />
-            </Link>
+            <div className="flex items-center gap-2">
+              {/* 更新ボタン */}
+              <button
+                onClick={() => fetchCounts(true)}
+                disabled={refreshing}
+                className="flex w-9 h-9 items-center justify-center rounded-full bg-zinc-100 hover:bg-zinc-200 transition-colors disabled:opacity-50"
+                title="データを更新"
+              >
+                <RefreshCw className={cn('w-4 h-4 text-zinc-600', refreshing && 'animate-spin')} />
+              </button>
+
+              {/* 通知（デスクトップのみ） */}
+              <Link
+                href="/dashboard/notifications"
+                className="hidden md:flex w-9 h-9 items-center justify-center rounded-full bg-zinc-100 hover:bg-zinc-200 transition-colors"
+              >
+                <Bell className="w-4 h-4 text-zinc-600" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>
 
       {/* メインコンテンツ */}
       <div className="max-w-3xl mx-auto px-4 py-5">
-        {/* 4機能カード */}
+        {/* エラー表示 */}
+        {error && (
+          <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* モジュールカード */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {LAUNCH_NAV_ITEMS.map((item) => {
-            const Icon = iconMap[item.icon] || Users;
-            const theme = cardThemes[item.href] || cardThemes['/dashboard/prospects'];
+          {MODULE_CARDS.map((card) => {
+            const Icon = card.icon;
+            const metrics = card.getMetrics(counts);
 
             return (
               <Link
-                key={item.href}
-                href={item.href}
-                className={`group relative block overflow-hidden rounded-2xl border border-zinc-200 bg-white transition-all duration-200 ${theme.hoverBorder} hover:shadow-md active:scale-[0.98]`}
+                key={card.id}
+                href={card.href}
+                className={cn(
+                  'group relative block overflow-hidden rounded-2xl border border-zinc-200 bg-white',
+                  'transition-all duration-200 hover:shadow-md active:scale-[0.98]',
+                  card.hoverBorder
+                )}
               >
                 {/* 左アクセントバー */}
-                <div className={`absolute left-0 top-0 bottom-0 w-1 ${theme.accentBar}`} />
+                <div className={cn('absolute left-0 top-0 bottom-0 w-1', card.accentBar)} />
 
-                <div className="flex items-center gap-4 p-4 pl-5">
-                  {/* アイコン */}
-                  <div
-                    className={`w-12 h-12 rounded-xl ${theme.iconBg} flex items-center justify-center flex-shrink-0 shadow-sm`}
-                  >
-                    <Icon className={`w-6 h-6 ${theme.iconColor}`} />
-                  </div>
-
-                  {/* テキスト */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-bold text-zinc-900 group-hover:text-zinc-800">
-                      {item.label}
+                <div className="p-4 pl-5">
+                  {/* ヘッダー行 */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm', card.iconBg)}>
+                      <Icon className="w-5 h-5 text-white" />
+                    </div>
+                    <h3 className="text-base font-bold text-zinc-900 flex-1">
+                      {card.label}
                     </h3>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {item.description}
-                    </p>
+                    <ChevronRight className="w-5 h-5 text-zinc-300 group-hover:text-zinc-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
                   </div>
 
-                  {/* 矢印 */}
-                  <ChevronRight className="w-5 h-5 text-zinc-300 group-hover:text-zinc-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                  {/* メトリクス行 */}
+                  <div className="flex items-center gap-4">
+                    {loading ? (
+                      <div className="flex items-center gap-2 text-xs text-zinc-400">
+                        <div className="w-3 h-3 border border-zinc-300 border-t-transparent rounded-full animate-spin" />
+                        読み込み中...
+                      </div>
+                    ) : (
+                      metrics.map((metric) => (
+                        <div key={metric.label} className="flex items-center gap-1">
+                          {metric.highlight && (
+                            <TrendingUp className="w-3 h-3 text-red-500" />
+                          )}
+                          <span className={cn(
+                            'text-lg font-bold tabular-nums',
+                            metric.highlight ? 'text-red-600' : 'text-zinc-900'
+                          )}>
+                            {metric.value}
+                          </span>
+                          <span className="text-[10px] text-zinc-500 font-medium">
+                            {metric.label}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </Link>
             );
@@ -184,9 +316,7 @@ export function LaunchModeDashboard() {
               <Bell className="w-4 h-4 text-zinc-500" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-zinc-700">
-                ご利用ガイド
-              </h3>
+              <h3 className="text-sm font-semibold text-zinc-700">ご利用ガイド</h3>
               <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
                 現在、上記4つの機能をご利用いただけます。
                 その他の機能は順次追加予定です。
@@ -195,6 +325,9 @@ export function LaunchModeDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Build Info */}
+        <BuildInfo />
       </div>
     </div>
   );
