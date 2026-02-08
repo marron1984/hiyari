@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { isAllowedInLaunchMode } from '@/config/launchRoutes';
+
+// ======== Launch Mode ========
+
+const LAUNCH_MODE = process.env.NEXT_PUBLIC_LAUNCH_MODE === 'true';
 
 // ======== セキュリティヘッダー ========
 
@@ -99,6 +104,14 @@ export function middleware(request: NextRequest) {
     pathname.match(/\.(ico|svg|png|jpg|jpeg|gif|webp|css|js|woff2?)$/)
   ) {
     return NextResponse.next();
+  }
+
+  // ======== Launch Mode ルーティングブロック ========
+  if (LAUNCH_MODE && !isAllowedInLaunchMode(pathname)) {
+    // 未公開ページは /coming-soon にリダイレクト
+    const url = request.nextUrl.clone();
+    url.pathname = '/coming-soon';
+    return NextResponse.redirect(url);
   }
 
   const response = NextResponse.next();

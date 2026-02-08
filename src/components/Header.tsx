@@ -5,11 +5,27 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity, Bot } from 'lucide-react';
+import { Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity, Bot, Sparkles } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { RoleSwitcher } from '@/components/navigation/RoleSwitcher';
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
+import { LAUNCH_MODE } from '@/config/launchMode';
+
+// Launch Mode で許可するナビゲーションのhref
+const LAUNCH_MODE_NAV_HREFS = [
+  '/dashboard',
+  '/attendance',
+  '/dashboard/approvals',
+  '/dashboard/prospects',
+  '/dashboard/vacancy',
+];
+
+// Launch Mode で許可する管理メニューのhref
+const LAUNCH_MODE_ADMIN_HREFS = [
+  '/admin/attendance/dashboard',
+  '/dashboard/admin/ringi',
+];
 
 export function Header() {
   const { user, isLeaderOrAbove, signOut } = useAuth();
@@ -39,7 +55,7 @@ export function Header() {
 
   // メニュー順序（確定版）:
   // 1.打刻 2.稟議 3.入居希望 4.営業進捗 5.空室 6.改善 7.ランク 8.経営OS 9.報告(ヒヤリ)
-  const navItems = [
+  const allNavItems = [
     { href: '/dashboard', label: 'ホーム', icon: Home },
     { href: '/attendance', label: '打刻', icon: Clock },
     { href: '/dashboard/approvals', label: '承認', icon: ClipboardList },
@@ -52,7 +68,7 @@ export function Header() {
     { href: '/submit', label: '報告', icon: FileText },
   ];
 
-  const adminItems = [
+  const allAdminItems = [
     { href: '/admin/incidents', label: '報告管理', icon: BarChart3 },
     { href: '/admin/attendance/dashboard', label: '勤怠管理', icon: Clock },
     { href: '/dashboard/admin/ringi', label: '稟議管理', icon: ClipboardList },
@@ -63,6 +79,15 @@ export function Header() {
     { href: '/admin/employees', label: '従業員', icon: Users },
     { href: '/admin/settings', label: '設定', icon: Settings },
   ];
+
+  // Launch Mode: 許可されたナビゲーションのみ表示
+  const navItems = LAUNCH_MODE
+    ? allNavItems.filter(item => LAUNCH_MODE_NAV_HREFS.includes(item.href))
+    : allNavItems;
+
+  const adminItems = LAUNCH_MODE
+    ? allAdminItems.filter(item => LAUNCH_MODE_ADMIN_HREFS.includes(item.href))
+    : allAdminItems;
 
   const handleSignOut = async () => {
     await signOut();
@@ -156,8 +181,8 @@ export function Header() {
               </div>
             )}
 
-            {/* AI副社長 (吉田専用) */}
-            {isAiVpOwner(user?.email) && (
+            {/* AI副社長 (吉田専用) - Launch Mode では非表示 */}
+            {!LAUNCH_MODE && isAiVpOwner(user?.email) && (
               <>
                 <Link
                   href="/dashboard/ai/inbox"
@@ -184,6 +209,14 @@ export function Header() {
                   <span>AI抽出</span>
                 </Link>
               </>
+            )}
+
+            {/* Launch Mode バッジ */}
+            {LAUNCH_MODE && (
+              <div className="ml-2 px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                Launch Mode
+              </div>
             )}
           </nav>
 

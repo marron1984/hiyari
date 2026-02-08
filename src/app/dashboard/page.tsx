@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getChaosViewLevel, hasMinRole } from '@/lib/auth';
 import { RoleHomePage } from '@/components/roleHome';
 import { Card, CardContent } from '@/components/ui';
+import { LaunchModeDashboard } from '@/components/launchMode';
+import { LAUNCH_MODE } from '@/config/launchMode';
 import type { AppRole } from '@/config/appRoles';
 import type { UserRole } from '@/types';
 import {
@@ -309,8 +311,15 @@ function DashboardContent() {
  * Task 053: Role Home を /dashboard に完全接続
  * - getEffectiveRole(asRole) を使って role を確定
  * - asRole は admin のみ有効（URLクエリ ?asRole=staff 等）
+ *
+ * Launch Mode: NEXT_PUBLIC_LAUNCH_MODE=true の場合、4機能専用UIを表示
  */
 export default function DashboardPage() {
+  // Launch Mode の場合は専用ダッシュボードを表示
+  if (LAUNCH_MODE) {
+    return <LaunchModeDashboard />;
+  }
+
   return (
     <Suspense
       fallback={

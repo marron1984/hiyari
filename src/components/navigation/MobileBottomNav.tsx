@@ -26,9 +26,23 @@ import {
   Bot,
   Brain,
   LogOut,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
+import { LAUNCH_MODE } from '@/config/launchMode';
+
+// Launch Mode で許可するその他メニューのhref
+const LAUNCH_MODE_MORE_HREFS = [
+  '/dashboard/prospects',
+  '/dashboard/vacancy',
+];
+
+// Launch Mode で許可する管理メニューのhref
+const LAUNCH_MODE_ADMIN_HREFS = [
+  '/admin/attendance/dashboard',
+  '/dashboard/admin/ringi',
+];
 
 interface NavItem {
   href: string;
@@ -70,7 +84,7 @@ export function MobileBottomNav() {
   });
 
   // その他メニューの中身
-  const moreItems: NavItem[] = [
+  const allMoreItems: NavItem[] = [
     { href: '/submit', label: '報告', icon: FileText },
     { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus },
     { href: '/sales', label: '営業', icon: Briefcase },
@@ -80,8 +94,13 @@ export function MobileBottomNav() {
     { href: '/dashboard/os', label: '経営OS', icon: Activity },
   ];
 
+  // Launch Mode: 許可されたその他メニューのみ表示
+  const moreItems = LAUNCH_MODE
+    ? allMoreItems.filter(item => LAUNCH_MODE_MORE_HREFS.includes(item.href))
+    : allMoreItems;
+
   // 管理者メニュー（その他内）
-  const adminMoreItems: NavItem[] = isLeaderOrAbove
+  const allAdminMoreItems: NavItem[] = isLeaderOrAbove
     ? [
         { href: '/admin/incidents', label: '報告管理', icon: BarChart3 },
         { href: '/admin/attendance/dashboard', label: '勤怠管理', icon: Clock },
@@ -95,8 +114,13 @@ export function MobileBottomNav() {
       ]
     : [];
 
-  // AI副社長メニュー
-  const aiVpItems: NavItem[] = isAiVpOwner(user?.email)
+  // Launch Mode: 許可された管理メニューのみ表示
+  const adminMoreItems = LAUNCH_MODE
+    ? allAdminMoreItems.filter(item => LAUNCH_MODE_ADMIN_HREFS.includes(item.href))
+    : allAdminMoreItems;
+
+  // AI副社長メニュー - Launch Mode では非表示
+  const aiVpItems: NavItem[] = !LAUNCH_MODE && isAiVpOwner(user?.email)
     ? [
         { href: '/dashboard/ai/inbox', label: 'AI受信箱', icon: Bot },
         { href: '/admin/ai-vp', label: 'AI抽出', icon: Brain },
@@ -148,7 +172,15 @@ export function MobileBottomNav() {
           <div className="absolute bottom-16 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto animate-slide-up safe-bottom">
             {/* ヘッダー */}
             <div className="sticky top-0 bg-white border-b border-zinc-100 px-4 py-3 flex items-center justify-between">
-              <span className="text-base font-semibold text-zinc-900">その他のメニュー</span>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-semibold text-zinc-900">その他のメニュー</span>
+                {LAUNCH_MODE && (
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    Launch
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => setMoreMenuOpen(false)}
                 className="p-2 -mr-2 rounded-full hover:bg-zinc-100"
