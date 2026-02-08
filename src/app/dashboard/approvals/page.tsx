@@ -21,7 +21,7 @@ import {
   ClipboardList,
   ChevronDown,
 } from 'lucide-react';
-import { getRingisByUser } from '@/lib/ringi';
+import { getAllRingis } from '@/lib/ringi';
 import { Ringi, RingiStatus, RINGI_STATUS_LABELS, RINGI_STATUS_COLORS } from '@/types';
 import {
   ApplicationType,
@@ -77,7 +77,7 @@ export default function ApprovalsListPage() {
 
         // Fetch all three types in parallel
         const [ringisData, applicationsRes] = await Promise.all([
-          getRingisByUser(user.id, user.tenantId),
+          getAllRingis(user.tenantId),
           fetch('/api/applications?mine=1', {
             headers: { Authorization: `Bearer ${token}` },
           }),
