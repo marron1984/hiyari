@@ -133,6 +133,48 @@ export const SALES_TASK_RESULT_CONFIG: Record<
 };
 
 /**
+ * Ticket 123: 営業タスク結果コード（正規化版）
+ * metaJson 保存用の正規化された結果コード
+ */
+export type SalesResultCode =
+  | 'success'   // 成功系（connected_success, tour_scheduled, applied, accepted）
+  | 'failure'   // 失敗系（wrong_number, not_interested, rejected）
+  | 'pending'   // 継続系（no_answer, needs_more_time）
+  | 'other';    // その他
+
+/**
+ * Ticket 123: SalesTaskResultCode → SalesResultCode 変換マッパー
+ * 型安全にタスク結果を正規化結果に変換する
+ */
+export function mapTaskResultToSalesResult(
+  input: SalesTaskResultCode | undefined
+): SalesResultCode | undefined {
+  if (!input) return undefined;
+
+  switch (input) {
+    // 成功系
+    case 'contacted_success':
+    case 'tour_scheduled':
+    case 'applied':
+    case 'accepted':
+      return 'success';
+    // 失敗系
+    case 'wrong_number':
+    case 'not_interested':
+    case 'rejected':
+      return 'failure';
+    // 継続系
+    case 'no_answer':
+    case 'needs_more_time':
+      return 'pending';
+    // その他
+    case 'other':
+    default:
+      return 'other';
+  }
+}
+
+/**
  * Ticket 071: パイプラインタイプ
  */
 export type TicketPipeline = 'vacancy_inquiry' | null;
@@ -191,11 +233,12 @@ export interface TicketMeta {
   reservedVacancyUnitId?: string;    // 予約確定した空室ユニットID
   acceptedByUserId?: string;         // 受入決定した担当者ID
   // Ticket 123: 営業タスク完了結果
-  originTicketId?: string;           // 元の問い合わせチケットID
-  resultCode?: SalesTaskResultCode;  // 結果コード
-  resultNote?: string;               // 結果メモ
-  completedAt?: string;              // 完了日時（ISO）
-  nextFollowUpAt?: string;           // 次回フォローアップ日時（ISO）
+  originTicketId?: string;              // 元の問い合わせチケットID
+  resultCode?: SalesTaskResultCode;     // 結果コード（詳細・表示用）
+  normalizedResultCode?: SalesResultCode; // 結果コード（正規化・分析用）
+  resultNote?: string;                  // 結果メモ
+  completedAt?: string;                 // 完了日時（ISO）
+  nextFollowUpAt?: string;              // 次回フォローアップ日時（ISO）
   [key: string]: unknown;
 }
 
