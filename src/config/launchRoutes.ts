@@ -19,6 +19,7 @@ export const ALWAYS_ALLOWED_ROUTES = [
   '/onboarding',
 
   // Launch Mode 専用
+  '/launch',
   '/coming-soon',
 
   // 静的アセット・システム

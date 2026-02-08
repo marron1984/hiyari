@@ -107,11 +107,20 @@ export function middleware(request: NextRequest) {
   }
 
   // ======== Launch Mode ルーティングブロック ========
-  if (LAUNCH_MODE && !isAllowedInLaunchMode(pathname)) {
+  if (LAUNCH_MODE) {
+    // /dashboard → /launch へ強制リダイレクト
+    if (pathname === '/dashboard' || pathname === '/dashboard/') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/launch';
+      return NextResponse.redirect(url);
+    }
+
     // 未公開ページは /coming-soon にリダイレクト
-    const url = request.nextUrl.clone();
-    url.pathname = '/coming-soon';
-    return NextResponse.redirect(url);
+    if (!isAllowedInLaunchMode(pathname)) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/coming-soon';
+      return NextResponse.redirect(url);
+    }
   }
 
   const response = NextResponse.next();

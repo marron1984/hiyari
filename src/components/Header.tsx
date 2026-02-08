@@ -12,16 +12,16 @@ import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
 import { LAUNCH_MODE } from '@/config/launchMode';
 
-// Launch Mode で許可するナビゲーションのhref
+// Launch Mode で許可するナビゲーションのhref（4機能 + ホーム）
 const LAUNCH_MODE_NAV_HREFS = [
-  '/dashboard',
-  '/attendance',
-  '/dashboard/approvals',
+  '/launch',
   '/dashboard/prospects',
   '/dashboard/vacancy',
+  '/attendance',
+  '/dashboard/approvals',
 ];
 
-// Launch Mode で許可する管理メニューのhref
+// Launch Mode で許可する管理メニューのhref（リーダー以上のみ）
 const LAUNCH_MODE_ADMIN_HREFS = [
   '/admin/attendance/dashboard',
   '/dashboard/admin/ringi',
@@ -53,7 +53,16 @@ export function Header() {
 
   if (!user) return null;
 
-  // メニュー順序（確定版）:
+  // Launch Mode: 4機能 + ホームのみ表示
+  const launchModeNavItems = [
+    { href: '/launch', label: 'ホーム', icon: Home },
+    { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus },
+    { href: '/dashboard/vacancy', label: '空室', icon: Building2 },
+    { href: '/attendance', label: '打刻', icon: Clock },
+    { href: '/dashboard/approvals', label: '承認', icon: ClipboardList },
+  ];
+
+  // 通常モード: メニュー順序（確定版）
   // 1.打刻 2.稟議 3.入居希望 4.営業進捗 5.空室 6.改善 7.ランク 8.経営OS 9.報告(ヒヤリ)
   const allNavItems = [
     { href: '/dashboard', label: 'ホーム', icon: Home },
@@ -80,10 +89,8 @@ export function Header() {
     { href: '/admin/settings', label: '設定', icon: Settings },
   ];
 
-  // Launch Mode: 許可されたナビゲーションのみ表示
-  const navItems = LAUNCH_MODE
-    ? allNavItems.filter(item => LAUNCH_MODE_NAV_HREFS.includes(item.href))
-    : allNavItems;
+  // Launch Mode: 専用ナビゲーション、通常モード: 全ナビゲーション
+  const navItems = LAUNCH_MODE ? launchModeNavItems : allNavItems;
 
   const adminItems = LAUNCH_MODE
     ? allAdminItems.filter(item => LAUNCH_MODE_ADMIN_HREFS.includes(item.href))

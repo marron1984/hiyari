@@ -32,16 +32,25 @@ import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
 import { LAUNCH_MODE } from '@/config/launchMode';
 
-// Launch Mode で許可するその他メニューのhref
+// Launch Mode で許可するその他メニューのhref（4機能）
 const LAUNCH_MODE_MORE_HREFS = [
   '/dashboard/prospects',
   '/dashboard/vacancy',
 ];
 
-// Launch Mode で許可する管理メニューのhref
+// Launch Mode で許可する管理メニューのhref（リーダー以上のみ）
 const LAUNCH_MODE_ADMIN_HREFS = [
   '/admin/attendance/dashboard',
   '/dashboard/admin/ringi',
+];
+
+// Launch Mode 専用のメインナビゲーション
+const LAUNCH_MODE_MAIN_NAV = [
+  { href: '/launch', label: 'ホーム', icon: Home, matchPaths: ['/launch'] },
+  { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus, matchPaths: ['/dashboard/prospects'] },
+  { href: '/dashboard/vacancy', label: '空室', icon: Building2, matchPaths: ['/dashboard/vacancy'] },
+  { href: '/attendance', label: '打刻', icon: Clock, matchPaths: ['/attendance'] },
+  { href: '/dashboard/approvals', label: '承認', icon: ClipboardCheck, matchPaths: ['/dashboard/approvals'] },
 ];
 
 interface NavItem {
@@ -58,7 +67,43 @@ export function MobileBottomNav() {
 
   if (!user) return null;
 
-  // 主要ナビゲーション（5つまで）
+  // Launch Mode: 専用ナビゲーション（5機能のみ、管理/その他なし）
+  if (LAUNCH_MODE) {
+    const launchNavItems: NavItem[] = LAUNCH_MODE_MAIN_NAV;
+
+    const isActiveLaunch = (item: NavItem) => {
+      if (item.matchPaths && item.matchPaths.length > 0) {
+        return item.matchPaths.some((path) => pathname.startsWith(path));
+      }
+      return pathname === item.href;
+    };
+
+    return (
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-zinc-200 md:hidden safe-bottom">
+        <div className="flex items-center justify-around h-16">
+          {launchNavItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActiveLaunch(item);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors',
+                  active ? 'text-zinc-900' : 'text-zinc-400'
+                )}
+              >
+                <Icon className={cn('w-6 h-6', active && 'text-zinc-900')} />
+                <span className="text-[10px] font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    );
+  }
+
+  // 通常モード: 主要ナビゲーション（5つまで）
   const mainNavItems: NavItem[] = [
     { href: '/dashboard', label: 'ホーム', icon: Home, matchPaths: ['/dashboard'] },
     { href: '/attendance', label: '打刻', icon: Clock, matchPaths: ['/attendance'] },
