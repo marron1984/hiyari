@@ -12,13 +12,21 @@ export type StorageDriver = 'memory' | 'firestore';
 
 /**
  * 現在のストレージドライバーを取得
+ *
+ * 優先順位:
+ * 1. STORAGE_DRIVER 環境変数が明示的に設定されている場合はそれを使用
+ * 2. Firebase Project ID が設定されている場合は 'firestore' を自動選択
+ * 3. どちらもない場合は 'memory' フォールバック（開発用）
  */
 export function getStorageDriver(): StorageDriver {
-  const driver = process.env.STORAGE_DRIVER || 'memory';
+  const driver = process.env.STORAGE_DRIVER;
 
-  if (driver === 'firestore') {
-    return 'firestore';
-  }
+  // 明示的に設定されている場合はそれを尊重
+  if (driver === 'firestore') return 'firestore';
+  if (driver === 'memory') return 'memory';
+
+  // 未設定の場合: Firebase が使えるなら firestore を自動選択
+  if (canUseFirestore()) return 'firestore';
 
   return 'memory';
 }

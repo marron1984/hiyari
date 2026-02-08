@@ -3,10 +3,11 @@
  *
  * 先行カットオーバー用：4機能のみ公開（入居希望／空室／打刻／承認）
  *
- * NEXT_PUBLIC_LAUNCH_MODE=true で有効化
+ * デフォルト: true（本番カットオーバー状態）
+ * 全機能を開放する場合: NEXT_PUBLIC_LAUNCH_MODE=false を設定
  */
 
-export const LAUNCH_MODE = process.env.NEXT_PUBLIC_LAUNCH_MODE === 'true';
+export const LAUNCH_MODE = process.env.NEXT_PUBLIC_LAUNCH_MODE !== 'false';
 
 /**
  * Launch Mode が有効かどうかを判定
