@@ -10,7 +10,8 @@ import { Loading } from '@/components/Loading';
 import { getTimeEntriesByUser } from '@/lib/attendance';
 import { formatTimeJST, formatMinutesToHHMM } from '@/lib/attendance-calc';
 import { TimeEntry, ClockStatus } from '@/types/attendance';
-import { RefreshCw, Info } from 'lucide-react';
+import { BRANCHES_SEED } from '@/data/employees';
+import { RefreshCw, Info, AlertCircle, MapPin } from 'lucide-react';
 
 const STATUS_LABELS: Record<ClockStatus, { label: string; color: string }> = {
   not_started: { label: '未出勤', color: 'bg-gray-100 text-gray-700' },
@@ -25,24 +26,31 @@ export default function AttendanceHistoryPage() {
   const router = useRouter();
   const [entries, setEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
   });
 
-  // データ取得（attendance_recordsから直接取得）
+  // ブランチ名取得
+  const getBranchName = (branchId: string) => {
+    const branch = BRANCHES_SEED.find((b) => b.id === branchId);
+    return branch?.name || branchId;
+  };
+
+  // データ取得
   const fetchData = useCallback(async () => {
     if (!user) return;
 
     try {
       setLoading(true);
+      setError(null);
 
       const [year, month] = selectedMonth.split('-').map(Number);
       const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
       const lastDay = new Date(year, month, 0).getDate();
       const endDate = `${year}-${month.toString().padStart(2, '0')}-${lastDay}`;
 
-      // 月初〜月末のattendance_recordsを直接取得
       const data = await getTimeEntriesByUser(
         user.id,
         user.tenantId,
@@ -52,6 +60,8 @@ export default function AttendanceHistoryPage() {
       setEntries(data);
     } catch (err) {
       console.error('Failed to fetch data:', err);
+      const message = err instanceof Error ? err.message : 'データの取得に失敗しました';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -61,19 +71,19 @@ export default function AttendanceHistoryPage() {
     fetchData();
   }, [fetchData]);
 
-  // 月次サマリー計算（リアルタイム集計・キャッシュ不使用）
+  // 月次サマリー計算（全レコードを集計）
   const summary = entries.reduce(
     (acc, entry) => {
-      // 完了済みレコードのみ集計（確定ロジック不使用）
-      if (entry.status === 'completed') {
-        acc.totalDays++;
-        acc.totalWorkMinutes += entry.totalWorkMinutes || 0;
-        acc.totalLateNightMinutes += entry.lateNightMinutes || 0;
-        acc.totalOvertimeMinutes += entry.overtimeMinutes || 0;
-      }
+      // 出勤記録がある全レコードをカウント
+      acc.totalDays++;
+      acc.totalWorkMinutes += entry.totalWorkMinutes || 0;
+      acc.totalLateNightMinutes += entry.lateNightMinutes || 0;
+      acc.totalOvertimeMinutes += entry.overtimeMinutes || 0;
+      if (entry.status === 'completed') acc.completedDays++;
+      if (entry.status === 'working' || entry.status === 'on_break') acc.activeDays++;
       return acc;
     },
-    { totalDays: 0, totalWorkMinutes: 0, totalLateNightMinutes: 0, totalOvertimeMinutes: 0 }
+    { totalDays: 0, completedDays: 0, activeDays: 0, totalWorkMinutes: 0, totalLateNightMinutes: 0, totalOvertimeMinutes: 0 }
   );
 
   if (loading) {
@@ -115,7 +125,26 @@ export default function AttendanceHistoryPage() {
             </div>
           </Card>
 
-          {/* 月次サマリー（リアルタイム集計） */}
+          {/* エラー表示 */}
+          {error && (
+            <Card className="mb-6 bg-red-50 border-red-200">
+              <div className="p-4 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-red-800">データ取得エラー</p>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                  <p className="text-xs text-red-500 mt-2">
+                    Firestoreインデックスが未作成の可能性があります。管理者に連絡してください。
+                  </p>
+                </div>
+                <Button variant="secondary" size="sm" onClick={fetchData}>
+                  再試行
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {/* 月次サマリー */}
           <Card className="mb-6">
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
@@ -126,19 +155,25 @@ export default function AttendanceHistoryPage() {
                 </div>
               </div>
 
-              {/* リアルタイム集計の説明 */}
+              {/* 集計の説明 */}
               <div className="flex items-start gap-2 mb-4 p-2 bg-gray-50 rounded text-xs text-gray-600">
                 <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
                 <span>
-                  この集計は打刻記録から直接計算されたリアルタイム値です。
-                  勤務中や休憩中のレコードは集計に含まれません。
+                  全打刻記録から集計しています。勤務中のレコードは勤務時間が未確定です。
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 rounded-lg p-3">
                   <div className="text-sm text-gray-500">出勤日数</div>
-                  <div className="text-xl font-bold">{summary.totalDays}日</div>
+                  <div className="text-xl font-bold">
+                    {summary.totalDays}日
+                    {summary.activeDays > 0 && (
+                      <span className="text-sm font-normal text-green-600 ml-1">
+                        ({summary.activeDays}日勤務中)
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="bg-gray-50 rounded-lg p-3">
                   <div className="text-sm text-gray-500">総勤務時間</div>
@@ -181,7 +216,15 @@ export default function AttendanceHistoryPage() {
                         className="border rounded-lg p-3"
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium">{entry.workDate}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{entry.workDate}</span>
+                            {entry.branchId && (
+                              <span className="flex items-center gap-1 text-xs text-gray-400">
+                                <MapPin className="w-3 h-3" />
+                                {getBranchName(entry.branchId)}
+                              </span>
+                            )}
+                          </div>
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}
                           >
