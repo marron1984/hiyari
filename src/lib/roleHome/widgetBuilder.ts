@@ -25,6 +25,7 @@ import type {
   ContractsWidget,
   OsMapWidget,
   QualityRiskWidget,
+  MbrWidget,
   VacancyInquiryKpisWidget,
   SalesTasksWidget,
 } from './types';
@@ -46,6 +47,8 @@ import { getStats as getReceivablesStats } from '@/lib/receivables/repo';
 import { countUnreadHandoverItems } from '@/lib/handover/repo';
 import { listAnnouncementsForUser } from '@/lib/announcements/store';
 import { listReadIds } from '@/lib/readTracking/repo';
+import { listMbrs } from '@/lib/mbr/mbrRepo';
+import { getMbrOverdueSummary } from '@/lib/dailyOps/scanMbrActionsOverdue';
 
 /**
  * ビューアーコンテキストを生成
@@ -270,6 +273,9 @@ export function buildDailyOpsWidget(): DailyOpsWidget {
   const recentRuns = listDailyOpsRuns(5);
   const failedSteps = getDailyFailedSteps();
 
+  // Ticket 130: MBR改善タスク期限超過件数
+  const mbrOverdue = getMbrOverdueSummary();
+
   const hasFailedRecently = stats.lastFailedRun !== null &&
     (!stats.lastSuccessfulRun ||
       new Date(stats.lastFailedRun.startedAt) > new Date(stats.lastSuccessfulRun.startedAt));
@@ -279,13 +285,15 @@ export function buildDailyOpsWidget(): DailyOpsWidget {
     title: WIDGET_LABELS.daily_ops,
     href: '/api/cron/daily-ops?preview=true',
     count: stats.totalRuns,
-    severity: hasFailedRecently ? 'critical' : 'info',
+    severity: hasFailedRecently ? 'critical' : (mbrOverdue.overdueCount > 0 ? 'warning' : 'info'),
     lastRunAt: stats.lastSuccessfulRun?.startedAt ?? stats.lastFailedRun?.startedAt ?? null,
     lastRunOk: stats.lastSuccessfulRun ? true : (stats.lastFailedRun ? false : null),
     totalRuns: stats.totalRuns,
     hasFailedRecently,
     // Ticket 067: 失敗ステップ名を表示
     failedSteps: failedSteps.length > 0 ? failedSteps : undefined,
+    // Ticket 130: MBR改善タスク期限超過件数
+    mbrOverdueCount: mbrOverdue.overdueCount > 0 ? mbrOverdue.overdueCount : undefined,
     isEmpty: stats.totalRuns === 0,
   };
 }
@@ -443,6 +451,27 @@ export function buildQualityRiskWidget(): QualityRiskWidget {
     incidentCount: 0,
     overdueActions: 0,
     isEmpty: true,
+  };
+}
+
+/**
+ * Ticket 127: MBRウィジェットを構築
+ */
+export function buildMbrWidget(): MbrWidget {
+  const mbrs = listMbrs(1);
+  const latest = mbrs[0] ?? null;
+
+  const available = latest !== null;
+
+  return {
+    type: 'mbr',
+    title: WIDGET_LABELS.mbr,
+    href: '/dashboard/mbr',
+    severity: available ? 'info' : 'warning',
+    latestMonth: latest?.month ?? null,
+    generatedAt: latest?.generatedAt ?? null,
+    available,
+    isEmpty: false, // 未生成でも warning カードを表示
   };
 }
 
@@ -605,6 +634,9 @@ export function buildWidget(
       return buildOsMapWidget();
     case 'quality_risk':
       return buildQualityRiskWidget();
+    // Ticket 127: MBRウィジェット
+    case 'mbr':
+      return buildMbrWidget();
     // Ticket 082: 空室問い合わせKPI
     case 'vacancy_inquiry_kpis':
       return buildVacancyInquiryKpisWidget(userId, role);

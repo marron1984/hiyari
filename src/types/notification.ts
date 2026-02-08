@@ -28,6 +28,9 @@ export type NotificationType =
   | 'ai_vp_ticket_created'  // Task 043: AI副社長・チケット自動生成
   | 'business_scope_unclassified'  // Task 038: 未分類スコープ警告（正式名称）
   | 'unclassified_scope'    // Task 033: 未分類スコープ警告（レガシー）
+  | 'mbr_action_created'    // Ticket 128: MBR改善タスク自動起票
+  | 'mbr_action_overdue'    // Ticket 130: MBR改善タスク期限超過
+  | 'vacancy_inquiry'       // 空室問い合わせ通知
   | 'vacancy_inquiry_sla_breach'   // Ticket 071: 空室問い合わせSLA超過
   | 'vacancy_unit_updated'         // Ticket 075: 空室ユニット更新
   | 'vacancy_suggestion_created'   // Ticket 075: 空室更新提案

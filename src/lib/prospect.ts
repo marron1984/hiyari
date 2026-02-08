@@ -42,6 +42,12 @@ export const PROSPECTS_CUTOFF_DATE = new Date('2026-01-01T00:00:00.000Z');
 // KPI集計対象年（2026年以降）
 export const KPI_START_YEAR = 2026;
 
+// KPI対象の最小社内No（251以上がKPI対象）
+export const KPI_MIN_INTERNAL_NO = 251;
+
+// 有効データの最小社内No（252以上が有効）
+export const PROSPECT_MIN_INTERNAL_NO = 252;
+
 // 有効データ開始日時（この日時以降のみ表示・集計・KPI対象）
 // 2026-01-12 13:49 JST = 2026-01-12 04:49 UTC
 export const PROSPECTS_ACTIVE_FROM = new Date('2026-01-12T04:49:00.000Z');
@@ -116,17 +122,66 @@ export function applyProspectTimeScope(prospects: Prospect[]): Prospect[] {
   return prospects.filter(isActiveProspectByTime);
 }
 
+// ======== internal_no ベースのスコープ ========
+
 /**
- * ProspectがKPI集計対象かどうかを判定
- * 時間スコープ: 2026-01-12 13:49 以降のみ
+ * internal_noがKPI対象（251以上）かどうかを判定
+ * string / number / undefined / null に対応
  */
-export function isProspectInFullScope(prospect: Prospect): boolean {
-  return isActiveProspectByTime(prospect);
+export function isKpiTargetInternalNo(
+  internalNo: string | number | undefined | null
+): boolean {
+  if (internalNo == null || internalNo === '') return false;
+  const num = typeof internalNo === 'number' ? internalNo : parseInt(String(internalNo), 10);
+  if (isNaN(num)) return false;
+  return num >= KPI_MIN_INTERNAL_NO;
 }
 
 /**
- * Prospect配列にスコープを適用
- * 2026-01-12 13:49 以降のデータのみ返す
+ * ProspectがKPI対象（internal_no >= 251）かどうかを判定
+ */
+export function isProspectKpiTarget(prospect: Prospect): boolean {
+  return isKpiTargetInternalNo(prospect.internalNo);
+}
+
+/**
+ * Prospect配列にKPIスコープ（internal_no >= 251）を適用
+ */
+export function applyProspectKpiScope(prospects: Prospect[]): Prospect[] {
+  return prospects.filter(isProspectKpiTarget);
+}
+
+/**
+ * Prospectのinternal_noが有効（>= 252）かどうかを判定
+ */
+export function isProspectActiveByInternalNo(prospect: Prospect): boolean {
+  const no = prospect.internalNo;
+  if (no == null) return false;
+  const num = typeof no === 'number' ? no : parseInt(String(no), 10);
+  if (isNaN(num)) return false;
+  return num >= PROSPECT_MIN_INTERNAL_NO;
+}
+
+/**
+ * Prospectが有効（internal_no >= 252）かどうかを判定
+ */
+export function isProspectActive(prospect: Prospect): boolean {
+  return isProspectActiveByInternalNo(prospect);
+}
+
+// ======== 完全スコープ（時間 + internal_no） ========
+
+/**
+ * ProspectがKPI集計対象かどうかを判定
+ * 時間スコープ: 2026-01-12 13:49 以降 AND internal_no >= 251
+ */
+export function isProspectInFullScope(prospect: Prospect): boolean {
+  return isActiveProspectByTime(prospect) && isKpiTargetInternalNo(prospect.internalNo);
+}
+
+/**
+ * Prospect配列に完全スコープを適用
+ * 時間スコープ + internal_no >= 251 の両方を満たすデータのみ返す
  */
 export function applyFullProspectScope(prospects: Prospect[]): Prospect[] {
   return prospects.filter(isProspectInFullScope);

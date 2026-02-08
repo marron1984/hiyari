@@ -28,6 +28,7 @@ export type WidgetType =
   | 'quality_risk'       // 品質/リスク統合
   | 'contracts'          // 契約/未収ハイライト
   | 'receivables'        // 未収金
+  | 'mbr'               // 月次改善レビュー（Ticket 127）
   | 'vacancy_inquiry_kpis' // Ticket 082: 空室問い合わせKPI
   | 'sales_tasks';       // Ticket 122: 今日の営業タスク
 
@@ -155,6 +156,8 @@ export interface DailyOpsWidget extends BaseWidget {
   hasFailedRecently: boolean;
   /** 失敗したステップ名（Ticket 067: 復旧導線用） */
   failedSteps?: string[];
+  /** Ticket 130: MBR改善タスク期限超過件数 */
+  mbrOverdueCount?: number;
 }
 
 /**
@@ -221,6 +224,16 @@ export interface QualityRiskWidget extends BaseWidget {
   highRiskCount: number;
   incidentCount: number;
   overdueActions: number;
+}
+
+/**
+ * MBRウィジェット（Ticket 127追加）
+ */
+export interface MbrWidget extends BaseWidget {
+  type: 'mbr';
+  latestMonth: string | null;    // 最新MBRの対象月（YYYY-MM）
+  generatedAt: string | null;    // 最新MBRの生成日時
+  available: boolean;            // MBRが存在するか
 }
 
 /**
@@ -296,6 +309,7 @@ export type Widget =
   | ContractsWidget
   | OsMapWidget
   | QualityRiskWidget
+  | MbrWidget
   | VacancyInquiryKpisWidget
   | SalesTasksWidget
   | BaseWidget;
@@ -381,6 +395,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
     'receivables',        // 未収金
     'daily_ops',          // 日次オペステータス
     'weekly_ops',         // 週次オペステータス
+    'mbr',                // 月次改善レビュー（Ticket 127）
   ],
 
   // executive: 事業全体俯瞰
@@ -397,6 +412,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
     'receivables',        // 未収金ハイライト
     'unclassified',       // 未分類スコープ
     'weekly_ops',         // WBRへの導線
+    'mbr',                // 月次改善レビュー（Ticket 127）
   ],
 
   // admin: システム運用・全体管理
@@ -418,6 +434,7 @@ export const ROLE_WIDGET_CONFIG: Record<AppRole, WidgetType[]> = {
     'corrective_actions', // 是正措置
     'licenses',           // 資格期限
     'receivables',        // 未収金
+    'mbr',                // 月次改善レビュー（Ticket 127）
   ],
 
   // auditor: 監査用ビュー
@@ -451,6 +468,7 @@ export const WIDGET_LABELS: Record<WidgetType, string> = {
   quality_risk: '品質/リスク',
   contracts: '契約',
   receivables: '未収金',
+  mbr: '月次改善レビュー',
   vacancy_inquiry_kpis: '空室問い合わせKPI', // Ticket 082
   sales_tasks: '営業タスク', // Ticket 122
 };

@@ -192,6 +192,19 @@ export type VacancyInquiryStage =
   | 'closed';          // クローズ
 
 /**
+ * 営業タスク結果コード（Ticket 123/124）
+ */
+export type SalesResultCode =
+  | 'contacted'         // 連絡済み
+  | 'tour_scheduled'    // 見学日程確定
+  | 'applied'           // 申込
+  | 'accepted'          // 入居決定
+  | 'not_interested'    // 興味なし
+  | 'no_answer'         // 不通
+  | 'rescheduled'       // リスケ
+  | 'other';            // その他
+
+/**
  * チケットイベントアクション
  */
 export type TicketEventAction =
@@ -221,6 +234,13 @@ export interface TicketMeta {
   vacancyUnitId?: string; // Ticket 072: 空室ユニットID
   contactHash?: string;   // Ticket 079: 連絡先ハッシュ（重複検出用）
   mergedCount?: number;   // Ticket 079: 統合された問い合わせ数
+  // Ticket 123/124: 営業タスク結果
+  leadScore?: number;
+  nextBestAction?: string;
+  resultCode?: SalesResultCode;
+  resultNote?: string;
+  stage?: string;           // 営業ステージ
+  originTicketId?: string;
   // Ticket 084: 申込関連
   appliedAt?: string;                // 申込日時（ISO）
   desiredMoveInDate?: string;        // 希望入居日（YYYY-MM-DD）
@@ -378,6 +398,7 @@ export interface TicketListFilter {
   overdue?: boolean;
   // Ticket 071: パイプライン絞り込み
   relatedType?: TicketRelatedType;
+  relatedId?: string;                  // Ticket B1: Firestore idempotency filter
   pipeline?: TicketPipeline;
   stage?: VacancyInquiryStage;
   slaBreached?: boolean;              // SLA超過のみ

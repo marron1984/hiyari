@@ -24,6 +24,7 @@ import {
   FileSignature,
   Layers,
   ShieldAlert,
+  BarChart3,
   Home,
   Users,
   Briefcase,
@@ -48,6 +49,7 @@ import type {
   ContractsWidget,
   OsMapWidget,
   QualityRiskWidget,
+  MbrWidget,
   VacancyInquiryKpisWidget,
   SalesTasksWidget,
 } from '@/lib/roleHome/types';
@@ -113,6 +115,9 @@ export function RoleHomeWidget({
       return <OsMapWidgetCard widget={widget as OsMapWidget} />;
     case 'quality_risk':
       return <QualityRiskWidgetCard widget={widget as QualityRiskWidget} />;
+    // Ticket 127: MBRウィジェット
+    case 'mbr':
+      return <MbrWidgetCard widget={widget as MbrWidget} />;
     // Ticket 082: 空室問い合わせKPI
     case 'vacancy_inquiry_kpis':
       return <VacancyInquiryKpisWidgetCard widget={widget as VacancyInquiryKpisWidget} />;
@@ -552,6 +557,14 @@ function DailyOpsWidgetCard({
           </div>
         </div>
       )}
+      {/* Ticket 130: MBR改善タスク期限超過 */}
+      {widget.mbrOverdueCount != null && widget.mbrOverdueCount > 0 && (
+        <div className="mt-2 p-2 bg-amber-50 rounded">
+          <div className="text-[10px] text-amber-700 font-medium">
+            MBR改善タスク期限超過: {widget.mbrOverdueCount}件
+          </div>
+        </div>
+      )}
     </WidgetCard>
   );
 }
@@ -778,6 +791,48 @@ function QualityRiskWidgetCard({ widget }: { widget: QualityRiskWidget }) {
   );
 }
 
+// Ticket 127: MBRウィジェット
+function MbrWidgetCard({ widget }: { widget: MbrWidget }) {
+  return (
+    <WidgetCard
+      icon={<BarChart3 className="w-4 h-4 text-indigo-500" />}
+      title={widget.title}
+      href={widget.href}
+      severity={widget.severity}
+    >
+      {widget.available ? (
+        <div className="space-y-2">
+          <div className="text-center">
+            <div className="text-xl font-bold text-indigo-600">{widget.latestMonth}</div>
+            <div className="text-[10px] text-zinc-500">最新MBR</div>
+          </div>
+          <div className="text-center">
+            <Badge className="bg-green-100 text-green-700 text-[10px]">
+              生成済み
+            </Badge>
+          </div>
+          {widget.generatedAt && (
+            <div className="text-center text-[10px] text-zinc-400">
+              {new Date(widget.generatedAt).toLocaleDateString('ja-JP')}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="text-center">
+            <div className="text-sm text-zinc-500">MBR未生成</div>
+          </div>
+          <div className="text-center">
+            <Badge className="bg-amber-100 text-amber-700 text-[10px]">
+              生成忘れ
+            </Badge>
+          </div>
+        </div>
+      )}
+    </WidgetCard>
+  );
+}
+
 // Ticket 082: 空室問い合わせKPIウィジェット
 function VacancyInquiryKpisWidgetCard({ widget }: { widget: VacancyInquiryKpisWidget }) {
   const formatRate = (rate: number) => `${Math.round(rate * 100)}%`;
@@ -990,6 +1045,7 @@ function getWidgetIcon(type: WidgetType) {
     receivables: Wallet,
     vacancy_inquiry_kpis: Home, // Ticket 082: 空室問い合わせKPI
     sales_tasks: Briefcase, // Ticket 122: 営業タスク
+    mbr: ClipboardCheck, // Ticket 127: 月次改善レビュー
   };
   return iconMap[type] ?? FileQuestion;
 }
