@@ -11,7 +11,7 @@
  */
 
 import { listTickets } from '@/lib/tickets/repo';
-import type { Ticket, TicketMeta, ViewerContext } from '@/lib/tickets/types';
+import type { Ticket, TicketMeta, ViewerContext, SalesTaskResultCode } from '@/lib/tickets/types';
 import { getAiVpConfig } from '@/lib/aiVp/settings';
 import type { AiVpConfig, AiVpWeights } from '@/lib/aiVp/defaultConfig';
 import type {
@@ -32,6 +32,10 @@ import {
 // ======== 定数 ========
 
 /** 進展とみなされる結果コード */
+const PROGRESSION_CODES: SalesTaskResultCode[] = ['tour_scheduled', 'applied', 'accepted'];
+
+/** 成功とみなされる結果コード */
+const SUCCESS_CODES: SalesTaskResultCode[] = ['accepted'];
 
 /** metaJson（またはレガシー meta）を安全に取得 */
 function getMeta(t: Ticket): TicketMeta | null {
@@ -61,6 +65,7 @@ export function aggregateMetrics(
   const filtered = salesTickets.filter((t) => new Date(t.closedAt || t.updatedAt) >= cutoff);
 
   // resultCode 分布
+  const codeCounts = new Map<SalesTaskResultCode, number>();
   for (const t of filtered) {
     const code = getMeta(t)!.resultCode!;
     codeCounts.set(code, (codeCounts.get(code) || 0) + 1);
@@ -77,6 +82,7 @@ export function aggregateMetrics(
   // ステージ進展率
   const stageMap = new Map<string, { total: number; progressed: number }>();
   for (const t of filtered) {
+    const stage = t.stage || 'unknown';
     const entry = stageMap.get(stage) || { total: 0, progressed: 0 };
     entry.total++;
     if (PROGRESSION_CODES.includes(getMeta(t)!.resultCode!)) {
