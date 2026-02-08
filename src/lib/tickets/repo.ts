@@ -879,6 +879,7 @@ export function getSlaBreachedTickets(): Ticket[] {
 // ========== Ticket 123: 営業タスク完了 ==========
 
 import type { SalesTaskResultCode } from './types';
+import { mapTaskResultToSalesResult } from './types';
 
 export interface CompleteSalesTaskRequest {
   resultCode: SalesTaskResultCode;
@@ -934,10 +935,12 @@ export function completeSalesTask(
   const beforeStatus = ticket.status;
   const beforeMeta = { ...(ticket.metaJson || {}) };
 
-  // meta を更新
+  // meta を更新（正規化結果コードも保存）
+  const normalizedResultCode = mapTaskResultToSalesResult(data.resultCode);
   const newMeta = {
     ...ticket.metaJson,
     resultCode: data.resultCode,
+    normalizedResultCode,
     resultNote: data.resultNote ?? undefined,
     completedAt: now,
     nextFollowUpAt: data.nextFollowUpAt ?? undefined,
