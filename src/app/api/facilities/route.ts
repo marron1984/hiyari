@@ -30,9 +30,23 @@ export async function GET(request: NextRequest) {
       .where('tenantId', '==', DEFAULT_TENANT_ID)
       .get();
 
+    // vacancyStatus も取得して結合
+    const [vacancySnap] = await Promise.all([
+      db.collection('vacancyStatus').get(),
+    ]);
+    const vacancyMap = new Map<string, { vacantCount: number; updatedAt: string | null }>();
+    vacancySnap.docs.forEach((d) => {
+      const vData = d.data();
+      vacancyMap.set(d.id, {
+        vacantCount: vData.vacantCount ?? 0,
+        updatedAt: vData.updatedAt?.toDate?.()?.toISOString() || null,
+      });
+    });
+
     const facilities = snapshot.docs
       .map((doc) => {
         const data = doc.data();
+        const vacancy = vacancyMap.get(doc.id);
         return {
           id: doc.id,
           name: data.name,
@@ -42,6 +56,8 @@ export async function GET(request: NextRequest) {
           note: data.note || null,
           isActive: data.isActive !== false,
           tenantId: data.tenantId,
+          vacantCount: vacancy?.vacantCount ?? null,
+          vacancyUpdatedAt: vacancy?.updatedAt ?? null,
           createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
           updatedAt: data.updatedAt?.toDate?.()?.toISOString() || null,
         };
