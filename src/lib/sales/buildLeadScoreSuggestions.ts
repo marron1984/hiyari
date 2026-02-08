@@ -82,7 +82,7 @@ export function aggregateMetrics(
   // ステージ進展率
   const stageMap = new Map<string, { total: number; progressed: number }>();
   for (const t of filtered) {
-    const stage = t.stage || 'unknown';
+    const stage = t.stage || getMeta(t)?.stage as string || 'unknown';
     const entry = stageMap.get(stage) || { total: 0, progressed: 0 };
     entry.total++;
     if (PROGRESSION_CODES.includes(getMeta(t)!.resultCode!)) {

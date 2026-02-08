@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { Users, Building2, Clock, CheckCircle, ArrowLeft } from 'lucide-react';
 import { LAUNCH_NAV_ITEMS } from '@/config/launchRoutes';
