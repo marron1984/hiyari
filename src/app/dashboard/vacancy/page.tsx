@@ -441,23 +441,32 @@ function FacilityDrawer({
 
   const facilityRooms = rooms.filter((r) => r.buildingName === facility.name);
 
-  // vacancyStatus を優先、なければ rooms から集計
+  // rooms が十分にある場合は rooms から集計、なければ vacancyStatus
   const cap = facility.capacity || 0;
-  const summary = (facility.vacantCount !== null && cap > 0)
+  const roomsPopulated = facilityRooms.length >= cap && cap > 0;
+  const summary = roomsPopulated
     ? {
-        total: cap,
-        available: facility.vacantCount,
-        locked: 0,
-        occupied: Math.max(0, cap - facility.vacantCount),
-        maintenance: 0,
-      }
-    : {
-        total: facilityRooms.length,
+        total: facilityRooms.filter((r) => r.status !== 'メンテナンス').length,
         available: facilityRooms.filter((r) => r.status === '空室').length,
         locked: facilityRooms.filter((r) => r.status === '予約').length,
         occupied: facilityRooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length,
         maintenance: facilityRooms.filter((r) => r.status === 'メンテナンス').length,
-      };
+      }
+    : (facility.vacantCount !== null && cap > 0)
+      ? {
+          total: cap,
+          available: facility.vacantCount,
+          locked: 0,
+          occupied: Math.max(0, cap - facility.vacantCount),
+          maintenance: 0,
+        }
+      : {
+          total: facilityRooms.length,
+          available: facilityRooms.filter((r) => r.status === '空室').length,
+          locked: facilityRooms.filter((r) => r.status === '予約').length,
+          occupied: facilityRooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length,
+          maintenance: facilityRooms.filter((r) => r.status === 'メンテナンス').length,
+        };
 
   return (
     <>
@@ -585,10 +594,14 @@ function FacilityDrawer({
 interface FacilityCardProps {
   facility: FacilityData;
   summary: FacilitySummary;
+  rooms: RoomData[];
   onClick: () => void;
 }
 
-function FacilityCard({ facility, summary, onClick }: FacilityCardProps) {
+function FacilityCard({ facility, summary, rooms, onClick }: FacilityCardProps) {
+  const facilityRooms = rooms
+    .filter((r) => r.buildingName === facility.name)
+    .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber, 'ja'));
   const occupancyRate = summary.totalRooms > 0
     ? Math.round((summary.occupied / summary.totalRooms) * 100)
     : null;
@@ -663,6 +676,43 @@ function FacilityCard({ facility, summary, onClick }: FacilityCardProps) {
         <p className="text-xs text-zinc-400 mt-1">
           稼働率 ({summary.occupied}/{summary.totalRooms}室)
         </p>
+
+        {/* 部屋番号一覧 */}
+        {facilityRooms.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-zinc-100">
+            <div className="flex flex-wrap gap-1">
+              {facilityRooms
+                .filter((r) => r.status !== 'メンテナンス')
+                .map((room) => {
+                  const cfg = ROOM_STATUS_CONFIG[room.status];
+                  return (
+                    <span
+                      key={room.id}
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${cfg?.bgColor || 'bg-gray-100'} ${cfg?.color || 'text-gray-700'}`}
+                      title={`${room.roomNumber} - ${cfg?.label || room.status}${room.occupantName ? ` (${room.occupantName})` : ''}`}
+                    >
+                      {room.roomNumber}
+                    </span>
+                  );
+                })}
+            </div>
+            {facilityRooms.filter((r) => r.status === 'メンテナンス').length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {facilityRooms
+                  .filter((r) => r.status === 'メンテナンス')
+                  .map((room) => (
+                    <span
+                      key={room.id}
+                      className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-yellow-50 text-yellow-600"
+                      title={`${room.roomNumber} - ${room.note || '修繕中'}`}
+                    >
+                      {room.roomNumber}
+                    </span>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -683,6 +733,8 @@ export default function VacancyPage() {
   const [selectedFacility, setSelectedFacility] = useState<FacilityData | null>(null);
   const [showAddFacilityModal, setShowAddFacilityModal] = useState(false);
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
   // 自動更新タイマー
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -692,12 +744,34 @@ export default function VacancyPage() {
   const isLeader = hasMinRole(user?.role, 'leader');
 
   // 施設ごとのサマリーを計算
-  // vacancyStatus がある場合はそちらを優先（ダッシュボードと同じデータソース）
-  // rooms は施設ドリルダウン（ドロワー）での部屋一覧表示に使用
+  // rooms が十分にある（インポート済み）場合は部屋単位で集計
+  // そうでなければ vacancyStatus から集計（ダッシュボードと同じ）
   const facilitySummaries: Record<string, FacilitySummary> = {};
   facilities.forEach((f) => {
     const cap = f.capacity || 0;
-    if (f.vacantCount !== null && cap > 0) {
+    const facilityRooms = rooms.filter((r) => r.buildingName === f.name);
+    // rooms がインポート済み: 部屋数 >= capacity なら完全データ
+    const roomsPopulated = facilityRooms.length >= cap && cap > 0;
+
+    if (roomsPopulated) {
+      // 部屋データから詳細集計（ロック・メンテナンスの内訳あり）
+      const occupied = facilityRooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length;
+      const available = facilityRooms.filter((r) => r.status === '空室').length;
+      const locked = facilityRooms.filter((r) => r.status === '予約').length;
+      const maintenance = facilityRooms.filter((r) => r.status === 'メンテナンス').length;
+      // 定員 = 入居中 + 予約 + 空室（メンテナンスは除外）
+      const effectiveCap = occupied + locked + available;
+      facilitySummaries[f.id] = {
+        facilityId: f.id,
+        facilityName: f.name,
+        totalRooms: effectiveCap,
+        available,
+        locked,
+        occupied,
+        maintenance,
+        occupancyRate: effectiveCap > 0 ? Math.round((occupied / effectiveCap) * 100) : null,
+      };
+    } else if (f.vacantCount !== null && cap > 0) {
       // vacancyStatus データあり：ダッシュボードと同一ソースで集計
       const vacant = f.vacantCount;
       const occupied = cap - vacant;
@@ -712,19 +786,15 @@ export default function VacancyPage() {
         occupancyRate: Math.round((Math.max(0, occupied) / cap) * 100),
       };
     } else {
-      // vacancyStatus なし：rooms から集計
-      const facilityRooms = rooms.filter((r) => r.buildingName === f.name);
-      const occupied = facilityRooms.filter((r) => r.status === '入居中' || r.status === '退去予定').length;
-      const total = facilityRooms.length || cap;
       facilitySummaries[f.id] = {
         facilityId: f.id,
         facilityName: f.name,
-        totalRooms: total,
-        available: facilityRooms.filter((r) => r.status === '空室').length,
-        locked: facilityRooms.filter((r) => r.status === '予約').length,
-        occupied,
-        maintenance: facilityRooms.filter((r) => r.status === 'メンテナンス').length,
-        occupancyRate: total > 0 ? Math.round((occupied / total) * 100) : null,
+        totalRooms: 0,
+        available: 0,
+        locked: 0,
+        occupied: 0,
+        maintenance: 0,
+        occupancyRate: null,
       };
     }
   });
@@ -873,6 +943,32 @@ export default function VacancyPage() {
     await fetchData(false);
   };
 
+  // 部屋データインポート
+  const handleImportRooms = async () => {
+    setImporting(true);
+    setImportMessage(null);
+    try {
+      const res = await fetch('/api/admin/bootstrap/rooms-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId: 'defaultTenant', force: true }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || 'インポートに失敗しました');
+      }
+      setImportMessage(`${result.summary.totalRooms}部屋をインポートしました`);
+      await fetchData(false);
+    } catch (err) {
+      setImportMessage(err instanceof Error ? err.message : 'インポートエラー');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // 部屋データが不足しているか判定
+  const needsRoomImport = facilities.length > 0 && rooms.length < 10;
+
   if (loading) {
     return <Loading text="読み込み中..." />;
   }
@@ -930,6 +1026,36 @@ export default function VacancyPage() {
                 </div>
                 <Button variant="secondary" onClick={() => fetchData(true)} className="text-sm">
                   再試行
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {/* 部屋データ未インポートバナー */}
+          {needsRoomImport && isAdmin && (
+            <Card className="p-4 mb-6 bg-amber-50 border border-amber-200">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-amber-800">部屋データが未登録です</p>
+                  <p className="text-sm text-amber-700 mt-1">
+                    Sheetsの入居状況データをインポートして、各部屋の番号・状態を表示できます。
+                  </p>
+                  {importMessage && (
+                    <p className="text-sm mt-2 font-medium text-amber-900">{importMessage}</p>
+                  )}
+                </div>
+                <Button
+                  onClick={handleImportRooms}
+                  disabled={importing}
+                  className="flex items-center gap-2 whitespace-nowrap"
+                >
+                  {importing ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  {importing ? 'インポート中...' : '部屋データをインポート'}
                 </Button>
               </div>
             </Card>
@@ -1022,6 +1148,7 @@ export default function VacancyPage() {
                     maintenance: 0,
                     occupancyRate: null,
                   }}
+                  rooms={rooms}
                   onClick={() => setSelectedFacility(facility)}
                 />
               ))}

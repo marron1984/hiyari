@@ -80,7 +80,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 本番実行
+    // 本番実行: 既存 rooms を削除してから再作成
+    if (force) {
+      const existingRooms = await adminDb
+        .collection('rooms')
+        .where('tenantId', '==', tenantId)
+        .get();
+      if (!existingRooms.empty) {
+        const delBatch = adminDb.batch();
+        existingRooms.docs.forEach((doc) => delBatch.delete(doc.ref));
+        await delBatch.commit();
+      }
+    }
+
     const batch = adminDb.batch();
     let roomCount = 0;
 
