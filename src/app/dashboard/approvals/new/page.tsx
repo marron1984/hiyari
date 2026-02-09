@@ -3,7 +3,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/contexts/AuthContext';
+import { storage } from '@/lib/firebase';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Card, CardContent, Button, Input, Select, Badge } from '@/components/ui';
 import {
@@ -68,6 +70,8 @@ function NewApprovalContent() {
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const formDataRef = useRef<RingiFormData | null>(null);
   const currentStepRef = useRef(1);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   const initialFormData: RingiFormData = {
     title: '',
@@ -174,6 +178,104 @@ function NewApprovalContent() {
   // 下書きをクリア（送信成功時に呼ぶ）
   const clearDraft = () => {
     localStorage.removeItem(DRAFT_STORAGE_KEY);
+  };
+
+  // ファイルアップロード
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const ALLOWED_TYPES = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+  ];
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    setUploading(true);
+    try {
+      const newAttachments: RingiAttachment[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+
+        // バリデーション
+        if (file.size > MAX_FILE_SIZE) {
+          alert(`${file.name} は10MBを超えています`);
+          continue;
+        }
+        if (!ALLOWED_TYPES.includes(file.type)) {
+          alert(`${file.name} は対応していないファイル形式です`);
+          continue;
+        }
+
+        // Firebase Storage にアップロード
+        if (!storage) {
+          alert('ストレージが設定されていません');
+          break;
+        }
+        const timestamp = Date.now();
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const storagePath = `ringi/${user.tenantId}/${user.id}/${timestamp}_${safeName}`;
+        const fileRef = ref(storage, storagePath);
+        await uploadBytes(fileRef, file);
+        const fileUrl = await getDownloadURL(fileRef);
+
+        // 添付タイプを推定
+        const lowerName = file.name.toLowerCase();
+        let attachType: 'QUOTE' | 'CONTRACT_DRAFT' | 'OTHER' = 'OTHER';
+        if (lowerName.includes('見積') || lowerName.includes('quote') || lowerName.includes('estimate')) {
+          attachType = 'QUOTE';
+        } else if (lowerName.includes('契約') || lowerName.includes('contract')) {
+          attachType = 'CONTRACT_DRAFT';
+        }
+
+        newAttachments.push({
+          id: `${timestamp}_${i}`,
+          type: attachType,
+          fileName: file.name,
+          fileUrl,
+          fileMime: file.type,
+          fileSize: file.size,
+          uploadedAt: new Date(),
+        });
+      }
+
+      if (newAttachments.length > 0) {
+        setFormData((prev) => ({
+          ...prev,
+          attachments: [...(prev.attachments || []), ...newAttachments],
+        }));
+      }
+    } catch (err) {
+      console.error('File upload error:', err);
+      alert('ファイルのアップロードに失敗しました');
+    } finally {
+      setUploading(false);
+      // input をリセット（同じファイルを再選択可能にする）
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveAttachment = (attachmentId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      attachments: (prev.attachments || []).filter((a) => a.id !== attachmentId),
+    }));
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   };
 
   const updateField = <K extends keyof RingiFormData>(field: K, value: RingiFormData[K]) => {
@@ -648,19 +750,88 @@ function NewApprovalContent() {
                   </div>
                 )}
 
-                {/* 添付リスト（プレースホルダー） */}
-                <div className="border-2 border-dashed border-zinc-300 rounded-lg p-8 text-center">
-                  <Paperclip className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
-                  <p className="text-zinc-500 mb-4">
-                    ファイルをドラッグ＆ドロップ、またはクリックして選択
-                  </p>
-                  <Button variant="secondary">
-                    <Upload className="w-4 h-4 mr-2" />
-                    ファイルを選択
-                  </Button>
-                  <p className="text-xs text-zinc-400 mt-2">
-                    PDF, Word, Excel, 画像（10MB以下）
-                  </p>
+                {/* アップロード済みファイル一覧 */}
+                {(formData.attachments || []).length > 0 && (
+                  <div className="space-y-2">
+                    {(formData.attachments || []).map((att) => (
+                      <div
+                        key={att.id}
+                        className="flex items-center gap-3 p-3 bg-white border border-zinc-200 rounded-lg"
+                      >
+                        <FileText className="w-5 h-5 text-blue-500 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-zinc-900 truncate">
+                            {att.fileName}
+                          </p>
+                          <p className="text-xs text-zinc-400">
+                            {att.fileSize ? formatFileSize(att.fileSize) : ''}{' '}
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              att.type === 'QUOTE' ? 'bg-blue-100 text-blue-700' :
+                              att.type === 'CONTRACT_DRAFT' ? 'bg-purple-100 text-purple-700' :
+                              'bg-zinc-100 text-zinc-600'
+                            }`}>
+                              {att.type === 'QUOTE' ? '見積書' : att.type === 'CONTRACT_DRAFT' ? '契約書案' : 'その他'}
+                            </span>
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAttachment(att.id)}
+                          className="p-1 hover:bg-red-50 rounded text-zinc-400 hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ファイル選択エリア */}
+                <div
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    uploading ? 'border-blue-300 bg-blue-50' : 'border-zinc-300 hover:border-zinc-400'
+                  }`}
+                  onClick={() => !uploading && fileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (uploading) return;
+                    const dt = e.dataTransfer;
+                    if (dt.files.length > 0 && fileInputRef.current) {
+                      fileInputRef.current.files = dt.files;
+                      handleFileSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
+                    }
+                  }}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  {uploading ? (
+                    <>
+                      <Upload className="w-12 h-12 mx-auto text-blue-400 mb-4 animate-pulse" />
+                      <p className="text-blue-600 font-medium">アップロード中...</p>
+                    </>
+                  ) : (
+                    <>
+                      <Paperclip className="w-12 h-12 mx-auto text-zinc-400 mb-4" />
+                      <p className="text-zinc-500 mb-4">
+                        ファイルをドラッグ＆ドロップ、またはクリックして選択
+                      </p>
+                      <Button variant="secondary" type="button" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
+                        <Upload className="w-4 h-4 mr-2" />
+                        ファイルを選択
+                      </Button>
+                      <p className="text-xs text-zinc-400 mt-2">
+                        PDF, Word, Excel, 画像（10MB以下）
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 {getFieldError('attachments') && (
@@ -797,6 +968,23 @@ function NewApprovalContent() {
                       <p className="text-zinc-600 whitespace-pre-wrap">
                         {formData.expectedEffect}
                       </p>
+                    </div>
+                  )}
+
+                  {(formData.attachments || []).length > 0 && (
+                    <div className="border-t pt-4">
+                      <h4 className="font-medium text-zinc-700 mb-2">
+                        添付ファイル（{(formData.attachments || []).length}件）
+                      </h4>
+                      <ul className="space-y-1">
+                        {(formData.attachments || []).map((att) => (
+                          <li key={att.id} className="text-sm text-zinc-600 flex items-center gap-2">
+                            <Paperclip className="w-3.5 h-3.5 text-zinc-400" />
+                            {att.fileName}
+                            {att.fileSize ? ` (${formatFileSize(att.fileSize)})` : ''}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
                 </div>
