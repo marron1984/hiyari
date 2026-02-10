@@ -9,7 +9,7 @@ import {
   getSheetData,
   detectColumnMapping,
 } from '@/lib/google-sheets';
-import { hasMinRole } from '@/lib/auth';
+import { canEditProspects } from '@/lib/auth';
 
 // GET: インポート状況・プレビューを取得
 export async function GET(request: NextRequest) {
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const userData = userDoc.data();
     const userRole = userData?.role || 'user';
 
-    if (!hasMinRole(userRole, 'leader')) {
+    if (!canEditProspects(userRole, userData?.modulePermissions)) {
       return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 });
     }
 
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     const userData = userDoc.data();
     const userRole = userData?.role || 'user';
 
-    if (!hasMinRole(userRole, 'leader')) {
+    if (!canEditProspects(userRole, userData?.modulePermissions)) {
       return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 });
     }
 

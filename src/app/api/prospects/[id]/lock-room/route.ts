@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lockRoomForApplication, unlockRoom, updateProspect, getProspect, getRooms } from '@/lib/prospect';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
-import { UserRole } from '@/types';
+import { UserRole, ModulePermissions } from '@/types';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: prospectId } = await params;
     const body = await request.json();
-    const { roomId, userId, userName, userRole } = body;
+    const { roomId, userId, userName, userRole, modulePermissions } = body;
 
     // パラメータチェック
     if (!roomId || !userId || !userName || !userRole) {
@@ -58,7 +58,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       userId,
       userName,
       userRole as UserRole,
-      DEFAULT_TENANT_ID
+      DEFAULT_TENANT_ID,
+      modulePermissions as ModulePermissions | undefined
     );
 
     if (!lockResult.success) {
@@ -85,7 +86,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
       userId,
       userName,
-      userRole as UserRole
+      userRole as UserRole,
+      modulePermissions as ModulePermissions | undefined
     );
 
     return NextResponse.json({
@@ -121,7 +123,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: prospectId } = await params;
     const body = await request.json();
-    const { userId, userName, userRole } = body;
+    const { userId, userName, userRole, modulePermissions } = body;
 
     // パラメータチェック
     if (!userId || !userName || !userRole) {
@@ -174,7 +176,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       },
       userId,
       userName,
-      userRole as UserRole
+      userRole as UserRole,
+      modulePermissions as ModulePermissions | undefined
     );
 
     return NextResponse.json({

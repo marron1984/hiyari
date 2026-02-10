@@ -15,7 +15,7 @@ import {
   getAuditLogs,
 } from '@/lib/prospect';
 import { getFacilities } from '@/lib/vacancy';
-import { hasMinRole } from '@/lib/auth';
+import { canEditProspects } from '@/lib/auth';
 import {
   Prospect,
   ProspectStatus,
@@ -84,7 +84,7 @@ export default function ProspectDetailPage() {
   const [generatingDocs, setGeneratingDocs] = useState(false);
   const [docsGenerated, setDocsGenerated] = useState(false);
 
-  const canManage = hasMinRole(user?.role, 'leader');
+  const canManage = canEditProspects(user?.role, user?.modulePermissions);
 
   const fetchData = useCallback(async () => {
     if (!user || !id) return;
@@ -175,7 +175,8 @@ export default function ProspectDetailPage() {
         undefined,
         user.id,
         user.name,
-        user.role
+        user.role,
+        user.modulePermissions
       );
       setSuccess(`ステータスを「${newStatus}」に更新しました`);
       await fetchData();
@@ -218,7 +219,8 @@ export default function ProspectDetailPage() {
         undefined,
         user.id,
         user.name,
-        user.role
+        user.role,
+        user.modulePermissions
       );
 
       setSuccess(`ステータスを「${pendingStatus}」に更新し、${lockData.data.roomName}をロックしました`);
@@ -245,7 +247,8 @@ export default function ProspectDetailPage() {
         undefined,
         user.id,
         user.name,
-        user.role
+        user.role,
+        user.modulePermissions
       );
       setSuccess(`ステータスを「${pendingStatus}」に更新しました（部屋未選択）`);
       setShowRoomModal(false);
@@ -344,7 +347,8 @@ export default function ProspectDetailPage() {
         assignee.name,
         user.id,
         user.name,
-        user.role
+        user.role,
+        user.modulePermissions
       );
       setSuccess(`担当者を「${assignee.name}」に変更しました`);
       await fetchData();
@@ -366,7 +370,8 @@ export default function ProspectDetailPage() {
         editData,
         user.id,
         user.name,
-        user.role
+        user.role,
+        user.modulePermissions
       );
       setSuccess('保存しました');
       setEditing(false);

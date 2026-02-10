@@ -76,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             branchId: userData.branchId || '',
             jobType: userData.jobType as JobType || '介護職',
             tenantId: userData.tenantId || DEFAULT_TENANT_ID,
+            modulePermissions: userData.modulePermissions || undefined,
             createdAt: toDate(userData.createdAt) || new Date(),
           });
         } else {
@@ -169,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         branchId: userData.branchId,
         jobType: userData.jobType,
         tenantId: userData.tenantId,
+        modulePermissions: userData.modulePermissions || undefined,
         createdAt: toDate(userData.createdAt) || new Date(),
       });
     }

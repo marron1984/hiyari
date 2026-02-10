@@ -1,6 +1,6 @@
 // ======== 認証・権限チェックユーティリティ ========
 
-import { UserRole, ROLE_LEVELS } from '@/types';
+import { UserRole, ROLE_LEVELS, ModulePermissions } from '@/types';
 
 /**
  * ロールが指定レベル以上かチェック
@@ -81,6 +81,21 @@ export const ASSIGNABLE_ROLES: { value: UserRole; label: string }[] = [
   { value: 'leader', label: 'リーダー' },
   { value: 'admin', label: '管理者' },
 ];
+
+// ======== モジュール別権限チェック ========
+
+/**
+ * 入居希望者の編集権限があるかチェック
+ * - leader以上のロールは常に編集可能
+ * - modulePermissions.prospects.canEdit が true のユーザーも編集可能
+ */
+export function canEditProspects(
+  userRole: UserRole | undefined,
+  modulePermissions?: ModulePermissions
+): boolean {
+  if (hasMinRole(userRole, 'leader')) return true;
+  return modulePermissions?.prospects?.canEdit === true;
+}
 
 // ======== CHAOS 経営OS 権限 ========
 
