@@ -325,7 +325,7 @@ async function notifyLineWorks(
 
   // 緊急度に応じたプレフィックス
   const urgencyPrefix = alert.urgency === 'high' ? '【緊急】' : alert.urgency === 'mid' ? '【重要】' : '';
-  const message = `${urgencyPrefix}[AI副社長]\n${alert.message}`;
+  const message = `${urgencyPrefix}${alert.message}\n\n吉田`;
 
   await sendLineWorksMessage(groupId, message);
 
@@ -392,7 +392,7 @@ async function updateResident(
     updatedBy: userId,
     updatedByName: userName,
     updateSource: 'ai_vp',
-    updateReason: update.reason || 'AI副社長による更新',
+    updateReason: update.reason || '吉田による更新',
   });
 
   return {

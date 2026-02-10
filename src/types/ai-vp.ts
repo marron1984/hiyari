@@ -525,7 +525,7 @@ export interface AiApproval {
 
 // ======== AI返信フォーマット定数 ========
 
-export const AI_REPLY_FOOTER = 'AI副社長として一次回答です。最終判断が必要な内容は吉田に確認します。';
+export const AI_REPLY_FOOTER = '吉田';
 
 export const AI_REPLY_FORMAT = `
 【結論】
@@ -537,7 +537,7 @@ export const AI_REPLY_FORMAT = `
 【迷ったら】
 {escalation}
 
-※ ${AI_REPLY_FOOTER}
+${AI_REPLY_FOOTER}
 `.trim();
 
 // ======== デフォルト値 ========

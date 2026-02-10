@@ -84,7 +84,7 @@ describe('AI副社長 返信生成', () => {
     test('L3の返信にはフッターが含まれる', () => {
       const reply = generateDefaultReply('expense', 'L3');
       expect(reply).toContain(AI_REPLY_FOOTER);
-      expect(reply).toContain('吉田に確認');
+      expect(reply).toContain('確認して改めて連絡');
     });
 
     test('L2の返信にはフッターが含まれる', () => {

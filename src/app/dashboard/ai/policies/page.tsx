@@ -338,7 +338,7 @@ function AiPoliciesContent() {
           <div className="max-w-4xl mx-auto px-4 py-12 text-center">
             <Shield className="w-16 h-16 mx-auto text-gray-300 mb-4" />
             <h1 className="text-xl font-bold text-gray-900 mb-2">アクセス権限がありません</h1>
-            <p className="text-gray-500">AI副社長機能は吉田のみアクセス可能です。</p>
+            <p className="text-gray-500">この機能は吉田のみアクセス可能です。</p>
           </div>
         </main>
       </>
@@ -375,7 +375,7 @@ function AiPoliciesContent() {
             <div className="ml-2 flex-1">
               <h1 className="text-xl font-bold text-gray-900 flex items-center">
                 <Shield className="w-5 h-5 mr-2 text-indigo-600" />
-                AI副社長ポリシー
+                返信ポリシー
               </h1>
               <p className="text-sm text-gray-500">
                 自動返信ルールとFAQテンプレート
@@ -390,11 +390,11 @@ function AiPoliciesContent() {
                 <Info className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-blue-800">
-                    AI副社長の動作ポリシー
+                    吉田返信の動作ポリシー
                   </p>
                   <p className="text-xs text-blue-600 mt-1">
-                    これは支援のための仕組みです。吉田本人になりすますことはせず、AI副社長として明示して返信します。
-                    不可逆な判断（支払実行、契約確定、懲戒等）は必ず吉田が最終判断します。
+                    スタッフには吉田本人からの返信として送信されます。
+                    不可逆な判断（支払実行、契約確定、懲戒等）は必ず吉田が最終承認します。
                   </p>
                 </div>
               </div>

@@ -134,7 +134,7 @@ function AiInboxContent() {
           <div className="max-w-4xl mx-auto px-4 py-12 text-center">
             <Shield className="w-16 h-16 mx-auto text-gray-300 mb-4" />
             <h1 className="text-xl font-bold text-gray-900 mb-2">アクセス権限がありません</h1>
-            <p className="text-gray-500">AI副社長機能は吉田のみアクセス可能です。</p>
+            <p className="text-gray-500">この機能は吉田のみアクセス可能です。</p>
           </div>
         </main>
       </>
@@ -183,10 +183,10 @@ function AiInboxContent() {
             <div>
               <h1 className="text-xl font-bold text-gray-900 flex items-center">
                 <Bot className="w-6 h-6 mr-2 text-indigo-600" />
-                AI副社長（吉田チーム）
+                吉田受信箱
               </h1>
               <p className="text-sm text-gray-500 mt-1">
-                LINE WORKSからの質問に一次回答を行います
+                LINE WORKSからの質問に吉田として返答します
               </p>
             </div>
             <div className="flex gap-2">
@@ -225,10 +225,10 @@ function AiInboxContent() {
                 <Shield className="w-5 h-5 text-blue-600 mt-0.5" />
                 <div>
                   <p className="text-sm font-medium text-blue-800">
-                    これは支援のための仕組みです。評価や査定のためではありません。
+                    スタッフには吉田本人からの返答として送信されます。
                   </p>
                   <p className="text-xs text-blue-600 mt-1">
-                    L1（低リスク）は自動返信、L2/L3は承認後に送信されます。AI副社長として明示し、吉田本人になりすますことはしません。
+                    L1（低リスク）は自動返信、L2/L3は承認後に送信されます。評価や査定のためではありません。
                   </p>
                 </div>
               </div>

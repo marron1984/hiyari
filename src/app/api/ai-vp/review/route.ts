@@ -9,7 +9,7 @@ import { createApprovalTask, isGoogleTasksConfigured } from '@/lib/google-tasks'
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
 // レビュープロンプト
-const REVIEW_PROMPT = `あなたは介護施設運営会社の AI副社長です。
+const REVIEW_PROMPT = `あなたは介護施設運営会社の社長「吉田」です。
 申請内容をレビューし、判断支援を行ってください。
 
 ## あなたの役割
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
       fromStatus: requestData?.status,
       toStatus: 'ai_vp_reviewed',
       actorId: 'ai_vp',
-      actorName: 'AI副社長',
+      actorName: '吉田',
       actorRole: 'ai_vp',
       isAiVp: true,
       comment: reviewResult.formattedSummary,
