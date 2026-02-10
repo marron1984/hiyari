@@ -196,6 +196,7 @@ export const CARE_LEVEL_LABELS: Record<number, string> = {
 export interface ViewerContext {
   userId: string;
   role: AppRole;
+  modulePermissions?: { vacancies?: { canEdit?: boolean } };
 }
 
 /**
@@ -208,9 +209,11 @@ export function canViewVacancyUnits(viewer: ViewerContext): boolean {
 /**
  * 空室ユニットを編集できるか
  * Ticket 075: leader も編集可に
+ * modulePermissions.vacancies.canEdit でも編集可
  */
 export function canEditVacancyUnits(viewer: ViewerContext): boolean {
-  return ['leader', 'manager', 'executive', 'admin'].includes(viewer.role);
+  if (['leader', 'manager', 'executive', 'admin'].includes(viewer.role)) return true;
+  return viewer.modulePermissions?.vacancies?.canEdit === true;
 }
 
 /**

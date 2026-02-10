@@ -18,6 +18,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 const TARGET_EMAIL = 'ikuta@aska-g.com';
 const MODULE_PERMISSIONS = {
   prospects: { canEdit: true },
+  vacancies: { canEdit: true },
 };
 // ========================================
 

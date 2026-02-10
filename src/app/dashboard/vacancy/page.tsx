@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button, Card, Badge } from '@/components/ui';
 import { Loading } from '@/components/Loading';
-import { hasMinRole } from '@/lib/auth';
+import { hasMinRole, canEditVacancies } from '@/lib/auth';
 import {
   Building2,
   RefreshCw,
@@ -741,7 +741,7 @@ export default function VacancyPage() {
   const AUTO_REFRESH_INTERVAL = 60000;
 
   const isAdmin = hasMinRole(user?.role, 'admin');
-  const isLeader = hasMinRole(user?.role, 'leader');
+  const isLeader = hasMinRole(user?.role, 'leader') || canEditVacancies(user?.role, user?.modulePermissions);
 
   // 施設ごとのサマリーを計算
   // rooms が十分にある（インポート済み）場合は部屋単位で集計

@@ -21,6 +21,7 @@ function ModulePermissionsContent() {
   const { user, firebaseUser } = useAuth();
   const [email, setEmail] = useState('');
   const [prospectsCanEdit, setProspectsCanEdit] = useState(true);
+  const [vacanciesCanEdit, setVacanciesCanEdit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -43,7 +44,8 @@ function ModulePermissionsContent() {
         body: JSON.stringify({
           email,
           modulePermissions: {
-            prospects: { canEdit: prospectsCanEdit },
+            ...(prospectsCanEdit ? { prospects: { canEdit: true } } : {}),
+            ...(vacanciesCanEdit ? { vacancies: { canEdit: true } } : {}),
           },
         }),
       });
@@ -127,6 +129,15 @@ function ModulePermissionsContent() {
                       className="rounded border-zinc-300"
                     />
                     <span className="text-sm">入居希望者の編集権限</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={vacanciesCanEdit}
+                      onChange={(e) => setVacanciesCanEdit(e.target.checked)}
+                      className="rounded border-zinc-300"
+                    />
+                    <span className="text-sm">空室管理の編集権限</span>
                   </label>
                 </div>
               </div>

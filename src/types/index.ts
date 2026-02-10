@@ -141,6 +141,7 @@ export interface ScoreBreakdownItem {
 // モジュール別権限オーバーライド
 export interface ModulePermissions {
   prospects?: { canEdit?: boolean };  // 入居希望者
+  vacancies?: { canEdit?: boolean };  // 空室管理
 }
 
 // ユーザー
