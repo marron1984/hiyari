@@ -33,6 +33,7 @@ import {
   CategoryPreference,
   DEFAULT_CATEGORY_PREFERENCE,
 } from '@/types/notification';
+import { PushNotificationManager } from '@/components/pwa/PushNotificationManager';
 
 // アイコンマッピング
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -286,6 +287,9 @@ export default function NotificationSettingsPage() {
                 </div>
               </div>
             </Card>
+
+            {/* プッシュ通知 */}
+            <PushNotificationManager />
 
             {/* 打刻リマインダー（詳細設定） */}
             <Card>
