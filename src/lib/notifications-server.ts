@@ -3,7 +3,16 @@
 
 import { getAdminDb } from './firebase-admin';
 import { Timestamp } from 'firebase-admin/firestore';
-import { NotificationType, CreateNotificationInput } from '@/types/notification';
+import {
+  NotificationType,
+  CreateNotificationInput,
+  NotificationPreferences,
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  DEFAULT_CATEGORY_PREFERENCE,
+  getCategoryForType,
+  NotificationCategoryKey,
+  CategoryPreference,
+} from '@/types/notification';
 
 const NOTIFICATIONS_COLLECTION = 'notifications';
 
@@ -50,6 +59,78 @@ export async function createNotificationsServer(
 
   await batch.commit();
   return docIds;
+}
+
+// ===================
+// 通知設定チェック
+// ===================
+
+/**
+ * ユーザーの通知設定を取得（サーバーサイド）
+ */
+export async function getUserNotificationPreferences(
+  tenantId: string,
+  userId: string
+): Promise<NotificationPreferences | null> {
+  const db = getAdminDb();
+  const docSnap = await db
+    .collection('notificationPreferences')
+    .doc(`${tenantId}_${userId}`)
+    .get();
+
+  if (!docSnap.exists) return null;
+  return { id: docSnap.id, ...docSnap.data() } as NotificationPreferences;
+}
+
+/**
+ * 通知タイプに対するユーザー設定を取得
+ */
+function getUserCategoryPref(
+  prefs: NotificationPreferences | null,
+  notificationType: NotificationType
+): CategoryPreference {
+  const category = getCategoryForType(notificationType);
+  if (!category || !prefs || !prefs.categories?.[category]) {
+    return DEFAULT_CATEGORY_PREFERENCE;
+  }
+  return prefs.categories[category];
+}
+
+/**
+ * 設定を考慮した通知作成（サーバーサイド）
+ *
+ * ユーザーの通知設定に基づいてフィルタリング：
+ * - mode='off': 通知を作成しない
+ * - mode='digest': 通知を作成（digest フラグ付き）
+ * - mode='immediate': 即時通知を作成
+ * - channel設定に基づいてLINE WORKS送信フラグを付与
+ */
+export async function createNotificationWithPreferences(
+  input: CreateNotificationInput
+): Promise<{ id: string | null; skipped: boolean; mode: string; channel: string }> {
+  const prefs = await getUserNotificationPreferences(input.tenantId, input.userId);
+  const categoryPref = getUserCategoryPref(prefs, input.type);
+
+  if (categoryPref.mode === 'off') {
+    return { id: null, skipped: true, mode: 'off', channel: 'none' };
+  }
+
+  const db = getAdminDb();
+  const docRef = await db.collection(NOTIFICATIONS_COLLECTION).add({
+    ...input,
+    read: false,
+    createdAt: Timestamp.now(),
+    deliveryMode: categoryPref.mode,
+    deliveryChannel: categoryPref.channel,
+    lineWorksEnabled: prefs?.lineWorksEnabled ?? false,
+  });
+
+  return {
+    id: docRef.id,
+    skipped: false,
+    mode: categoryPref.mode,
+    channel: categoryPref.channel,
+  };
 }
 
 // ===================
