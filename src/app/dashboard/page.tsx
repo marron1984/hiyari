@@ -18,6 +18,8 @@ import {
   HelpCircle,
   ArrowRight,
   Eye,
+  BarChart3,
+  AlertTriangle,
 } from 'lucide-react';
 
 /**
@@ -287,6 +289,20 @@ function DashboardContent() {
           <Link href="/dashboard/knowledge" className="hover:text-zinc-600">
             知識ハブ
           </Link>
+          {(navKey === 'exec' || navKey === 'manager') && (
+            <>
+              <span>・</span>
+              <Link href="/dashboard/business-summary" className="hover:text-zinc-600 flex items-center gap-1">
+                <BarChart3 className="w-3 h-3" />
+                業務サマリー
+              </Link>
+              <span>・</span>
+              <Link href="/dashboard/quality-risk" className="hover:text-zinc-600 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                品質・リスク
+              </Link>
+            </>
+          )}
           {navKey === 'exec' && (
             <>
               <span>・</span>

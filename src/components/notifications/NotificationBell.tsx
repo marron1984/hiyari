@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, X, Check, Clock, FileText, AlertTriangle, Calendar, MessageSquare, ClipboardCheck, RotateCcw, Brain, Heart, Flame, Banknote } from 'lucide-react';
+import { Bell, X, Check, Clock, FileText, AlertTriangle, Calendar, MessageSquare, ClipboardCheck, RotateCcw, Brain, Heart, Flame, Banknote, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Notification, NotificationType } from '@/types/notification';
 import {
@@ -209,6 +210,18 @@ export function NotificationBell() {
                 })}
               </ul>
             )}
+          </div>
+
+          {/* フッター - 通知センターリンク */}
+          <div className="border-t border-zinc-100 px-4 py-3">
+            <Link
+              href="/dashboard/notifications"
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center justify-center gap-1"
+              onClick={() => setIsOpen(false)}
+            >
+              通知センターを見る
+              <ChevronRight className="w-4 h-4" />
+            </Link>
           </div>
         </div>
       )}

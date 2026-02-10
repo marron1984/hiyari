@@ -993,6 +993,17 @@ export default function VacancyPage() {
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              {isLeader && (
+                <Link href="/dashboard/vacancy-inquiries">
+                  <Button
+                    variant="secondary"
+                    className="flex items-center gap-2"
+                  >
+                    <Users className="w-4 h-4" />
+                    問合せ管理
+                  </Button>
+                </Link>
+              )}
               {isAdmin && (
                 <Button
                   variant="secondary"
