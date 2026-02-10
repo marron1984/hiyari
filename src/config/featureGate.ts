@@ -171,6 +171,8 @@ export function isRouteEnabledByGate(pathname: string): boolean {
     '/api/users', '/api/notifications', '/api/business-units',
     '/api/tickets', '/api/admin/bootstrap', '/api/dashboard',
     '/dashboard/notifications',
+    '/admin/module-permissions', '/api/admin/module-permissions',
+    '/dashboard/admin',
   ];
   for (const prefix of commonPrefixes) {
     if (pathname === prefix || pathname.startsWith(prefix + '/') || pathname.startsWith(prefix + '?')) {
