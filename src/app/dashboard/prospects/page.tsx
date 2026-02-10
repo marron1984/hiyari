@@ -32,11 +32,17 @@ import {
   Clock,
   TrendingUp,
   Upload,
+  FileSpreadsheet,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { LAUNCH_MODE } from '@/config/launchMode';
 
+// デフォルトのスプレッドシートID（環境変数 or ハードコード）
+const DEFAULT_SHEET_ID = '1y00PmqtKRCsyrvaH8ydO3QbzVbFXGEVA2dpKOUDJMaY';
+
 export default function ProspectsPage() {
-  const { user } = useAuth();
+  const { user, firebaseUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [stats, setStats] = useState<{
@@ -54,6 +60,17 @@ export default function ProspectsPage() {
   const [sortBy, setSortBy] = useState<'receivedAt' | 'daysElapsed' | 'interviewDateTime'>('receivedAt');
   // 過去データ表示（スコープ外）- デフォルト非表示
   const [showLegacyData, setShowLegacyData] = useState(false);
+
+  // スプレッドシート同期
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{
+    success: boolean;
+    imported: number;
+    duplicates: number;
+    archived: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
 
   const canManage = canEditProspects(user?.role, user?.modulePermissions);
 
@@ -77,6 +94,61 @@ export default function ProspectsPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // スプレッドシート同期
+  const handleSync = async () => {
+    if (!firebaseUser || syncing) return;
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch('/api/google/sheets', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sheetId: DEFAULT_SHEET_ID,
+          dryRun: false,
+          yearFilter: 2026,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSyncResult({
+          success: true,
+          imported: data.imported || 0,
+          duplicates: data.duplicates || 0,
+          archived: data.archived || 0,
+          skipped: data.skipped || 0,
+          errors: data.errors || [],
+        });
+        // 同期後にデータ再取得
+        fetchData();
+      } else {
+        setSyncResult({
+          success: false,
+          imported: 0,
+          duplicates: 0,
+          archived: 0,
+          skipped: 0,
+          errors: [data.error || '同期に失敗しました'],
+        });
+      }
+    } catch (error) {
+      setSyncResult({
+        success: false,
+        imported: 0,
+        duplicates: 0,
+        archived: 0,
+        skipped: 0,
+        errors: [error instanceof Error ? error.message : '同期に失敗しました'],
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // スコープ外データの件数（時間スコープ外）
   const legacyCount = prospects.filter((p) => !isProspectInFullScope(p)).length;
@@ -160,6 +232,18 @@ export default function ProspectsPage() {
               </Button>
               {canManage && (
                 <>
+                  <Button
+                    variant="secondary"
+                    onClick={handleSync}
+                    disabled={syncing}
+                  >
+                    {syncing ? (
+                      <RefreshCw className="w-4 h-4 mr-1 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="w-4 h-4 mr-1" />
+                    )}
+                    {syncing ? '同期中...' : 'シート同期'}
+                  </Button>
                   {!LAUNCH_MODE && (
                     <Link href="/admin/prospects/import">
                       <Button variant="secondary">
@@ -178,6 +262,42 @@ export default function ProspectsPage() {
               )}
             </div>
           </div>
+
+          {/* 同期結果 */}
+          {syncResult && (
+            <div
+              className={`mb-4 p-3 rounded-lg border flex items-start gap-2 ${
+                syncResult.success
+                  ? 'bg-green-50 border-green-200'
+                  : 'bg-red-50 border-red-200'
+              }`}
+            >
+              {syncResult.success ? (
+                <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+              ) : (
+                <XCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                {syncResult.success ? (
+                  <p className="text-sm text-green-800">
+                    同期完了：{syncResult.imported}件インポート
+                    {syncResult.duplicates > 0 && `、${syncResult.duplicates}件重複スキップ`}
+                    {syncResult.archived > 0 && `、${syncResult.archived}件アーカイブ`}
+                  </p>
+                ) : (
+                  <p className="text-sm text-red-800">
+                    同期エラー：{syncResult.errors[0] || '不明なエラー'}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setSyncResult(null)}
+                className="text-zinc-400 hover:text-zinc-600 flex-shrink-0"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {/* 統計カード */}
           {stats && (
