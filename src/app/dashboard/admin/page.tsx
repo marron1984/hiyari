@@ -28,6 +28,11 @@ import {
   Wrench,
   BookOpen,
   Ticket,
+  GitBranch,
+  Network,
+  Upload,
+  UserCog,
+  Banknote,
 } from 'lucide-react';
 
 // 管理メニュー項目
@@ -165,6 +170,42 @@ const ADMIN_MENU_ITEMS = [
     icon: Shield,
     label: '品質・リスク',
     description: '品質指標・リスクダッシュボード',
+  },
+  {
+    href: '/admin/approval-routes',
+    icon: GitBranch,
+    label: '承認ルート',
+    description: '承認フロー・条件の設定',
+  },
+  {
+    href: '/admin/org-tree',
+    icon: Network,
+    label: '組織ツリー',
+    description: '組織構造の可視化・管理',
+  },
+  {
+    href: '/admin/roles',
+    icon: UserCog,
+    label: 'ロール管理',
+    description: '役職・ロールの管理',
+  },
+  {
+    href: '/admin/attendance/import',
+    icon: Upload,
+    label: '勤怠インポート',
+    description: 'Excelからシフトデータを取込',
+  },
+  {
+    href: '/admin/external-accounts',
+    icon: Users,
+    label: '外部アカウント',
+    description: '外部連携ユーザーの管理',
+  },
+  {
+    href: '/admin/financial-ai',
+    icon: Banknote,
+    label: '財務AI',
+    description: '財務分析・指標ダッシュボード',
   },
 ];
 
