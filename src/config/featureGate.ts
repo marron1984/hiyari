@@ -2,8 +2,8 @@
  * Feature Gate - モジュール単位の公開制御
  *
  * 各モジュールの有効/無効を一元管理する。
- * Launch Mode では4機能（入居希望/空室/打刻/承認）のみ有効。
- * 通常モードでは全モジュール有効。
+ * Launch Mode では全11モジュール有効。
+ * (AI副社長は isAiVpOwner で別途アクセス制御)
  */
 
 import { LAUNCH_MODE } from './launchMode';
@@ -126,6 +126,9 @@ const LAUNCH_ENABLED: ModuleId[] = [
   'incidents',
   'improvements',
   'rankings',
+  'sales',
+  'os',
+  'ai-vp',
   'docs',
 ];
 

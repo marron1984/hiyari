@@ -4,7 +4,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 /**
  * GET /api/dashboard/counts
  *
- * Launch Mode ダッシュボード用のモジュール別カウント（7機能）
+ * ダッシュボード用のモジュール別カウント（全機能）
  *
  * Query params:
  * - tenantId: string (必須)
@@ -41,6 +41,8 @@ export async function GET(request: NextRequest) {
       incidentsResult,
       improvementsResult,
       documentsResult,
+      salesResult,
+      osResult,
     ] = await Promise.all([
       // ── Prospects ──
       (async () => {
@@ -256,6 +258,69 @@ export async function GET(request: NextRequest) {
           return { total: 0, missing: 0, submitted: 0 };
         }
       })(),
+
+      // ── Sales ──
+      (async () => {
+        try {
+          const dealsSnap = await adminDb
+            .collection('salesDeals')
+            .where('tenantId', '==', tenantId)
+            .get();
+
+          const accountsSnap = await adminDb
+            .collection('salesAccounts')
+            .where('tenantId', '==', tenantId)
+            .get();
+
+          let activeDeals = 0;
+          let staleDeals = 0;
+          const staleCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+          dealsSnap.docs.forEach((d) => {
+            const data = d.data();
+            if (data.status === 'active' || data.status === 'negotiating' || data.status === 'proposal') {
+              activeDeals++;
+              const updatedAt = data.updatedAt?.toDate?.();
+              if (updatedAt && updatedAt < staleCutoff) {
+                staleDeals++;
+              }
+            }
+          });
+
+          return { activeDeals, staleDeals, totalAccounts: accountsSnap.size };
+        } catch {
+          return { activeDeals: 0, staleDeals: 0, totalAccounts: 0 };
+        }
+      })(),
+
+      // ── OS (Staff Condition) ──
+      (async () => {
+        try {
+          const checkinsSnap = await adminDb
+            .collection('staffCheckins')
+            .where('tenantId', '==', tenantId)
+            .where('date', '==', today)
+            .get();
+
+          const todayCheckins = checkinsSnap.size;
+          let yellowRisk = 0;
+          let redRisk = 0;
+
+          checkinsSnap.docs.forEach((d) => {
+            const data = d.data();
+            const burnoutScore = data.burnoutScore ?? data.burnoutRisk ?? 0;
+            if (burnoutScore >= 60) {
+              redRisk++;
+            } else if (burnoutScore >= 40) {
+              yellowRisk++;
+            }
+          });
+
+          return { todayCheckins, yellowRisk, redRisk };
+        } catch {
+          return { todayCheckins: 0, yellowRisk: 0, redRisk: 0 };
+        }
+      })(),
     ]);
 
     return NextResponse.json(
@@ -267,6 +332,8 @@ export async function GET(request: NextRequest) {
         incidents: incidentsResult,
         improvements: improvementsResult,
         documents: documentsResult,
+        sales: salesResult,
+        os: osResult,
         fetchedAt: now.toISOString(),
       },
       {

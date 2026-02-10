@@ -65,6 +65,8 @@ export function MobileBottomNav() {
       { href: '/improvements', label: '改善', icon: Lightbulb, matchPaths: ['/improvements'] },
       { href: '/rankings', label: 'ランク', icon: Trophy, matchPaths: ['/rankings'] },
       { href: '/dashboard/docs', label: 'ドキュメント', icon: FolderOpen, matchPaths: ['/dashboard/docs'] },
+      { href: '/sales', label: '営業', icon: Briefcase, matchPaths: ['/sales'] },
+      { href: '/dashboard/os', label: '経営OS', icon: Activity, matchPaths: ['/dashboard/os'] },
     ];
     const launchMoreItems = filterNavItems(launchMoreAll);
 
