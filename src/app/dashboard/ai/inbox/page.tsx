@@ -1,21 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
-import { Card, CardHeader, CardTitle, CardContent, Badge, Button, Input } from '@/components/ui';
+import { Card, CardContent, Badge, Button, Input } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { PreviewBadge } from '@/components/PreviewBadge';
 import { isAiVpOwner } from '@/lib/auth';
 import {
-  LwMessage,
-  AiReply,
   AiReplyRiskLevel,
   AiReplyCategory,
   AiReplyStatus,
-  AI_REPLY_RISK_LABELS,
   AI_REPLY_RISK_COLORS,
   AI_REPLY_CATEGORY_LABELS,
   AI_REPLY_STATUS_LABELS,
@@ -23,106 +20,52 @@ import {
 } from '@/types/ai-vp';
 import {
   Bot,
-  MessageSquare,
-  Filter,
   Search,
   AlertTriangle,
-  CheckCircle,
   Clock,
   Send,
-  X,
   ChevronRight,
   Shield,
   Inbox,
   RefreshCw,
 } from 'lucide-react';
 
-// ダミーデータ（PR2以降で実データに置き換え）
-const DUMMY_MESSAGES: (LwMessage & { reply?: AiReply })[] = [
-  {
-    id: 'msg1',
-    messageId: 'lw_msg_001',
-    roomId: 'room_001',
-    senderId: 'user_001',
-    senderName: '山田太郎',
-    senderRole: 'staff',
-    text: '入居者様の書類提出について確認したいのですが、必要書類は何ですか？',
-    receivedAt: new Date(Date.now() - 1000 * 60 * 30),
-    createdAt: new Date(Date.now() - 1000 * 60 * 30),
-    reply: {
-      id: 'reply1',
-      messageId: 'msg1',
-      riskLevel: 'L1',
-      category: 'nyukyo',
-      draftText: '入居に必要な書類は以下の通りです...',
-      status: 'sent',
-      createdAt: new Date(Date.now() - 1000 * 60 * 29),
-      sentAt: new Date(Date.now() - 1000 * 60 * 28),
-    },
-  },
-  {
-    id: 'msg2',
-    messageId: 'lw_msg_002',
-    roomId: 'room_001',
-    senderId: 'user_002',
-    senderName: '佐藤花子',
-    senderRole: 'staff',
-    text: '紹介会社への返金対応について相談です。契約解除になった場合の手続きを教えてください。',
-    receivedAt: new Date(Date.now() - 1000 * 60 * 15),
-    createdAt: new Date(Date.now() - 1000 * 60 * 15),
-    reply: {
-      id: 'reply2',
-      messageId: 'msg2',
-      riskLevel: 'L3',
-      category: 'expense',
-      draftText: '返金に関する判断は吉田の承認が必要です...',
-      status: 'pending_approval',
-      escalationReason: '金銭に関わる判断のため吉田承認が必要',
-      createdAt: new Date(Date.now() - 1000 * 60 * 14),
-    },
-  },
-  {
-    id: 'msg3',
-    messageId: 'lw_msg_003',
-    roomId: 'room_002',
-    senderId: 'user_003',
-    senderName: '田中一郎',
-    senderRole: 'staff',
-    text: '勤怠の打刻を間違えてしまいました。修正方法を教えてください。',
-    receivedAt: new Date(Date.now() - 1000 * 60 * 5),
-    createdAt: new Date(Date.now() - 1000 * 60 * 5),
-    reply: {
-      id: 'reply3',
-      messageId: 'msg3',
-      riskLevel: 'L1',
-      category: 'ops',
-      draftText: '打刻修正の手順をご案内します...',
-      status: 'draft',
-      createdAt: new Date(Date.now() - 1000 * 60 * 4),
-    },
-  },
-  {
-    id: 'msg4',
-    messageId: 'lw_msg_004',
-    roomId: 'room_001',
-    senderId: 'user_004',
-    senderName: '鈴木次郎',
-    senderRole: 'staff',
-    text: '入居者のご家族からクレームがありました。対応方法を教えてください。',
-    receivedAt: new Date(Date.now() - 1000 * 60 * 2),
-    createdAt: new Date(Date.now() - 1000 * 60 * 2),
-    reply: {
-      id: 'reply4',
-      messageId: 'msg4',
-      riskLevel: 'L3',
-      category: 'risk',
-      draftText: 'クレーム対応は吉田に確認が必要です...',
-      status: 'pending_approval',
-      escalationReason: 'クレーム対応は高リスクのため吉田承認が必要',
-      createdAt: new Date(Date.now() - 1000 * 60 * 1),
-    },
-  },
-];
+interface InboxMessage {
+  id: string;
+  messageId: string;
+  roomId: string;
+  senderId: string;
+  senderName: string;
+  senderRole?: string;
+  text: string;
+  receivedAt: string;
+  createdAt: string;
+  reply: {
+    id: string;
+    messageId: string;
+    riskLevel: AiReplyRiskLevel;
+    category: string;
+    draftText: string;
+    finalText?: string;
+    status: AiReplyStatus;
+    templateId?: string;
+    escalationReason?: string;
+    createdAt: string;
+    updatedAt?: string;
+    sentAt?: string;
+  } | null;
+}
+
+interface InboxStats {
+  total: number;
+  pendingApproval: number;
+  draft: number;
+  sent: number;
+  rejected: number;
+  l1: number;
+  l2: number;
+  l3: number;
+}
 
 export default function AiInboxPage() {
   return (
@@ -133,30 +76,46 @@ export default function AiInboxPage() {
 }
 
 function AiInboxContent() {
-  const { user } = useAuth();
+  const { user, firebaseUser } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [messages, setMessages] = useState<(LwMessage & { reply?: AiReply })[]>([]);
+  const [messages, setMessages] = useState<InboxMessage[]>([]);
+  const [stats, setStats] = useState<InboxStats>({ total: 0, pendingApproval: 0, draft: 0, sent: 0, rejected: 0, l1: 0, l2: 0, l3: 0 });
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRisk, setFilterRisk] = useState<AiReplyRiskLevel | 'all'>('all');
   const [filterStatus, setFilterStatus] = useState<AiReplyStatus | 'all'>('all');
+  const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const canAccess = user && isAiVpOwner(user.email);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!canAccess) {
-        setLoading(false);
-        return;
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (!canAccess || !user?.email) return;
+    if (isRefresh) setRefreshing(true);
+
+    try {
+      const res = await fetch('/api/ai-vp/inbox', {
+        headers: { 'X-User-Email': user.email },
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
 
-      // TODO: PR2で実データに置き換え
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setMessages(DUMMY_MESSAGES);
+      const data = await res.json();
+      setMessages(data.messages || []);
+      setStats(data.stats || { total: 0, pendingApproval: 0, draft: 0, sent: 0, rejected: 0, l1: 0, l2: 0, l3: 0 });
+      setFetchError(null);
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : 'データ取得エラー');
+    } finally {
       setLoading(false);
-    };
+      setRefreshing(false);
+    }
+  }, [canAccess, user?.email]);
 
+  useEffect(() => {
     fetchData();
-  }, [canAccess]);
+  }, [fetchData]);
 
   if (loading) {
     return (
@@ -182,7 +141,7 @@ function AiInboxContent() {
     );
   }
 
-  // フィルター適用
+  // フィルター適用（検索はクライアントサイド、risk/statusはAPI側でも対応可）
   const filteredMessages = messages.filter(msg => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -200,16 +159,9 @@ function AiInboxContent() {
     return true;
   });
 
-  // 統計
-  const stats = {
-    total: messages.length,
-    pendingApproval: messages.filter(m => m.reply?.status === 'pending_approval').length,
-    draft: messages.filter(m => m.reply?.status === 'draft').length,
-    sent: messages.filter(m => m.reply?.status === 'sent').length,
-    l3Count: messages.filter(m => m.reply?.riskLevel === 'L3').length,
-  };
-
-  const formatTime = (date: Date) => {
+  const formatTime = (dateStr: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 1000 / 60);
@@ -244,12 +196,27 @@ function AiInboxContent() {
                   ポリシー
                 </Button>
               </Link>
-              <Button variant="outline" size="sm">
-                <RefreshCw className="w-4 h-4 mr-1" />
+              <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing}>
+                <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
                 更新
               </Button>
             </div>
           </div>
+
+          {/* エラー表示 */}
+          {fetchError && (
+            <Card className="mb-6 bg-red-50 border-red-200">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-red-800">データ取得エラー</p>
+                    <p className="text-xs text-red-600 mt-1">{fetchError}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* 注意文 */}
           <Card className="mb-6 bg-blue-50 border-blue-200">
@@ -290,15 +257,15 @@ function AiInboxContent() {
                 <Clock className={`w-8 h-8 ${stats.pendingApproval > 0 ? 'text-yellow-300' : 'text-gray-300'}`} />
               </div>
             </Card>
-            <Card className={`p-4 ${stats.l3Count > 0 ? 'bg-red-50' : ''}`}>
+            <Card className={`p-4 ${stats.l3 > 0 ? 'bg-red-50' : ''}`}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500">高リスク（L3）</p>
-                  <p className={`text-2xl font-bold ${stats.l3Count > 0 ? 'text-red-600' : 'text-gray-400'}`}>
-                    {stats.l3Count}
+                  <p className={`text-2xl font-bold ${stats.l3 > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                    {stats.l3}
                   </p>
                 </div>
-                <AlertTriangle className={`w-8 h-8 ${stats.l3Count > 0 ? 'text-red-300' : 'text-gray-300'}`} />
+                <AlertTriangle className={`w-8 h-8 ${stats.l3 > 0 ? 'text-red-300' : 'text-gray-300'}`} />
               </div>
             </Card>
             <Card className="p-4">
@@ -390,7 +357,7 @@ function AiInboxContent() {
                             <span className="text-xs text-gray-400">{formatTime(msg.receivedAt)}</span>
                             {msg.reply?.category && (
                               <Badge className="bg-gray-100 text-gray-600 text-xs">
-                                {AI_REPLY_CATEGORY_LABELS[msg.reply.category]}
+                                {AI_REPLY_CATEGORY_LABELS[msg.reply.category as AiReplyCategory] || msg.reply.category}
                               </Badge>
                             )}
                           </div>
