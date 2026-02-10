@@ -155,6 +155,13 @@ export default function CommitteesPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Link
+            href="/dashboard/meeting-minutes"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50"
+          >
+            <FileText className="w-4 h-4" />
+            議事録一覧
+          </Link>
           <button
             onClick={() => setShowNewMeetingModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50"

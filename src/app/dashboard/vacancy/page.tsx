@@ -23,6 +23,7 @@ import {
   DoorOpen,
   MapPin,
   ChevronRight,
+  BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -994,15 +995,26 @@ export default function VacancyPage() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {isLeader && (
-                <Link href="/dashboard/vacancy-inquiries">
-                  <Button
-                    variant="secondary"
-                    className="flex items-center gap-2"
-                  >
-                    <Users className="w-4 h-4" />
-                    問合せ管理
-                  </Button>
-                </Link>
+                <>
+                  <Link href="/dashboard/vacancy-inquiries">
+                    <Button
+                      variant="secondary"
+                      className="flex items-center gap-2"
+                    >
+                      <Users className="w-4 h-4" />
+                      問合せ管理
+                    </Button>
+                  </Link>
+                  <Link href="/dashboard/vacancy-analytics">
+                    <Button
+                      variant="secondary"
+                      className="flex items-center gap-2"
+                    >
+                      <BarChart3 className="w-4 h-4" />
+                      分析
+                    </Button>
+                  </Link>
+                </>
               )}
               {isAdmin && (
                 <Button

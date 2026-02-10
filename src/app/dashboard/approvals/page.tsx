@@ -20,6 +20,7 @@ import {
   Timer,
   ClipboardList,
   ChevronDown,
+  History,
 } from 'lucide-react';
 import { getAllRingis } from '@/lib/ringi';
 import { Ringi, RingiStatus, RINGI_STATUS_LABELS, RINGI_STATUS_COLORS } from '@/types';
@@ -263,6 +264,18 @@ export default function ApprovalsListPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Link href="/dashboard/returns">
+              <Button variant="outline" size="sm">
+                <RotateCcw className="w-4 h-4 mr-1" />
+                差戻し
+              </Button>
+            </Link>
+            <Link href="/dashboard/approval-log">
+              <Button variant="outline" size="sm">
+                <History className="w-4 h-4 mr-1" />
+                ログ
+              </Button>
+            </Link>
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>

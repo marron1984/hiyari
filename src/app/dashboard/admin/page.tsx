@@ -33,6 +33,15 @@ import {
   Upload,
   UserCog,
   Banknote,
+  Award,
+  Package,
+  FileSignature,
+  History,
+  UserCheck,
+  ClipboardCheck,
+  BarChart3 as BarChartIcon,
+  Briefcase,
+  Mail,
 } from 'lucide-react';
 
 // 管理メニュー項目
@@ -206,6 +215,90 @@ const ADMIN_MENU_ITEMS = [
     icon: Banknote,
     label: '財務AI',
     description: '財務分析・指標ダッシュボード',
+  },
+  {
+    href: '/dashboard/contracts',
+    icon: Briefcase,
+    label: '契約管理',
+    description: '契約の期限・リスク・更新管理',
+  },
+  {
+    href: '/dashboard/inventory',
+    icon: Package,
+    label: '備品在庫',
+    description: '消耗品・設備の在庫管理',
+  },
+  {
+    href: '/dashboard/certifications',
+    icon: Award,
+    label: '資格管理',
+    description: '従業員の資格・有効期限管理',
+  },
+  {
+    href: '/dashboard/onboarding',
+    icon: UserCheck,
+    label: 'オンボーディング',
+    description: '新人受入・研修進捗管理',
+  },
+  {
+    href: '/dashboard/consent',
+    icon: ClipboardCheck,
+    label: '同意書管理',
+    description: '利用者同意書の管理・追跡',
+  },
+  {
+    href: '/dashboard/licenses',
+    icon: FileSignature,
+    label: 'ライセンス管理',
+    description: '事業所許可証・届出の管理',
+  },
+  {
+    href: '/dashboard/esign-log',
+    icon: FileSignature,
+    label: '電子署名ログ',
+    description: '署名・同意の証跡管理',
+  },
+  {
+    href: '/dashboard/ops-report',
+    icon: BarChartIcon,
+    label: '運営レポート',
+    description: '運営状況の定期レポート',
+  },
+  {
+    href: '/dashboard/mbr',
+    icon: BarChartIcon,
+    label: 'MBR',
+    description: '月次経営レビュー',
+  },
+  {
+    href: '/dashboard/approval-log',
+    icon: History,
+    label: '承認ログ',
+    description: '承認履歴の監査証跡',
+  },
+  {
+    href: '/dashboard/spam',
+    icon: Mail,
+    label: 'スパム管理',
+    description: 'スパム通知のフィルタ・管理',
+  },
+  {
+    href: '/dashboard/read-status',
+    icon: CheckCircle,
+    label: '既読ステータス',
+    description: '通知・文書の既読状況確認',
+  },
+  {
+    href: '/dashboard/ref-sources',
+    icon: Database,
+    label: '参照元管理',
+    description: 'データソース・参照元の管理',
+  },
+  {
+    href: '/dashboard/ai-executive-assistant',
+    icon: Brain,
+    label: 'AI経営アシスタント',
+    description: 'AI経営サポート・分析',
   },
 ];
 

@@ -14,6 +14,8 @@ import {
   BookOpen,
   ChevronRight,
   Filter,
+  Award,
+  FileText,
 } from 'lucide-react';
 import type {
   TrainingSession,
@@ -115,13 +117,29 @@ export default function TrainingPage() {
               </p>
             </div>
           </div>
-          <Link
-            href="/dashboard/training/sessions/new"
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            セッション作成
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/dashboard/certifications"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50 transition-colors"
+            >
+              <Award className="w-4 h-4" />
+              資格管理
+            </Link>
+            <Link
+              href="/dashboard/training-reports"
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50 transition-colors"
+            >
+              <FileText className="w-4 h-4" />
+              実施報告
+            </Link>
+            <Link
+              href="/dashboard/training/sessions/new"
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              セッション作成
+            </Link>
+          </div>
         </div>
 
         {/* サマリーカード */}
