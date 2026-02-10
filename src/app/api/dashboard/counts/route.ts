@@ -4,18 +4,10 @@ import { getAdminDb } from '@/lib/firebase-admin';
 /**
  * GET /api/dashboard/counts
  *
- * Launch Mode ダッシュボード用のモジュール別カウント
+ * ダッシュボード用のモジュール別カウント（全機能）
  *
  * Query params:
  * - tenantId: string (必須)
- *
- * Returns:
- * {
- *   prospects: { total, newThisWeek, byStatus },
- *   vacancies: { totalCapacity, totalVacant, occupancyRate },
- *   attendance: { todayClockedIn, pendingOvertime },
- *   approvals: { pending, todayNew, total },
- * }
  */
 
 function getDateStr(date: Date): string {
@@ -38,12 +30,19 @@ export async function GET(request: NextRequest) {
     const today = getDateStr(now);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
     // 並列で全モジュールのカウントを取得
     const [
       prospectsResult,
       vacanciesResult,
       attendanceResult,
       approvalsResult,
+      incidentsResult,
+      improvementsResult,
+      documentsResult,
+      salesResult,
+      osResult,
     ] = await Promise.all([
       // ── Prospects ──
       (async () => {
@@ -174,6 +173,154 @@ export async function GET(request: NextRequest) {
           return { pending: 0, todayNew: 0, total: 0 };
         }
       })(),
+
+      // ── Incidents ──
+      (async () => {
+        try {
+          const snap = await adminDb
+            .collection('incidents')
+            .where('tenantId', '==', tenantId)
+            .get();
+
+          const total = snap.size;
+          let thisMonth = 0;
+          let fraudFlagged = 0;
+
+          snap.docs.forEach((d) => {
+            const data = d.data();
+            const createdAt = data.createdAt?.toDate?.();
+            if (createdAt && createdAt >= monthStart) {
+              thisMonth++;
+            }
+            if (data.fraudFlag) {
+              fraudFlagged++;
+            }
+          });
+
+          return { thisMonth, total, fraudFlagged };
+        } catch {
+          return { thisMonth: 0, total: 0, fraudFlagged: 0 };
+        }
+      })(),
+
+      // ── Improvements ──
+      (async () => {
+        try {
+          const snap = await adminDb
+            .collection('improvements')
+            .where('tenantId', '==', tenantId)
+            .get();
+
+          const total = snap.size;
+          let adopted = 0;
+          let pendingReview = 0;
+
+          snap.docs.forEach((d) => {
+            const data = d.data();
+            if (data.status === 'adopted') {
+              adopted++;
+            }
+            if (data.status === 'submitted' || data.status === 'reviewing') {
+              pendingReview++;
+            }
+          });
+
+          return { total, adopted, pendingReview };
+        } catch {
+          return { total: 0, adopted: 0, pendingReview: 0 };
+        }
+      })(),
+
+      // ── Documents ──
+      (async () => {
+        try {
+          const snap = await adminDb
+            .collection('documents')
+            .where('tenantId', '==', tenantId)
+            .get();
+
+          const total = snap.size;
+          let missing = 0;
+          let submitted = 0;
+
+          snap.docs.forEach((d) => {
+            const data = d.data();
+            if (data.status === 'MISSING' || data.status === 'EXPIRED') {
+              missing++;
+            }
+            if (data.status === 'SUBMITTED' || data.status === 'APPROVED' || data.status === 'SIGNED') {
+              submitted++;
+            }
+          });
+
+          return { total, missing, submitted };
+        } catch {
+          return { total: 0, missing: 0, submitted: 0 };
+        }
+      })(),
+
+      // ── Sales ──
+      (async () => {
+        try {
+          const dealsSnap = await adminDb
+            .collection('salesDeals')
+            .where('tenantId', '==', tenantId)
+            .get();
+
+          const accountsSnap = await adminDb
+            .collection('salesAccounts')
+            .where('tenantId', '==', tenantId)
+            .get();
+
+          let activeDeals = 0;
+          let staleDeals = 0;
+          const staleCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+          dealsSnap.docs.forEach((d) => {
+            const data = d.data();
+            if (data.status === 'active' || data.status === 'negotiating' || data.status === 'proposal') {
+              activeDeals++;
+              const updatedAt = data.updatedAt?.toDate?.();
+              if (updatedAt && updatedAt < staleCutoff) {
+                staleDeals++;
+              }
+            }
+          });
+
+          return { activeDeals, staleDeals, totalAccounts: accountsSnap.size };
+        } catch {
+          return { activeDeals: 0, staleDeals: 0, totalAccounts: 0 };
+        }
+      })(),
+
+      // ── OS (Staff Condition) ──
+      (async () => {
+        try {
+          const checkinsSnap = await adminDb
+            .collection('staffCheckins')
+            .where('tenantId', '==', tenantId)
+            .where('date', '==', today)
+            .get();
+
+          const todayCheckins = checkinsSnap.size;
+          let yellowRisk = 0;
+          let redRisk = 0;
+
+          checkinsSnap.docs.forEach((d) => {
+            const data = d.data();
+            const burnoutScore = data.burnoutScore ?? data.burnoutRisk ?? 0;
+            if (burnoutScore >= 60) {
+              redRisk++;
+            } else if (burnoutScore >= 40) {
+              yellowRisk++;
+            }
+          });
+
+          return { todayCheckins, yellowRisk, redRisk };
+        } catch {
+          return { todayCheckins: 0, yellowRisk: 0, redRisk: 0 };
+        }
+      })(),
     ]);
 
     return NextResponse.json(
@@ -182,6 +329,11 @@ export async function GET(request: NextRequest) {
         vacancies: vacanciesResult,
         attendance: attendanceResult,
         approvals: approvalsResult,
+        incidents: incidentsResult,
+        improvements: improvementsResult,
+        documents: documentsResult,
+        sales: salesResult,
+        os: osResult,
         fetchedAt: now.toISOString(),
       },
       {

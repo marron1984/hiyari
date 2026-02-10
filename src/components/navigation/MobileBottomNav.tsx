@@ -27,6 +27,7 @@ import {
   Brain,
   LogOut,
   Sparkles,
+  FolderOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
@@ -48,15 +49,36 @@ export function MobileBottomNav() {
   if (!user) return null;
 
   // Launch Mode: 専用ナビゲーション（featureGate で有効なモジュールのみ）
+  // ボトムバー: ホーム + 主要4機能。それ以外は「その他」メニューで表示。
   if (LAUNCH_MODE) {
-    const launchNavAll: NavItem[] = [
+    const launchMainNavAll: NavItem[] = [
       { href: '/launch', label: 'ホーム', icon: Home, matchPaths: ['/launch'] },
-      { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus, matchPaths: ['/dashboard/prospects'] },
-      { href: '/dashboard/vacancy', label: '空室', icon: Building2, matchPaths: ['/dashboard/vacancy'] },
       { href: '/attendance', label: '打刻', icon: Clock, matchPaths: ['/attendance'] },
       { href: '/dashboard/approvals', label: '承認', icon: ClipboardCheck, matchPaths: ['/dashboard/approvals'] },
+      { href: '/submit', label: '報告', icon: FileText, matchPaths: ['/submit', '/incident'] },
     ];
-    const launchNavItems = filterNavItems(launchNavAll);
+    const launchMainItems = filterNavItems(launchMainNavAll);
+
+    const launchMoreAll: NavItem[] = [
+      { href: '/dashboard/prospects', label: '入居希望', icon: UserPlus, matchPaths: ['/dashboard/prospects'] },
+      { href: '/dashboard/vacancy', label: '空室', icon: Building2, matchPaths: ['/dashboard/vacancy'] },
+      { href: '/improvements', label: '改善', icon: Lightbulb, matchPaths: ['/improvements'] },
+      { href: '/rankings', label: 'ランク', icon: Trophy, matchPaths: ['/rankings'] },
+      { href: '/dashboard/docs', label: 'ドキュメント', icon: FolderOpen, matchPaths: ['/dashboard/docs'] },
+      { href: '/sales', label: '営業', icon: Briefcase, matchPaths: ['/sales'] },
+      { href: '/dashboard/os', label: '経営OS', icon: Activity, matchPaths: ['/dashboard/os'] },
+    ];
+    const launchMoreItems = filterNavItems(launchMoreAll);
+
+    const launchAdminAll: NavItem[] = isLeaderOrAbove
+      ? [
+          { href: '/admin/incidents', label: '報告管理', icon: BarChart3 },
+          { href: '/admin/attendance/dashboard', label: '勤怠管理', icon: Clock },
+          { href: '/dashboard/admin/ringi', label: '稟議管理', icon: ClipboardCheck },
+          { href: '/admin/improvements', label: '改善管理', icon: Lightbulb },
+        ]
+      : [];
+    const launchAdminItems = filterNavItems(launchAdminAll);
 
     const isActiveLaunch = (item: NavItem) => {
       if (item.matchPaths && item.matchPaths.length > 0) {
@@ -66,27 +88,121 @@ export function MobileBottomNav() {
     };
 
     return (
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-zinc-200 md:hidden safe-bottom">
-        <div className="flex items-center justify-around h-16">
-          {launchNavItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActiveLaunch(item);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors',
-                  active ? 'text-zinc-900' : 'text-zinc-400'
+      <>
+        {/* Launch Mode その他メニュー */}
+        {moreMenuOpen && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setMoreMenuOpen(false)} />
+            <div className="absolute bottom-16 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto animate-slide-up safe-bottom">
+              <div className="sticky top-0 bg-white border-b border-zinc-100 px-4 py-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-semibold text-zinc-900">その他のメニュー</span>
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    Launch
+                  </span>
+                </div>
+                <button onClick={() => setMoreMenuOpen(false)} className="p-2 -mr-2 rounded-full hover:bg-zinc-100">
+                  <X className="w-5 h-5 text-zinc-500" />
+                </button>
+              </div>
+              <div className="px-4 py-3">
+                <div className="grid grid-cols-4 gap-2">
+                  {launchMoreItems.map((item) => {
+                    const Icon = item.icon;
+                    const active = isActiveLaunch(item);
+                    return (
+                      <Link key={item.href} href={item.href} onClick={() => setMoreMenuOpen(false)}
+                        className={cn('flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors',
+                          active ? 'bg-zinc-900 text-white' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
+                        )}>
+                        <Icon className="w-5 h-5" />
+                        <span className="text-xs font-medium">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+                {launchAdminItems.length > 0 && (
+                  <>
+                    <div className="mt-4 mb-2 px-1">
+                      <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">管理機能</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {launchAdminItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = pathname.startsWith(item.href);
+                        return (
+                          <Link key={item.href} href={item.href} onClick={() => setMoreMenuOpen(false)}
+                            className={cn('flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors',
+                              active ? 'bg-zinc-900 text-white' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
+                            )}>
+                            <Icon className="w-5 h-5" />
+                            <span className="text-xs font-medium">{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
-              >
-                <Icon className={cn('w-6 h-6', active && 'text-zinc-900')} />
-                <span className="text-[10px] font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
+                <div className="mt-4 pt-4 border-t border-zinc-100">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {user.photoURL ? (
+                        <img src={user.photoURL} alt={user.name} className="w-10 h-10 rounded-xl object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-white text-sm font-medium">
+                          {user.name.charAt(0)}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-zinc-900 truncate">{user.name}</p>
+                        <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                      </div>
+                    </div>
+                    <button onClick={async () => { await signOut(); setMoreMenuOpen(false); }}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition-colors">
+                      <LogOut className="w-4 h-4" />
+                      <span>ログアウト</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-zinc-200 md:hidden safe-bottom">
+          <div className="flex items-center justify-around h-16">
+            {launchMainItems.map((item) => {
+              const Icon = item.icon;
+              const active = isActiveLaunch(item);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors',
+                    active ? 'text-zinc-900' : 'text-zinc-400'
+                  )}
+                >
+                  <Icon className={cn('w-6 h-6', active && 'text-zinc-900')} />
+                  <span className="text-[10px] font-medium">{item.label}</span>
+                </Link>
+              );
+            })}
+            <button
+              onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+              className={cn(
+                'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors',
+                moreMenuOpen ? 'text-zinc-900' : 'text-zinc-400'
+              )}
+            >
+              <MoreHorizontal className={cn('w-6 h-6', moreMenuOpen && 'text-zinc-900')} />
+              <span className="text-[10px] font-medium">その他</span>
+            </button>
+          </div>
+        </nav>
+      </>
     );
   }
 
@@ -123,6 +239,7 @@ export function MobileBottomNav() {
     { href: '/dashboard/vacancy', label: '空室', icon: Building2 },
     { href: '/improvements', label: '改善', icon: Lightbulb },
     { href: '/rankings', label: 'ランク', icon: Trophy },
+    { href: '/dashboard/docs', label: 'ドキュメント', icon: FolderOpen },
     { href: '/dashboard/os', label: '経営OS', icon: Activity },
   ];
 

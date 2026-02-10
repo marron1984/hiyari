@@ -12,6 +12,11 @@ import {
   RefreshCw,
   TrendingUp,
   AlertCircle,
+  FileText,
+  Lightbulb,
+  FolderOpen,
+  Briefcase,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BuildInfo } from '@/components/BuildInfo';
@@ -57,6 +62,31 @@ interface DashboardCounts {
     pending: number;
     todayNew: number;
     total: number;
+  };
+  incidents: {
+    thisMonth: number;
+    total: number;
+    fraudFlagged: number;
+  };
+  improvements: {
+    total: number;
+    adopted: number;
+    pendingReview: number;
+  };
+  documents: {
+    total: number;
+    missing: number;
+    submitted: number;
+  };
+  sales: {
+    activeDeals: number;
+    staleDeals: number;
+    totalAccounts: number;
+  };
+  os: {
+    todayCheckins: number;
+    yellowRisk: number;
+    redRisk: number;
   };
 }
 
@@ -116,6 +146,75 @@ const MODULE_CARDS: ModuleCardConfig[] = [
       { label: '定員', value: c.vacancies.totalCapacity },
     ],
   },
+  {
+    id: 'incidents',
+    href: '/submit',
+    label: '報告',
+    icon: FileText,
+    iconBg: 'bg-rose-500',
+    accentBar: 'bg-rose-500',
+    hoverBorder: 'hover:border-rose-300',
+    getMetrics: (c) => [
+      { label: '今月の報告', value: c.incidents.thisMonth },
+      { label: '総件数', value: c.incidents.total },
+    ],
+  },
+  {
+    id: 'improvements',
+    href: '/improvements',
+    label: '改善',
+    icon: Lightbulb,
+    iconBg: 'bg-yellow-500',
+    accentBar: 'bg-yellow-500',
+    hoverBorder: 'hover:border-yellow-300',
+    getMetrics: (c) => [
+      { label: '採用済み', value: c.improvements.adopted },
+      { label: 'レビュー待ち', value: c.improvements.pendingReview, highlight: c.improvements.pendingReview > 0 },
+      { label: '総件数', value: c.improvements.total },
+    ],
+  },
+  {
+    id: 'documents',
+    href: '/dashboard/docs',
+    label: 'ドキュメント',
+    icon: FolderOpen,
+    iconBg: 'bg-sky-500',
+    accentBar: 'bg-sky-500',
+    hoverBorder: 'hover:border-sky-300',
+    getMetrics: (c) => [
+      { label: '未提出', value: c.documents.missing, highlight: c.documents.missing > 0 },
+      { label: '提出済み', value: c.documents.submitted },
+      { label: '総件数', value: c.documents.total },
+    ],
+  },
+  {
+    id: 'sales',
+    href: '/sales',
+    label: '営業',
+    icon: Briefcase,
+    iconBg: 'bg-indigo-500',
+    accentBar: 'bg-indigo-500',
+    hoverBorder: 'hover:border-indigo-300',
+    getMetrics: (c) => [
+      { label: '進行中案件', value: c.sales.activeDeals },
+      { label: '停滞案件', value: c.sales.staleDeals, highlight: c.sales.staleDeals > 0 },
+      { label: '取引先', value: c.sales.totalAccounts },
+    ],
+  },
+  {
+    id: 'os',
+    href: '/dashboard/os',
+    label: '経営OS',
+    icon: Activity,
+    iconBg: 'bg-teal-500',
+    accentBar: 'bg-teal-500',
+    hoverBorder: 'hover:border-teal-300',
+    getMetrics: (c) => [
+      { label: '今日のチェックイン', value: c.os.todayCheckins },
+      { label: '注意', value: c.os.yellowRisk, highlight: c.os.yellowRisk > 0 },
+      { label: '要対応', value: c.os.redRisk, highlight: c.os.redRisk > 0 },
+    ],
+  },
 ];
 
 // ── ヘルパー ──
@@ -143,12 +242,17 @@ const EMPTY_COUNTS: DashboardCounts = {
   vacancies: { totalCapacity: 0, totalVacant: 0, occupancyRate: 0, facilityCount: 0 },
   attendance: { todayClockedIn: 0, working: 0, pendingOvertime: 0 },
   approvals: { pending: 0, todayNew: 0, total: 0 },
+  incidents: { thisMonth: 0, total: 0, fraudFlagged: 0 },
+  improvements: { total: 0, adopted: 0, pendingReview: 0 },
+  documents: { total: 0, missing: 0, submitted: 0 },
+  sales: { activeDeals: 0, staleDeals: 0, totalAccounts: 0 },
+  os: { todayCheckins: 0, yellowRisk: 0, redRisk: 0 },
 };
 
 /**
  * Launch Mode ダッシュボード
  *
- * 先行公開4機能のモジュールカードにライブカウントを表示
+ * 全モジュールのカードにライブカウントを表示
  */
 export function LaunchModeDashboard() {
   const { user } = useAuth();
@@ -318,8 +422,7 @@ export function LaunchModeDashboard() {
             <div>
               <h3 className="text-sm font-semibold text-zinc-700">ご利用ガイド</h3>
               <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-                現在、上記4つの機能をご利用いただけます。
-                その他の機能は順次追加予定です。
+                全機能をご利用いただけます。
                 操作でお困りの際は管理者までお問い合わせください。
               </p>
             </div>
