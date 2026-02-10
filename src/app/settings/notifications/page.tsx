@@ -21,9 +21,6 @@ import {
   Shield,
   Target,
   CheckCircle,
-  Zap,
-  BookOpen,
-  MessageSquare,
 } from 'lucide-react';
 import {
   NOTIFICATION_CATEGORIES,

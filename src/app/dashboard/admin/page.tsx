@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loading } from '@/components/Loading';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
@@ -120,14 +120,15 @@ interface QuickHealth {
 
 export default function AdminDashboardPage() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [health, setHealth] = useState<QuickHealth>({ status: 'loading', message: '確認中...' });
 
   // 権限チェック - admin以上でなければリダイレクト
   useEffect(() => {
     if (!authLoading && user && !hasMinRole(user.role, 'admin')) {
-      redirect('/dashboard');
+      router.push('/dashboard');
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, router]);
 
   // 簡易ヘルスチェック
   useEffect(() => {
