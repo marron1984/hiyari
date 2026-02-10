@@ -80,6 +80,12 @@ const ADMIN_MENU_ITEMS = [
     description: 'Google Sheets連携',
   },
   {
+    href: '/admin/sync/google-sheets',
+    icon: RefreshCw,
+    label: 'Google Sheets同期',
+    description: '双方向データ同期・夜間バッチ',
+  },
+  {
     href: '/admin/module-permissions',
     icon: Shield,
     label: 'モジュール権限',

@@ -172,6 +172,7 @@ export function isRouteEnabledByGate(pathname: string): boolean {
     '/api/tickets', '/api/admin/bootstrap', '/api/dashboard',
     '/dashboard/notifications',
     '/admin/module-permissions', '/api/admin/module-permissions',
+    '/admin/sync', '/api/admin/google-sheets', '/api/sync/google-sheets', '/api/cron/sync-sheets',
     '/dashboard/admin',
   ];
   for (const prefix of commonPrefixes) {
