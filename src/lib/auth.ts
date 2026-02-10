@@ -97,6 +97,19 @@ export function canEditProspects(
   return modulePermissions?.prospects?.canEdit === true;
 }
 
+/**
+ * 空室管理の編集権限があるかチェック
+ * - leader以上のロールは常に編集可能
+ * - modulePermissions.vacancies.canEdit が true のユーザーも編集可能
+ */
+export function canEditVacancies(
+  userRole: UserRole | undefined,
+  modulePermissions?: ModulePermissions
+): boolean {
+  if (hasMinRole(userRole, 'leader')) return true;
+  return modulePermissions?.vacancies?.canEdit === true;
+}
+
 // ======== CHAOS 経営OS 権限 ========
 
 /**

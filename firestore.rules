@@ -28,6 +28,15 @@ service cloud.firestore {
             && userData.modulePermissions.prospects.canEdit == true);
     }
 
+    // 空室管理の編集権限チェック（ロールまたはモジュール個別権限）
+    function canEditVacancies() {
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return userData.role in ['leader', 'admin', 'system_admin']
+        || (userData.keys().hasAny(['modulePermissions'])
+            && userData.modulePermissions.keys().hasAny(['vacancies'])
+            && userData.modulePermissions.vacancies.canEdit == true);
+    }
+
     // AI副社長オーナー判定（吉田専用）
     function isAiVpOwner() {
       return request.auth.token.email == 'yoshida@aska-g.com';
@@ -99,9 +108,9 @@ service cloud.firestore {
     match /vacancyStatus/{facilityId} {
       // 認証済みユーザーは読み取り可能
       allow read: if isAuthenticated();
-      // リーダー以上のみ書き込み可能（updatedByは自分のuidであること）
+      // リーダー以上、またはmodulePermissions.vacancies.canEdit権限者が書き込み可能
       allow write: if isAuthenticated()
-        && getUserRole() in ['leader', 'admin', 'system_admin']
+        && canEditVacancies()
         && request.resource.data.updatedBy == request.auth.uid;
     }
 
@@ -109,10 +118,10 @@ service cloud.firestore {
     match /vacancyEvents/{eventId} {
       // 認証済みユーザーは読み取り可能
       allow read: if isAuthenticated();
-      // リーダー以上のみ作成可能（changedByは自分のuidであること）
+      // リーダー以上、またはmodulePermissions.vacancies.canEdit権限者が作成可能
       // 更新・削除は不可
       allow create: if isAuthenticated()
-        && getUserRole() in ['leader', 'admin', 'system_admin']
+        && canEditVacancies()
         && request.resource.data.changedBy == request.auth.uid;
       allow update, delete: if false;
     }
