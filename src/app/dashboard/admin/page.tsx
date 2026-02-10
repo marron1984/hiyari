@@ -86,6 +86,12 @@ const ADMIN_MENU_ITEMS = [
     description: '双方向データ同期・夜間バッチ',
   },
   {
+    href: '/admin/reports',
+    icon: BarChart3,
+    label: 'レポート・分析',
+    description: 'インシデント傾向・コンバージョン・稼働率',
+  },
+  {
     href: '/admin/module-permissions',
     icon: Shield,
     label: 'モジュール権限',
