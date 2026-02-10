@@ -111,8 +111,8 @@ export const ALL_MODULES: ModuleConfig[] = [
     id: 'docs',
     label: 'ドキュメント',
     labelEn: 'Documents',
-    routes: ['/docs'],
-    apiRoutes: ['/api/docs'],
+    routes: ['/dashboard/docs'],
+    apiRoutes: ['/api/documents'],
   },
 ];
 
@@ -123,6 +123,10 @@ const LAUNCH_ENABLED: ModuleId[] = [
   'vacancies',
   'attendance',
   'approvals',
+  'incidents',
+  'improvements',
+  'rankings',
+  'docs',
 ];
 
 // ── 公開API ──

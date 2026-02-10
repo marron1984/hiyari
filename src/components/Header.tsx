@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity, Bot, Sparkles } from 'lucide-react';
+import { Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity, Bot, Sparkles, FolderOpen } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { RoleSwitcher } from '@/components/navigation/RoleSwitcher';
 import { cn } from '@/lib/utils';
@@ -57,6 +57,7 @@ export function Header() {
     { href: '/rankings', label: 'ランク', icon: Trophy },
     { href: '/dashboard/os', label: '経営OS', icon: Activity },
     { href: '/submit', label: '報告', icon: FileText },
+    { href: '/dashboard/docs', label: 'ドキュメント', icon: FolderOpen },
   ];
 
   const allAdminItems = [
