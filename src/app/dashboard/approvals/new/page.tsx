@@ -3,9 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/contexts/AuthContext';
-import { storage } from '@/lib/firebase';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Card, CardContent, Button, Input, Select, Badge } from '@/components/ui';
 import {
@@ -196,10 +194,11 @@ function NewApprovalContent() {
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || files.length === 0 || !user) return;
+    if (!files || files.length === 0 || !user || !firebaseUser) return;
 
     setUploading(true);
     try {
+      const token = await firebaseUser.getIdToken();
       const newAttachments: RingiAttachment[] = [];
 
       for (let i = 0; i < files.length; i++) {
@@ -215,17 +214,21 @@ function NewApprovalContent() {
           continue;
         }
 
-        // Firebase Storage にアップロード
-        if (!storage) {
-          alert('ストレージが設定されていません');
-          break;
+        // サーバーサイドAPI経由でアップロード
+        const body = new FormData();
+        body.append('file', file);
+
+        const res = await fetch('/api/ringi/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body,
+        });
+
+        const result = await res.json();
+        if (!res.ok || !result.success) {
+          alert(`${file.name}: ${result.error || 'アップロードに失敗しました'}`);
+          continue;
         }
-        const timestamp = Date.now();
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const storagePath = `ringi/${user.tenantId}/${user.id}/${timestamp}_${safeName}`;
-        const fileRef = ref(storage, storagePath);
-        await uploadBytes(fileRef, file);
-        const fileUrl = await getDownloadURL(fileRef);
 
         // 添付タイプを推定
         const lowerName = file.name.toLowerCase();
@@ -237,12 +240,12 @@ function NewApprovalContent() {
         }
 
         newAttachments.push({
-          id: `${timestamp}_${i}`,
+          id: `${Date.now()}_${i}`,
           type: attachType,
-          fileName: file.name,
-          fileUrl,
-          fileMime: file.type,
-          fileSize: file.size,
+          fileName: result.fileName,
+          fileUrl: result.fileUrl,
+          fileMime: result.fileMime,
+          fileSize: result.fileSize,
           uploadedAt: new Date(),
         });
       }
