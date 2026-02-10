@@ -20,6 +20,13 @@ import {
   ReminderSettings,
   CreateNotificationInput,
   DEFAULT_REMINDER_SETTINGS,
+  NotificationPreferences,
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  CategoryPreference,
+  DEFAULT_CATEGORY_PREFERENCE,
+  NotificationCategoryKey,
+  NotificationType,
+  getCategoryForType,
 } from '@/types/notification';
 import { toDate } from './date';
 
@@ -222,6 +229,107 @@ export async function updateReminderSettings(
     ...updates,
     updatedAt: Timestamp.now(),
   });
+}
+
+// ===================
+// 通知設定（詳細化）
+// ===================
+
+// 通知設定取得
+export async function getNotificationPreferences(
+  tenantId: string,
+  userId: string
+): Promise<NotificationPreferences | null> {
+  const docRef = doc(getDb(), 'notificationPreferences', `${tenantId}_${userId}`);
+  const docSnap = await getDoc(docRef);
+
+  if (!docSnap.exists()) return null;
+
+  return {
+    id: docSnap.id,
+    ...docSnap.data(),
+    updatedAt: toDate(docSnap.data().updatedAt),
+  } as NotificationPreferences;
+}
+
+// 通知設定を取得または作成
+export async function getOrCreateNotificationPreferences(
+  tenantId: string,
+  userId: string
+): Promise<NotificationPreferences> {
+  const existing = await getNotificationPreferences(tenantId, userId);
+  if (existing) return existing;
+
+  const id = `${tenantId}_${userId}`;
+  const prefs: NotificationPreferences = {
+    id,
+    tenantId,
+    userId,
+    ...DEFAULT_NOTIFICATION_PREFERENCES,
+    updatedAt: new Date(),
+  };
+
+  await setDoc(doc(getDb(), 'notificationPreferences', id), {
+    ...prefs,
+    updatedAt: Timestamp.now(),
+  });
+
+  return prefs;
+}
+
+// 通知設定更新
+export async function updateNotificationPreferences(
+  tenantId: string,
+  userId: string,
+  updates: Partial<Pick<NotificationPreferences, 'categories' | 'lineWorksEnabled' | 'digestHour'>>
+): Promise<void> {
+  const docRef = doc(getDb(), 'notificationPreferences', `${tenantId}_${userId}`);
+  const docSnap = await getDoc(docRef);
+
+  if (!docSnap.exists()) {
+    // 存在しない場合は作成
+    await setDoc(docRef, {
+      tenantId,
+      userId,
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      ...updates,
+      updatedAt: Timestamp.now(),
+    });
+  } else {
+    await updateDoc(docRef, {
+      ...updates,
+      updatedAt: Timestamp.now(),
+    });
+  }
+}
+
+// 指定された通知タイプのユーザー設定を取得
+export function getCategoryPreference(
+  prefs: NotificationPreferences | null,
+  category: NotificationCategoryKey
+): CategoryPreference {
+  if (!prefs || !prefs.categories[category]) {
+    return DEFAULT_CATEGORY_PREFERENCE;
+  }
+  return prefs.categories[category];
+}
+
+// 通知タイプに対して送信すべきか判定
+export function shouldSendNotification(
+  prefs: NotificationPreferences | null,
+  notificationType: NotificationType
+): { send: boolean; mode: CategoryPreference['mode']; channel: CategoryPreference['channel'] } {
+  const category = getCategoryForType(notificationType);
+  if (!category) {
+    return { send: true, mode: 'immediate', channel: 'in_app' };
+  }
+
+  const pref = getCategoryPreference(prefs, category);
+  return {
+    send: pref.mode !== 'off',
+    mode: pref.mode,
+    channel: pref.channel,
+  };
 }
 
 // ===================

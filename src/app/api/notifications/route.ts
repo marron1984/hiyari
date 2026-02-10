@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listByRole, getUnreadCountByRole } from '@/lib/notifications/repo';
 import type { AppRole } from '@/config/appRoles';
+import type { NotificationType } from '@/types/notification';
 
 // デモユーザー情報（本番ではセッションから取得）
 const DEMO_USER = {
@@ -31,11 +32,15 @@ export async function GET(request: NextRequest) {
                    statusParam === 'unread' ? 'unread' :
                    statusParam === 'dismissed' ? 'dismissed' : 'all';
 
+    // ページネーション制限（DoS防止）
+    const limit = Math.min(Math.max(limitParam ? parseInt(limitParam, 10) : 50, 1), 100);
+    const offset = Math.max(offsetParam ? parseInt(offsetParam, 10) : 0, 0);
+
     const { items, total, unreadCount } = listByRole(DEMO_USER.role, {
       status: status as 'unread' | 'read' | 'all',
-      type: typeParam as any,
-      limit: limitParam ? parseInt(limitParam, 10) : 50,
-      offset: offsetParam ? parseInt(offsetParam, 10) : 0,
+      type: (typeParam || undefined) as NotificationType | undefined,
+      limit,
+      offset,
     });
 
     return NextResponse.json({

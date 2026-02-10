@@ -139,3 +139,103 @@ export interface CreateNotificationInput {
   actionUrl?: string;
   metadata?: Notification['metadata'];
 }
+
+// ===================
+// 通知設定（詳細化）
+// ===================
+
+/** 通知モード */
+export type NotifyMode = 'immediate' | 'digest' | 'off';
+
+/** 通知チャネル */
+export type NotifyChannel = 'in_app' | 'line_works' | 'both';
+
+/** 通知カテゴリキー */
+export type NotificationCategoryKey =
+  | 'attendance'    // 勤怠（打刻・打刻漏れ・長時間）
+  | 'overtime'      // 残業申請
+  | 'shift'         // シフト
+  | 'approval'      // 申請・承認
+  | 'incident'      // ヒヤリハット
+  | 'payment'       // 支払い
+  | 'ai_vp'         // AI副社長
+  | 'vacancy'       // 入居・空室
+  | 'mbr'           // MBR改善
+  | 'system';       // システム
+
+/** カテゴリ → 通知タイプのマッピング */
+export const CATEGORY_TYPE_MAP: Record<NotificationCategoryKey, NotificationType[]> = {
+  attendance: ['clock_reminder', 'missing_clock', 'long_hours_warning'],
+  overtime: ['overtime_request', 'overtime_approved', 'overtime_rejected'],
+  shift: ['shift_published', 'shift_changed'],
+  approval: ['approval_pending', 'application_approved', 'application_rejected', 'application_returned'],
+  incident: ['incident_submitted', 'incident_commented'],
+  payment: ['payment_completed', 'payment_failed'],
+  ai_vp: ['ai_anomaly_report', 'ai_organization_health', 'ai_todo_high', 'ai_vp_ticket_created'],
+  vacancy: ['vacancy_inquiry', 'vacancy_inquiry_sla_breach', 'vacancy_unit_updated', 'vacancy_suggestion_created'],
+  mbr: ['mbr_action_created', 'mbr_action_overdue'],
+  system: ['system', 'business_scope_unclassified', 'unclassified_scope'],
+};
+
+/** カテゴリ定義（UI表示用） */
+export interface NotificationCategoryDef {
+  key: NotificationCategoryKey;
+  label: string;
+  description: string;
+  icon: string; // lucide icon name
+  color: string; // tailwind color
+  canDisable: boolean; // offにできるか
+}
+
+export const NOTIFICATION_CATEGORIES: NotificationCategoryDef[] = [
+  { key: 'attendance', label: '勤怠', description: '打刻リマインダー・打刻漏れ・長時間労働', icon: 'Clock', color: 'blue', canDisable: true },
+  { key: 'overtime', label: '残業申請', description: '残業申請の承認・却下通知', icon: 'FileText', color: 'amber', canDisable: true },
+  { key: 'shift', label: 'シフト', description: 'シフト公開・変更通知', icon: 'Calendar', color: 'purple', canDisable: true },
+  { key: 'approval', label: '申請・承認', description: '稟議・経費の承認待ち・結果通知', icon: 'CheckCircle', color: 'green', canDisable: true },
+  { key: 'incident', label: 'ヒヤリハット', description: 'インシデント投稿・コメント通知', icon: 'AlertTriangle', color: 'orange', canDisable: true },
+  { key: 'payment', label: '支払い', description: '振込完了・失敗通知', icon: 'CreditCard', color: 'emerald', canDisable: false },
+  { key: 'ai_vp', label: 'AI副社長', description: '違和感レポート・TODO・チケット生成', icon: 'Brain', color: 'indigo', canDisable: true },
+  { key: 'vacancy', label: '入居・空室', description: '問い合わせ・SLA超過・空室更新', icon: 'Building', color: 'teal', canDisable: true },
+  { key: 'mbr', label: 'MBR改善', description: '改善タスク起票・期限超過', icon: 'Target', color: 'rose', canDisable: true },
+  { key: 'system', label: 'システム', description: 'システムエラー・重要アラート', icon: 'Shield', color: 'red', canDisable: false },
+];
+
+/** カテゴリ別の通知設定 */
+export interface CategoryPreference {
+  mode: NotifyMode;
+  channel: NotifyChannel;
+}
+
+/** ユーザー通知設定 */
+export interface NotificationPreferences {
+  id: string;
+  tenantId: string;
+  userId: string;
+  /** カテゴリ別設定 */
+  categories: Partial<Record<NotificationCategoryKey, CategoryPreference>>;
+  /** LINE WORKS通知の全体スイッチ */
+  lineWorksEnabled: boolean;
+  /** ダイジェスト送信時刻（JST 0-23） */
+  digestHour: number;
+  updatedAt: Date;
+}
+
+/** デフォルト設定 */
+export const DEFAULT_CATEGORY_PREFERENCE: CategoryPreference = {
+  mode: 'immediate',
+  channel: 'in_app',
+};
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: Omit<NotificationPreferences, 'id' | 'tenantId' | 'userId' | 'updatedAt'> = {
+  categories: {},
+  lineWorksEnabled: false,
+  digestHour: 9,
+};
+
+/** 通知タイプからカテゴリを逆引き */
+export function getCategoryForType(type: NotificationType): NotificationCategoryKey | null {
+  for (const [key, types] of Object.entries(CATEGORY_TYPE_MAP)) {
+    if (types.includes(type)) return key as NotificationCategoryKey;
+  }
+  return null;
+}

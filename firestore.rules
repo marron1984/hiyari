@@ -211,6 +211,24 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // 通知設定コレクション
+    match /notificationPreferences/{docId} {
+      // 自分の設定のみ読み書き可能
+      allow read: if isAuthenticated()
+        && docId.matches('^.*_' + request.auth.uid + '$');
+      allow write: if isAuthenticated()
+        && docId.matches('^.*_' + request.auth.uid + '$');
+    }
+
+    // リマインダー設定コレクション
+    match /reminderSettings/{docId} {
+      // 自分の設定のみ読み書き可能
+      allow read: if isAuthenticated()
+        && docId.matches('^.*_' + request.auth.uid + '$');
+      allow write: if isAuthenticated()
+        && docId.matches('^.*_' + request.auth.uid + '$');
+    }
+
     // 通知ログコレクション
     match /notificationLogs/{logId} {
       // リーダー以上のみ読み取り可能

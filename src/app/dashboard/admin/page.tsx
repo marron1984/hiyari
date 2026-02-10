@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loading } from '@/components/Loading';
 import { Card, CardHeader, CardTitle, CardContent, Button, Badge } from '@/components/ui';
@@ -80,6 +80,18 @@ const ADMIN_MENU_ITEMS = [
     description: 'Google Sheets連携',
   },
   {
+    href: '/admin/sync/google-sheets',
+    icon: RefreshCw,
+    label: 'Google Sheets同期',
+    description: '双方向データ同期・夜間バッチ',
+  },
+  {
+    href: '/admin/reports',
+    icon: BarChart3,
+    label: 'レポート・分析',
+    description: 'インシデント傾向・コンバージョン・稼働率',
+  },
+  {
     href: '/admin/module-permissions',
     icon: Shield,
     label: 'モジュール権限',
@@ -108,14 +120,15 @@ interface QuickHealth {
 
 export default function AdminDashboardPage() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [health, setHealth] = useState<QuickHealth>({ status: 'loading', message: '確認中...' });
 
   // 権限チェック - admin以上でなければリダイレクト
   useEffect(() => {
     if (!authLoading && user && !hasMinRole(user.role, 'admin')) {
-      redirect('/dashboard');
+      router.push('/dashboard');
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, router]);
 
   // 簡易ヘルスチェック
   useEffect(() => {
