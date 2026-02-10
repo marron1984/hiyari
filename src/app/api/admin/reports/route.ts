@@ -319,7 +319,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const reportType = searchParams.get('type') || 'incidents';
-    const months = Math.min(Math.max(parseInt(searchParams.get('months') || '6'), 1), 12);
+    const months = Math.min(Math.max(parseInt(searchParams.get('months') || '6', 10), 1), 12);
     const tenantId = userDoc.data()?.tenantId || DEFAULT_TENANT_ID;
 
     let data;

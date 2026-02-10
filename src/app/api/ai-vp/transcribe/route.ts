@@ -50,18 +50,22 @@ export async function POST(request: NextRequest) {
     // FormData解析
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const language = formData.get('language') as string | null;
+    const languageRaw = formData.get('language') as string | null;
     const prompt = formData.get('prompt') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: '音声ファイルが必要です' }, { status: 400 });
     }
 
-    // バリデーション
+    // ファイルサイズをarrayBuffer読み込み前にチェック（メモリ節約）
     const validation = validateAudioFile(file.type, file.size, file.name);
     if (!validation.valid) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
+
+    // 言語コードのホワイトリスト検証
+    const SUPPORTED_LANGUAGES = ['ja', 'en', 'zh', 'ko', 'es', 'fr', 'de', 'pt', 'it', 'ru'];
+    const language = (languageRaw && SUPPORTED_LANGUAGES.includes(languageRaw)) ? languageRaw : 'ja';
 
     const userName = userData?.name || decodedToken.email || 'Unknown';
 
@@ -77,11 +81,16 @@ export async function POST(request: NextRequest) {
     const bucket = storage.bucket();
     const fileRef = bucket.file(storagePath);
 
+    // ファイル名をサニタイズ（パストラバーサル・XSS対策）
+    const sanitizedFilename = file.name
+      .replace(/[^\p{L}\p{N}._-]/gu, '_')
+      .slice(0, 255);
+
     await fileRef.save(buffer, {
       metadata: {
         contentType: file.type,
         metadata: {
-          originalFilename: file.name,
+          originalFilename: sanitizedFilename,
           uploadedBy: decodedToken.uid,
           uploadedByName: userName,
           tenantId: DEFAULT_TENANT_ID,
@@ -96,8 +105,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Whisperで文字起こし
-    const transcription = await transcribeAudio(buffer, file.name, {
-      language: language || 'ja',
+    const transcription = await transcribeAudio(buffer, sanitizedFilename, {
+      language,
       prompt: prompt || undefined,
     });
 
@@ -106,7 +115,7 @@ export async function POST(request: NextRequest) {
       tenantId: DEFAULT_TENANT_ID,
       sourceType: 'audio',
       sourceMeta: {
-        filename: file.name,
+        filename: sanitizedFilename,
         fileSize: file.size,
         contentType: file.type,
         storagePath,
@@ -131,7 +140,7 @@ export async function POST(request: NextRequest) {
       eventType: 'audio_transcribed',
       eventMeta: {
         ingestionId: ingestionRef.id,
-        filename: file.name,
+        filename: sanitizedFilename,
         fileSize: file.size,
         duration: transcription.duration,
         language: transcription.language,
@@ -153,9 +162,10 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Transcription API error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : '文字起こしに失敗しました' },
-      { status: 500 }
-    );
+    // 内部エラー詳細はクライアントに漏らさない
+    const message = error instanceof Error && error.message.includes('too large')
+      ? 'ファイルサイズが大きすぎます'
+      : '文字起こしに失敗しました。しばらくしてから再試行してください';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

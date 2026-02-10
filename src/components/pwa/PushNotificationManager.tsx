@@ -35,12 +35,17 @@ export function PushNotificationManager() {
       return;
     }
 
-    // 既存のサブスクリプションを確認
+    // 既存のサブスクリプションを確認（unmount対策）
+    let isMounted = true;
     navigator.serviceWorker.ready.then((registration) => {
       registration.pushManager.getSubscription().then((sub) => {
-        setState(sub ? 'subscribed' : 'unsubscribed');
+        if (isMounted) {
+          setState(sub ? 'subscribed' : 'unsubscribed');
+        }
       });
     });
+
+    return () => { isMounted = false; };
   }, []);
 
   const subscribe = useCallback(async () => {

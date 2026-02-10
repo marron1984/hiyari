@@ -125,9 +125,9 @@ export async function PUT(request: NextRequest) {
       updates.lineWorksEnabled = body.lineWorksEnabled;
     }
 
-    // ダイジェスト時刻
-    if (typeof body.digestHour === 'number' && body.digestHour >= 0 && body.digestHour <= 23) {
-      updates.digestHour = Math.floor(body.digestHour);
+    // ダイジェスト時刻（UIの選択肢に対応: 7,8,9,10,17,18,19,20）
+    if (typeof body.digestHour === 'number' && Number.isInteger(body.digestHour) && body.digestHour >= 0 && body.digestHour <= 23) {
+      updates.digestHour = body.digestHour;
     }
 
     // リマインダー設定（既存）
@@ -135,10 +135,17 @@ export async function PUT(request: NextRequest) {
       const rs = body.reminderSettings;
       const reminderUpdates: Record<string, unknown> = {};
 
+      // 許容される分数値（UIの選択肢に対応）
+      const VALID_MINUTES = [5, 10, 15, 30, 60];
+
       if (typeof rs.clockInReminder === 'boolean') reminderUpdates.clockInReminder = rs.clockInReminder;
-      if (typeof rs.clockInReminderMinutes === 'number') reminderUpdates.clockInReminderMinutes = rs.clockInReminderMinutes;
+      if (typeof rs.clockInReminderMinutes === 'number' && VALID_MINUTES.includes(rs.clockInReminderMinutes)) {
+        reminderUpdates.clockInReminderMinutes = rs.clockInReminderMinutes;
+      }
       if (typeof rs.clockOutReminder === 'boolean') reminderUpdates.clockOutReminder = rs.clockOutReminder;
-      if (typeof rs.clockOutReminderMinutes === 'number') reminderUpdates.clockOutReminderMinutes = rs.clockOutReminderMinutes;
+      if (typeof rs.clockOutReminderMinutes === 'number' && VALID_MINUTES.includes(rs.clockOutReminderMinutes)) {
+        reminderUpdates.clockOutReminderMinutes = rs.clockOutReminderMinutes;
+      }
       if (typeof rs.overtimeReminder === 'boolean') reminderUpdates.overtimeReminder = rs.overtimeReminder;
       if (typeof rs.shiftPublishedNotify === 'boolean') reminderUpdates.shiftPublishedNotify = rs.shiftPublishedNotify;
       if (typeof rs.shiftChangedNotify === 'boolean') reminderUpdates.shiftChangedNotify = rs.shiftChangedNotify;
