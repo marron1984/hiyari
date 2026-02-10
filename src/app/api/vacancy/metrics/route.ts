@@ -49,7 +49,7 @@ interface FacilityMetrics {
   available: number;    // 空室（入居可能）
   locked: number;       // 申込ロック中
   occupied: number;     // 入居中 + 退去予定
-  maintenance: number;  // 修繕中
+  maintenance: number;  // 会社利用
   unknown: number;      // 未知のステータス
   occupancyRate: number | null;  // 稼働率（入居中/総室数）
   vacancyRate: number | null;    // 空室率（空室/総室数）
@@ -65,7 +65,7 @@ interface VacancyMetricsResponse {
     available: number;        // 空室
     locked: number;           // 申込ロック
     occupied: number;         // 入居中
-    maintenance: number;      // 修繕
+    maintenance: number;      // 会社利用
     unknown: number;          // 未知ステータス
     occupancyRate: number | null;  // 全体稼働率
     vacancyRate: number | null;    // 全体空室率
