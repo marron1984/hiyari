@@ -275,6 +275,15 @@ function NewApprovalContent() {
     }));
   };
 
+  const handleChangeAttachmentType = (attachmentId: string, newType: 'QUOTE' | 'CONTRACT_DRAFT' | 'OTHER') => {
+    setFormData((prev) => ({
+      ...prev,
+      attachments: (prev.attachments || []).map((a) =>
+        a.id === attachmentId ? { ...a, type: newType } : a
+      ),
+    }));
+  };
+
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes}B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
@@ -766,16 +775,24 @@ function NewApprovalContent() {
                           <p className="text-sm font-medium text-zinc-900 truncate">
                             {att.fileName}
                           </p>
-                          <p className="text-xs text-zinc-400">
-                            {att.fileSize ? formatFileSize(att.fileSize) : ''}{' '}
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                              att.type === 'QUOTE' ? 'bg-blue-100 text-blue-700' :
-                              att.type === 'CONTRACT_DRAFT' ? 'bg-purple-100 text-purple-700' :
-                              'bg-zinc-100 text-zinc-600'
-                            }`}>
-                              {att.type === 'QUOTE' ? '見積書' : att.type === 'CONTRACT_DRAFT' ? '契約書案' : 'その他'}
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-zinc-400">
+                              {att.fileSize ? formatFileSize(att.fileSize) : ''}
                             </span>
-                          </p>
+                            <select
+                              value={att.type}
+                              onChange={(e) => handleChangeAttachmentType(att.id, e.target.value as 'QUOTE' | 'CONTRACT_DRAFT' | 'OTHER')}
+                              className={`text-[11px] font-medium px-1.5 py-0.5 rounded border-0 cursor-pointer ${
+                                att.type === 'QUOTE' ? 'bg-blue-100 text-blue-700' :
+                                att.type === 'CONTRACT_DRAFT' ? 'bg-purple-100 text-purple-700' :
+                                'bg-zinc-100 text-zinc-600'
+                              }`}
+                            >
+                              <option value="OTHER">その他</option>
+                              <option value="QUOTE">見積書</option>
+                              <option value="CONTRACT_DRAFT">契約書案</option>
+                            </select>
+                          </div>
                         </div>
                         <button
                           type="button"
