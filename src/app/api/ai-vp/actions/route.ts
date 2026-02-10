@@ -4,7 +4,7 @@ import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { isAiVpOwner } from '@/lib/auth';
 import { sendLineWorksMessage } from '@/lib/lineworks';
-import type { ActionType, ProposedInquiry, ProposedHiyarihat, ProposedKaizen, ProposedRingi, ProposedLineWorksAlert } from '@/types/ai-vp';
+import type { ActionType, ProposedInquiry, ProposedHiyarihat, ProposedKaizen, ProposedRingi, ProposedLineWorksAlert, ProposedResidentUpdate, ProposedSheetRow } from '@/types/ai-vp';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
@@ -78,6 +78,12 @@ export async function POST(request: NextRequest) {
           break;
         case 'notify_lineworks':
           result = await notifyLineWorks(payload as unknown as ProposedLineWorksAlert);
+          break;
+        case 'update_resident':
+          result = await updateResident(payload as unknown as ProposedResidentUpdate, decodedToken.uid, userName);
+          break;
+        case 'export_sheet':
+          result = await exportSheet(payload as unknown as ProposedSheetRow, decodedToken.uid, userName);
           break;
         default:
           throw new Error(`未対応のアクションタイプ: ${actionType}`);
@@ -319,12 +325,106 @@ async function notifyLineWorks(
 
   // 緊急度に応じたプレフィックス
   const urgencyPrefix = alert.urgency === 'high' ? '【緊急】' : alert.urgency === 'mid' ? '【重要】' : '';
-  const message = `${urgencyPrefix}[AI副社長]\n${alert.message}`;
+  const message = `${urgencyPrefix}${alert.message}\n\n吉田`;
 
   await sendLineWorksMessage(groupId, message);
 
   return {
     targetEntityType: 'lineworks_notification',
     targetEntityId: `${groupId}_${Date.now()}`,
+  };
+}
+
+/**
+ * 入居者情報を更新
+ */
+async function updateResident(
+  update: ProposedResidentUpdate,
+  userId: string,
+  userName: string
+): Promise<{ targetEntityType: string; targetEntityId: string }> {
+  // residentId が指定されていればそれで検索、なければ residentName で検索
+  let residentDocId = update.residentId;
+
+  if (!residentDocId && update.residentName) {
+    const snap = await getAdminDb()
+      .collection('residents')
+      .where('tenantId', '==', DEFAULT_TENANT_ID)
+      .where('name', '==', update.residentName)
+      .limit(1)
+      .get();
+
+    if (!snap.empty) {
+      residentDocId = snap.docs[0].id;
+    }
+  }
+
+  if (!residentDocId) {
+    throw new Error('対象の入居者が見つかりません（residentId または residentName を指定してください）');
+  }
+
+  const residentDoc = await getAdminDb().collection('residents').doc(residentDocId).get();
+  if (!residentDoc.exists) {
+    throw new Error(`入居者が見つかりません: ${residentDocId}`);
+  }
+
+  // 更新データ（更新可能フィールドを制限）
+  const allowedFields = [
+    'name', 'age', 'gender', 'careLevel', 'roomNumber',
+    'status', 'notes', 'contactPerson', 'contactPhone',
+    'medicalInfo', 'dietaryRestrictions', 'moveInDate',
+  ];
+
+  const safeUpdates: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(update.updateFields)) {
+    if (allowedFields.includes(key)) {
+      safeUpdates[key] = value;
+    }
+  }
+
+  if (Object.keys(safeUpdates).length === 0) {
+    throw new Error('更新可能なフィールドが指定されていません');
+  }
+
+  await getAdminDb().collection('residents').doc(residentDocId).update({
+    ...safeUpdates,
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: userId,
+    updatedByName: userName,
+    updateSource: 'ai_vp',
+    updateReason: update.reason || '吉田による更新',
+  });
+
+  return {
+    targetEntityType: 'resident',
+    targetEntityId: residentDocId,
+  };
+}
+
+/**
+ * シートエクスポート（エクスポートリクエストを記録）
+ */
+async function exportSheet(
+  sheetRow: ProposedSheetRow,
+  userId: string,
+  userName: string
+): Promise<{ targetEntityType: string; targetEntityId: string }> {
+  const exportData = {
+    tenantId: DEFAULT_TENANT_ID,
+    sheetId: sheetRow.sheetId || null,
+    sheetName: sheetRow.sheetName || 'default',
+    rowData: sheetRow.rowData,
+    status: 'pending',
+    source: 'ai_vp',
+    createdBy: userId,
+    createdByName: userName,
+    createdAt: FieldValue.serverTimestamp(),
+  };
+
+  const docRef = await getAdminDb().collection('sheetExports').add(exportData);
+
+  return {
+    targetEntityType: 'sheet_export',
+    targetEntityId: docRef.id,
   };
 }

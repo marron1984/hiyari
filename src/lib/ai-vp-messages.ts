@@ -581,8 +581,8 @@ export function generateReplyFromTemplate(
     }
   }
 
-  // フッター追加
-  reply += `\n\n※ ${AI_REPLY_FOOTER}`;
+  // フッター追加（吉田署名）
+  reply += `\n\n${AI_REPLY_FOOTER}`;
 
   return reply;
 }
@@ -597,11 +597,11 @@ export function generateDefaultReply(
   if (riskLevel === 'L3') {
     return `ご質問ありがとうございます。
 
-この内容は重要な判断が必要なため、吉田に確認します。
+この内容は重要な判断が必要なので、確認して改めて連絡します。
 
 しばらくお待ちください。
 
-※ ${AI_REPLY_FOOTER}`;
+${AI_REPLY_FOOTER}`;
   }
 
   if (riskLevel === 'L2') {
@@ -609,7 +609,7 @@ export function generateDefaultReply(
 
 確認の上、追ってご連絡いたします。
 
-※ ${AI_REPLY_FOOTER}`;
+${AI_REPLY_FOOTER}`;
   }
 
   // L1
@@ -617,7 +617,7 @@ export function generateDefaultReply(
 
 詳細を確認中です。しばらくお待ちください。
 
-※ ${AI_REPLY_FOOTER}`;
+${AI_REPLY_FOOTER}`;
 }
 
 // ======== 監査ログ ========

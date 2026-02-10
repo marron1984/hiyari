@@ -9,7 +9,7 @@ import { createApprovalTask, isGoogleTasksConfigured } from '@/lib/google-tasks'
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
 // レビュープロンプト
-const REVIEW_PROMPT = `あなたは介護施設運営会社の AI副社長です。
+const REVIEW_PROMPT = `あなたは介護施設運営会社の社長「吉田」です。
 申請内容をレビューし、判断支援を行ってください。
 
 ## あなたの役割
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
         amount: c.totalAmount,
         status: c.status,
         decidedAt: c.completedAt,
-        similarity: 0.8, // TODO: 実際の類似度計算
+        similarity: computeSimilarity(requestData, c),
       })),
       processingTimeMs,
       tokenUsage,
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
       fromStatus: requestData?.status,
       toStatus: 'ai_vp_reviewed',
       actorId: 'ai_vp',
-      actorName: 'AI副社長',
+      actorName: '吉田',
       actorRole: 'ai_vp',
       isAiVp: true,
       comment: reviewResult.formattedSummary,
@@ -272,6 +272,60 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * 類似度を計算（カテゴリ一致、金額近似、タイトルのトークン重複）
+ * 0〜1 のスコアを返す
+ */
+function computeSimilarity(
+  current: FirebaseFirestore.DocumentData | undefined,
+  candidate: Record<string, unknown>
+): number {
+  if (!current) return 0;
+
+  let score = 0;
+  let weights = 0;
+
+  // カテゴリ一致 (重み 0.3)
+  if (current.category && candidate.category) {
+    score += current.category === candidate.category ? 0.3 : 0;
+  }
+  weights += 0.3;
+
+  // 申請種別一致 (重み 0.2)
+  if (current.requestType && candidate.requestType) {
+    score += current.requestType === candidate.requestType ? 0.2 : 0;
+  }
+  weights += 0.2;
+
+  // 金額近似 (重み 0.25)
+  const curAmount = Number(current.totalAmount) || 0;
+  const canAmount = Number(candidate.totalAmount) || 0;
+  if (curAmount > 0 && canAmount > 0) {
+    const ratio = Math.min(curAmount, canAmount) / Math.max(curAmount, canAmount);
+    score += ratio * 0.25;
+  }
+  weights += 0.25;
+
+  // タイトルトークン重複 (重み 0.25)
+  const curTitle = String(current.title || '');
+  const canTitle = String(candidate.title || '');
+  if (curTitle && canTitle) {
+    const curTokens = new Set(curTitle.split(/[\s　、。・]+/).filter(Boolean));
+    const canTokens = new Set(canTitle.split(/[\s　、。・]+/).filter(Boolean));
+    if (curTokens.size > 0 && canTokens.size > 0) {
+      let overlap = 0;
+      for (const t of curTokens) {
+        if (canTokens.has(t)) overlap++;
+      }
+      const jaccard = overlap / (curTokens.size + canTokens.size - overlap);
+      score += jaccard * 0.25;
+    }
+  }
+  weights += 0.25;
+
+  return weights > 0 ? Math.round((score / weights) * 100) / 100 : 0;
 }
 
 /**
