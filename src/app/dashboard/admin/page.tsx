@@ -80,6 +80,12 @@ const ADMIN_MENU_ITEMS = [
     description: 'Google Sheets連携',
   },
   {
+    href: '/admin/module-permissions',
+    icon: Shield,
+    label: 'モジュール権限',
+    description: '機能別の個別権限設定',
+  },
+  {
     href: '/admin/points',
     icon: TrendingUp,
     label: 'ポイント管理',
