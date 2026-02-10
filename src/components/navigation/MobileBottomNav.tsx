@@ -28,6 +28,11 @@ import {
   LogOut,
   Sparkles,
   FolderOpen,
+  Wrench,
+  AlertTriangle,
+  BookOpen,
+  Ticket,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
@@ -241,6 +246,7 @@ export function MobileBottomNav() {
     { href: '/rankings', label: 'ランク', icon: Trophy },
     { href: '/dashboard/docs', label: 'ドキュメント', icon: FolderOpen },
     { href: '/dashboard/os', label: '経営OS', icon: Activity },
+    { href: '/dashboard/tickets', label: 'チケット', icon: Ticket },
   ];
 
   // featureGate でフィルタ
@@ -258,6 +264,10 @@ export function MobileBottomNav() {
         { href: '/admin/users', label: '権限管理', icon: Shield },
         { href: '/admin/employees', label: '従業員', icon: Users },
         { href: '/admin/settings', label: '設定', icon: Settings },
+        { href: '/dashboard/repair-tickets', label: '修繕', icon: Wrench },
+        { href: '/dashboard/complaints', label: '苦情管理', icon: AlertTriangle },
+        { href: '/dashboard/corrective-actions', label: '是正措置', icon: CheckCircle2 },
+        { href: '/dashboard/training', label: '研修管理', icon: BookOpen },
       ]
     : [];
 

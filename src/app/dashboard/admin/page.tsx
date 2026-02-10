@@ -25,6 +25,9 @@ import {
   ExternalLink,
   Clock,
   BarChart3,
+  Wrench,
+  BookOpen,
+  Ticket,
 } from 'lucide-react';
 
 // 管理メニュー項目
@@ -108,6 +111,60 @@ const ADMIN_MENU_ITEMS = [
     icon: BarChart3,
     label: 'インサイト',
     description: 'データ分析・レポート',
+  },
+  {
+    href: '/admin/attendance/realtime',
+    icon: Activity,
+    label: 'リアルタイム勤怠',
+    description: '全スタッフのリアルタイム出勤状況',
+  },
+  {
+    href: '/dashboard/audit',
+    icon: FileText,
+    label: '監査ログ',
+    description: 'システム操作の監査証跡',
+  },
+  {
+    href: '/dashboard/repair-tickets',
+    icon: Wrench,
+    label: '修繕チケット',
+    description: '設備故障・修理依頼の管理',
+  },
+  {
+    href: '/dashboard/complaints',
+    icon: AlertTriangle,
+    label: '苦情管理',
+    description: '苦情・クレームの追跡管理',
+  },
+  {
+    href: '/dashboard/corrective-actions',
+    icon: CheckCircle,
+    label: '是正措置',
+    description: '是正・予防措置の管理',
+  },
+  {
+    href: '/dashboard/tickets',
+    icon: Ticket,
+    label: 'チケット管理',
+    description: '業務チケットの管理',
+  },
+  {
+    href: '/dashboard/training',
+    icon: BookOpen,
+    label: '研修管理',
+    description: '研修・教育プログラムの管理',
+  },
+  {
+    href: '/dashboard/business-summary',
+    icon: TrendingUp,
+    label: '業務サマリー',
+    description: '業務KPI・トレンド分析',
+  },
+  {
+    href: '/dashboard/quality-risk',
+    icon: Shield,
+    label: '品質・リスク',
+    description: '品質指標・リスクダッシュボード',
   },
 ];
 

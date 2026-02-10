@@ -212,6 +212,15 @@ export function Header() {
             {/* Role Switcher (Admin only) */}
             <RoleSwitcher />
 
+            {/* Notification Settings (gear icon) */}
+            <Link
+              href="/dashboard/notification-settings"
+              className="p-2 rounded-xl hover:bg-zinc-100 transition-colors"
+              aria-label="通知設定"
+            >
+              <Settings className="w-5 h-5 text-zinc-600" />
+            </Link>
+
             {/* Notification Bell */}
             <NotificationBell />
 
