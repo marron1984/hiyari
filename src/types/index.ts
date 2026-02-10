@@ -138,6 +138,11 @@ export interface ScoreBreakdownItem {
   points: number;
 }
 
+// モジュール別権限オーバーライド
+export interface ModulePermissions {
+  prospects?: { canEdit?: boolean };  // 入居希望者
+}
+
 // ユーザー
 export interface User {
   id: string;
@@ -150,6 +155,7 @@ export interface User {
   tenantId: string;
   birthDate?: Date;
   department?: string;
+  modulePermissions?: ModulePermissions;
   createdAt: Date;
   updatedAt?: Date;
 }

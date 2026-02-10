@@ -30,8 +30,8 @@ import {
   generateProspectKey,
   IMPORTANT_STATUSES,
 } from '@/types/prospect';
-import { hasMinRole } from './auth';
-import { UserRole } from '@/types';
+import { hasMinRole, canEditProspects } from './auth';
+import { UserRole, ModulePermissions } from '@/types';
 
 // ======== 定数 ========
 
@@ -478,10 +478,11 @@ export async function updateProspect(
   updates: Partial<Prospect>,
   userId: string,
   userName: string,
-  userRole: UserRole
+  userRole: UserRole,
+  modulePermissions?: ModulePermissions
 ): Promise<void> {
-  if (!hasMinRole(userRole, 'leader')) {
-    throw new Error('更新にはリーダー以上の権限が必要です');
+  if (!canEditProspects(userRole, modulePermissions)) {
+    throw new Error('更新には編集権限が必要です');
   }
 
   const firestore = getDb();
@@ -526,10 +527,11 @@ export async function assignProspect(
   assigneeName: string,
   userId: string,
   userName: string,
-  userRole: UserRole
+  userRole: UserRole,
+  modulePermissions?: ModulePermissions
 ): Promise<void> {
-  if (!hasMinRole(userRole, 'leader')) {
-    throw new Error('担当割当にはリーダー以上の権限が必要です');
+  if (!canEditProspects(userRole, modulePermissions)) {
+    throw new Error('担当割当には編集権限が必要です');
   }
 
   const firestore = getDb();
@@ -566,10 +568,11 @@ export async function updateProspectStatus(
   statusNote: string | undefined,
   userId: string,
   userName: string,
-  userRole: UserRole
+  userRole: UserRole,
+  modulePermissions?: ModulePermissions
 ): Promise<{ shouldNotify: boolean }> {
-  if (!hasMinRole(userRole, 'leader')) {
-    throw new Error('ステータス更新にはリーダー以上の権限が必要です');
+  if (!canEditProspects(userRole, modulePermissions)) {
+    throw new Error('ステータス更新には編集権限が必要です');
   }
 
   const firestore = getDb();
@@ -875,10 +878,11 @@ export async function updateRoomStatus(
   status: RoomStatus,
   userId: string,
   userName: string,
-  userRole: UserRole
+  userRole: UserRole,
+  modulePermissions?: ModulePermissions
 ): Promise<void> {
-  if (!hasMinRole(userRole, 'leader')) {
-    throw new Error('更新にはリーダー以上の権限が必要です');
+  if (!canEditProspects(userRole, modulePermissions)) {
+    throw new Error('更新には編集権限が必要です');
   }
 
   const firestore = getDb();
@@ -1176,10 +1180,11 @@ export async function lockRoomForApplication(
   userId: string,
   userName: string,
   userRole: UserRole,
-  tenantId: string = DEFAULT_TENANT_ID
+  tenantId: string = DEFAULT_TENANT_ID,
+  modulePermissions?: ModulePermissions
 ): Promise<{ success: boolean; error?: string }> {
-  if (!hasMinRole(userRole, 'leader')) {
-    throw new Error('部屋ロックにはリーダー以上の権限が必要です');
+  if (!canEditProspects(userRole, modulePermissions)) {
+    throw new Error('部屋ロックには編集権限が必要です');
   }
 
   const firestore = getDb();

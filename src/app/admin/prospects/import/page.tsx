@@ -7,7 +7,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input } from '@/components/ui';
 import { Loading } from '@/components/Loading';
-import { hasMinRole } from '@/lib/auth';
+import { canEditProspects } from '@/lib/auth';
 import {
   FileSpreadsheet,
   RefreshCw,
@@ -67,7 +67,7 @@ function ImportProspectsContent() {
     errors: string[];
   } | null>(null);
 
-  const canAccess = hasMinRole(user?.role, 'leader');
+  const canAccess = canEditProspects(user?.role, user?.modulePermissions);
 
   const fetchStatus = useCallback(async () => {
     if (!user || !firebaseUser) return;

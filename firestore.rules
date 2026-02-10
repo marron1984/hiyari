@@ -19,6 +19,15 @@ service cloud.firestore {
       return getUserRole() in ['admin', 'system_admin'];
     }
 
+    // 入居希望者の編集権限チェック（ロールまたはモジュール個別権限）
+    function canEditProspects() {
+      let userData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return userData.role in ['leader', 'admin', 'system_admin']
+        || (userData.keys().hasAny(['modulePermissions'])
+            && userData.modulePermissions.keys().hasAny(['prospects'])
+            && userData.modulePermissions.prospects.canEdit == true);
+    }
+
     // AI副社長オーナー判定（吉田専用）
     function isAiVpOwner() {
       return request.auth.token.email == 'yoshida@aska-g.com';
@@ -159,12 +168,10 @@ service cloud.firestore {
     match /prospects/{prospectId} {
       // 認証済みユーザーは読み取り可能
       allow read: if isAuthenticated();
-      // リーダー以上のみ作成可能
-      allow create: if isAuthenticated()
-        && getUserRole() in ['leader', 'admin', 'system_admin'];
-      // リーダー以上のみ更新可能
-      allow update: if isAuthenticated()
-        && getUserRole() in ['leader', 'admin', 'system_admin'];
+      // リーダー以上、またはmodulePermissions.prospects.canEdit権限者が作成可能
+      allow create: if isAuthenticated() && canEditProspects();
+      // リーダー以上、またはmodulePermissions.prospects.canEdit権限者が更新可能
+      allow update: if isAuthenticated() && canEditProspects();
       // 管理者のみ削除可能
       allow delete: if isAuthenticated() && isAdmin();
     }
@@ -173,18 +180,16 @@ service cloud.firestore {
     match /rooms/{roomId} {
       // 認証済みユーザーは読み取り可能
       allow read: if isAuthenticated();
-      // リーダー以上のみ書き込み可能
-      allow write: if isAuthenticated()
-        && getUserRole() in ['leader', 'admin', 'system_admin'];
+      // リーダー以上、またはmodulePermissions.prospects.canEdit権限者が書き込み可能
+      allow write: if isAuthenticated() && canEditProspects();
     }
 
     // 入居状況コレクション
     match /occupancy/{occupancyId} {
       // 認証済みユーザーは読み取り可能
       allow read: if isAuthenticated();
-      // リーダー以上のみ書き込み可能
-      allow write: if isAuthenticated()
-        && getUserRole() in ['leader', 'admin', 'system_admin'];
+      // リーダー以上、またはmodulePermissions.prospects.canEdit権限者が書き込み可能
+      allow write: if isAuthenticated() && canEditProspects();
     }
 
     // 監査ログコレクション（append-only）
