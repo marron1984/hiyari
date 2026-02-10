@@ -12,6 +12,12 @@ import {
   notifyYoshidaAboutCondition,
   generateMockBehaviorMetrics,
 } from '@/lib/condition-analysis';
+import {
+  collectBehaviorMetrics,
+  saveMetricsSnapshot,
+  getLatestMetricsSnapshot,
+  isLineWorksAdminConfigured,
+} from '@/lib/lineworks-admin';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
@@ -106,8 +112,14 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'userIdとuserNameは必須です' }, { status: 400 });
         }
 
-        // metricsが指定されていなければモックデータを使用（開発用）
-        const behaviorMetrics = metrics || generateMockBehaviorMetrics();
+        // metricsが指定されていなければ実データを試行→フォールバックでモック
+        let behaviorMetrics = metrics;
+        if (!behaviorMetrics) {
+          const now = new Date();
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          const realMetrics = await collectBehaviorMetrics(weekAgo, now);
+          behaviorMetrics = realMetrics.get(userId) || generateMockBehaviorMetrics();
+        }
 
         const now = new Date();
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -195,32 +207,50 @@ export async function POST(request: NextRequest) {
       }
 
       case 'batch_calculate': {
-        // 全スタッフのコンディションを一括計算（開発/テスト用）
-        const usersSnapshot = await getAdminDb()
-          .collection('users')
-          .where('tenantId', '==', DEFAULT_TENANT_ID)
-          .limit(50)
-          .get();
-
-        const results = [];
+        // 全スタッフのコンディションを一括計算
+        // LINE WORKSデータがあれば実データ、なければモックデータを使用
         const now = new Date();
         const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-        for (const userDocSnapshot of usersSnapshot.docs) {
+        let metricsMap = await collectBehaviorMetrics(weekAgo, now);
+        let source: 'admin_api' | 'firestore_webhook' | 'mock' = isLineWorksAdminConfigured()
+          ? 'admin_api'
+          : 'firestore_webhook';
+
+        // データがない場合はモックデータにフォールバック
+        if (metricsMap.size === 0) {
+          source = 'mock';
+          const usersSnapshot = await getAdminDb()
+            .collection('users')
+            .where('tenantId', '==', DEFAULT_TENANT_ID)
+            .limit(50)
+            .get();
+
+          for (const userDocSnapshot of usersSnapshot.docs) {
+            metricsMap.set(userDocSnapshot.id, generateMockBehaviorMetrics());
+          }
+        }
+
+        // スナップショットを保存
+        await saveMetricsSnapshot(metricsMap, weekAgo, now, source);
+
+        const results = [];
+        for (const [uid, userMetrics] of metricsMap) {
+          const userDocSnapshot = await getAdminDb().collection('users').doc(uid).get();
           const user = userDocSnapshot.data();
-          const mockMetrics = generateMockBehaviorMetrics();
+          const uName = user?.name || user?.email || 'Unknown';
 
           const conditionScore = await saveConditionScore(
-            userDocSnapshot.id,
-            user.name || user.email || 'Unknown',
-            mockMetrics,
+            uid,
+            uName,
+            userMetrics,
             weekAgo,
             now
           );
 
           results.push({
-            userId: userDocSnapshot.id,
-            userName: user.name,
+            userId: uid,
+            userName: uName,
             score: conditionScore.score,
             alertLevel: conditionScore.alertLevel,
           });
@@ -228,6 +258,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
           success: true,
+          source,
           processedCount: results.length,
           results,
         });
