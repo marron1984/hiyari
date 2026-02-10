@@ -150,8 +150,15 @@ export interface User {
   tenantId: string;
   birthDate?: Date;
   department?: string;
+  modulePermissions?: ModulePermissions;
   createdAt: Date;
   updatedAt?: Date;
+}
+
+// モジュール別の個別権限オーバーライド
+export interface ModulePermissions {
+  prospects?: { canEdit?: boolean };
+  [key: string]: { canEdit?: boolean } | undefined;
 }
 
 // 事業所

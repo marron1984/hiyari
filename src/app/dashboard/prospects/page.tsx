@@ -11,7 +11,7 @@ import {
   isProspectInFullScope,
   PROSPECTS_ACTIVE_FROM_DISPLAY,
 } from '@/lib/prospect';
-import { hasMinRole } from '@/lib/auth';
+import { canManageProspects } from '@/lib/auth';
 import {
   Prospect,
   ProspectStatus,
@@ -55,7 +55,7 @@ export default function ProspectsPage() {
   // 過去データ表示（スコープ外）- デフォルト非表示
   const [showLegacyData, setShowLegacyData] = useState(false);
 
-  const canManage = hasMinRole(user?.role, 'leader');
+  const canManage = canManageProspects(user?.role, user?.email, user?.modulePermissions);
 
   const fetchData = useCallback(async () => {
     if (!user) return;

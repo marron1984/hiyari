@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, getAdminStorage, verifyIdToken } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { hasMinRole } from '@/lib/auth';
+import { hasMinRole, canManageProspects } from '@/lib/auth';
 import type { ProspectDocument, DocumentCategory } from '@/types/prospect';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -190,7 +190,7 @@ export async function DELETE(
     const userData = userDoc.data();
     const userRole = userData?.role || 'user';
 
-    if (!hasMinRole(userRole, 'leader')) {
+    if (!canManageProspects(userRole, decodedToken.email, userData?.modulePermissions)) {
       return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 });
     }
 

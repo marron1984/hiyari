@@ -15,7 +15,7 @@ import {
   getAuditLogs,
 } from '@/lib/prospect';
 import { getFacilities } from '@/lib/vacancy';
-import { hasMinRole } from '@/lib/auth';
+import { canManageProspects } from '@/lib/auth';
 import {
   Prospect,
   ProspectStatus,
@@ -84,7 +84,7 @@ export default function ProspectDetailPage() {
   const [generatingDocs, setGeneratingDocs] = useState(false);
   const [docsGenerated, setDocsGenerated] = useState(false);
 
-  const canManage = hasMinRole(user?.role, 'leader');
+  const canManage = canManageProspects(user?.role, user?.email, user?.modulePermissions);
 
   const fetchData = useCallback(async () => {
     if (!user || !id) return;

@@ -82,6 +82,35 @@ export const ASSIGNABLE_ROLES: { value: UserRole; label: string }[] = [
   { value: 'admin', label: '管理者' },
 ];
 
+// ======== モジュール別個別権限 ========
+
+import type { ModulePermissions } from '@/types';
+
+/**
+ * 入居希望者モジュールの編集権限を持つメールアドレス
+ * ロールが leader 未満でも編集可能
+ */
+const PROSPECTS_EDITORS: string[] = [
+  'ikuta@aska-g.com',
+];
+
+/**
+ * 入居希望者モジュールの管理（編集）権限があるかチェック
+ * - leader以上のロール → 常にtrue
+ * - PROSPECTS_EDITORS に含まれる → true
+ * - user.modulePermissions.prospects.canEdit === true → true
+ */
+export function canManageProspects(
+  userRole: UserRole | undefined,
+  userEmail?: string,
+  modulePermissions?: ModulePermissions
+): boolean {
+  if (hasMinRole(userRole, 'leader')) return true;
+  if (userEmail && PROSPECTS_EDITORS.includes(userEmail)) return true;
+  if (modulePermissions?.prospects?.canEdit) return true;
+  return false;
+}
+
 // ======== CHAOS 経営OS 権限 ========
 
 /**
