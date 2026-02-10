@@ -71,13 +71,13 @@ const ROOM_STATUS_CONFIG: Record<string, { label: string; color: string; bgColor
   '予約': { label: 'ロック', color: 'text-purple-700', bgColor: 'bg-purple-100', icon: <Lock className="w-3 h-3" /> },
   '入居中': { label: '入居中', color: 'text-green-700', bgColor: 'bg-green-100', icon: <Users className="w-3 h-3" /> },
   '退去予定': { label: '退去予定', color: 'text-orange-700', bgColor: 'bg-orange-100', icon: <DoorOpen className="w-3 h-3" /> },
-  'メンテナンス': { label: '修繕中', color: 'text-yellow-700', bgColor: 'bg-yellow-100', icon: <Wrench className="w-3 h-3" /> },
+  'メンテナンス': { label: '会社利用', color: 'text-yellow-700', bgColor: 'bg-yellow-100', icon: <Wrench className="w-3 h-3" /> },
 };
 
 // 状態変更の選択肢
 const STATUS_TRANSITIONS: Record<string, { value: string; label: string }[]> = {
   '空室': [
-    { value: 'メンテナンス', label: '修繕中にする' },
+    { value: 'メンテナンス', label: '会社利用にする' },
     { value: '入居中', label: '入居中にする' },
   ],
   'メンテナンス': [
@@ -516,7 +516,7 @@ function FacilityDrawer({
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-yellow-600">{summary.maintenance}</div>
-            <div className="text-xs text-gray-500">修繕中</div>
+            <div className="text-xs text-gray-500">会社利用</div>
           </div>
         </div>
 
@@ -652,7 +652,7 @@ function FacilityCard({ facility, summary, rooms, onClick }: FacilityCardProps) 
           </div>
           <div className="text-center p-2 bg-amber-50 rounded-lg">
             <div className="text-lg font-bold tabular-nums text-amber-600">{summary.maintenance}</div>
-            <div className="text-[10px] text-zinc-500">修繕</div>
+            <div className="text-[10px] text-zinc-500">会社利用</div>
           </div>
         </div>
 
@@ -704,7 +704,7 @@ function FacilityCard({ facility, summary, rooms, onClick }: FacilityCardProps) 
                     <span
                       key={room.id}
                       className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-yellow-50 text-yellow-600"
-                      title={`${room.roomNumber} - ${room.note || '修繕中'}`}
+                      title={`${room.roomNumber} - ${room.note || '会社利用'}`}
                     >
                       {room.roomNumber}
                     </span>
@@ -1106,7 +1106,7 @@ export default function VacancyPage() {
                 <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center">
                   <Wrench className="w-4 h-4 text-white" />
                 </div>
-                <span className="text-xs font-medium text-zinc-500">修繕中</span>
+                <span className="text-xs font-medium text-zinc-500">会社利用</span>
               </div>
               <div className="text-2xl font-bold tabular-nums text-amber-600">{totalSummary.maintenance}</div>
             </Card>
