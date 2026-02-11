@@ -4,21 +4,20 @@
  * GET /api/family-log/stats - 統計取得
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { getFamilyLogStats } from '@/lib/familyLog/repo';
 import { canViewFamilyLogStats } from '@/lib/familyLog/types';
-import type { ViewerContext } from '@/lib/familyLog/types';
+import type { AppRole } from '@/config/appRoles';
 
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!canViewFamilyLogStats(DEMO_VIEWER.role)) {
+    if (!canViewFamilyLogStats(user.role as AppRole)) {
       return NextResponse.json(
         { error: '統計閲覧権限がありません' },
         { status: 403 }

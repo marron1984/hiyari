@@ -7,19 +7,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createActionItem } from '@/lib/committees/repo';
 import { canManageCommittees } from '@/lib/committees/types';
-
-// デモ用ユーザー
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canManageCommittees(DEMO_USER)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canManageCommittees({ userId: user.uid, role: user.role as AppRole })) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -40,7 +40,7 @@ export async function POST(
     const result = createActionItem(
       id,
       { title, description, ownerUserId, ownerRole, dueAt },
-      DEMO_USER.userId
+      user.uid
     );
 
     if (!result.success) {

@@ -4,27 +4,25 @@
  * GET /api/collection/stats - 統計取得
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getStats } from '@/lib/collection/repo';
 import { canViewStats } from '@/lib/collection/types';
-import type { ViewerContext } from '@/lib/collection/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    if (!canViewStats(DEMO_VIEWER.role)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canViewStats(user.role as any)) {
       return NextResponse.json(
         { error: '統計閲覧権限がありません' },
         { status: 403 }
       );
     }
 
-    const stats = getStats(DEMO_VIEWER);
+    const stats = getStats({ userId: user.uid, role: user.role as any });
 
     if (!stats) {
       return NextResponse.json(

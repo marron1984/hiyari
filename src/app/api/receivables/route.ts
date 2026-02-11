@@ -11,18 +11,20 @@ import {
   canViewReceivables,
   canCreateReceivables,
 } from '@/lib/receivables/types';
-import type { ViewerContext, ReceivableStatus, ReceivablePriority } from '@/lib/receivables/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import type { ReceivableStatus, ReceivablePriority, UserRole as ReceivablesRole } from '@/lib/receivables/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as ReceivablesRole;
+    const viewer = { userId: user.uid, role };
+
     // 権限チェック
-    if (!canViewReceivables(DEMO_VIEWER.role)) {
+    if (!canViewReceivables(role)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const { items, total } = listReceivables(DEMO_VIEWER, filters, { limit, offset });
+    const { items, total } = listReceivables(viewer, filters, { limit, offset });
 
     return NextResponse.json({ items, total });
   } catch (error) {
@@ -62,8 +64,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as ReceivablesRole;
+
     // 権限チェック
-    if (!canCreateReceivables(DEMO_VIEWER.role)) {
+    if (!canCreateReceivables(role)) {
       return NextResponse.json(
         { error: '作成権限がありません' },
         { status: 403 }
@@ -111,7 +119,7 @@ export async function POST(request: NextRequest) {
         nextActionAt,
         nextActionType,
       },
-      DEMO_VIEWER.userId
+      user.uid
     );
 
     return NextResponse.json({ receivable }, { status: 201 });

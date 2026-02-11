@@ -6,23 +6,21 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveHandoverItem } from '@/lib/handover/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
 
-    const result = resolveHandoverItem(id, DEMO_USER.id, DEMO_USER.role);
+    const result = resolveHandoverItem(id, user.uid, user.role as AppRole);
 
     if (!result.success) {
       return NextResponse.json(

@@ -14,15 +14,14 @@ import {
   seedReplyTemplatesIfEmpty,
 } from '@/lib/replyTemplates/repo';
 import type { ReplyTemplateCategory } from '@/lib/replyTemplates/types';
-
-// デモユーザー（本番では認証から取得）
-const DEMO_USER: { userId: string; role: 'admin' | 'manager' | 'staff' } = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // シードデータ初期化
     seedReplyTemplatesIfEmpty();
 
@@ -52,8 +51,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!['admin', 'manager'].includes(DEMO_USER.role)) {
+    if (!['admin', 'manager'].includes(user.role)) {
       return NextResponse.json(
         { error: '作成権限がありません' },
         { status: 403 }
@@ -83,7 +86,7 @@ export async function POST(request: NextRequest) {
         isActive,
         sortOrder,
       },
-      DEMO_USER.userId
+      user.uid
     );
 
     return NextResponse.json({ template }, { status: 201 });

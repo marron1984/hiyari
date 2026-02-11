@@ -7,21 +7,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getById, assignOwner } from '@/lib/receivables/repo';
 import { canAssignOwner } from '@/lib/receivables/types';
-import type { ViewerContext } from '@/lib/receivables/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import type { UserRole as ReceivablesRole } from '@/lib/receivables/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as ReceivablesRole;
+    const viewer = { userId: user.uid, role };
+
     // 権限チェック
-    if (!canAssignOwner(DEMO_VIEWER.role)) {
+    if (!canAssignOwner(role)) {
       return NextResponse.json(
         { error: '割当権限がありません' },
         { status: 403 }
@@ -33,7 +35,7 @@ export async function POST(
 
     const { ownerUserId } = body as { ownerUserId: string | null };
 
-    const existing = getById(id, DEMO_VIEWER);
+    const existing = getById(id, viewer);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -41,7 +43,7 @@ export async function POST(
       );
     }
 
-    const receivable = assignOwner(id, ownerUserId, DEMO_VIEWER.userId);
+    const receivable = assignOwner(id, ownerUserId, user.uid);
 
     return NextResponse.json({ receivable });
   } catch (error) {

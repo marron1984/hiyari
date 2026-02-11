@@ -7,24 +7,21 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { markRead, getById } from '@/lib/notifications/repo';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_manager',
-  name: '田中管理者',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
 
     if (!id) {
@@ -44,7 +41,7 @@ export async function POST(
     }
 
     // 既読にする
-    const result = markRead(id, DEMO_USER.id);
+    const result = markRead(id, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

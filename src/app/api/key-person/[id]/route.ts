@@ -8,21 +8,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getById, updateContact } from '@/lib/keyPerson/repo';
 import { canViewKeyPerson, canEditKeyPerson } from '@/lib/keyPerson/types';
-import type { UpdateKeyPersonRequest, ViewerContext } from '@/lib/keyPerson/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import type { UpdateKeyPersonRequest } from '@/lib/keyPerson/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!canViewKeyPerson(DEMO_VIEWER.role)) {
+    if (!canViewKeyPerson(user.role as AppRole)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -30,7 +30,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const contact = getById(id, DEMO_VIEWER);
+    const contact = getById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!contact) {
       return NextResponse.json(
@@ -54,8 +54,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!canEditKeyPerson(DEMO_VIEWER.role)) {
+    if (!canEditKeyPerson(user.role as AppRole)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -63,7 +67,7 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const contact = getById(id, DEMO_VIEWER);
+    const contact = getById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!contact) {
       return NextResponse.json(
@@ -89,7 +93,7 @@ export async function PATCH(
     if (body.isEmergency !== undefined) updateRequest.isEmergency = body.isEmergency;
     if (body.consentStatus !== undefined) updateRequest.consentStatus = body.consentStatus;
 
-    const updated = updateContact(id, updateRequest, DEMO_VIEWER.userId);
+    const updated = updateContact(id, updateRequest, user.uid);
 
     return NextResponse.json({ contact: updated });
   } catch (error) {

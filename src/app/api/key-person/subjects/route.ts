@@ -4,21 +4,20 @@
  * GET /api/key-person/subjects
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSubjectsWithContacts } from '@/lib/keyPerson/repo';
 import { canViewKeyPerson } from '@/lib/keyPerson/types';
-import type { ViewerContext } from '@/lib/keyPerson/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!canViewKeyPerson(DEMO_VIEWER.role)) {
+    if (!canViewKeyPerson(user.role as AppRole)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }

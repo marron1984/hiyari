@@ -4,28 +4,30 @@
  * GET /api/receivables/stats
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getStats } from '@/lib/receivables/repo';
 import { canViewStats } from '@/lib/receivables/types';
-import type { ViewerContext } from '@/lib/receivables/types';
+import type { UserRole as ReceivablesRole } from '@/lib/receivables/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as ReceivablesRole;
+    const viewer = { userId: user.uid, role };
+
     // 権限チェック
-    if (!canViewStats(DEMO_VIEWER.role)) {
+    if (!canViewStats(role)) {
       return NextResponse.json(
         { error: '統計閲覧権限がありません' },
         { status: 403 }
       );
     }
 
-    const stats = getStats(DEMO_VIEWER);
+    const stats = getStats(viewer);
 
     if (!stats) {
       return NextResponse.json(

@@ -17,13 +17,7 @@ import {
 } from '@/lib/vacancySuggestions/repo';
 import { canManageSuggestions, canViewSuggestions } from '@/lib/vacancySuggestions/types';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -31,9 +25,13 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canViewSuggestions(viewer)) {
       return NextResponse.json(
         { error: '提案を閲覧する権限がありません' },
@@ -61,9 +59,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canManageSuggestions(viewer)) {
       return NextResponse.json(
         { error: '提案を操作する権限がありません' },
@@ -83,9 +85,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     let result;
     if (action === 'apply') {
-      result = await applySuggestion(id, DEMO_USER.id, DEMO_USER.name);
+      result = await applySuggestion(id, user.uid, user.name);
     } else {
-      result = dismissSuggestion(id, DEMO_USER.id, reason);
+      result = dismissSuggestion(id, user.uid, reason);
     }
 
     if (!result.success) {

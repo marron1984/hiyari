@@ -13,22 +13,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getVacancyInquiryStats } from '@/lib/tickets/repo';
 import type { ViewerContext } from '@/lib/tickets/types';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
     const businessUnitId = searchParams.get('businessUnitId');
 
     const viewer: ViewerContext = {
-      userId: DEMO_USER.id,
-      role: DEMO_USER.role,
+      userId: user.uid,
+      role: user.role as AppRole,
     };
 
     const stats = getVacancyInquiryStats(viewer, {

@@ -12,17 +12,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listSpamEvents, getSpamEventStats } from '@/lib/spam/repo';
 import { canViewSpamEvents } from '@/lib/spam/types';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canViewSpamEvents(viewer)) {
       return NextResponse.json(
         { error: 'スパムイベントを閲覧する権限がありません' },

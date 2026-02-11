@@ -15,20 +15,20 @@ import {
 } from '@/lib/onboarding/repo';
 import type { CreateOnboardingRequirementRequest } from '@/lib/onboarding/types';
 import { canManageOnboardingRequirements } from '@/lib/onboarding/types';
-
-// デモユーザー情報（実際の実装ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_001',
-  role: 'admin' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 /**
  * GET - 要件一覧を取得
  */
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // RBAC チェック
-    if (!canManageOnboardingRequirements(DEMO_USER.role)) {
+    if (!canManageOnboardingRequirements(user.role as AppRole)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }
@@ -68,8 +68,12 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // RBAC チェック
-    if (!canManageOnboardingRequirements(DEMO_USER.role)) {
+    if (!canManageOnboardingRequirements(user.role as AppRole)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }
@@ -94,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     const requirement = createRequirement({
       ...body,
-      actorUserId: DEMO_USER.id,
+      actorUserId: user.uid,
     });
 
     return NextResponse.json({

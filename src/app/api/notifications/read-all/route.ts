@@ -7,19 +7,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { markAllReadByRole } from '@/lib/notifications/repo';
-import type { AppRole } from '@/config/appRoles';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_manager',
-  name: '田中管理者',
-  role: 'manager' as AppRole,
-};
-
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // ロール別の全通知を既読にする
-    const { count } = markAllReadByRole(DEMO_USER.role);
+    const { count } = markAllReadByRole(user.role);
 
     return NextResponse.json({
       success: true,

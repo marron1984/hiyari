@@ -15,16 +15,14 @@ import type { AppRole } from '@/config/appRoles';
 import type { TicketStatus, TicketPriority, TicketCategory, TicketRelatedType } from '@/lib/tickets/types';
 import { validateApiGuardrail } from '@/lib/scope/guardrail';
 import { processStaffCreation, requiresInference } from '@/lib/scope/inferBusinessUnit';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
 
     const status = searchParams.get('status') as TicketStatus | null;
@@ -59,7 +57,7 @@ export async function GET(request: NextRequest) {
       offset: offsetParam ? parseInt(offsetParam, 10) : 0,
     };
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
 
     // In-memory結果
     const { items: memoryItems, total: memoryTotal } = listTickets(filter, viewer);
@@ -97,6 +95,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const body = await request.json();
 
     const {
@@ -120,7 +122,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Task 033: ガードレール検証（manager/leader は businessUnitId 必須）
-    const guardrailResult = validateApiGuardrail(DEMO_USER.role, 'tickets', { businessUnitId });
+    const guardrailResult = validateApiGuardrail(user.role as AppRole, 'tickets', { businessUnitId });
     if (!guardrailResult.valid) {
       return NextResponse.json(
         { error: guardrailResult.error },
@@ -130,10 +132,10 @@ export async function POST(request: NextRequest) {
 
     // Task 035: staff 向け businessUnitId 自動推定
     let finalBusinessUnitId = businessUnitId;
-    if (requiresInference(DEMO_USER.role)) {
+    if (requiresInference(user.role as AppRole)) {
       const inferResult = processStaffCreation(
-        DEMO_USER.id,
-        DEMO_USER.role,
+        user.uid,
+        user.role as AppRole,
         'tickets',
         businessUnitId,
         { category }  // ヒント
@@ -166,7 +168,7 @@ export async function POST(request: NextRequest) {
         relatedId,
         location,
       },
-      DEMO_USER.id
+      user.uid
     );
 
     return NextResponse.json({ ticket }, { status: 201 });

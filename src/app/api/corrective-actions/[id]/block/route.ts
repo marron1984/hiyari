@@ -12,17 +12,16 @@ import { blockAction } from '@/lib/correctiveActions/repo';
 import type { BlockedReasonCode } from '@/lib/correctiveActions/types';
 import { BLOCKED_REASON_CODES } from '@/lib/correctiveActions/types';
 import type { AppRole } from '@/config/appRoles';
-
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -37,7 +36,7 @@ export async function POST(
       );
     }
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     const result = blockAction(
       id,
       {

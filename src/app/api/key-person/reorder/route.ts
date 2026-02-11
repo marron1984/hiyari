@@ -7,18 +7,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { reorderContacts } from '@/lib/keyPerson/repo';
 import { canEditKeyPerson } from '@/lib/keyPerson/types';
-import type { KeyPersonSubjectType, ViewerContext } from '@/lib/keyPerson/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import type { KeyPersonSubjectType } from '@/lib/keyPerson/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!canEditKeyPerson(DEMO_VIEWER.role)) {
+    if (!canEditKeyPerson(user.role as AppRole)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       subjectType,
       subjectId,
       orderedIds,
-      DEMO_VIEWER.userId
+      user.uid
     );
 
     return NextResponse.json({ contacts });

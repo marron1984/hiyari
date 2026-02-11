@@ -7,20 +7,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createStep, getTemplateById, reorderSteps } from '@/lib/collection/repo';
 import { canManageTemplates } from '@/lib/collection/types';
-import type { ViewerContext, CollectionActionType, ExpectedOutcome, StepSeverity } from '@/lib/collection/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import type { CollectionActionType, ExpectedOutcome, StepSeverity } from '@/lib/collection/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canManageTemplates(DEMO_VIEWER.role)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canManageTemplates(user.role as any)) {
       return NextResponse.json(
         { error: '作成権限がありません' },
         { status: 403 }
@@ -41,7 +40,7 @@ export async function POST(
 
     // reorder の場合
     if (body.orderedStepIds) {
-      const success = reorderSteps(id, body.orderedStepIds, DEMO_VIEWER.userId);
+      const success = reorderSteps(id, body.orderedStepIds, user.uid);
       if (success) {
         return NextResponse.json({ success: true });
       } else {
@@ -71,7 +70,7 @@ export async function POST(
         expectedOutcome: expectedOutcome as ExpectedOutcome,
         severity: severity as StepSeverity,
       },
-      DEMO_VIEWER.userId
+      user.uid
     );
 
     return NextResponse.json({ step }, { status: 201 });

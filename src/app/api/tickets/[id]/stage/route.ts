@@ -19,13 +19,7 @@ import {
   createSuggestionForCanceledInquiry,
   handleRejectedInquiry,
 } from '@/lib/vacancySuggestions/repo';
-
-// デモユーザー情報
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 // 有効なステージ値
 const VALID_STAGES: VacancyInquiryStage[] = [
@@ -44,6 +38,10 @@ interface RouteParams {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
 
     const body = await request.json();
@@ -65,8 +63,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const viewer: ViewerContext = {
-      userId: DEMO_USER.id,
-      role: DEMO_USER.role,
+      userId: user.uid,
+      role: user.role as AppRole,
     };
 
     const result = changeTicketStage(id, stage, viewer);

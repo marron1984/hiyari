@@ -6,23 +6,28 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { getFamilyLogById, updateFamilyLog } from '@/lib/familyLog/repo';
 import { canEditFamilyLog } from '@/lib/familyLog/types';
+import type { AppRole } from '@/config/appRoles';
 import type { UpdateFamilyLogRequest, ViewerContext } from '@/lib/familyLog/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer: ViewerContext = {
+      userId: user.uid,
+      role: user.role as AppRole,
+    };
+
     const { id } = await params;
-    const log = getFamilyLogById(id, DEMO_VIEWER);
+    const log = getFamilyLogById(id, viewer);
 
     if (!log) {
       return NextResponse.json(
@@ -46,8 +51,17 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer: ViewerContext = {
+      userId: user.uid,
+      role: user.role as AppRole,
+    };
+
     const { id } = await params;
-    const log = getFamilyLogById(id, DEMO_VIEWER);
+    const log = getFamilyLogById(id, viewer);
 
     if (!log) {
       return NextResponse.json(
@@ -57,7 +71,7 @@ export async function PATCH(
     }
 
     // 権限チェック
-    if (!canEditFamilyLog(log, DEMO_VIEWER)) {
+    if (!canEditFamilyLog(log, viewer)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -80,7 +94,7 @@ export async function PATCH(
     if (body.relatedType !== undefined) updateRequest.relatedType = body.relatedType;
     if (body.relatedId !== undefined) updateRequest.relatedId = body.relatedId;
 
-    const updated = updateFamilyLog(id, updateRequest, DEMO_VIEWER.userId);
+    const updated = updateFamilyLog(id, updateRequest, user.uid);
 
     return NextResponse.json({ log: updated });
   } catch (error) {

@@ -11,19 +11,18 @@ import { canManageKeyPerson, canViewKeyPerson } from '@/lib/keyPerson/types';
 import type {
   CreateKeyPersonRequest,
   KeyPersonSubjectType,
-  ViewerContext,
 } from '@/lib/keyPerson/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!canViewKeyPerson(DEMO_VIEWER.role)) {
+    if (!canViewKeyPerson(user.role as AppRole)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -41,7 +40,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const contacts = listBySubject(subjectType, subjectId, DEMO_VIEWER);
+    const contacts = listBySubject(subjectType, subjectId, { userId: user.uid, role: user.role as AppRole });
 
     return NextResponse.json({ contacts });
   } catch (error) {
@@ -55,8 +54,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!canManageKeyPerson(DEMO_VIEWER.role)) {
+    if (!canManageKeyPerson(user.role as AppRole)) {
       return NextResponse.json(
         { error: '作成権限がありません' },
         { status: 403 }
@@ -88,7 +91,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const contact = createContact(createRequest, DEMO_VIEWER.userId);
+    const contact = createContact(createRequest, user.uid);
 
     return NextResponse.json({ contact }, { status: 201 });
   } catch (error) {

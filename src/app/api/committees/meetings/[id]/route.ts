@@ -15,18 +15,17 @@ import {
   getMeetingStats,
 } from '@/lib/committees/repo';
 import { canManageCommittees } from '@/lib/committees/types';
-
-// デモ用ユーザー
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const { id } = await params;
     const meeting = getMeeting(id);
 
@@ -64,7 +63,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canManageCommittees(DEMO_USER)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canManageCommittees({ userId: user.uid, role: user.role as AppRole })) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -74,7 +77,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const result = updateMeeting(id, body, DEMO_USER.userId);
+    const result = updateMeeting(id, body, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

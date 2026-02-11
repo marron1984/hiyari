@@ -10,14 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exportApprovalLogsForCsv, type ApprovalLogFilter } from '@/lib/approvals/logRepo';
 import type { AppRole } from '@/config/appRoles';
 import type { RequestType, RequestStatus, ActionType } from '@/lib/approvals/types';
-
-// デモユーザー情報（本番ではセッションから取得）
-// エクスポートテスト用にadminに変更可
-const DEMO_USER = {
-  id: 'user_001',
-  name: '管理者',
-  role: 'admin' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 function escapeCSV(value: string | null | undefined): string {
   if (value === null || value === undefined) {
@@ -32,6 +25,10 @@ function escapeCSV(value: string | null | undefined): string {
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
 
     // クエリパラメータからフィルタを構築
@@ -73,7 +70,7 @@ export async function GET(request: NextRequest) {
     }
 
     // エクスポート実行（RBAC適用）
-    const result = exportApprovalLogsForCsv(filter, DEMO_USER.role, DEMO_USER.id);
+    const result = exportApprovalLogsForCsv(filter, user.role as AppRole, user.uid);
 
     if (!result.allowed) {
       return NextResponse.json(

@@ -12,18 +12,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { AppRole } from '@/config/appRoles';
 import { canExportAuditCsv, type AuditSource, type AuditSeverity } from '@/lib/audit/types';
 import { exportAuditLogsToCsv } from '@/lib/audit/query';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_admin',
-  name: '管理者',
-  role: 'admin' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // RBAC: admin/auditor のみアクセス可
-    if (!canExportAuditCsv(DEMO_USER.role)) {
+    if (!canExportAuditCsv(user.role as AppRole)) {
       return NextResponse.json(
         { error: 'アクセス権限がありません' },
         { status: 403 }

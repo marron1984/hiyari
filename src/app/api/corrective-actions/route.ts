@@ -24,15 +24,13 @@ import { validateApiGuardrail } from '@/lib/scope/guardrail';
 import { processStaffCreation, requiresInference } from '@/lib/scope/inferBusinessUnit';
 import { getTicketById } from '@/lib/tickets/repo';
 import { getRepairById } from '@/lib/repairs/repo';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   try {
     const { searchParams } = new URL(request.url);
 
@@ -51,7 +49,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     const result = listCorrectiveActions(viewer, {
       businessUnitId,
       status: status ?? undefined,
@@ -77,6 +75,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   try {
     const body = await request.json();
 
@@ -101,7 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Task 033: ガードレール検証（manager/leader は businessUnitId 必須）
-    const guardrailResult = validateApiGuardrail(DEMO_USER.role, 'correctiveActions', { businessUnitId });
+    const guardrailResult = validateApiGuardrail(user.role as AppRole, 'correctiveActions', { businessUnitId });
     if (!guardrailResult.valid) {
       return NextResponse.json(
         { error: guardrailResult.error },
@@ -111,7 +113,7 @@ export async function POST(request: NextRequest) {
 
     // Task 035: staff 向け businessUnitId 自動推定（source継承対応）
     let finalBusinessUnitId = businessUnitId;
-    if (requiresInference(DEMO_USER.role)) {
+    if (requiresInference(user.role as AppRole)) {
       // sourceからbusinessUnitIdを継承
       let sourceBusinessUnitId: string | null = null;
       if (sourceType && sourceId) {
@@ -130,8 +132,8 @@ export async function POST(request: NextRequest) {
       }
 
       const inferResult = processStaffCreation(
-        DEMO_USER.id,
-        DEMO_USER.role,
+        user.uid,
+        user.role as AppRole,
         'correctiveActions',
         businessUnitId,
         { sourceBusinessUnitId }  // ヒント: source継承
@@ -164,7 +166,7 @@ export async function POST(request: NextRequest) {
         ownerUserId,
         dueAt,
       },
-      DEMO_USER.id
+      user.uid
     );
 
     return NextResponse.json({ success: true, item: ca }, { status: 201 });

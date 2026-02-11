@@ -8,19 +8,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { setMeetingStatus } from '@/lib/committees/repo';
 import { canManageCommittees } from '@/lib/committees/types';
 import type { MeetingStatus } from '@/lib/committees/types';
-
-// デモ用ユーザー
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canManageCommittees(DEMO_USER)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canManageCommittees({ userId: user.uid, role: user.role as AppRole })) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -38,7 +38,7 @@ export async function POST(
       );
     }
 
-    const result = setMeetingStatus(id, status, DEMO_USER.userId, heldAt);
+    const result = setMeetingStatus(id, status, user.uid, heldAt);
 
     if (!result.success) {
       return NextResponse.json(

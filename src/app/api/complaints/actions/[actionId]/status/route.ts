@@ -6,17 +6,18 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { changeActionStatus } from '@/lib/complaints/repo';
-
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ actionId: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { actionId } = await params;
     const body = await request.json();
     const { status } = body;
@@ -28,7 +29,7 @@ export async function POST(
       );
     }
 
-    const result = changeActionStatus(actionId, status, DEMO_USER.userId);
+    const result = changeActionStatus(actionId, status, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

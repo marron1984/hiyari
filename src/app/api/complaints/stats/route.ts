@@ -4,25 +4,26 @@
  * GET /api/complaints/stats
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getStats } from '@/lib/complaints/repo';
 import { canViewComplaintStats } from '@/lib/complaints/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    if (!canViewComplaintStats(DEMO_USER)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canViewComplaintStats({ userId: user.uid, role: user.role as AppRole })) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
       );
     }
 
-    const stats = getStats(DEMO_USER);
+    const stats = getStats({ userId: user.uid, role: user.role as AppRole });
 
     return NextResponse.json({
       success: true,

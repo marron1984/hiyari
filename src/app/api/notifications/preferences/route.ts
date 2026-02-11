@@ -3,7 +3,7 @@
 // PUT:  ユーザーの通知設定更新
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import {
   NotificationPreferences,
@@ -14,28 +14,20 @@ import {
   NotifyChannel,
   CategoryPreference,
 } from '@/types/notification';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 const VALID_MODES: NotifyMode[] = ['immediate', 'digest', 'off'];
 const VALID_CHANNELS: NotifyChannel[] = ['in_app', 'line_works', 'both'];
 
-async function authenticate(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-
-  const idToken = authHeader.substring(7);
-  return verifyIdToken(idToken);
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const decodedToken = await authenticate(request);
-    if (!decodedToken) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     const db = getAdminDb();
-    const userId = decodedToken.uid;
+    const userId = user.uid;
     const docId = `${DEFAULT_TENANT_ID}_${userId}`;
 
     // 通知設定取得
@@ -73,14 +65,13 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const decodedToken = await authenticate(request);
-    if (!decodedToken) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     const body = await request.json();
     const db = getAdminDb();
-    const userId = decodedToken.uid;
+    const userId = user.uid;
     const docId = `${DEFAULT_TENANT_ID}_${userId}`;
 
     // バリデーション

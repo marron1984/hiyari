@@ -9,15 +9,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listMeetings, createMeeting } from '@/lib/committees/repo';
 import { canManageCommittees } from '@/lib/committees/types';
 import type { MeetingStatus } from '@/lib/committees/types';
-
-// デモ用ユーザー
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const { searchParams } = new URL(request.url);
     const committeeId = searchParams.get('committeeId') || undefined;
     const status = searchParams.get('status') as MeetingStatus | undefined;
@@ -42,7 +41,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!canManageCommittees(DEMO_USER)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canManageCommittees({ userId: user.uid, role: user.role as AppRole })) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -61,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     const result = createMeeting(
       { committeeId, title, scheduledAt, location, notes },
-      DEMO_USER.userId
+      user.uid
     );
 
     if (!result.success) {

@@ -7,9 +7,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listActionItems } from '@/lib/committees/repo';
 import type { ActionItemStatus } from '@/lib/committees/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const { searchParams } = new URL(request.url);
     const meetingId = searchParams.get('meetingId') || undefined;
     const committeeId = searchParams.get('committeeId') || undefined;

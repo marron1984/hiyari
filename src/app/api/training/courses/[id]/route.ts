@@ -8,20 +8,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCourse, updateCourse } from '@/lib/training/repo';
 import { canManageTraining } from '@/lib/training/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const course = getCourse(id);
 
@@ -47,8 +45,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
 
     if (!canManageTraining(viewer)) {
       return NextResponse.json(
@@ -58,7 +60,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const result = updateCourse(id, body, DEMO_USER.id);
+    const result = updateCourse(id, body, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

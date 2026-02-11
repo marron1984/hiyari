@@ -8,19 +8,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getComplaintById, listComments, addComment } from '@/lib/complaints/repo';
 import { canEditComplaint } from '@/lib/complaints/types';
-
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
-    const complaint = getComplaintById(id, DEMO_USER);
+    const complaint = getComplaintById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!complaint) {
       return NextResponse.json(
@@ -49,8 +50,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
-    const complaint = getComplaintById(id, DEMO_USER);
+    const complaint = getComplaintById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!complaint) {
       return NextResponse.json(
@@ -59,7 +64,7 @@ export async function POST(
       );
     }
 
-    if (!canEditComplaint(DEMO_USER, complaint)) {
+    if (!canEditComplaint({ userId: user.uid, role: user.role as AppRole }, complaint)) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -76,7 +81,7 @@ export async function POST(
       );
     }
 
-    const result = addComment(id, message, DEMO_USER.userId);
+    const result = addComment(id, message, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

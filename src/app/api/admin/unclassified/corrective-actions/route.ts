@@ -9,17 +9,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listUnclassifiedCorrectiveActions } from '@/lib/admin/unclassified/repo';
 import { canAccessUnclassified } from '@/lib/admin/unclassified/types';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー
-const DEMO_USER = {
-  id: 'user_manager',
-  name: '田中管理者',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   // 権限チェック
-  if (!canAccessUnclassified(DEMO_USER.role)) {
+  if (!canAccessUnclassified(user.role as AppRole)) {
     return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 });
   }
 

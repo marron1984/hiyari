@@ -19,17 +19,15 @@ import {
 import { canManageSpamRules } from '@/lib/spam/types';
 import type { BlocklistKind } from '@/lib/spam/types';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canManageSpamRules(viewer)) {
       return NextResponse.json(
         { error: 'ブロックリストを管理する権限がありません' },
@@ -54,7 +52,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canManageSpamRules(viewer)) {
       return NextResponse.json(
         { error: 'ブロックリストを管理する権限がありません' },
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
       value,
       reason,
       expiresAt || null,
-      DEMO_USER.id
+      user.uid
     );
 
     return NextResponse.json({ entry }, { status: 201 });
@@ -99,7 +101,11 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canManageSpamRules(viewer)) {
       return NextResponse.json(
         { error: 'ブロックリストを管理する権限がありません' },

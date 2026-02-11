@@ -14,12 +14,7 @@ import {
   updateReplyTemplate,
   deleteReplyTemplate,
 } from '@/lib/replyTemplates/repo';
-
-// デモユーザー（本番では認証から取得）
-const DEMO_USER: { userId: string; role: 'admin' | 'manager' | 'staff' } = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -30,6 +25,9 @@ export async function GET(
   { params }: RouteParams
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const { id } = await params;
     const template = getReplyTemplateById(id);
 
@@ -55,8 +53,12 @@ export async function PUT(
   { params }: RouteParams
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!['admin', 'manager'].includes(DEMO_USER.role)) {
+    if (!['admin', 'manager'].includes(user.role)) {
       return NextResponse.json(
         { error: '更新権限がありません' },
         { status: 403 }
@@ -66,7 +68,7 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const updated = updateReplyTemplate(id, body, DEMO_USER.userId);
+    const updated = updateReplyTemplate(id, body, user.uid);
 
     if (!updated) {
       return NextResponse.json(
@@ -90,8 +92,12 @@ export async function DELETE(
   { params }: RouteParams
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック（削除は admin のみ）
-    if (DEMO_USER.role !== 'admin') {
+    if (user.role !== 'admin') {
       return NextResponse.json(
         { error: '削除権限がありません' },
         { status: 403 }

@@ -4,20 +4,18 @@
  * GET /api/handover/unread-count
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { countUnreadHandoverItems } from '@/lib/handover/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const count = countUnreadHandoverItems(DEMO_USER.role, DEMO_USER.id);
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const count = countUnreadHandoverItems(user.role as AppRole, user.uid);
 
     return NextResponse.json({ unreadCount: count });
   } catch (error) {

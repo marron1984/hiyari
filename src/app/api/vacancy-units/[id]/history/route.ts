@@ -8,17 +8,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import { listVacancyUpdates, getVacancyUnitById } from '@/lib/vacancyUnits/repo';
 import { canViewVacancyUnits } from '@/lib/vacancyUnits/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
-
-// デフォルトユーザー情報
-const DEFAULT_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -26,12 +19,13 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = await params;
-    const headersList = await headers();
-    const userId = headersList.get('x-user-id') || DEFAULT_USER.id;
-    const role = (headersList.get('x-user-role') || DEFAULT_USER.role) as AppRole;
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    const viewer = { userId, role };
+    const { id } = await params;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canViewVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '権限がありません' },

@@ -12,17 +12,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listSuggestions, getSuggestionStats } from '@/lib/vacancySuggestions/repo';
 import { canViewSuggestions } from '@/lib/vacancySuggestions/types';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canViewSuggestions(viewer)) {
       return NextResponse.json(
         { error: '提案を閲覧する権限がありません' },

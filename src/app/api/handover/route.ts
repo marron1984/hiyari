@@ -11,18 +11,16 @@ import {
   createHandoverItem,
 } from '@/lib/handover/repo';
 import { createAlert } from '@/lib/alerts/repo';
-import type { AppRole } from '@/config/appRoles';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { HandoverStatus, HandoverPriority, HandoverShift } from '@/lib/handover/types';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import type { AppRole } from '@/config/appRoles';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
 
     const status = searchParams.get('status') as HandoverStatus | null;
@@ -47,7 +45,7 @@ export async function GET(request: NextRequest) {
       offset: offsetParam ? parseInt(offsetParam, 10) : 0,
     };
 
-    const { items, total } = listHandoverItems(filter, DEMO_USER.role, DEMO_USER.id);
+    const { items, total } = listHandoverItems(filter, user.role as AppRole, user.uid);
 
     return NextResponse.json({
       items,
@@ -66,6 +64,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const body = await request.json();
 
     const { title, body: itemBody, priority, targetRoles, targetUserIds, dueAt, shift, tags } = body;
@@ -88,8 +90,8 @@ export async function POST(request: NextRequest) {
         shift,
         tags,
       },
-      DEMO_USER.id,
-      DEMO_USER.name
+      user.uid,
+      user.name
     );
 
     // urgentの場合はアラートセンターに通知
@@ -103,7 +105,7 @@ export async function POST(request: NextRequest) {
         fingerprint: `handover_urgent:${item.id}`,
         meta: {
           handoverId: item.id,
-          createdBy: DEMO_USER.name,
+          createdBy: user.name,
           url: `/dashboard/handover/${item.id}`,
         },
       });

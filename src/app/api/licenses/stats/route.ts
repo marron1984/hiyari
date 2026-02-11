@@ -8,25 +8,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStats } from '@/lib/licenses/repo';
 import type { ViewerContext } from '@/lib/licenses/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-  orgUnitIds: ['org_higashi', 'org_nishi'],
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import { userRoleToAppRole } from '@/lib/roles/types';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
 
     // Viewer context
     const viewer: ViewerContext = {
-      userId: DEMO_USER.id,
-      role: DEMO_USER.role,
-      orgUnitIds: DEMO_USER.orgUnitIds,
+      userId: user.uid,
+      role: userRoleToAppRole(user.role),
     };
 
     // Task 030: orgUnitId / orgUnitIds フィルタ
