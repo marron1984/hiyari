@@ -522,6 +522,7 @@ const L3_RULES: RiskKeywordRule[] = [
   // 人事: 解雇・懲戒等
   { keyword: '解雇', weight: 12, domain: 'hr' },
   { keyword: '懲戒', weight: 12, domain: 'hr' },
+  { keyword: '退職届', weight: 9, domain: 'hr' },
   { keyword: '退職勧奨', weight: 11, domain: 'hr' },
   { keyword: 'パワハラ', weight: 11, domain: 'hr' },
   { keyword: 'セクハラ', weight: 11, domain: 'hr' },
@@ -529,7 +530,8 @@ const L3_RULES: RiskKeywordRule[] = [
   { keyword: '労基署', weight: 10, domain: 'hr' },
   { keyword: '労働基準', weight: 10, domain: 'hr' },
   { keyword: '不当解雇', weight: 12, domain: 'hr' },
-  // 法務
+  // 法務・契約
+  { keyword: '契約書', weight: 8, domain: 'legal' },
   { keyword: '弁護士', weight: 10, domain: 'legal' },
   { keyword: '訴訟', weight: 12, domain: 'legal' },
   { keyword: '裁判', weight: 12, domain: 'legal' },
@@ -557,6 +559,7 @@ const L3_RULES: RiskKeywordRule[] = [
   { keyword: 'SNS', weight: 7, domain: 'reputation' },
   { keyword: '口コミ', weight: 6, domain: 'reputation' },
   // 医療
+  { keyword: '医療判断', weight: 10, domain: 'medical' },
   { keyword: '医療事故', weight: 12, domain: 'medical' },
   { keyword: '容体急変', weight: 11, domain: 'medical' },
   { keyword: '意識不明', weight: 12, domain: 'medical' },
@@ -564,6 +567,7 @@ const L3_RULES: RiskKeywordRule[] = [
   { keyword: '死亡', weight: 12, domain: 'medical' },
   // 行政
   { keyword: '行政指導', weight: 10, domain: 'compliance' },
+  { keyword: '行政からの指導', weight: 10, domain: 'compliance' },
   { keyword: '監査指摘', weight: 9, domain: 'compliance' },
   { keyword: '改善命令', weight: 11, domain: 'compliance' },
   { keyword: '業務停止', weight: 12, domain: 'compliance' },
