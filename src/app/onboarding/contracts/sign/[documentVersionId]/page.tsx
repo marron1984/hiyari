@@ -9,10 +9,11 @@
  * 署名確認と実行、改訂時は差分を表示
  */
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { UserRequiredItem } from '@/lib/onboarding/types';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 interface PageProps {
   params: Promise<{ documentVersionId: string }>;
@@ -47,6 +48,7 @@ interface DiffData {
 export default function SignDocumentPage({ params }: PageProps) {
   const { documentVersionId } = use(params);
   const router = useRouter();
+  const apiFetch = useApiFetch();
 
   const [document, setDocument] = useState<UserRequiredItem | null>(null);
   const [diffData, setDiffData] = useState<DiffData | null>(null);
@@ -64,14 +66,9 @@ export default function SignDocumentPage({ params }: PageProps) {
     diffReviewed: false, // 差分確認済みチェック
   });
 
-  useEffect(() => {
-    fetchDocument();
-    fetchDiff();
-  }, [documentVersionId]);
-
-  const fetchDocument = async () => {
+  const fetchDocument = useCallback(async () => {
     try {
-      const res = await fetch('/api/onboarding/status');
+      const res = await apiFetch('/api/onboarding/status');
       if (!res.ok) {
         throw new Error('オンボーディング情報の取得に失敗しました');
       }
@@ -92,11 +89,11 @@ export default function SignDocumentPage({ params }: PageProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiFetch, documentVersionId, router]);
 
-  const fetchDiff = async () => {
+  const fetchDiff = useCallback(async () => {
     try {
-      const res = await fetch(`/api/onboarding/diff?documentVersionId=${documentVersionId}`);
+      const res = await apiFetch(`/api/onboarding/diff?documentVersionId=${documentVersionId}`);
       if (res.ok) {
         const data = await res.json();
         setDiffData(data);
@@ -104,7 +101,12 @@ export default function SignDocumentPage({ params }: PageProps) {
     } catch (err) {
       console.error('差分の取得に失敗:', err);
     }
-  };
+  }, [apiFetch, documentVersionId]);
+
+  useEffect(() => {
+    fetchDocument();
+    fetchDiff();
+  }, [fetchDocument, fetchDiff]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,9 +131,8 @@ export default function SignDocumentPage({ params }: PageProps) {
     setError(null);
 
     try {
-      const res = await fetch('/api/onboarding/sign', {
+      const res = await apiFetch('/api/onboarding/sign', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentId: document?.documentId,
           documentVersionId,

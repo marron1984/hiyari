@@ -8,25 +8,23 @@
  * 必須文書の一覧と署名状況を表示
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   REQUIRED_ITEM_STATUS_CONFIG,
   type UserOnboarding,
 } from '@/lib/onboarding/types';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 export default function OnboardingContractsPage() {
+  const apiFetch = useApiFetch();
   const [onboarding, setOnboarding] = useState<UserOnboarding | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchOnboarding();
-  }, []);
-
-  const fetchOnboarding = async () => {
+  const fetchOnboarding = useCallback(async () => {
     try {
-      const res = await fetch('/api/onboarding/status');
+      const res = await apiFetch('/api/onboarding/status');
       if (!res.ok) {
         throw new Error('オンボーディング情報の取得に失敗しました');
       }
@@ -37,7 +35,11 @@ export default function OnboardingContractsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiFetch]);
+
+  useEffect(() => {
+    fetchOnboarding();
+  }, [fetchOnboarding]);
 
   if (loading) {
     return (
