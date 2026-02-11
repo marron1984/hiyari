@@ -703,13 +703,16 @@ export async function scanCriticalOpen(): Promise<Complaint[]> {
 export async function scanOverdue(): Promise<Complaint[]> {
   try {
     const db = getAdminDb();
-    const snapshot = await db.collection(COMPLAINTS_COLLECTION).get();
+    // 解決済み・終了・アーカイブ済みを除外してサーバー側で絞り込み
+    const snapshot = await db.collection(COMPLAINTS_COLLECTION)
+      .where('status', 'not-in', ['resolved', 'closed', 'archived'])
+      .get();
     const currentTime = new Date();
 
     return snapshot.docs
       .map(docToComplaint)
       .filter(
-        (c) => c.dueAt && new Date(c.dueAt) < currentTime && isOpenStatus(c.status)
+        (c) => c.dueAt && new Date(c.dueAt) < currentTime
       );
   } catch (error) {
     console.error('[Complaints:Firestore] scanOverdue error:', error);
