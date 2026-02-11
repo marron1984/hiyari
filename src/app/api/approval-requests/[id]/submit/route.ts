@@ -6,6 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { submitApprovalRequest, getApprovalRequest } from '@/lib/approvals/requestRepo';
+import { getApprovalFlow } from '@/lib/approvals/flowRepo';
+import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 
 export async function POST(
   request: NextRequest,
@@ -34,7 +36,29 @@ export async function POST(
     );
   }
 
-  // TODO: 通知センター連携（承認者への通知）
+  // 承認者への通知
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const flow = getApprovalFlow(result.request!.flowId);
+    const currentStep = flow?.steps.find(
+      (s) => s.stepOrder === result.request!.currentStepOrder
+    );
+    const approverId = currentStep?.approverUserId ?? currentStep?.approverRole;
+    if (approverId) {
+      await createNotificationAsync({
+        tenantId: 'default',
+        userId: approverId,
+        type: 'approval_pending',
+        severity: 'warning',
+        title: '承認依頼',
+        message: `「${result.request!.title}」の承認依頼が届きました。`,
+        url: `/dashboard/approvals/${id}`,
+        fingerprint: `approval_pending:${id}:${today}:${approverId}`,
+      });
+    }
+  } catch (e) {
+    console.error('[Notification] Failed to send approval_pending notification:', e);
+  }
 
   return NextResponse.json({
     success: true,

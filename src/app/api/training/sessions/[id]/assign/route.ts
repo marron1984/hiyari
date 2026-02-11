@@ -5,10 +5,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { assignUsers } from '@/lib/training/repo';
+import { assignUsers, getSession } from '@/lib/training/repo';
 import { canManageTraining } from '@/lib/training/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
+import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 
 export async function POST(
   request: NextRequest,
@@ -53,7 +54,26 @@ export async function POST(
       );
     }
 
-    // TODO: 通知センターへ割当通知を送信
+    // 割当通知を送信（失敗しても本体処理には影響させない）
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const session = getSession(sessionId);
+      const sessionTitle = session?.name ?? '研修セッション';
+      for (const targetUserId of userIds) {
+        await createNotificationAsync({
+          tenantId: 'default',
+          userId: targetUserId,
+          type: 'system',
+          severity: 'info',
+          title: '研修が割当されました',
+          message: `研修「${sessionTitle}」が割当されました`,
+          url: '/dashboard/training',
+          fingerprint: `training_assign:${sessionId}:${today}:${targetUserId}`,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to send training assign notification:', error);
+    }
 
     return NextResponse.json({ assignedCount: result.count }, { status: 201 });
   } catch (error) {

@@ -10,6 +10,7 @@ import {
   getApprovalRequest,
 } from '@/lib/approvals/requestRepo';
 import { canApprove } from '@/lib/approvals/canApprove';
+import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 import type { AppRole } from '@/config/appRoles';
 
 export async function POST(
@@ -58,7 +59,22 @@ export async function POST(
     );
   }
 
-  // TODO: 通知センター連携（申請者への通知）
+  // 申請者への差戻し通知
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    await createNotificationAsync({
+      tenantId: 'default',
+      userId: result.request!.requesterUserId,
+      type: 'application_returned',
+      severity: 'warning',
+      title: '申請が差戻しされました',
+      message: `「${result.request!.title}」が差戻しされました。${note ? `理由: ${note}` : ''}`,
+      url: `/dashboard/approvals/${id}`,
+      fingerprint: `application_returned:${id}:${today}:${result.request!.requesterUserId}`,
+    });
+  } catch (e) {
+    console.error('[Notification] Failed to send application_returned notification:', e);
+  }
 
   return NextResponse.json({
     success: true,

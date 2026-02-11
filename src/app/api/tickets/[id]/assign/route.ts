@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { assignTicket } from '@/lib/tickets/repo';
 import type { AppRole } from '@/config/appRoles';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 
 export async function POST(
   request: NextRequest,
@@ -39,13 +40,22 @@ export async function POST(
       );
     }
 
-    // TODO: 通知センターへ割当通知を送信
-    // createNotification({
-    //   userId: assigneeUserId,
-    //   type: 'task',
-    //   title: `チケットが割り当てられました：${result.ticket.title}`,
-    //   ...
-    // });
+    // 割当通知を送信（失敗しても本体処理には影響させない）
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await createNotificationAsync({
+        tenantId: 'default',
+        userId: assigneeUserId,
+        type: 'system',
+        severity: 'info',
+        title: 'チケットが担当割当されました',
+        message: `チケット「${result.ticket.title}」が担当割当されました`,
+        url: `/dashboard/tickets/${id}`,
+        fingerprint: `ticket_assign:${id}:${today}:${assigneeUserId}`,
+      });
+    } catch (error) {
+      console.error('Failed to send ticket assign notification:', error);
+    }
 
     return NextResponse.json({ ticket: result.ticket });
   } catch (error) {

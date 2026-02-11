@@ -10,6 +10,7 @@ import {
   getApprovalRequest,
 } from '@/lib/approvals/requestRepo';
 import { canApprove } from '@/lib/approvals/canApprove';
+import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 import type { AppRole } from '@/config/appRoles';
 
 export async function POST(
@@ -58,7 +59,22 @@ export async function POST(
     );
   }
 
-  // TODO: 通知センター連携（申請者への通知）
+  // 申請者への却下通知
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    await createNotificationAsync({
+      tenantId: 'default',
+      userId: result.request!.requesterUserId,
+      type: 'application_rejected',
+      severity: 'warning',
+      title: '申請が却下されました',
+      message: `「${result.request!.title}」が却下されました。${note ? `理由: ${note}` : ''}`,
+      url: `/dashboard/approvals/${id}`,
+      fingerprint: `application_rejected:${id}:${today}:${result.request!.requesterUserId}`,
+    });
+  } catch (e) {
+    console.error('[Notification] Failed to send application_rejected notification:', e);
+  }
 
   return NextResponse.json({
     success: true,
