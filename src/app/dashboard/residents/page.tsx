@@ -136,12 +136,20 @@ export default function ResidentsPage() {
                 入居者の基本情報・書類・誕生日を管理
               </p>
             </div>
-            <Link href="/dashboard/residents/new">
-              <Button>
-                <Plus className="w-4 h-4 mr-1" />
-                新規登録
-              </Button>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link href="/dashboard/key-person">
+                <Button variant="outline">
+                  <Users className="w-4 h-4 mr-1" />
+                  キーパーソン
+                </Button>
+              </Link>
+              <Link href="/dashboard/residents/new">
+                <Button>
+                  <Plus className="w-4 h-4 mr-1" />
+                  新規登録
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {/* サマリーカード */}

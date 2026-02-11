@@ -486,72 +486,376 @@ export async function findMatchingTemplate(
 // ======== リスク判定 ========
 
 /**
+ * リスク判定ルール定義
+ * weight: スコア重み（高いほど高リスク寄与）
+ * negationPenalty: 否定文脈で検出された場合のスコア減算
+ */
+interface RiskKeywordRule {
+  keyword: string;
+  weight: number;
+  domain: 'finance' | 'hr' | 'legal' | 'safety' | 'reputation' | 'medical' | 'compliance';
+}
+
+/** 否定文脈パターン: これに続くキーワードはリスクを下げる */
+const NEGATION_PATTERNS = [
+  'ない', 'ません', 'なし', '不要', '問題なく', '心配なく',
+  'ありません', '大丈夫', '解決済み', '対応済み', '完了',
+];
+
+/** 低リスク文脈パターン: これらが含まれるとリスクスコアを緩和 */
+const LOW_RISK_CONTEXT = [
+  '確認方法', '手順', 'マニュアル', 'やり方', '教えて',
+  '方法を', 'どうやって', 'どこに', 'どこで', 'いつまで',
+  '研修', '勉強会', '予定', 'スケジュール', '一覧',
+];
+
+const L3_RULES: RiskKeywordRule[] = [
+  // 金銭: 返金・解約等
+  { keyword: '返金', weight: 10, domain: 'finance' },
+  { keyword: '払い戻し', weight: 10, domain: 'finance' },
+  { keyword: 'キャンセル', weight: 8, domain: 'finance' },
+  { keyword: '解約', weight: 9, domain: 'finance' },
+  { keyword: '損害賠償', weight: 12, domain: 'finance' },
+  { keyword: '未払い', weight: 8, domain: 'finance' },
+  { keyword: '滞納', weight: 8, domain: 'finance' },
+  { keyword: '違約金', weight: 10, domain: 'finance' },
+  // 人事: 解雇・懲戒等
+  { keyword: '解雇', weight: 12, domain: 'hr' },
+  { keyword: '懲戒', weight: 12, domain: 'hr' },
+  { keyword: '退職勧奨', weight: 11, domain: 'hr' },
+  { keyword: 'パワハラ', weight: 11, domain: 'hr' },
+  { keyword: 'セクハラ', weight: 11, domain: 'hr' },
+  { keyword: 'ハラスメント', weight: 11, domain: 'hr' },
+  { keyword: '労基署', weight: 10, domain: 'hr' },
+  { keyword: '労働基準', weight: 10, domain: 'hr' },
+  { keyword: '不当解雇', weight: 12, domain: 'hr' },
+  // 法務
+  { keyword: '弁護士', weight: 10, domain: 'legal' },
+  { keyword: '訴訟', weight: 12, domain: 'legal' },
+  { keyword: '裁判', weight: 12, domain: 'legal' },
+  { keyword: '告訴', weight: 12, domain: 'legal' },
+  { keyword: '内容証明', weight: 10, domain: 'legal' },
+  { keyword: '示談', weight: 9, domain: 'legal' },
+  // 安全
+  { keyword: '事故', weight: 10, domain: 'safety' },
+  { keyword: '怪我', weight: 9, domain: 'safety' },
+  { keyword: '救急', weight: 11, domain: 'safety' },
+  { keyword: '転倒', weight: 8, domain: 'safety' },
+  { keyword: '骨折', weight: 10, domain: 'safety' },
+  { keyword: '誤薬', weight: 11, domain: 'safety' },
+  { keyword: '誤嚥', weight: 10, domain: 'safety' },
+  { keyword: '窒息', weight: 12, domain: 'safety' },
+  { keyword: '行方不明', weight: 12, domain: 'safety' },
+  { keyword: '離設', weight: 11, domain: 'safety' },
+  { keyword: '徘徊', weight: 8, domain: 'safety' },
+  { keyword: '火災', weight: 12, domain: 'safety' },
+  // 評判
+  { keyword: 'クレーム', weight: 9, domain: 'reputation' },
+  { keyword: '苦情', weight: 9, domain: 'reputation' },
+  { keyword: '新聞', weight: 8, domain: 'reputation' },
+  { keyword: 'マスコミ', weight: 10, domain: 'reputation' },
+  { keyword: 'SNS', weight: 7, domain: 'reputation' },
+  { keyword: '口コミ', weight: 6, domain: 'reputation' },
+  // 医療
+  { keyword: '医療事故', weight: 12, domain: 'medical' },
+  { keyword: '容体急変', weight: 11, domain: 'medical' },
+  { keyword: '意識不明', weight: 12, domain: 'medical' },
+  { keyword: '心肺停止', weight: 12, domain: 'medical' },
+  { keyword: '死亡', weight: 12, domain: 'medical' },
+  // 行政
+  { keyword: '行政指導', weight: 10, domain: 'compliance' },
+  { keyword: '監査指摘', weight: 9, domain: 'compliance' },
+  { keyword: '改善命令', weight: 11, domain: 'compliance' },
+  { keyword: '業務停止', weight: 12, domain: 'compliance' },
+  { keyword: '取消', weight: 10, domain: 'compliance' },
+  { keyword: '指定取消', weight: 12, domain: 'compliance' },
+];
+
+const L2_RULES: RiskKeywordRule[] = [
+  // 家族・紹介
+  { keyword: '紹介会社', weight: 6, domain: 'reputation' },
+  { keyword: 'ご家族', weight: 5, domain: 'reputation' },
+  { keyword: '家族', weight: 4, domain: 'reputation' },
+  { keyword: '苦言', weight: 6, domain: 'reputation' },
+  // 経費
+  { keyword: '経費', weight: 4, domain: 'finance' },
+  { keyword: '購入', weight: 3, domain: 'finance' },
+  { keyword: '立替', weight: 4, domain: 'finance' },
+  { keyword: '見積', weight: 3, domain: 'finance' },
+  { keyword: '発注', weight: 4, domain: 'finance' },
+  { keyword: '稟議', weight: 5, domain: 'finance' },
+  { keyword: '予算', weight: 4, domain: 'finance' },
+  // 人事
+  { keyword: '採用', weight: 5, domain: 'hr' },
+  { keyword: '退職', weight: 6, domain: 'hr' },
+  { keyword: '残業', weight: 4, domain: 'hr' },
+  { keyword: '休暇', weight: 3, domain: 'hr' },
+  { keyword: '有給', weight: 3, domain: 'hr' },
+  { keyword: '給与', weight: 5, domain: 'hr' },
+  { keyword: '賞与', weight: 5, domain: 'hr' },
+  { keyword: '昇給', weight: 4, domain: 'hr' },
+  { keyword: '人事異動', weight: 6, domain: 'hr' },
+  // 契約（情報確認レベル）
+  { keyword: '契約', weight: 5, domain: 'finance' },
+  { keyword: '支払い', weight: 4, domain: 'finance' },
+  { keyword: '請求', weight: 4, domain: 'finance' },
+  { keyword: '振込', weight: 4, domain: 'finance' },
+  // 行政（情報確認レベル）
+  { keyword: '行政', weight: 5, domain: 'compliance' },
+  { keyword: '監査', weight: 5, domain: 'compliance' },
+  { keyword: '法務', weight: 5, domain: 'legal' },
+  // 医療（情報確認レベル）
+  { keyword: '医療', weight: 4, domain: 'medical' },
+  { keyword: '診断', weight: 4, domain: 'medical' },
+  { keyword: '処置', weight: 4, domain: 'medical' },
+  { keyword: '投薬', weight: 4, domain: 'medical' },
+  // 例外処理
+  { keyword: '例外', weight: 4, domain: 'compliance' },
+  { keyword: '特別対応', weight: 5, domain: 'compliance' },
+];
+
+/** L3閾値（この点数以上でL3） */
+const L3_THRESHOLD = 8;
+/** L2閾値（この点数以上でL2） */
+const L2_THRESHOLD = 4;
+
+/**
+ * 否定文脈でキーワードが使われているか検出
+ * キーワードの前後20文字以内に否定表現があればtrue
+ */
+function isInNegationContext(text: string, keyword: string): boolean {
+  const idx = text.indexOf(keyword);
+  if (idx < 0) return false;
+
+  // キーワード前後の文脈を取得
+  const contextStart = Math.max(0, idx - 20);
+  const contextEnd = Math.min(text.length, idx + keyword.length + 20);
+  const context = text.slice(contextStart, contextEnd);
+
+  return NEGATION_PATTERNS.some((neg) => context.includes(neg));
+}
+
+/**
+ * 低リスク文脈（質問・手順確認等）かを判定
+ */
+function isLowRiskContext(text: string): boolean {
+  let lowRiskCount = 0;
+  for (const pattern of LOW_RISK_CONTEXT) {
+    if (text.includes(pattern)) lowRiskCount++;
+  }
+  return lowRiskCount >= 2;
+}
+
+/**
  * メッセージのリスクレベルを判定
+ *
+ * スコアベースの多段階判定:
+ * 1. L3/L2キーワードの重み付きスコアを計算
+ * 2. 否定文脈の場合はスコアを減算
+ * 3. 低リスク文脈（手順確認等）の場合はスコアを緩和
+ * 4. 複数ドメイン該当で追加スコア（複合リスク）
+ * 5. 閾値判定でL1/L2/L3を決定
  */
 export function determineRiskLevel(text: string): AiReplyRiskLevel {
-  const normalizedText = text.toLowerCase();
+  let l3Score = 0;
+  let l2Score = 0;
+  const matchedDomains = new Set<string>();
 
-  // L3キーワード（高リスク）
-  const l3Keywords = [
-    '返金', '払い戻し', 'キャンセル',
-    '契約', '支払い', '請求', '振込',
-    '採用', '解雇', '退職', '懲戒',
-    'クレーム', '苦情', 'トラブル',
-    '事故', '怪我', '救急',
-    '行政', '法務', '弁護士', '監査',
-    '医療', '診断', '処置',
-  ];
-
-  for (const keyword of l3Keywords) {
-    if (normalizedText.includes(keyword)) {
-      return 'L3';
+  // L3キーワードスキャン
+  for (const rule of L3_RULES) {
+    if (text.includes(rule.keyword)) {
+      const inNeg = isInNegationContext(text, rule.keyword);
+      const effectiveWeight = inNeg ? Math.max(rule.weight - 6, 1) : rule.weight;
+      l3Score += effectiveWeight;
+      matchedDomains.add(rule.domain);
     }
   }
 
-  // L2キーワード（中リスク）
-  const l2Keywords = [
-    '紹介会社', '家族', 'ご家族',
-    '経費', '購入', '立替',
-    '残業', '休暇', '有給',
-    '例外', '特別',
-  ];
-
-  for (const keyword of l2Keywords) {
-    if (normalizedText.includes(keyword)) {
-      return 'L2';
+  // L2キーワードスキャン
+  for (const rule of L2_RULES) {
+    if (text.includes(rule.keyword)) {
+      const inNeg = isInNegationContext(text, rule.keyword);
+      const effectiveWeight = inNeg ? Math.max(rule.weight - 3, 0) : rule.weight;
+      l2Score += effectiveWeight;
+      matchedDomains.add(rule.domain);
     }
   }
 
-  // それ以外はL1
+  // 複合ドメインボーナス: 2ドメイン以上同時ヒットで追加リスク
+  if (matchedDomains.size >= 3) {
+    l3Score += 4;
+  } else if (matchedDomains.size >= 2) {
+    l3Score += 2;
+  }
+
+  // 低リスク文脈（手順・確認の質問）ならスコアを半減
+  if (isLowRiskContext(text)) {
+    l3Score = Math.floor(l3Score * 0.5);
+    l2Score = Math.floor(l2Score * 0.5);
+  }
+
+  // 閾値判定
+  if (l3Score >= L3_THRESHOLD) {
+    return 'L3';
+  }
+  if (l2Score >= L2_THRESHOLD || l3Score >= L2_THRESHOLD) {
+    return 'L2';
+  }
+
   return 'L1';
 }
 
 /**
- * メッセージのカテゴリを判定
+ * リスク判定の詳細スコアを返す（デバッグ・監査用）
  */
-export function determineCategory(text: string): AiReplyCategory {
-  const normalizedText = text.toLowerCase();
+export function determineRiskLevelDetailed(text: string): {
+  level: AiReplyRiskLevel;
+  l3Score: number;
+  l2Score: number;
+  matchedDomains: string[];
+  matchedKeywords: string[];
+  negatedKeywords: string[];
+  isLowRiskContext: boolean;
+} {
+  let l3Score = 0;
+  let l2Score = 0;
+  const matchedDomains = new Set<string>();
+  const matchedKeywords: string[] = [];
+  const negatedKeywords: string[] = [];
 
-  // カテゴリキーワードマッピング
-  const categoryKeywords: Record<AiReplyCategory, string[]> = {
-    nyukyo: ['入居', '見学', '書類', '契約', '退去'],
-    sales: ['紹介会社', '営業', '案件', '見込み'],
-    expense: ['経費', '支払い', '返金', '請求', '立替', '購入'],
-    hr: ['採用', '退職', '労務', '残業', '休暇', '有給', '給与'],
-    risk: ['クレーム', '事故', '苦情', 'トラブル', '行政', '法務'],
-    ops: ['打刻', '勤怠', 'シフト', 'パスワード', 'システム', '手順', '方法'],
-    general: [],
-  };
-
-  for (const [category, keywords] of Object.entries(categoryKeywords)) {
-    for (const keyword of keywords) {
-      if (normalizedText.includes(keyword)) {
-        return category as AiReplyCategory;
+  for (const rule of L3_RULES) {
+    if (text.includes(rule.keyword)) {
+      const inNeg = isInNegationContext(text, rule.keyword);
+      if (inNeg) {
+        negatedKeywords.push(rule.keyword);
+        l3Score += Math.max(rule.weight - 6, 1);
+      } else {
+        l3Score += rule.weight;
       }
+      matchedKeywords.push(rule.keyword);
+      matchedDomains.add(rule.domain);
     }
   }
 
-  return 'general';
+  for (const rule of L2_RULES) {
+    if (text.includes(rule.keyword)) {
+      const inNeg = isInNegationContext(text, rule.keyword);
+      if (inNeg) {
+        negatedKeywords.push(rule.keyword);
+        l2Score += Math.max(rule.weight - 3, 0);
+      } else {
+        l2Score += rule.weight;
+      }
+      matchedKeywords.push(rule.keyword);
+      matchedDomains.add(rule.domain);
+    }
+  }
+
+  if (matchedDomains.size >= 3) l3Score += 4;
+  else if (matchedDomains.size >= 2) l3Score += 2;
+
+  const lowRisk = isLowRiskContext(text);
+  if (lowRisk) {
+    l3Score = Math.floor(l3Score * 0.5);
+    l2Score = Math.floor(l2Score * 0.5);
+  }
+
+  let level: AiReplyRiskLevel = 'L1';
+  if (l3Score >= L3_THRESHOLD) level = 'L3';
+  else if (l2Score >= L2_THRESHOLD || l3Score >= L2_THRESHOLD) level = 'L2';
+
+  return {
+    level,
+    l3Score,
+    l2Score,
+    matchedDomains: Array.from(matchedDomains),
+    matchedKeywords,
+    negatedKeywords,
+    isLowRiskContext: lowRisk,
+  };
+}
+
+/**
+ * メッセージのカテゴリを判定
+ *
+ * スコアベースの判定: 最もスコアが高いカテゴリを選択
+ */
+export function determineCategory(text: string): AiReplyCategory {
+  // カテゴリキーワード（重み付き）
+  const categoryRules: Record<Exclude<AiReplyCategory, 'general'>, { keyword: string; weight: number }[]> = {
+    nyukyo: [
+      { keyword: '入居', weight: 5 }, { keyword: '見学', weight: 5 },
+      { keyword: '退去', weight: 4 }, { keyword: '空室', weight: 4 },
+      { keyword: '入所', weight: 4 }, { keyword: '待機', weight: 3 },
+      { keyword: 'ケアプラン', weight: 3 }, { keyword: '要介護', weight: 3 },
+      { keyword: '利用者', weight: 2 }, { keyword: '入居者', weight: 3 },
+    ],
+    sales: [
+      { keyword: '紹介会社', weight: 6 }, { keyword: '営業', weight: 4 },
+      { keyword: '案件', weight: 3 }, { keyword: '見込み', weight: 3 },
+      { keyword: '紹介', weight: 2 }, { keyword: '問い合わせ', weight: 2 },
+      { keyword: '成約', weight: 4 }, { keyword: '商談', weight: 4 },
+    ],
+    expense: [
+      { keyword: '経費', weight: 5 }, { keyword: '支払い', weight: 4 },
+      { keyword: '返金', weight: 4 }, { keyword: '請求', weight: 4 },
+      { keyword: '立替', weight: 5 }, { keyword: '購入', weight: 3 },
+      { keyword: '見積', weight: 3 }, { keyword: '予算', weight: 3 },
+      { keyword: '稟議', weight: 3 }, { keyword: '発注', weight: 3 },
+      { keyword: '振込', weight: 4 }, { keyword: '納品', weight: 3 },
+    ],
+    hr: [
+      { keyword: '採用', weight: 5 }, { keyword: '退職', weight: 5 },
+      { keyword: '労務', weight: 5 }, { keyword: '残業', weight: 4 },
+      { keyword: '休暇', weight: 4 }, { keyword: '有給', weight: 4 },
+      { keyword: '給与', weight: 5 }, { keyword: '賞与', weight: 5 },
+      { keyword: '面接', weight: 4 }, { keyword: 'シフト', weight: 3 },
+      { keyword: '人事', weight: 4 }, { keyword: '異動', weight: 4 },
+      { keyword: '昇給', weight: 4 }, { keyword: '社会保険', weight: 4 },
+      { keyword: '雇用', weight: 4 }, { keyword: '研修', weight: 3 },
+    ],
+    risk: [
+      { keyword: 'クレーム', weight: 6 }, { keyword: '事故', weight: 6 },
+      { keyword: '苦情', weight: 5 }, { keyword: 'トラブル', weight: 4 },
+      { keyword: '行政', weight: 4 }, { keyword: '法務', weight: 5 },
+      { keyword: '弁護士', weight: 5 }, { keyword: '監査', weight: 4 },
+      { keyword: '怪我', weight: 5 }, { keyword: '転倒', weight: 5 },
+      { keyword: '誤薬', weight: 6 }, { keyword: '離設', weight: 5 },
+      { keyword: '虐待', weight: 6 }, { keyword: '感染', weight: 4 },
+    ],
+    ops: [
+      { keyword: '打刻', weight: 5 }, { keyword: '勤怠', weight: 4 },
+      { keyword: 'パスワード', weight: 5 }, { keyword: 'システム', weight: 3 },
+      { keyword: '手順', weight: 3 }, { keyword: '方法', weight: 2 },
+      { keyword: 'ログイン', weight: 4 }, { keyword: 'エラー', weight: 3 },
+      { keyword: '設定', weight: 2 }, { keyword: '操作', weight: 3 },
+      { keyword: 'マニュアル', weight: 3 }, { keyword: 'アップロード', weight: 3 },
+    ],
+  };
+
+  const scores: Record<string, number> = {};
+
+  for (const [category, rules] of Object.entries(categoryRules)) {
+    let score = 0;
+    for (const rule of rules) {
+      if (text.includes(rule.keyword)) {
+        score += rule.weight;
+      }
+    }
+    scores[category] = score;
+  }
+
+  // 最高スコアのカテゴリを選択
+  let bestCategory: AiReplyCategory = 'general';
+  let bestScore = 0;
+  for (const [category, score] of Object.entries(scores)) {
+    if (score > bestScore) {
+      bestScore = score;
+      bestCategory = category as AiReplyCategory;
+    }
+  }
+
+  return bestCategory;
 }
 
 // ======== AI返信生成 ========

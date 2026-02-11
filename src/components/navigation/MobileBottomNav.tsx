@@ -72,6 +72,7 @@ export function MobileBottomNav() {
       { href: '/dashboard/docs', label: 'ドキュメント', icon: FolderOpen, matchPaths: ['/dashboard/docs'] },
       { href: '/sales', label: '営業', icon: Briefcase, matchPaths: ['/sales'] },
       { href: '/dashboard/os', label: '経営OS', icon: Activity, matchPaths: ['/dashboard/os'] },
+      { href: '/dashboard/tickets', label: 'チケット', icon: Ticket, matchPaths: ['/dashboard/tickets'] },
     ];
     const launchMoreItems = filterNavItems(launchMoreAll);
 
@@ -81,6 +82,10 @@ export function MobileBottomNav() {
           { href: '/admin/attendance/dashboard', label: '勤怠管理', icon: Clock },
           { href: '/dashboard/admin/ringi', label: '稟議管理', icon: ClipboardCheck },
           { href: '/admin/improvements', label: '改善管理', icon: Lightbulb },
+          { href: '/dashboard/repair-tickets', label: '修繕', icon: Wrench },
+          { href: '/dashboard/complaints', label: '苦情管理', icon: AlertTriangle },
+          { href: '/dashboard/corrective-actions', label: '是正措置', icon: CheckCircle2 },
+          { href: '/dashboard/training', label: '研修管理', icon: BookOpen },
         ]
       : [];
     const launchAdminItems = filterNavItems(launchAdminAll);

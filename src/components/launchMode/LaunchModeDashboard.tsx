@@ -17,6 +17,7 @@ import {
   FolderOpen,
   Briefcase,
   Activity,
+  Trophy,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { BuildInfo } from '@/components/BuildInfo';
@@ -87,6 +88,11 @@ interface DashboardCounts {
     todayCheckins: number;
     yellowRisk: number;
     redRisk: number;
+  };
+  rankings: {
+    participants: number;
+    topPoints: number;
+    totalPoints: number;
   };
 }
 
@@ -215,6 +221,20 @@ const MODULE_CARDS: ModuleCardConfig[] = [
       { label: '要対応', value: c.os.redRisk, highlight: c.os.redRisk > 0 },
     ],
   },
+  {
+    id: 'rankings',
+    href: '/rankings',
+    label: 'ランキング',
+    icon: Trophy,
+    iconBg: 'bg-orange-500',
+    accentBar: 'bg-orange-500',
+    hoverBorder: 'hover:border-orange-300',
+    getMetrics: (c) => [
+      { label: '参加者', value: c.rankings.participants },
+      { label: '最高pt', value: c.rankings.topPoints },
+      { label: '合計pt', value: c.rankings.totalPoints },
+    ],
+  },
 ];
 
 // ── ヘルパー ──
@@ -247,6 +267,7 @@ const EMPTY_COUNTS: DashboardCounts = {
   documents: { total: 0, missing: 0, submitted: 0 },
   sales: { activeDeals: 0, staleDeals: 0, totalAccounts: 0 },
   os: { todayCheckins: 0, yellowRisk: 0, redRisk: 0 },
+  rankings: { participants: 0, topPoints: 0, totalPoints: 0 },
 };
 
 /**

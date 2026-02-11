@@ -76,6 +76,7 @@ export interface TrainingSession {
   durationMinutes: number | null;
   location: string | null;
   instructorName: string | null;
+  attendedCount?: number; // 受講者数（集計値）
   notes: string | null;
   status: SessionStatus;
   createdByUserId: string;

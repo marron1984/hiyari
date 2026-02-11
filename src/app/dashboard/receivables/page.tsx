@@ -15,6 +15,7 @@ import {
   User,
   Calendar,
   ChevronRight,
+  FileText,
 } from 'lucide-react';
 import type {
   Receivable,
@@ -148,13 +149,22 @@ export default function ReceivablesPage() {
             未収金の一覧・回収状況を管理
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
-        >
-          <Plus className="h-4 w-4" />
-          新規登録
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/dunning-history"
+            className="flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            <FileText className="h-4 w-4" />
+            督促履歴
+          </Link>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
+          >
+            <Plus className="h-4 w-4" />
+            新規登録
+          </button>
+        </div>
       </div>
 
       {/* 統計カード */}

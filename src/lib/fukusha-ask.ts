@@ -8,6 +8,8 @@
 // 判断を個人に背負わせないための"仕組み（OS）"の一部である。
 
 import { getAdminDb } from './firebase-admin';
+import Anthropic from '@anthropic-ai/sdk';
+import { AI_VP_SYSTEM_PROMPT } from './ai-vp-persona';
 import type {
   FukushaQuestion,
   FukushaQuestionStatus,
@@ -107,43 +109,21 @@ export async function processQuestionWithAI(
 }
 
 /**
- * AIレスポンス生成
+ * AIレスポンス生成（Claude + 吉田ペルソナ）
  */
 async function generateAIResponse(
   question: Omit<FukushaQuestion, 'id'>
 ): Promise<FukushaAIProcessResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
-    console.warn('[FukushaAsk] OpenAI APIキーなし、ダミー応答を返す');
+    console.warn('[FukushaAsk] ANTHROPIC_API_KEY なし、ダミー応答を返す');
     return generateDummyResponse(question);
   }
 
-  const systemPrompt = `あなたは「ふくしゃ（副社長）」として、スタッフからの質問に回答する下書きを作成するAIアシスタントです。
+  const userPrompt = `スタッフからの質問を整理し、返信下書きを作成してください。
 
-## 重要な原則
-
-1. **温かみのある対応**: 質問者の気持ちに寄り添い、共感を示す
-2. **具体的で実用的**: 抽象論ではなく、具体的なアドバイスを心がける
-3. **会社の価値観に沿う**: 組織の一員として、前向きで建設的な回答を
-4. **適度な距離感**: 親しみやすさと適切な敬意のバランス
-
-## 出力形式（JSON）
-
-{
-  "summary": "質問の要約（1-2文）",
-  "keyPoints": ["論点1", "論点2", "論点3"],
-  "draftReply": "返信下書き（200-400字程度）",
-  "suggestedTone": "推奨トーン（励まし/説明/共感/提案など）"
-}
-
-## 注意事項
-
-- 質問者が匿名の場合、「ご質問いただきありがとうございます」など一般的な呼びかけを使う
-- 具体的な人名や部署名への言及は避ける
-- 最終決定は人間が行うことを前提とした下書きを作成`;
-
-  const userPrompt = `## 質問情報
+## 質問情報
 
 カテゴリ: ${question.category}
 件名: ${question.title || '（なし）'}
@@ -155,42 +135,64 @@ async function generateAIResponse(
 
 ${question.content}
 
----
+## あなたの行動
 
-上記の質問に対して、要約・論点整理・返信下書きをJSON形式で生成してください。`;
+1. 質問の要約（事実ベースで1-2文）
+2. 論点の整理（確認すべき事実を3つ以内で列挙）
+3. 返信下書きの作成（吉田のスタイルで200-400字程度）
+
+## 下書きのルール
+- 「まず事実を確認する」姿勢を反映
+- 「〜すべき」「〜してください」は使わない
+- 「〜の状況を教えてほしい」「〜を確認してみる」を使う
+- 質問者を頭ごなしに否定しない
+- 具体的な人名・部署名への言及は避ける
+- 匿名の場合は一般的な呼びかけを使う
+- 不可逆な判断（人事・懲戒等）は「確認して改めて連絡する」
+
+以下のJSON形式で出力してください:
+{
+  "summary": "質問の要約（1-2文）",
+  "keyPoints": ["論点1", "論点2", "論点3"],
+  "draftReply": "返信下書き",
+  "suggestedTone": "事実確認/選択肢提示/共感確認 のいずれか"
+}`;
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
-        response_format: { type: 'json_object' },
-      }),
+    const client = new Anthropic({ apiKey });
+
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      system: AI_VP_SYSTEM_PROMPT,
+      messages: [
+        { role: 'user', content: userPrompt },
+      ],
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
+    const rawContent = message.content[0].type === 'text' ? message.content[0].text : '';
+
+    // コードブロック対応のJSONパース
+    const codeBlockMatch = rawContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const jsonStr = codeBlockMatch ? codeBlockMatch[1] : rawContent;
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        summary: parsed.summary || '質問内容を確認してください',
+        keyPoints: parsed.keyPoints || [],
+        draftReply: parsed.draftReply || '',
+        suggestedTone: parsed.suggestedTone || '事実確認',
+      };
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    const parsed = JSON.parse(content || '{}');
-
+    // JSONパース失敗時はそのまま返す
     return {
-      summary: parsed.summary || '質問内容を確認してください',
-      keyPoints: parsed.keyPoints || [],
-      draftReply: parsed.draftReply || '',
-      suggestedTone: parsed.suggestedTone || '共感',
+      summary: '質問内容を確認してください',
+      keyPoints: [],
+      draftReply: rawContent,
+      suggestedTone: '事実確認',
     };
   } catch (error) {
     console.error('[FukushaAsk] AI処理エラー', error);

@@ -96,11 +96,13 @@ export interface CommitteeMember {
 export interface CommitteeMeeting {
   id: string;
   committeeId: string;
+  committeeName?: string; // API enrichment
   title: string; // 例: 2026年2月 定例
   scheduledAt: string; // 予定日時
   heldAt: string | null; // 実際の開催日（終わったら入れる）
   location: string | null;
   status: MeetingStatus;
+  attendeeCount?: number; // 出席者数（集計値）
   createdByUserId: string;
   notes: string | null;
   createdAt: string;

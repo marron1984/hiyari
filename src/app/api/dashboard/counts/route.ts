@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
       documentsResult,
       salesResult,
       osResult,
+      rankingsResult,
     ] = await Promise.all([
       // ── Prospects ──
       (async () => {
@@ -321,6 +322,32 @@ export async function GET(request: NextRequest) {
           return { todayCheckins: 0, yellowRisk: 0, redRisk: 0 };
         }
       })(),
+
+      // ── Rankings ──
+      (async () => {
+        try {
+          const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+          const userStatsSnap = await adminDb
+            .collection('monthlyUserStats')
+            .where('tenantId', '==', tenantId)
+            .where('monthKey', '==', currentMonth)
+            .get();
+
+          const participants = userStatsSnap.size;
+          let topPoints = 0;
+          let totalPoints = 0;
+
+          userStatsSnap.docs.forEach((d) => {
+            const points = d.data().points ?? 0;
+            totalPoints += points;
+            if (points > topPoints) topPoints = points;
+          });
+
+          return { participants, topPoints, totalPoints };
+        } catch {
+          return { participants: 0, topPoints: 0, totalPoints: 0 };
+        }
+      })(),
     ]);
 
     return NextResponse.json(
@@ -334,6 +361,7 @@ export async function GET(request: NextRequest) {
         documents: documentsResult,
         sales: salesResult,
         os: osResult,
+        rankings: rankingsResult,
         fetchedAt: now.toISOString(),
       },
       {

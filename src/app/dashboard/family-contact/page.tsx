@@ -21,6 +21,7 @@ import {
   ArrowDownLeft,
   Filter,
   X,
+  Clock,
 } from 'lucide-react';
 import type {
   FamilyContactLog,
@@ -200,13 +201,22 @@ export default function FamilyContactPage() {
             利用者ごとの家族連絡履歴を記録・検索
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={18} />
-          新規記録
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/contact-history"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-zinc-300 text-zinc-700 rounded-lg hover:bg-zinc-50 transition-colors"
+          >
+            <Clock size={18} />
+            連絡履歴
+          </Link>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={18} />
+            新規記録
+          </button>
+        </div>
       </div>
 
       {/* 統計カード */}
