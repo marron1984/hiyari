@@ -2,6 +2,8 @@
 // 注意: 個人の離職断定・評価は禁止、主語は拠点・チーム
 
 import { getAdminDb } from './firebase-admin';
+import Anthropic from '@anthropic-ai/sdk';
+import { buildFeaturePrompt } from './ai-vp-persona';
 import type {
   RiskLevel,
   ScoreCategory,
@@ -294,103 +296,45 @@ async function generateAIAnalysis(
     consideration: string;
   };
 }> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
-    console.warn('[HumanRisk] OpenAI APIキーなし、ダミー分析を返す');
+    console.warn('[HumanRisk] ANTHROPIC_API_KEY なし、ダミー分析を返す');
     return generateDummyAnalysis(input, scores, riskLevel);
   }
 
-  const systemPrompt = buildSystemPrompt();
   const userPrompt = buildUserPrompt(input, scores, totalScore, riskLevel);
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 1200,
-        response_format: { type: 'json_object' },
-      }),
+    const client = new Anthropic({ apiKey });
+
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1200,
+      system: buildFeaturePrompt('organization_health'),
+      messages: [
+        { role: 'user', content: userPrompt },
+      ],
     });
 
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
+    const rawContent = message.content[0].type === 'text' ? message.content[0].text : '';
+
+    // コードブロック対応のJSONパース
+    const codeBlockMatch = rawContent.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const jsonStr = codeBlockMatch ? codeBlockMatch[1] : rawContent;
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return formatAIResponse(parsed, scores);
     }
 
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-    const parsed = JSON.parse(content || '{}');
-
-    return formatAIResponse(parsed, scores);
+    console.error('[HumanRisk] AIレスポンスのJSON解析失敗');
+    return generateDummyAnalysis(input, scores, riskLevel);
   } catch (error) {
-    console.error('[HumanRisk] OpenAI API呼び出しエラー', error);
+    console.error('[HumanRisk] Claude API呼び出しエラー', error);
     return generateDummyAnalysis(input, scores, riskLevel);
   }
-}
-
-/**
- * システムプロンプト
- */
-function buildSystemPrompt(): string {
-  return `あなたは組織の人材リスクを分析するAIです。
-拠点・チーム単位でリスク傾向を分析し、参考情報を提供します。
-
-## 重要な原則
-
-1. **主語は必ず「拠点」「チーム」「組織」** - 個人を特定する表現は禁止
-2. **個人の離職断定・評価は禁止** - 「〇〇さんが辞めそう」などは絶対NG
-3. **断定表現禁止** - 「問題がある」「〜すべき」は使わない
-4. **命令禁止** - 「〜してください」は使わない
-
-## 推奨表現
-
-- 「拠点全体として〜の傾向が見られます」
-- 「チームとして〜の可能性が考えられます」
-- 「組織として〜を検討する余地があるかもしれません」
-- 「〜に注目すると良いかもしれません」
-
-## 出力形式（JSON）
-
-{
-  "mainFactors": [
-    {
-      "category": "operational_load|behavioral_change|emotional_temperature|operational_distortion",
-      "title": "主因タイトル（拠点・チーム主語）",
-      "description": "説明（個人名なし、断定なし）",
-      "impact": "high|medium|low",
-      "dataPoints": ["根拠1", "根拠2"]
-    }
-  ],
-  "suggestedActions": [
-    {
-      "title": "アクションタイトル",
-      "description": "説明（命令形禁止）",
-      "category": "communication|workload|environment|support",
-      "priority": "high|medium|low",
-      "note": "補足（断定禁止）"
-    }
-  ],
-  "aiComment": {
-    "summary": "概要（拠点・チーム主語）",
-    "observation": "観察事項",
-    "consideration": "検討事項（〜かもしれません形式）"
-  }
-}
-
-注意:
-- mainFactorsは最大3つ
-- suggestedActionsは最大3つ
-- 全て拠点・チームを主語に`;
 }
 
 /**
@@ -416,7 +360,9 @@ function buildUserPrompt(
     )
     .join('\n');
 
-  return `## 拠点情報
+  return `拠点の人材リスク傾向を分析し、参考情報を整理してください。
+
+## 拠点情報
 - 拠点名: ${input.branchName}
 - 評価期間: ${input.period.from} 〜 ${input.period.to}
 
@@ -433,8 +379,37 @@ ${input.attendance ? `- 45時間超: ${input.attendance.overtimeOver45Count}名`
 ${input.communication ? `- 時間外メッセージ率: ${input.communication.afterHoursMessageRate}%` : ''}
 ${input.operational ? `- 離職率: ${input.operational.turnoverRate}%` : ''}
 
-上記のデータに基づき、拠点・チームの観点からリスク要因と参考アクションを分析してください。
-個人名や個人の離職予測は絶対に含めないでください。`;
+## 出力形式（JSON）
+
+{
+  "mainFactors": [
+    {
+      "category": "operational_load|behavioral_change|emotional_temperature|operational_distortion",
+      "title": "主因タイトル（拠点・チーム主語）",
+      "description": "説明（個人名なし、断定なし）",
+      "impact": "high|medium|low",
+      "dataPoints": ["根拠データ1", "根拠データ2"]
+    }
+  ],
+  "suggestedActions": [
+    {
+      "title": "アクションタイトル",
+      "description": "説明（命令形禁止）",
+      "category": "communication|workload|environment|support",
+      "priority": "high|medium|low",
+      "note": "補足"
+    }
+  ],
+  "aiComment": {
+    "summary": "概要（拠点・チーム主語、断定禁止）",
+    "observation": "観察事項（データに変化が見られる等の表現）",
+    "consideration": "検討事項（〜かもしれません形式）"
+  }
+}
+
+注意:
+- mainFactorsは最大3つ、suggestedActionsは最大3つ
+- 主語は必ず「拠点」「チーム」。個人名・離職断定は禁止`;
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   DECISION_LOG_TYPE_LABELS,
   YOSHIDA_LEARNING_PROMPT_VERSION,
 } from '@/types/yoshida-learning';
+import { buildFeaturePrompt } from './ai-vp-persona';
 import { toDate } from './date';
 
 const DECISION_LOG_COLLECTION = 'yoshidaDecisionLogs';
@@ -180,14 +181,12 @@ ${d.decisionReason ? `理由: ${d.decisionReason}` : ''}`;
 代替案: ${currentCase.context.hasAlternative !== undefined ? (currentCase.context.hasAlternative ? 'あり' : 'なし') : '未指定'}`
     : '';
 
-  return `あなたはAI副社長として、吉田社長の過去の判断パターンを分析し、現在のケースとの類似度を算出します。
+  return `吉田社長の過去の判断パターンと現在のケースとの類似度を分析してください。
 
-【重要ルール】
-- AIは判断を代行しない（「〜すべき」「〜を推奨」は禁止）
-- 断定表現は禁止（「〜に違いない」「必ず〜」は使わない）
-- 「〜の可能性があります」「〜かもしれません」を使う
-- 類似度は客観的な基準で算出する
-- 最終判断は吉田社長に委ねる
+【類似度算出基準】
+- 判断対象の性質（カテゴリ・規模・関係者）
+- 判断コンテキスト（守りたい軸・嫌ったリスク・代替案の有無）
+- 状況の類似性（時期・緊急度・影響範囲）
 
 【現在のケース】
 タイトル: ${currentCase.title}
@@ -228,13 +227,16 @@ interface AiSimilarityResponse {
 }
 
 function parseAiResponse(rawResponse: string): AiSimilarityResponse | null {
-  const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+  // コードブロック対応
+  const codeBlockMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const jsonStr = codeBlockMatch ? codeBlockMatch[1] : rawResponse;
+  const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return null;
 
   try {
     const parsed = JSON.parse(jsonMatch[0]);
     return {
-      similarityScore: parsed.similarityScore || 0,
+      similarityScore: Math.min(100, Math.max(0, parsed.similarityScore || 0)),
       mostSimilarDecisionIndex: parsed.mostSimilarDecisionIndex,
       matchingPoints: (parsed.matchingPoints || []).slice(0, 3),
       differences: (parsed.differences || []).slice(0, 2),
@@ -315,6 +317,7 @@ export async function analyzeSimilarity(
       const message = await client.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2048,
+        system: buildFeaturePrompt('yoshida_learning'),
         messages: [
           {
             role: 'user',

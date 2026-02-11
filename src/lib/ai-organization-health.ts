@@ -12,6 +12,7 @@ import {
   OrganizationHealthReport,
   OrganizationHealthInput,
 } from '@/types/organization-health';
+import { buildFeaturePrompt } from './ai-vp-persona';
 import { toDate } from './date';
 import { BRANCHES_SEED } from '@/data/employees';
 
@@ -255,14 +256,7 @@ function buildAiPrompt(input: OrganizationHealthInput): string {
     .filter((u) => u.alertLevel !== 'normal')
     .slice(0, 3);
 
-  return `あなたはAI副社長として、組織の健康状態を分析し「温度レポート」を作成します。
-
-【重要ルール】
-- 断定禁止（「〜に違いない」「〜だ」は使わない）
-- 感情評価禁止（「ストレスを感じている」「疲れている」は使わない）
-- 「〜の可能性があります」「〜かもしれません」を使う
-- 最大3件まで表示
-- 実名は社内限定（このレポートは社内閲覧のみ）
+  return `組織の週次温度レポートを作成してください。
 
 【レポート期間】
 ${input.period}
@@ -318,11 +312,15 @@ async function generateAiReport(input: OrganizationHealthInput): Promise<{
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
+      system: buildFeaturePrompt('organization_health'),
       messages: [{ role: 'user', content: prompt }],
     });
 
     const rawResponse = message.content[0].type === 'text' ? message.content[0].text : '';
-    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+    // コードブロック対応のJSONパース
+    const codeBlockMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const jsonStr = codeBlockMatch ? codeBlockMatch[1] : rawResponse;
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
 
     if (jsonMatch) {
       try {
