@@ -7,8 +7,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listLicenses, listLicenseTypes } from '@/lib/licenses/repo.firestore';
-import type { LicenseListFilters, ViewerContext, LicenseCategoryType, UserLicenseStatus } from '@/lib/licenses/types';
+import { listLicenses, listLicenseTypes, create as createLicense } from '@/lib/licenses/repo.firestore';
+import type { LicenseListFilters, ViewerContext, LicenseCategoryType, UserLicenseStatus, CreateUserLicenseRequest } from '@/lib/licenses/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { userRoleToAppRole } from '@/lib/roles/types';
 
@@ -90,12 +90,52 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const authResult = await requireApiUser(request);
-  if (!isApiUser(authResult)) return authResult;
+  try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-  // 資格の新規作成は別途実装（管理者機能）
-  return NextResponse.json(
-    { error: '未実装' },
-    { status: 501 }
-  );
+    // admin以上のみ作成可
+    const role = userRoleToAppRole(user.role);
+    if (!['admin', 'executive', 'auditor'].includes(role)) {
+      return NextResponse.json(
+        { error: '管理者権限が必要です' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+    const input: CreateUserLicenseRequest = {
+      userId: body.userId,
+      licenseTypeId: body.licenseTypeId,
+      licenseNumber: body.licenseNumber ?? null,
+      issuedAt: body.issuedAt ?? null,
+      expiresAt: body.expiresAt ?? null,
+      notes: body.notes ?? null,
+    };
+
+    if (!input.userId || !input.licenseTypeId) {
+      return NextResponse.json(
+        { error: 'userId と licenseTypeId は必須です' },
+        { status: 400 }
+      );
+    }
+
+    const result = await createLicense(input, user.uid);
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ success: true, item: result.item }, { status: 201 });
+  } catch (error) {
+    console.error('licenses POST error:', error);
+    return NextResponse.json(
+      { error: '資格の作成に失敗しました' },
+      { status: 500 }
+    );
+  }
 }

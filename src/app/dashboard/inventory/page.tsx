@@ -1,10 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Package,
   Search,
+  RefreshCw,
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useApiFetch } from '@/hooks/useApiFetch';
+import { Loading } from '@/components/Loading';
 
 interface InventoryItem {
   id: string;
@@ -35,18 +39,36 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 type TabType = 'all' | 'low' | 'critical';
 
-const DEMO_DATA: InventoryItem[] = [
-  { id: '1', name: '使い捨て手袋（M）', category: 'consumable', currentStock: 120, minStock: 50, unit: '箱', location: '1F倉庫', lastOrderedAt: '2026-01-20', status: 'ok' },
-  { id: '2', name: 'おむつ（Lサイズ）', category: 'consumable', currentStock: 15, minStock: 30, unit: 'パック', location: '各階倉庫', lastOrderedAt: '2026-01-15', status: 'critical' },
-  { id: '3', name: '消毒用アルコール', category: 'medical', currentStock: 8, minStock: 10, unit: 'L', location: 'ナースステーション', lastOrderedAt: '2026-02-01', status: 'low' },
-  { id: '4', name: 'コピー用紙（A4）', category: 'office', currentStock: 0, minStock: 5, unit: '箱', location: '事務室', lastOrderedAt: '2025-12-10', status: 'out_of_stock' },
-  { id: '5', name: '車椅子クッション', category: 'equipment', currentStock: 3, minStock: 2, unit: '個', location: 'リハビリ室', lastOrderedAt: '2025-11-01', status: 'ok' },
-  { id: '6', name: 'ペーパータオル', category: 'consumable', currentStock: 22, minStock: 20, unit: 'パック', location: '1F倉庫', lastOrderedAt: '2026-02-05', status: 'low' },
-];
-
 export default function InventoryPage() {
+  const { firebaseUser } = useAuth();
+  const apiFetch = useApiFetch();
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    if (!firebaseUser) return;
+    setError(null);
+    try {
+      const res = await apiFetch('/api/inventory?limit=200');
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+      const data = await res.json();
+      setItems(data.items || []);
+    } catch (err) {
+      console.error('Failed to load inventory:', err);
+      setError('在庫情報の読み込みに失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }, [firebaseUser, apiFetch]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const tabs: { id: TabType; label: string }[] = [
     { id: 'all', label: 'すべて' },
@@ -54,7 +76,7 @@ export default function InventoryPage() {
     { id: 'critical', label: '要発注' },
   ];
 
-  const filtered = DEMO_DATA.filter((item) => {
+  const filtered = items.filter((item) => {
     if (activeTab === 'low') return item.status === 'low';
     if (activeTab === 'critical') return item.status === 'critical' || item.status === 'out_of_stock';
     return true;
@@ -64,21 +86,40 @@ export default function InventoryPage() {
   });
 
   const stats = {
-    total: DEMO_DATA.length,
-    ok: DEMO_DATA.filter((i) => i.status === 'ok').length,
-    low: DEMO_DATA.filter((i) => i.status === 'low').length,
-    needsOrder: DEMO_DATA.filter((i) => i.status === 'critical' || i.status === 'out_of_stock').length,
+    total: items.length,
+    ok: items.filter((i) => i.status === 'ok').length,
+    low: items.filter((i) => i.status === 'low').length,
+    needsOrder: items.filter((i) => i.status === 'critical' || i.status === 'out_of_stock').length,
   };
+
+  if (loading) {
+    return <Loading text="在庫情報を読み込み中..." />;
+  }
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-6 safe-bottom">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2 text-zinc-900">
-          <Package className="w-6 h-6" />
-          備品在庫管理
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-zinc-900">
+            <Package className="w-6 h-6" />
+            備品在庫管理
+          </h1>
+          <button
+            onClick={() => { setLoading(true); loadData(); }}
+            className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors"
+            title="再読み込み"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
         <p className="text-sm text-zinc-500 mt-1">消耗品・設備の在庫状況と発注管理</p>
       </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <div className="bg-white border rounded-xl p-3 text-center">

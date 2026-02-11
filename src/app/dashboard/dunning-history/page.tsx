@@ -1,13 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Banknote,
   Calendar,
   Phone,
   Mail,
   MessageSquare,
+  RefreshCw,
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useApiFetch } from '@/hooks/useApiFetch';
+import { Loading } from '@/components/Loading';
+import type { Receivable } from '@/lib/receivables/types';
 
 interface DunningRecord {
   id: string;
@@ -38,16 +43,76 @@ const RESULT_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 type TabType = 'all' | 'pending' | 'resolved';
 
-const DEMO_DATA: DunningRecord[] = [
-  { id: '1', residentName: '山田太郎', amount: 45000, method: 'phone', result: 'promised', dunnedAt: '2026-02-08T10:30:00Z', note: '2/15までに入金予定', staffName: '田中花子' },
-  { id: '2', residentName: '佐藤花子', amount: 32000, method: 'letter', result: 'no_answer', dunnedAt: '2026-02-07T14:00:00Z', note: null, staffName: '鈴木一郎' },
-  { id: '3', residentName: '高橋健一', amount: 28000, method: 'phone', result: 'paid', dunnedAt: '2026-02-05T11:00:00Z', note: '全額入金確認', staffName: '田中花子' },
-  { id: '4', residentName: '中村美咲', amount: 56000, method: 'email', result: 'contacted', dunnedAt: '2026-02-06T09:15:00Z', note: '家族に連絡済み', staffName: '山本太郎' },
-  { id: '5', residentName: '渡辺隆', amount: 120000, method: 'visit', result: 'partial_paid', dunnedAt: '2026-02-04T13:30:00Z', note: '60,000円入金、残額2/20予定', staffName: '鈴木一郎' },
-];
+/** Map receivable nextActionType to DunningRecord method */
+function mapMethod(actionType: string | null): DunningRecord['method'] {
+  switch (actionType) {
+    case 'call': return 'phone';
+    case 'email': return 'email';
+    case 'visit': return 'visit';
+    case 'letter': return 'letter';
+    default: return 'phone';
+  }
+}
+
+/** Map receivable status to dunning result */
+function mapResult(status: string): DunningRecord['result'] {
+  switch (status) {
+    case 'open': return 'contacted';
+    case 'in_collection': return 'contacted';
+    case 'promised': return 'promised';
+    case 'partial': return 'partial_paid';
+    case 'disputed': return 'refused';
+    case 'paid': return 'paid';
+    case 'writeoff': return 'refused';
+    case 'archived': return 'paid';
+    default: return 'no_answer';
+  }
+}
+
+/** Map a Receivable from the API to DunningRecord */
+function mapToDunningRecord(receivable: Receivable): DunningRecord {
+  return {
+    id: receivable.id,
+    residentName: receivable.subjectName,
+    amount: receivable.amount - (receivable.paidAmount || 0),
+    method: mapMethod(receivable.nextActionType),
+    result: mapResult(receivable.status),
+    dunnedAt: receivable.nextActionAt || receivable.updatedAt,
+    note: receivable.riskNote || receivable.description,
+    staffName: receivable.ownerRole || '担当未設定',
+  };
+}
 
 export default function DunningHistoryPage() {
+  const { firebaseUser } = useAuth();
+  const apiFetch = useApiFetch();
   const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [records, setRecords] = useState<DunningRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    if (!firebaseUser) return;
+    setError(null);
+    try {
+      const res = await apiFetch('/api/receivables?limit=200');
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+      const data = await res.json();
+      const items: Receivable[] = data.items || [];
+      setRecords(items.map(mapToDunningRecord));
+    } catch (err) {
+      console.error('Failed to load dunning history:', err);
+      setError('督促履歴の読み込みに失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }, [firebaseUser, apiFetch]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const tabs: { id: TabType; label: string }[] = [
     { id: 'all', label: 'すべて' },
@@ -55,35 +120,54 @@ export default function DunningHistoryPage() {
     { id: 'resolved', label: '解決済み' },
   ];
 
-  const filtered = DEMO_DATA.filter((d) => {
+  const filtered = records.filter((d) => {
     if (activeTab === 'pending') return d.result !== 'paid';
     if (activeTab === 'resolved') return d.result === 'paid';
     return true;
   });
 
-  const totalUnpaid = DEMO_DATA.filter((d) => d.result !== 'paid').reduce((s, d) => s + d.amount, 0);
+  const totalUnpaid = records.filter((d) => d.result !== 'paid').reduce((s, d) => s + d.amount, 0);
+
+  if (loading) {
+    return <Loading text="督促履歴を読み込み中..." />;
+  }
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-6 safe-bottom">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2 text-zinc-900">
-          <Banknote className="w-6 h-6" />
-          督促履歴
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-zinc-900">
+            <Banknote className="w-6 h-6" />
+            督促履歴
+          </h1>
+          <button
+            onClick={() => { setLoading(true); loadData(); }}
+            className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors"
+            title="再読み込み"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
         <p className="text-sm text-zinc-500 mt-1">未収金の督促連絡記録を管理</p>
       </div>
 
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
         <div className="bg-white border rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-zinc-900">{DEMO_DATA.length}</p>
+          <p className="text-2xl font-bold text-zinc-900">{records.length}</p>
           <p className="text-xs text-zinc-500">督促件数</p>
         </div>
         <div className="bg-white border rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-red-600">¥{totalUnpaid.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-red-600">&yen;{totalUnpaid.toLocaleString()}</p>
           <p className="text-xs text-zinc-500">未回収残高</p>
         </div>
         <div className="bg-white border rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-green-600">{DEMO_DATA.filter((d) => d.result === 'paid').length}</p>
+          <p className="text-2xl font-bold text-green-600">{records.filter((d) => d.result === 'paid').length}</p>
           <p className="text-xs text-zinc-500">入金完了</p>
         </div>
       </div>
@@ -131,7 +215,7 @@ export default function DunningHistoryPage() {
                     </div>
                     <h3 className="font-medium text-zinc-900">{record.residentName}</h3>
                     <p className="text-sm text-zinc-500 mt-0.5">
-                      未収額: <span className="font-medium text-zinc-700">¥{record.amount.toLocaleString()}</span>
+                      未収額: <span className="font-medium text-zinc-700">&yen;{record.amount.toLocaleString()}</span>
                     </p>
                     {record.note && (
                       <p className="text-sm text-zinc-500 mt-1">{record.note}</p>

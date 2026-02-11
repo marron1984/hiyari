@@ -276,7 +276,8 @@ function generateKPIHighlights(): KPIHighlightSection {
 
   // 機能実装進捗を計算
   const progressPercent = Math.round((counts.active / OS_FEATURES.length) * 100);
-  const prevProgress = progressPercent - Math.floor(Math.random() * 5 + 2); // 仮の前週値
+  // 前週値は1機能分の差分を想定（静的構成のため決定的な値を使用）
+  const prevProgress = Math.max(0, progressPercent - Math.round(100 / OS_FEATURES.length));
 
   // 高リスク未着手件数を計算
   const highRiskCount = OS_FEATURES.filter(
@@ -417,7 +418,8 @@ function generateRiskAlerts(): RiskAlertSection {
         category: category?.name ?? f.category,
         riskLevel: (f.risk ?? 0) >= 5 ? 'critical' : 'high',
         description: getRiskDescription(f),
-        daysIgnored: Math.floor(Math.random() * 30 + 7), // 仮の放置日数
+        // 放置日数をリスクスコアとインデックスから決定的に算出
+        daysIgnored: 7 + ((f.risk ?? 0) * 5) + (OS_FEATURES.indexOf(f) % 10),
       } as RiskAlertItem;
     });
 
