@@ -10,6 +10,7 @@ import {
   listRequestActions,
 } from '@/lib/approvals/requestRepo';
 import { canViewRequest } from '@/lib/approvals/canApprove';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 
 export async function GET(
@@ -18,9 +19,9 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  // ユーザー情報取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
-  const userRole = (request.headers.get('x-user-role') ?? 'staff') as AppRole;
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   const approvalRequest = getApprovalRequest(id);
   if (!approvalRequest) {
@@ -34,7 +35,7 @@ export async function GET(
   const actions = listRequestActions(id);
 
   // 閲覧権限チェック
-  if (!canViewRequest(userRole, userId, approvalRequest, actions)) {
+  if (!canViewRequest(user.role as AppRole, user.uid, approvalRequest, actions)) {
     return NextResponse.json(
       { error: 'この申請を閲覧する権限がありません' },
       { status: 403 }

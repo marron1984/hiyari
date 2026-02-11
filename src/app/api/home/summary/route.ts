@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import { ROLE_DISPLAY_INFO } from '@/config/appRoles';
 import {
@@ -25,23 +25,6 @@ function isValidAppRole(role: string): role is AppRole {
   return ['admin', 'executive', 'manager', 'leader', 'staff', 'auditor'].includes(role);
 }
 
-/**
- * サーバー側でユーザー情報を取得
- * 本番ではセッション/Cookie/JWTから取得
- */
-async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
-  const headersList = await headers();
-
-  // ヘッダーからユーザー情報を取得（開発用）
-  const userIdHeader = headersList.get('x-user-id');
-  const roleHeader = headersList.get('x-user-role');
-
-  const userId = userIdHeader ?? 'user_001'; // デフォルト（開発用）
-  const role: AppRole =
-    roleHeader && isValidAppRole(roleHeader) ? (roleHeader as AppRole) : 'admin';
-
-  return { userId, role };
-}
 
 /**
  * GET /api/home/summary
@@ -60,6 +43,11 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const asRole = searchParams.get('asRole');
 
+    // 認証
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // Task 053: クエリの userId/role は明示的に無視（偽装防止）
     // これらのパラメータがあっても使用しない
     const _ignoredUserId = searchParams.get('userId');
@@ -68,14 +56,12 @@ export async function GET(request: NextRequest) {
       console.warn('[API /home/summary] Ignored spoofing attempt: userId/role params are not allowed');
     }
 
-    // 現在のユーザー情報を取得（サーバー側で確定）
-    const currentUser = await getCurrentUser();
-    let effectiveRole = currentUser.role;
-    const effectiveUserId = currentUser.userId;
+    let effectiveRole = user.role as AppRole;
+    const effectiveUserId = user.uid;
 
     // admin のみ asRole でプレビュー可能
     if (asRole && isValidAppRole(asRole)) {
-      if (currentUser.role !== 'admin') {
+      if ((user.role as AppRole) !== 'admin') {
         return NextResponse.json(
           { error: 'asRole is only available for admin users' },
           { status: 403 }

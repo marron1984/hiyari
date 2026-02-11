@@ -5,18 +5,22 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/business/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext, SummaryRange } from '@/lib/business/types';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
     const businessUnitId = searchParams.get('businessUnitId') ?? null;
     const range = (searchParams.get('range') as SummaryRange) || 'thisMonth';
 
-    // モックViewer（管理者権限）
     const viewer: ViewerContext = {
-      userId: 'user_manager',
-      role: 'manager',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     const summary = repo.generateBusinessSummary(viewer, businessUnitId, range);

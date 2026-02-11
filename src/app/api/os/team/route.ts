@@ -4,25 +4,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { getBurnoutRiskHeatmap, getInterventions } from '@/lib/chaos';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { SUPPORT_PURPOSE_TEXT, ONEONONE_PURPOSE_TEXT } from '@/types/chaos';
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id');
-    const userRole = request.headers.get('x-user-role');
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: '認証が必要です' },
-        { status: 401 }
-      );
-    }
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     // 権限チェック（leader以上のみ閲覧可能）
     const allowedRoles = ['leader', 'manager', 'admin', 'exec'];
-    if (!userRole || !allowedRoles.includes(userRole)) {
+    if (!allowedRoles.includes(user.role)) {
       return NextResponse.json(
         { error: 'この機能を使用する権限がありません' },
         { status: 403 }

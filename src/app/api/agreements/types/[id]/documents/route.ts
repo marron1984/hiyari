@@ -6,12 +6,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/agreements/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const { id } = await params;
     const documents = repo.listDocuments(id);
     return NextResponse.json({ success: true, documents });
@@ -29,9 +33,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const body = await request.json();
-    const actorUserId = 'user_admin';
 
     const result = repo.createDocument(
       id,
@@ -42,7 +49,7 @@ export async function POST(
         effectiveFrom: body.effectiveFrom,
         effectiveTo: body.effectiveTo,
       },
-      actorUserId
+      user.uid
     );
 
     if (!result.success) {

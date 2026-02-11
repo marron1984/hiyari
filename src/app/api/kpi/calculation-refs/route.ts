@@ -11,6 +11,7 @@ import {
   createCalculationRef,
   getCalculationRefStats,
 } from '@/lib/kpiDictionary/calculationRefRepo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { CreateCalculationRefRequest } from '@/lib/kpiDictionary/types';
 
 /**
@@ -52,8 +53,11 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    // 権限チェック（簡易版）
-    const role = request.headers.get('x-user-role') || 'staff';
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as string;
     if (!['admin', 'executive', 'manager'].includes(role)) {
       return NextResponse.json(
         { error: '権限がありません' },

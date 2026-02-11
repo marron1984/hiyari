@@ -7,30 +7,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import { getAuditLog } from '@/lib/aiVp/scoringSettings';
-
-// 有効なAppRoleかチェック
-function isValidAppRole(role: string): role is AppRole {
-  return ['admin', 'executive', 'manager', 'leader', 'staff', 'auditor'].includes(role);
-}
-
-/**
- * サーバー側でユーザー情報を取得
- */
-async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
-  const headersList = await headers();
-
-  const userIdHeader = headersList.get('x-user-id');
-  const roleHeader = headersList.get('x-user-role');
-
-  const userId = userIdHeader ?? 'user_001';
-  const role: AppRole =
-    roleHeader && isValidAppRole(roleHeader) ? (roleHeader as AppRole) : 'admin';
-
-  return { userId, role };
-}
 
 /**
  * GET /api/admin/ai-vp-settings/audit
@@ -41,9 +20,11 @@ async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
  */
 export async function GET(request: NextRequest) {
   try {
-    const { role } = await getCurrentUser();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    if (!['admin', 'manager'].includes(role)) {
+    if (!['admin', 'manager'].includes(user.role as AppRole)) {
       return NextResponse.json(
         { error: 'Admin or manager access required' },
         { status: 403 }

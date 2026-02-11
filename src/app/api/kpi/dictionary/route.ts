@@ -6,16 +6,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 import {
   listKPIDictionary,
   createKPIDictionaryEntry,
   getAllTags,
 } from '@/lib/kpiDictionary/repo';
-import { checkRole, requireAdmin } from '@/lib/auth/requireRole';
 import type { KPIStatus } from '@/lib/kpiDictionary/types';
 import type { KPICategory } from '@/lib/kpi/types';
 
 export async function GET(request: NextRequest) {
+  // 認証
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q') ?? undefined;
   const status = searchParams.get('status') as KPIStatus | null;
@@ -44,16 +49,18 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // 認証
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   // 管理者権限チェック
-  const isAdmin = await checkRole(['admin']);
-  if (!isAdmin) {
+  if ((user.role as AppRole) !== 'admin') {
     return NextResponse.json(
       { error: 'アクセス権限がありません（管理者のみ）' },
       { status: 403 }
     );
   }
-
-  const userId = request.headers.get('x-user-id') ?? 'admin';
 
   let body;
   try {
@@ -73,7 +80,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = createKPIDictionaryEntry(body, userId);
+  const result = createKPIDictionaryEntry(body, user.uid);
 
   if (!result.success) {
     return NextResponse.json(

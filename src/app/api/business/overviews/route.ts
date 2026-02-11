@@ -3,15 +3,20 @@
  * GET /api/business/overviews - 全事業の概要一覧取得（manager+）
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/business/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/business/types';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const viewer: ViewerContext = {
-      userId: 'user_manager',
-      role: 'manager',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     const overviews = repo.getBusinessSummaryOverviews(viewer);

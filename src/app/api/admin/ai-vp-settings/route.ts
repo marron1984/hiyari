@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import {
   getGlobalSettings,
@@ -21,27 +21,6 @@ import {
   THRESHOLD_LABELS,
   type AiVpScoringConfig,
 } from '@/lib/aiVp/scoringSettings';
-
-// 有効なAppRoleかチェック
-function isValidAppRole(role: string): role is AppRole {
-  return ['admin', 'executive', 'manager', 'leader', 'staff', 'auditor'].includes(role);
-}
-
-/**
- * サーバー側でユーザー情報を取得
- */
-async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
-  const headersList = await headers();
-
-  const userIdHeader = headersList.get('x-user-id');
-  const roleHeader = headersList.get('x-user-role');
-
-  const userId = userIdHeader ?? 'user_001';
-  const role: AppRole =
-    roleHeader && isValidAppRole(roleHeader) ? (roleHeader as AppRole) : 'admin';
-
-  return { userId, role };
-}
 
 /**
  * admin/manager のみアクセス可能
@@ -60,9 +39,11 @@ function checkAdminOrManager(role: AppRole): boolean {
  */
 export async function GET(request: NextRequest) {
   try {
-    const { role } = await getCurrentUser();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    if (!checkAdminOrManager(role)) {
+    if (!checkAdminOrManager(user.role as AppRole)) {
       return NextResponse.json(
         { error: 'Admin or manager access required' },
         { status: 403 }
@@ -116,9 +97,11 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId, role } = await getCurrentUser();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    if (!checkAdminOrManager(role)) {
+    if (!checkAdminOrManager(user.role as AppRole)) {
       return NextResponse.json(
         { error: 'Admin or manager access required' },
         { status: 403 }
@@ -165,9 +148,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 設定を更新
-    const updated = updateGlobalSettings({ weights, thresholds, diversity }, userId);
+    const updated = updateGlobalSettings({ weights, thresholds, diversity }, user.uid);
 
-    console.log(`[AiVpSettings] Settings updated by ${userId}`);
+    console.log(`[AiVpSettings] Settings updated by ${user.uid}`);
 
     return NextResponse.json({
       success: true,
@@ -193,20 +176,22 @@ export async function POST(request: NextRequest) {
  *
  * 設定をデフォルトにリセット
  */
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   try {
-    const { userId, role } = await getCurrentUser();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    if (!checkAdminOrManager(role)) {
+    if (!checkAdminOrManager(user.role as AppRole)) {
       return NextResponse.json(
         { error: 'Admin or manager access required' },
         { status: 403 }
       );
     }
 
-    const reset = resetGlobalSettings(userId);
+    const reset = resetGlobalSettings(user.uid);
 
-    console.log(`[AiVpSettings] Settings reset to default by ${userId}`);
+    console.log(`[AiVpSettings] Settings reset to default by ${user.uid}`);
 
     return NextResponse.json({
       success: true,

@@ -6,16 +6,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 import {
   getKPIDictionaryEntry,
   updateKPIDictionaryEntry,
 } from '@/lib/kpiDictionary/repo';
-import { checkRole } from '@/lib/auth/requireRole';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ kpiId: string }> }
 ) {
+  // 認証
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+
   const { kpiId } = await params;
 
   const entry = getKPIDictionaryEntry(kpiId);
@@ -33,19 +38,22 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ kpiId: string }> }
 ) {
+  // 認証
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   const { kpiId } = await params;
 
   // 権限チェック（admin or manager）
-  const hasPermission = await checkRole(['admin', 'executive', 'manager']);
-  if (!hasPermission) {
+  if (!(['admin', 'executive', 'manager'] as AppRole[]).includes(user.role as AppRole)) {
     return NextResponse.json(
       { error: 'アクセス権限がありません（管理職以上のみ）' },
       { status: 403 }
     );
   }
 
-  const isAdmin = await checkRole(['admin']);
-  const userId = request.headers.get('x-user-id') ?? 'unknown';
+  const isAdmin = (user.role as AppRole) === 'admin';
 
   let body;
   try {
@@ -68,7 +76,7 @@ export async function PATCH(
   const note = body.note;
   delete body.note;
 
-  const result = updateKPIDictionaryEntry(kpiId, body, userId, note);
+  const result = updateKPIDictionaryEntry(kpiId, body, user.uid, note);
 
   if (!result.success) {
     return NextResponse.json(

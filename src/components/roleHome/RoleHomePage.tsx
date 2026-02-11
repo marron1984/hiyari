@@ -57,12 +57,7 @@ export function RoleHomePage({ userRole, userId, previewRole }: RoleHomePageProp
         params.set('asRole', selectedPreviewRole);
       }
 
-      const response = await apiFetch(`/api/home/summary?${params.toString()}`, {
-        headers: {
-          'x-user-id': userId,
-          'x-user-role': userRole,
-        },
-      });
+      const response = await apiFetch(`/api/home/summary?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch: ${response.status}`);
@@ -101,10 +96,6 @@ export function RoleHomePage({ userRole, userId, previewRole }: RoleHomePageProp
     try {
       const response = await apiFetch('/api/cron/daily-ops', {
         method: 'POST',
-        headers: {
-          'x-user-id': userId,
-          'x-user-role': userRole,
-        },
       });
 
       if (!response.ok) {

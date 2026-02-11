@@ -6,9 +6,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/business/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('activeOnly') !== 'false';
 
@@ -26,8 +30,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const body = await request.json();
-    const actorUserId = 'user_admin';
 
     const result = repo.createBusinessUnit(
       {
@@ -36,7 +43,7 @@ export async function POST(request: NextRequest) {
         locationHint: body.locationHint,
         ownerUserId: body.ownerUserId,
       },
-      actorUserId
+      user.uid
     );
 
     if (!result.success) {

@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/agreements/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/agreements/types';
 
 export async function GET(
@@ -13,10 +14,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const viewer: ViewerContext = {
-      userId: 'user_manager',
-      role: 'manager',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     const consent = repo.getConsentById(id, viewer);
@@ -54,14 +59,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const body = await request.json();
-    const actorUserId = 'user_manager';
     const action = body.action as 'withdraw' | 'renew';
 
     let result;
     if (action === 'withdraw') {
-      result = repo.withdrawConsent(id, actorUserId, body.note);
+      result = repo.withdrawConsent(id, user.uid, body.note);
     } else if (action === 'renew') {
       if (!body.newValidUntil) {
         return NextResponse.json(
@@ -69,7 +77,7 @@ export async function POST(
           { status: 400 }
         );
       }
-      result = repo.renewConsent(id, body.newValidUntil, actorUserId, body.note);
+      result = repo.renewConsent(id, body.newValidUntil, user.uid, body.note);
     } else {
       return NextResponse.json(
         { success: false, error: '無効なアクションです' },

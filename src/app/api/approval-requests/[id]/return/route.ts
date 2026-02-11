@@ -11,6 +11,7 @@ import {
 } from '@/lib/approvals/requestRepo';
 import { canApprove } from '@/lib/approvals/canApprove';
 import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 
 export async function POST(
@@ -19,10 +20,9 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  // ユーザー情報取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
-  const userName = request.headers.get('x-user-name') ?? '佐藤太郎';
-  const userRole = (request.headers.get('x-user-role') ?? 'staff') as AppRole;
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   const existing = getApprovalRequest(id);
   if (!existing) {
@@ -33,7 +33,7 @@ export async function POST(
   }
 
   // 承認権限チェック（差戻しも同じ権限）
-  const approveCheck = canApprove(userRole, userId, existing);
+  const approveCheck = canApprove(user.role as AppRole, user.uid, existing);
   if (!approveCheck.canApprove) {
     return NextResponse.json(
       { error: approveCheck.reason ?? '差戻し権限がありません' },
@@ -50,7 +50,7 @@ export async function POST(
     // ノートなしでもOK
   }
 
-  const result = returnRequest(id, userId, note, userName);
+  const result = returnRequest(id, user.uid, note, user.name);
 
   if (!result.success) {
     return NextResponse.json(

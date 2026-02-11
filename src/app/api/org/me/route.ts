@@ -3,19 +3,17 @@
  * GET /api/org/me - 自分の組織コンテキストを取得
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import * as repo from '@/lib/org/repo';
-import type { ViewerContext } from '@/lib/org/types';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // TODO: 実際には認証から取得
-    const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
-    };
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    const context = repo.getUserOrgContext(viewer.userId);
+    const context = repo.getUserOrgContext(user.uid);
 
     return NextResponse.json({ success: true, context });
   } catch (error) {

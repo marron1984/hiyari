@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAnnouncementById } from '@/lib/announcements/store';
 import { markRead, isRead as checkIsRead, initializeDemoReadReceipts } from '@/lib/readTracking/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 // デモ用初期化フラグ
 let demoInitialized = false;
@@ -21,10 +22,11 @@ export async function GET(
     demoInitialized = true;
   }
 
-  const { id } = await params;
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
-  // 暫定：ユーザーIDはヘッダーから取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
+  const { id } = await params;
 
   // 周知を取得
   const announcement = getAnnouncementById(id);
@@ -44,8 +46,8 @@ export async function GET(
   }
 
   // 既読をマーク（開いたら既読）
-  const wasUnread = !checkIsRead(userId, 'announcement', id);
-  markRead(userId, 'announcement', id);
+  const wasUnread = !checkIsRead(user.uid, 'announcement', id);
+  markRead(user.uid, 'announcement', id);
 
   return NextResponse.json({
     announcement: {

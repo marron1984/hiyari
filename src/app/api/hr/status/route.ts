@@ -8,31 +8,26 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { getEmployeeByUserId, isAccessBlocked } from '@/lib/hr';
 
-// TODO: 実際の認証から取得
-function getViewerContext(request: NextRequest): { userId: string; role: string } {
-  if (process.env.NODE_ENV !== 'production') {
-    return { userId: 'dev-admin', role: 'admin' };
-  }
-  const role = request.headers.get('x-user-role') || 'viewer';
-  const userId = request.headers.get('x-user-id') || 'unknown';
-  return { userId, role };
-}
 
 /**
  * GET /api/hr/status
  */
 export async function GET(request: NextRequest) {
-  const viewer = getViewerContext(request);
+  // 認証
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   // 従業員レコードを検索
-  const employee = getEmployeeByUserId(viewer.userId);
+  const employee = getEmployeeByUserId(user.uid);
 
   // 従業員レコードがない場合（旧ユーザー等）
   if (!employee) {
     return NextResponse.json({
-      userId: viewer.userId,
+      userId: user.uid,
       found: false,
       accessBlocked: false,
       message: 'Employee record not found',
@@ -43,7 +38,7 @@ export async function GET(request: NextRequest) {
   const blocked = isAccessBlocked(employee.employmentStatus);
 
   return NextResponse.json({
-    userId: viewer.userId,
+    userId: user.uid,
     found: true,
     employmentStatus: employee.employmentStatus,
     accessBlocked: blocked,

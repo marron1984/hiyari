@@ -6,13 +6,18 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/external-accounts/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/external-accounts/types';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     const { searchParams } = new URL(request.url);
@@ -38,9 +43,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     const body = await request.json();

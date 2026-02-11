@@ -4,42 +4,31 @@
  * Implementation Ticket 063-fix: 設定をデフォルトにリセット
  */
 
-import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import { resetAiVpConfig } from '@/lib/aiVp/settings';
-
-function isValidAppRole(role: string): role is AppRole {
-  return ['admin', 'executive', 'manager', 'leader', 'staff', 'auditor'].includes(role);
-}
-
-async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
-  const headersList = await headers();
-  const userIdHeader = headersList.get('x-user-id');
-  const roleHeader = headersList.get('x-user-role');
-  const userId = userIdHeader ?? 'user_001';
-  const role: AppRole = roleHeader && isValidAppRole(roleHeader) ? roleHeader : 'admin';
-  return { userId, role };
-}
 
 function checkAdminOrManager(role: AppRole): boolean {
   return ['admin', 'manager'].includes(role);
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const { userId, role } = await getCurrentUser();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    if (!checkAdminOrManager(role)) {
+    if (!checkAdminOrManager(user.role as AppRole)) {
       return NextResponse.json(
         { error: 'Admin or manager access required' },
         { status: 403 }
       );
     }
 
-    const settings = resetAiVpConfig(userId);
+    const settings = resetAiVpConfig(user.uid);
 
-    console.log(`[AiVpSettings] Reset to default by ${userId}`);
+    console.log(`[AiVpSettings] Reset to default by ${user.uid}`);
 
     return NextResponse.json({
       success: true,

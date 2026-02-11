@@ -6,12 +6,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/agreements/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const { id } = await params;
     const agreementType = repo.getAgreementTypeById(id);
 
@@ -37,11 +41,14 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const body = await request.json();
-    const actorUserId = 'user_admin';
 
-    const result = repo.updateAgreementType(id, body, actorUserId);
+    const result = repo.updateAgreementType(id, body, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

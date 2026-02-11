@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import { buildTodayTop3, formatTop3AsText, formatTop3AsSummary } from '@/lib/home/buildTodayTop3';
 
@@ -18,22 +18,6 @@ function isValidAppRole(role: string): role is AppRole {
   return ['admin', 'executive', 'manager', 'leader', 'staff', 'auditor'].includes(role);
 }
 
-/**
- * サーバー側でユーザー情報を取得
- */
-async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
-  const headersList = await headers();
-
-  // ヘッダーからユーザー情報を取得（開発用）
-  const userIdHeader = headersList.get('x-user-id');
-  const roleHeader = headersList.get('x-user-role');
-
-  const userId = userIdHeader ?? 'user_001';
-  const role: AppRole =
-    roleHeader && isValidAppRole(roleHeader) ? (roleHeader as AppRole) : 'admin';
-
-  return { userId, role };
-}
 
 /**
  * GET /api/home/today-top3
@@ -53,14 +37,17 @@ export async function GET(request: NextRequest) {
     const asRole = searchParams.get('asRole');
     const format = searchParams.get('format') || 'json';
 
-    // 現在のユーザー情報を取得（サーバー側で確定）
-    const currentUser = await getCurrentUser();
-    let effectiveRole = currentUser.role;
-    const effectiveUserId = currentUser.userId;
+    // 認証
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    let effectiveRole = user.role as AppRole;
+    const effectiveUserId = user.uid;
 
     // admin のみ asRole でプレビュー可能
     if (asRole && isValidAppRole(asRole)) {
-      if (currentUser.role !== 'admin') {
+      if ((user.role as AppRole) !== 'admin') {
         return NextResponse.json(
           { error: 'asRole is only available for admin users' },
           { status: 403 }

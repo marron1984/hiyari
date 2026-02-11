@@ -6,6 +6,7 @@ import { Header } from '@/components/Header';
 import { Card, Button } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { useRole } from '@/contexts/RoleContext';
+import { useApiFetch } from '@/hooks/useApiFetch';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -85,6 +86,7 @@ export default function ApprovalRequestDetailPage() {
   const requestId = params.id as string;
 
   const { currentRole } = useRole();
+  const apiFetch = useApiFetch();
   const isAdmin = currentRole === 'admin';
   const isManager = ['admin', 'executive', 'manager'].includes(currentRole);
 
@@ -101,11 +103,7 @@ export default function ApprovalRequestDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/approval-requests/${requestId}`, {
-        headers: {
-          'x-user-role': currentRole,
-        },
-      });
+      const res = await apiFetch(`/api/approval-requests/${requestId}`);
       if (!res.ok) {
         if (res.status === 404) {
           setError('申請が見つかりません');
@@ -126,7 +124,7 @@ export default function ApprovalRequestDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [requestId, currentRole]);
+  }, [requestId, apiFetch]);
 
   useEffect(() => {
     fetchData();
@@ -147,12 +145,8 @@ export default function ApprovalRequestDetailPage() {
 
     setActionLoading(true);
     try {
-      const res = await fetch(`/api/approval-requests/${requestId}/${actionType}`, {
+      const res = await apiFetch(`/api/approval-requests/${requestId}/${actionType}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-role': currentRole,
-        },
         body: JSON.stringify({ note: actionNote || undefined }),
       });
 

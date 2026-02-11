@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import {
   getInterventions,
   updateIntervention,
@@ -15,14 +16,8 @@ import { SUPPORT_PURPOSE_TEXT } from '@/types/chaos';
 // GET: 介入タスク一覧取得
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id');
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: '認証が必要です' },
-        { status: 401 }
-      );
-    }
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') as 'open' | 'done' | 'snoozed' | null;
@@ -49,15 +44,9 @@ export async function GET(request: NextRequest) {
 // PATCH: 介入タスク更新（完了・スヌーズ）
 export async function PATCH(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id');
-    const userName = request.headers.get('x-user-name');
-
-    if (!userId || !userName) {
-      return NextResponse.json(
-        { error: '認証が必要です' },
-        { status: 401 }
-      );
-    }
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     let body: Record<string, unknown>;
     try {
@@ -88,7 +77,7 @@ export async function PATCH(request: NextRequest) {
 
     switch (action) {
       case 'resolve':
-        await resolveIntervention(interventionId, userId);
+        await resolveIntervention(interventionId, user.uid);
         break;
       case 'snooze':
         await updateIntervention(interventionId, { status: 'snoozed' });
@@ -100,8 +89,8 @@ export async function PATCH(request: NextRequest) {
 
     // 監査ログ
     await createAuditLog(
-      userId,
-      userName,
+      user.uid,
+      user.name,
       `intervention_${action}`,
       'interventions',
       interventionId

@@ -4,33 +4,22 @@
  * Implementation Ticket 063-fix: プリセット一覧を取得
  */
 
-import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import { listPresets, getPresetById, mergePresetWithDefaults } from '@/lib/aiVp/presets';
-
-function isValidAppRole(role: string): role is AppRole {
-  return ['admin', 'executive', 'manager', 'leader', 'staff', 'auditor'].includes(role);
-}
-
-async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
-  const headersList = await headers();
-  const userIdHeader = headersList.get('x-user-id');
-  const roleHeader = headersList.get('x-user-role');
-  const userId = userIdHeader ?? 'user_001';
-  const role: AppRole = roleHeader && isValidAppRole(roleHeader) ? roleHeader : 'admin';
-  return { userId, role };
-}
 
 function checkAdminOrManager(role: AppRole): boolean {
   return ['admin', 'manager'].includes(role);
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { role } = await getCurrentUser();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    if (!checkAdminOrManager(role)) {
+    if (!checkAdminOrManager(user.role as AppRole)) {
       return NextResponse.json(
         { error: 'Admin or manager access required' },
         { status: 403 }

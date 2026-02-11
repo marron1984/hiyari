@@ -3,15 +3,20 @@
  * GET /api/external-accounts/stats - 統計取得（admin+）
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/external-accounts/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/external-accounts/types';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     const stats = repo.getStats(viewer);

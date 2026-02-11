@@ -15,6 +15,7 @@ import {
   getBusinessTop3,
   getAlertTop3,
 } from '@/lib/aiVp/businessTop3';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/business/types';
 
 /**
@@ -25,11 +26,12 @@ import type { ViewerContext } from '@/lib/business/types';
  */
 export async function GET(request: NextRequest) {
   try {
-    // 認証・権限情報（簡易版：ヘッダーから取得）
-    const userId = request.headers.get('x-user-id') || 'user_001';
-    const role = (request.headers.get('x-user-role') || 'manager') as ViewerContext['role'];
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     // 権限チェック（manager以上のみ）
+    const role = user.role as ViewerContext['role'];
     if (!['manager', 'admin', 'executive', 'auditor'].includes(role)) {
       return NextResponse.json(
         { error: '権限がありません。manager以上の権限が必要です。' },
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const viewer: ViewerContext = { userId, role };
+    const viewer: ViewerContext = { userId: user.uid, role };
 
     const { searchParams } = new URL(request.url);
     const businessUnitId = searchParams.get('businessUnitId');

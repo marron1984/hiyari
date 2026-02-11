@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import * as repo from '@/lib/org/repo';
 import type { ViewerContext } from '@/lib/org/types';
 import { canEditOrg } from '@/lib/org/types';
@@ -14,9 +15,13 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     if (!canEditOrg(viewer.role)) {

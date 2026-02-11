@@ -6,10 +6,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/agreements/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AgreementCategory } from '@/lib/agreements/types';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const { searchParams } = new URL(request.url);
     const q = searchParams.get('q') ?? undefined;
     const category = searchParams.get('category') as AgreementCategory | null;
@@ -34,8 +38,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const body = await request.json();
-    const actorUserId = 'user_admin'; // 実際はセッションから取得
 
     const result = repo.createAgreementType(
       {
@@ -47,7 +54,7 @@ export async function POST(request: NextRequest) {
         defaultValidDays: body.defaultValidDays,
         defaultWarnDays: body.defaultWarnDays,
       },
-      actorUserId
+      user.uid
     );
 
     if (!result.success) {

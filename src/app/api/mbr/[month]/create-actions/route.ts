@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyIdToken } from '@/lib/firebase-admin';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { getMbrByMonth } from '@/lib/mbr/mbrRepo';
 import { createCorrectiveActionsFromMbr } from '@/lib/mbr/createCorrectiveActionsFromMbr';
 import type { AppRole } from '@/config/appRoles';
@@ -16,27 +16,15 @@ import type { AppRole } from '@/config/appRoles';
 /** admin / manager / executive のみ許可 */
 const ALLOWED_ROLES: AppRole[] = ['admin', 'manager', 'executive'];
 
-async function getAuthUser(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  try {
-    return await verifyIdToken(authHeader.replace('Bearer ', ''));
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ month: string }> }
 ) {
-  const user = await getAuthUser(request);
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
-  // ロールチェック（ヘッダーまたはデフォルト）
-  const role = (request.headers.get('x-user-role') || 'staff') as AppRole;
+  const role = user.role as AppRole;
   if (!ALLOWED_ROLES.includes(role)) {
     return NextResponse.json(
       { error: 'この操作には管理者権限が必要です' },

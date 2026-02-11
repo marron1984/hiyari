@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/external-accounts/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext, ExternalAuditAction } from '@/lib/external-accounts/types';
 
 export async function GET(
@@ -12,15 +13,19 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     // ユーザー存在確認
-    const user = repo.getExternalUserById(id, viewer);
-    if (!user) {
+    const extUser = repo.getExternalUserById(id, viewer);
+    if (!extUser) {
       return NextResponse.json(
         { success: false, error: '外部アカウントが見つかりません' },
         { status: 404 }

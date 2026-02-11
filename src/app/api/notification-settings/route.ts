@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import {
   getSettings,
@@ -30,30 +30,21 @@ function isValidNotifyMode(mode: string): mode is NotifyMode {
   return ['immediate', 'digest', 'off'].includes(mode);
 }
 
-/**
- * サーバー側でユーザー情報を取得
- */
-async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
-  const headersList = await headers();
-
-  const userIdHeader = headersList.get('x-user-id');
-  const roleHeader = headersList.get('x-user-role');
-
-  const userId = userIdHeader ?? 'user_001';
-  const role: AppRole =
-    roleHeader && isValidAppRole(roleHeader) ? (roleHeader as AppRole) : 'admin';
-
-  return { userId, role };
-}
 
 /**
  * GET /api/notification-settings
  *
  * 自分の通知設定を取得
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const { userId, role } = await getCurrentUser();
+    // 認証
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const userId = user.uid;
+    const role = user.role as AppRole;
 
     const settings = getSettings(userId, role);
 
@@ -95,7 +86,13 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId, role } = await getCurrentUser();
+    // 認証
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const userId = user.uid;
+    const role = user.role as AppRole;
 
     const body = await request.json().catch(() => ({}));
     const { modeDefault, overrides } = body as {

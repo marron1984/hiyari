@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { submitApprovalRequest, getApprovalRequest } from '@/lib/approvals/requestRepo';
 import { getApprovalFlow } from '@/lib/approvals/flowRepo';
 import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function POST(
   request: NextRequest,
@@ -15,9 +16,9 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  // ユーザー情報取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
-  const userName = request.headers.get('x-user-name') ?? '佐藤太郎';
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   const existing = getApprovalRequest(id);
   if (!existing) {
@@ -27,7 +28,7 @@ export async function POST(
     );
   }
 
-  const result = submitApprovalRequest(id, userId, userName);
+  const result = submitApprovalRequest(id, user.uid, user.name);
 
   if (!result.success) {
     return NextResponse.json(
