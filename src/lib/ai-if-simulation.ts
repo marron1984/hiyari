@@ -14,6 +14,7 @@ import {
   SCENARIO_TYPE_LABELS,
   IF_SIMULATION_PROMPT_VERSION,
 } from '@/types/if-simulation';
+import { buildFeaturePrompt } from './ai-vp-persona';
 import { toDate } from './date';
 import { BRANCHES_SEED } from '@/data/employees';
 
@@ -161,15 +162,7 @@ function buildSimulationPrompt(
     )
     .join('\n');
 
-  return `あなたはAI副社長として、経営判断の事前検討用シミュレーションを行います。
-
-【重要ルール】
-- 必ずA案、B案、C案の3つの案を提示する
-- 推奨・結論・おすすめは絶対に禁止
-- 「〜がベスト」「〜をおすすめ」「〜が最適」等の表現は使わない
-- 数値とリスクのみを客観的に提示する
-- 各案は異なるアプローチ（保守的/標準的/積極的など）で作成する
-- 判断は経営者に委ねる
+  return `以下のシナリオについてA/B/C 3案のシミュレーションを実施してください。
 
 【シナリオ情報】
 シナリオタイプ: ${scenarioLabel}
@@ -271,7 +264,10 @@ interface AiSimulationResponse {
 }
 
 function parseAiResponse(rawResponse: string): AiSimulationResponse | null {
-  const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+  // コードブロック対応
+  const codeBlockMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const jsonStr = codeBlockMatch ? codeBlockMatch[1] : rawResponse;
+  const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return null;
 
   try {
@@ -405,6 +401,7 @@ export async function generateIfSimulation(
       const message = await client.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
+        system: buildFeaturePrompt('if_simulation'),
         messages: [
           {
             role: 'user',

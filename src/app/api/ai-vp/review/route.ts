@@ -5,23 +5,21 @@ import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { isAiVpOwner } from '@/lib/auth';
 import { createApprovalTask, isGoogleTasksConfigured } from '@/lib/google-tasks';
+import { buildFeaturePrompt } from '@/lib/ai-vp-persona';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
-// レビュープロンプト
-const REVIEW_PROMPT = `あなたは介護施設運営会社の社長「吉田」です。
-申請内容をレビューし、判断支援を行ってください。
+// approval_comment ペルソナルールを使ったレビュープロンプト
+const REVIEW_USER_PROMPT = `以下の申請データをレビューし、判断支援情報を整理してください。
 
-## あなたの役割
-
+## あなたの行動
 1. 申請内容の整形・要約
 2. 不足情報の指摘
-3. 過去の類似案件との比較（提供された場合）
+3. 類似案件との比較（提供された場合）
 4. 判断ポイントの抽出
-5. 承認/却下/差し戻しの推奨
+5. 選択肢の整理（承認する場合/差し戻す場合/却下する場合の各影響）
 
 ## 判断基準
-
 - 金額の妥当性（市場価格との比較）
 - 緊急性と必要性のバランス
 - 予算への影響
@@ -31,21 +29,27 @@ const REVIEW_PROMPT = `あなたは介護施設運営会社の社長「吉田」
 ## 出力形式（JSON）
 
 {
-  "formattedSummary": "申請の要約（2-3文）",
-  "extractedKeyPoints": ["キーポイント1", "キーポイント2", ...],
-  "recommendation": "approve" | "reject" | "return" | "escalate",
+  "formattedSummary": "申請の要約（2-3文）事実ベースで記述",
+  "extractedKeyPoints": ["キーポイント1", "キーポイント2"],
+  "options": {
+    "approve": "承認した場合の影響・条件の整理",
+    "return": "差し戻した場合の確認事項",
+    "reject": "却下した場合の影響"
+  },
   "confidence": 0.85,
-  "reasoning": "判断理由の詳細説明",
-  "attentionPoints": ["注意点1", "注意点2", ...],
-  "suggestedConditions": ["条件1（承認する場合）", ...],
-  "missingFields": ["不足フィールド1", ...],
-  "validationWarnings": ["警告1", ...]
+  "reasoning": "判断材料の整理（推奨ではなく事実・比較の提示）",
+  "attentionPoints": ["注意点1", "注意点2"],
+  "suggestedConditions": ["条件1（承認する場合に必要な条件）"],
+  "missingFields": ["不足フィールド1"],
+  "validationWarnings": ["警告1"],
+  "similarCasesSummary": "類似案件の承認率・否認率の要約（データがある場合）"
 }
 
 ## 注意事項
-
-- 最終決裁は人間が行うため、あなたは「助言」のみを行う
-- 不確実な場合はconfidenceを低くし、escalateを推奨
+- 最終決裁は吉田が行う。あなたは「選択肢の整理」のみ行う
+- 「〜すべき」「〜を推奨」「〜がベスト」は使わない
+- 「〜の可能性がある」「〜と考えられる」「データによると〜」を使う
+- 不確実な場合はconfidenceを低くする
 - 法的リスクがある場合は必ずattentionPointsに含める
 - JSONのみを出力し、説明文は不要`;
 
@@ -130,10 +134,11 @@ export async function POST(request: NextRequest) {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
+      system: buildFeaturePrompt('approval_comment'),
       messages: [
         {
           role: 'user',
-          content: `${REVIEW_PROMPT}\n\n---\n\n申請データ:\n${JSON.stringify(inputData, null, 2)}`,
+          content: `${REVIEW_USER_PROMPT}\n\n---\n\n申請データ:\n${JSON.stringify(inputData, null, 2)}`,
         },
       ],
     });
@@ -150,31 +155,36 @@ export async function POST(request: NextRequest) {
     let reviewResult = {
       formattedSummary: '',
       extractedKeyPoints: [] as string[],
-      recommendation: 'escalate' as const,
+      options: { approve: '', return: '', reject: '' } as Record<string, string>,
       confidence: 0.5,
       reasoning: '',
       attentionPoints: [] as string[],
       suggestedConditions: [] as string[],
       missingFields: [] as string[],
       validationWarnings: [] as string[],
+      similarCasesSummary: '',
     };
 
     const content = response.content[0];
     if (content.type === 'text') {
-      const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+      // コードブロック対応のJSONパース
+      const codeBlockMatch = content.text.match(/```(?:json)?\s*([\s\S]*?)```/);
+      const jsonStr = codeBlockMatch ? codeBlockMatch[1] : content.text;
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
           reviewResult = {
             formattedSummary: parsed.formattedSummary || '',
             extractedKeyPoints: parsed.extractedKeyPoints || [],
-            recommendation: parsed.recommendation || 'escalate',
+            options: parsed.options || { approve: '', return: '', reject: '' },
             confidence: parsed.confidence || 0.5,
             reasoning: parsed.reasoning || '',
             attentionPoints: parsed.attentionPoints || [],
             suggestedConditions: parsed.suggestedConditions || [],
             missingFields: parsed.missingFields || [],
             validationWarnings: parsed.validationWarnings || [],
+            similarCasesSummary: parsed.similarCasesSummary || '',
           };
         } catch (parseError) {
           console.error('JSON parse error:', parseError);
@@ -231,7 +241,6 @@ export async function POST(request: NextRequest) {
       eventType: 'request_reviewed',
       eventMeta: {
         requestId,
-        recommendation: reviewResult.recommendation,
         confidence: reviewResult.confidence,
         processingTimeMs,
       },

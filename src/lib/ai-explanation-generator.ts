@@ -12,26 +12,18 @@ import {
   EXPLANATION_PROMPT_VERSION,
   EXPLANATION_CHAR_LIMITS,
 } from '@/types/explanation-generator';
+import { buildFeaturePrompt } from './ai-vp-persona';
 import { toDate } from './date';
 
 const EXPLANATION_COLLECTION = 'explanations';
 
 // ======== プロンプト生成 ========
 
-function buildExplanationPrompt(input: ExplanationInput): string {
+function buildExplanationUserPrompt(input: ExplanationInput): string {
   const audienceLabel = AUDIENCE_LABELS[input.audience];
   const interests = AUDIENCE_INTERESTS[input.audience];
 
-  return `あなたはAI副社長として、経営判断を外部関係者に説明する文章を作成します。
-
-【重要ルール】
-- 主観的表現は禁止（「素晴らしい」「画期的な」等）
-- 感情的表現は禁止（「ご安心ください」「心配です」等）
-- 煽り文言は禁止（「今すぐ」「必見」「驚きの」等）
-- 客観的・事実ベースで記述する
-- 断定表現はOK（説明用途のため）
-- 結論は「決定事項」の内容に限定する
-- 文字数は${EXPLANATION_CHAR_LIMITS.min}〜${EXPLANATION_CHAR_LIMITS.max}文字で収める
+  return `以下の経営判断を${audienceLabel}向けに説明する文章を作成してください。
 
 【対象読者】
 ${audienceLabel}
@@ -52,10 +44,12 @@ ${input.decision}
 ${input.risk}
 
 【出力指示】
-上記の情報を、${audienceLabel}向けに翻訳した説明文を作成してください。
+- 文字数は${EXPLANATION_CHAR_LIMITS.min}〜${EXPLANATION_CHAR_LIMITS.max}文字で収める
 - 関心軸に沿った内容を優先的に含める
 - 専門用語は${audienceLabel}に適切なレベルで使用する
 - 構成：導入 → 背景説明 → 決定内容 → 影響・リスク → 今後の対応
+- 結論はdecision（意思決定内容）に限定し、新たな判断を含めない
+- 説明用途の断定はOK
 
 以下のJSON形式で出力してください:
 {
@@ -74,15 +68,16 @@ async function callAiForExplanation(input: ExplanationInput): Promise<string> {
 
   try {
     const client = new Anthropic({ apiKey });
-    const prompt = buildExplanationPrompt(input);
+    const userPrompt = buildExplanationUserPrompt(input);
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2048,
+      system: buildFeaturePrompt('explanation_generator'),
       messages: [
         {
           role: 'user',
-          content: prompt,
+          content: userPrompt,
         },
       ],
     });
@@ -90,8 +85,10 @@ async function callAiForExplanation(input: ExplanationInput): Promise<string> {
     const rawResponse =
       message.content[0].type === 'text' ? message.content[0].text : '';
 
-    // JSONをパース
-    const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+    // コードブロック対応のJSONパース
+    const codeBlockMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const jsonStr = codeBlockMatch ? codeBlockMatch[1] : rawResponse;
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
         const parsed = JSON.parse(jsonMatch[0]);
