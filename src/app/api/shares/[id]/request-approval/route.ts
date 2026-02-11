@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { requestShareApproval, getShareById } from '@/lib/shares/share-service';
 
 type RouteContext = {
@@ -19,6 +20,10 @@ type RouteContext = {
  */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id: shareId } = await context.params;
 
     // 共有パッケージの存在確認
@@ -31,11 +36,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // 承認依頼を作成
-    // TODO: 実際のユーザーIDを取得
     const result = requestShareApproval(
       shareId,
-      'admin',
-      '管理者'
+      user.uid,
+      user.name
     );
 
     if (!result.success) {

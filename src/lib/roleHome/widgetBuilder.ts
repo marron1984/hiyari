@@ -49,6 +49,10 @@ import { listAnnouncementsForUser } from '@/lib/announcements/store';
 import { listReadIds } from '@/lib/readTracking/repo';
 import { listMbrs } from '@/lib/mbr/mbrRepo';
 import { getMbrOverdueSummary } from '@/lib/dailyOps/scanMbrActionsOverdue';
+import { getStats as getTrainingStats, overdueAssignmentsScan } from '@/lib/training/repo';
+import { scanExpiringContracts, scanDecisionOverdueContracts } from '@/lib/contracts/repo';
+import { OS_FEATURES } from '@/config/osFeatures';
+import { getBusinessSummaryOverviews, listBusinessUnits } from '@/lib/business/repo';
 
 /**
  * ビューアーコンテキストを生成
@@ -211,16 +215,38 @@ export function buildLicensesWidget(userId: string, role: AppRole): LicensesWidg
  * 研修ウィジェットを構築
  */
 export function buildTrainingWidget(userId: string, role: AppRole): TrainingWidget {
-  // TODO: 研修リポジトリと連携（現在はモック）
+  const viewer = createViewerContext(userId, role);
+  const stats = getTrainingStats(viewer);
+
+  if (!stats) {
+    return {
+      type: 'training',
+      title: WIDGET_LABELS.training,
+      href: '/dashboard/training',
+      count: 0,
+      severity: 'info',
+      notCompleted: 0,
+      myNotCompleted: 0,
+      isEmpty: true,
+    };
+  }
+
+  const overdue = overdueAssignmentsScan();
+  const myOverdue = overdue.filter(a => a.userId === userId);
+
+  let severity: AlertSeverity = 'info';
+  if (overdue.length >= 5) severity = 'critical';
+  else if (overdue.length > 0 || stats.assignedOpenCount > 0) severity = 'warning';
+
   return {
     type: 'training',
     title: WIDGET_LABELS.training,
     href: '/dashboard/training',
-    count: 0,
-    severity: 'info',
-    notCompleted: 0,
-    myNotCompleted: 0,
-    isEmpty: true,
+    count: stats.assignedOpenCount,
+    severity,
+    notCompleted: stats.assignedOpenCount,
+    myNotCompleted: myOverdue.length,
+    isEmpty: stats.assignedOpenCount === 0 && overdue.length === 0,
   };
 }
 
@@ -332,16 +358,31 @@ export function buildWeeklyOpsWidget(): WeeklyOpsWidget {
 /**
  * 事業サマリーウィジェットを構築
  */
-export function buildBusinessSummaryWidget(): BusinessSummaryWidget {
-  // TODO: 事業別サマリーAPIと連携
+export function buildBusinessSummaryWidget(userId: string, role: AppRole): BusinessSummaryWidget {
+  const viewer = createViewerContext(userId, role);
+  const overviews = getBusinessSummaryOverviews(viewer);
+
+  const hasCritical = overviews.some(o => o.riskLevel === 'critical');
+  const hasWarning = overviews.some(o => o.riskLevel === 'warning');
+
+  const businessUnits = overviews.map(o => ({
+    id: o.unit.id,
+    name: o.unit.name,
+    status: o.riskLevel === 'normal' ? 'good' as const : o.riskLevel,
+  }));
+
+  let severity: AlertSeverity = 'info';
+  if (hasCritical) severity = 'critical';
+  else if (hasWarning) severity = 'warning';
+
   return {
     type: 'business_summary',
     title: WIDGET_LABELS.business_summary,
     href: '/dashboard/business-summary',
-    count: 0,
-    severity: 'info',
-    businessUnits: [],
-    isEmpty: true,
+    count: overviews.length,
+    severity,
+    businessUnits,
+    isEmpty: overviews.length === 0,
   };
 }
 
@@ -386,16 +427,34 @@ export function buildReceivablesWidget(userId: string, role: AppRole): Receivabl
 /**
  * AI副社長Top3ウィジェットを構築
  */
-export function buildAIVPTop3Widget(): AIVPTop3Widget {
-  // TODO: businessTop3と連携
+export function buildAIVPTop3Widget(userId: string, role: AppRole): AIVPTop3Widget {
+  const viewer = createViewerContext(userId, role);
+  const overviews = getBusinessSummaryOverviews(viewer);
+
+  // 重要度が高い順にソート → Top3
+  const sorted = [...overviews].sort((a, b) => {
+    const severityOrder: Record<string, number> = { critical: 3, warning: 2, normal: 1 };
+    return (severityOrder[b.riskLevel] ?? 0) - (severityOrder[a.riskLevel] ?? 0);
+  });
+  const top3 = sorted.slice(0, 3);
+
+  const businessUnits = top3.map(o => ({
+    id: o.unit.id,
+    name: o.unit.name,
+    topIssue: o.criticalIssues > 0 ? `重大${o.criticalIssues}件` : `課題${o.totalIssues}件`,
+    severity: (o.riskLevel === 'critical' ? 'critical' : o.riskLevel === 'warning' ? 'warning' : 'info') as AlertSeverity,
+  }));
+
+  const hasCritical = top3.some(o => o.riskLevel === 'critical');
+
   return {
     type: 'ai_vp_top3',
     title: WIDGET_LABELS.ai_vp_top3,
     href: '/dashboard/ai-vp',
-    count: 0,
-    severity: 'info',
-    businessUnits: [],
-    isEmpty: true,
+    count: top3.length,
+    severity: hasCritical ? 'critical' : (top3.length > 0 ? 'warning' : 'info'),
+    businessUnits,
+    isEmpty: top3.length === 0,
   };
 }
 
@@ -403,18 +462,26 @@ export function buildAIVPTop3Widget(): AIVPTop3Widget {
  * Task 053: 契約ウィジェットを構築
  */
 export function buildContractsWidget(): ContractsWidget {
-  // TODO: contracts リポジトリと連携
-  // 期限間近・判断期限超過・高リスク期限間近をカウント
+  const expiring = scanExpiringContracts(30);
+  const decisionOverdue = scanDecisionOverdueContracts();
+  const highRiskExpiring = expiring.filter(c => c.daysUntilEnd <= 7);
+
+  const total = expiring.length + decisionOverdue.length;
+
+  let severity: AlertSeverity = 'info';
+  if (highRiskExpiring.length > 0 || decisionOverdue.length >= 3) severity = 'critical';
+  else if (total > 0) severity = 'warning';
+
   return {
     type: 'contracts',
     title: WIDGET_LABELS.contracts,
     href: '/dashboard/contracts',
-    count: 0,
-    severity: 'info',
-    expiringSoon: 0,
-    decisionOverdue: 0,
-    highRiskExpiring: 0,
-    isEmpty: true,
+    count: total,
+    severity,
+    expiringSoon: expiring.length,
+    decisionOverdue: decisionOverdue.length,
+    highRiskExpiring: highRiskExpiring.length,
+    isEmpty: total === 0,
   };
 }
 
@@ -422,17 +489,21 @@ export function buildContractsWidget(): ContractsWidget {
  * Task 053: OSマップウィジェットを構築
  */
 export function buildOsMapWidget(): OsMapWidget {
-  // TODO: OS_FEATURES から統計を取得
+  const visibleFeatures = OS_FEATURES.filter(f => f.status !== 'hidden');
+  const total = visibleFeatures.length;
+  const active = visibleFeatures.filter(f => f.status === 'active').length;
+  const progressPercent = total > 0 ? Math.round((active / total) * 100) : 0;
+
   return {
     type: 'os_map',
     title: WIDGET_LABELS.os_map,
     href: '/dashboard/os-map',
-    count: 0,
-    severity: 'info',
-    totalFeatures: 0,
-    activeFeatures: 0,
-    progressPercent: 0,
-    isEmpty: true,
+    count: total,
+    severity: progressPercent < 50 ? 'warning' : 'info',
+    totalFeatures: total,
+    activeFeatures: active,
+    progressPercent,
+    isEmpty: false,
   };
 }
 
@@ -440,17 +511,32 @@ export function buildOsMapWidget(): OsMapWidget {
  * Task 053: 品質/リスク統合ウィジェットを構築
  */
 export function buildQualityRiskWidget(): QualityRiskWidget {
-  // TODO: 品質関連リポジトリと連携
+  // アラート・是正措置・修繕を統合して品質リスクを集計
+  const alertStats = getAlertStats();
+  const caViewer = createViewerContext('system', 'admin' as AppRole);
+  const caStats = getCorrectiveActionsStats(caViewer);
+  const repairViewer = createViewerContext('system', 'admin' as AppRole);
+  const repairStats = getRepairsStats(repairViewer);
+
+  const highRiskCount = alertStats.criticalOpen + (repairStats.highRiskOpen || 0);
+  const incidentCount = alertStats.open;
+  const overdueActions = caStats.overdue + repairStats.overdue;
+  const total = highRiskCount + incidentCount + overdueActions;
+
+  let severity: AlertSeverity = 'info';
+  if (highRiskCount > 0) severity = 'critical';
+  else if (overdueActions > 0) severity = 'warning';
+
   return {
     type: 'quality_risk',
     title: WIDGET_LABELS.quality_risk,
     href: '/dashboard/quality',
-    count: 0,
-    severity: 'info',
-    highRiskCount: 0,
-    incidentCount: 0,
-    overdueActions: 0,
-    isEmpty: true,
+    count: total,
+    severity,
+    highRiskCount,
+    incidentCount,
+    overdueActions,
+    isEmpty: total === 0,
   };
 }
 
@@ -604,9 +690,9 @@ export function buildWidget(
     case 'unclassified':
       return buildUnclassifiedWidget();
     case 'ai_vp_top3':
-      return buildAIVPTop3Widget();
+      return buildAIVPTop3Widget(userId, role);
     case 'business_summary':
-      return buildBusinessSummaryWidget();
+      return buildBusinessSummaryWidget(userId, role);
     case 'tickets':
       return buildTicketsWidget(userId, role);
     case 'repairs':

@@ -23,6 +23,7 @@ import type {
   ReviewFlag,
   AIReviewPoint,
 } from '@/types/pre-review';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 interface PreReviewCardProps {
   applicationType: ApplicationType;
@@ -65,6 +66,7 @@ export function PreReviewCard({
   onCancel,
   disabled = false,
 }: PreReviewCardProps) {
+  const apiFetch = useApiFetch();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PreReviewResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export function PreReviewCard({
     setError(null);
 
     try {
-      const res = await fetch('/api/pre-review', {
+      const res = await apiFetch('/api/pre-review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

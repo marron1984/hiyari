@@ -9,7 +9,10 @@ import {
   approveRequest,
   getApprovalRequest,
 } from '@/lib/approvals/requestRepo';
+import { getApprovalFlow } from '@/lib/approvals/flowRepo';
 import { canApprove } from '@/lib/approvals/canApprove';
+import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 
 export async function POST(
@@ -18,10 +21,9 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  // ユーザー情報取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
-  const userName = request.headers.get('x-user-name') ?? '佐藤太郎';
-  const userRole = (request.headers.get('x-user-role') ?? 'staff') as AppRole;
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   const existing = getApprovalRequest(id);
   if (!existing) {
@@ -32,7 +34,7 @@ export async function POST(
   }
 
   // 承認権限チェック
-  const approveCheck = canApprove(userRole, userId, existing);
+  const approveCheck = canApprove(user.role as AppRole, user.uid, existing);
   if (!approveCheck.canApprove) {
     return NextResponse.json(
       { error: approveCheck.reason ?? '承認権限がありません' },
@@ -49,7 +51,7 @@ export async function POST(
     // ノートなしでもOK
   }
 
-  const result = approveRequest(id, userId, note, userName);
+  const result = approveRequest(id, user.uid, note, user.name);
 
   if (!result.success) {
     return NextResponse.json(
@@ -58,7 +60,44 @@ export async function POST(
     );
   }
 
-  // TODO: 通知センター連携（申請者への通知、次ステップ承認者への通知）
+  // 申請者・次ステップ承認者への通知
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    if (result.request!.status === 'approved') {
+      // 最終承認 → 申請者へ通知
+      await createNotificationAsync({
+        tenantId: 'default',
+        userId: result.request!.requesterUserId,
+        type: 'application_approved',
+        severity: 'info',
+        title: '申請が承認されました',
+        message: `「${result.request!.title}」が承認されました。`,
+        url: `/dashboard/approvals/${id}`,
+        fingerprint: `application_approved:${id}:${today}:${result.request!.requesterUserId}`,
+      });
+    } else {
+      // 次ステップへ → 次の承認者へ通知
+      const flow = getApprovalFlow(result.request!.flowId);
+      const nextStep = flow?.steps.find(
+        (s) => s.stepOrder === result.request!.currentStepOrder
+      );
+      const approverId = nextStep?.approverUserId ?? nextStep?.approverRole;
+      if (approverId) {
+        await createNotificationAsync({
+          tenantId: 'default',
+          userId: approverId,
+          type: 'approval_pending',
+          severity: 'warning',
+          title: '承認依頼',
+          message: `「${result.request!.title}」の承認依頼が届きました。`,
+          url: `/dashboard/approvals/${id}`,
+          fingerprint: `approval_pending:${id}:${today}:${approverId}`,
+        });
+      }
+    }
+  } catch (e) {
+    console.error('[Notification] Failed to send approval notification:', e);
+  }
 
   return NextResponse.json({
     success: true,

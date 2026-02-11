@@ -6,11 +6,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createApprovalRequest } from '@/lib/approvals/requestRepo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
-  // ユーザーID取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
-  const userName = request.headers.get('x-user-name') ?? '佐藤太郎';
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   let body;
   try {
@@ -38,8 +39,8 @@ export async function POST(request: NextRequest) {
       summary: body.summary,
       meta: body.meta,
     },
-    userId,
-    userName
+    user.uid,
+    user.name
   );
 
   if (!result.success) {

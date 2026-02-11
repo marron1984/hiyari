@@ -7,22 +7,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { getAnalyticsSummary } from '@/lib/vacancyAnalytics/repo';
-import type { AppRole } from '@/config/appRoles';
-
-// 有効なAppRoleかチェック
-function isValidAppRole(role: string): role is AppRole {
-  return ['admin', 'executive', 'manager', 'leader', 'staff', 'auditor'].includes(role);
-}
 
 export async function GET(request: NextRequest) {
   try {
-    // 認証チェック（管理者のみ）
-    const headersList = await headers();
-    const roleHeader = headersList.get('x-user-role');
-    const role: AppRole = isValidAppRole(roleHeader ?? '') ? roleHeader as AppRole : 'staff';
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
+    const role = user.role as string;
     if (!['admin', 'executive', 'manager'].includes(role)) {
       return NextResponse.json(
         { error: 'Unauthorized' },

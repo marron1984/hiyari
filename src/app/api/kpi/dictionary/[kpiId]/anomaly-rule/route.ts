@@ -6,13 +6,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 import { getAnomalyRule, upsertAnomalyRule } from '@/lib/kpiDictionary/anomalyRuleRepo';
-import { checkRole } from '@/lib/auth/requireRole';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ kpiId: string }> }
 ) {
+  // 認証
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+
   const { kpiId } = await params;
 
   const rule = getAnomalyRule(kpiId);
@@ -42,18 +47,20 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ kpiId: string }> }
 ) {
+  // 認証
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   const { kpiId } = await params;
 
   // 権限チェック（admin or manager）
-  const hasPermission = await checkRole(['admin', 'executive', 'manager']);
-  if (!hasPermission) {
+  if (!(['admin', 'executive', 'manager'] as AppRole[]).includes(user.role as AppRole)) {
     return NextResponse.json(
       { error: 'アクセス権限がありません（管理職以上のみ）' },
       { status: 403 }
     );
   }
-
-  const userId = request.headers.get('x-user-id') ?? 'unknown';
 
   let body;
   try {
@@ -65,7 +72,7 @@ export async function PATCH(
     );
   }
 
-  const result = upsertAnomalyRule(kpiId, body, userId);
+  const result = upsertAnomalyRule(kpiId, body, user.uid);
 
   if (!result.success) {
     return NextResponse.json(

@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import {
   createShareDraft,
   listShares,
@@ -21,7 +22,10 @@ import type { CreateShareRequest } from '@/lib/shares/types';
  * 共有一覧を取得
  * Task 040: 承認フロー関連フィールド追加
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+
   // デモ用：サンプルデータを初期化
   createDemoShares();
 
@@ -57,6 +61,10 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const body: CreateShareRequest = await request.json();
 
     // バリデーション
@@ -83,8 +91,8 @@ export async function POST(request: NextRequest) {
         templateId: body.templateId,
         notes: body.notes?.trim(),
       },
-      'admin', // TODO: 実際のユーザーIDを取得
-      '管理者' // TODO: 実際のユーザー名を取得
+      user.uid,
+      user.name
     );
 
     return NextResponse.json({

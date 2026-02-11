@@ -20,6 +20,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApiFetch } from '@/hooks/useApiFetch';
 import { BuildInfo } from '@/components/BuildInfo';
 import { cn } from '@/lib/utils';
 
@@ -277,6 +278,7 @@ const EMPTY_COUNTS: DashboardCounts = {
  */
 export function LaunchModeDashboard() {
   const { user } = useAuth();
+  const apiFetch = useApiFetch();
   const [counts, setCounts] = useState<DashboardCounts>(EMPTY_COUNTS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -287,7 +289,7 @@ export function LaunchModeDashboard() {
     if (isRefresh) setRefreshing(true);
 
     try {
-      const res = await fetch(`/api/dashboard/counts?tenantId=${encodeURIComponent(user.tenantId)}`);
+      const res = await apiFetch(`/api/dashboard/counts?tenantId=${encodeURIComponent(user.tenantId)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setCounts(data);
@@ -298,7 +300,7 @@ export function LaunchModeDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.tenantId]);
+  }, [user?.tenantId, apiFetch]);
 
   useEffect(() => {
     fetchCounts();

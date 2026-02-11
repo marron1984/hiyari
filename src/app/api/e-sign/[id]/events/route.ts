@@ -6,22 +6,23 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/esign/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
-
-// デモ用ユーザー
-function getDemoUser(): repo.ViewerContext {
-  return {
-    userId: 'user_manager',
-    role: 'manager' as AppRole,
-  };
-}
 
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const viewer = getDemoUser();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer: repo.ViewerContext = {
+      userId: user.uid,
+      role: user.role as AppRole,
+    };
+
     const { id } = await context.params;
 
     // レコードの閲覧権限確認

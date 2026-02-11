@@ -6,22 +6,26 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/agreements/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const body = await request.json();
-    const actorUserId = 'user_admin';
     const action = body.action as 'activate' | 'archive';
 
     let result;
     if (action === 'activate') {
-      result = repo.setActiveDocument(id, actorUserId);
+      result = repo.setActiveDocument(id, user.uid);
     } else if (action === 'archive') {
-      result = repo.archiveDocument(id, actorUserId);
+      result = repo.archiveDocument(id, user.uid);
     } else {
       return NextResponse.json(
         { success: false, error: '無効なアクションです' },

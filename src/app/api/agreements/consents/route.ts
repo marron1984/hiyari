@@ -6,14 +6,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/agreements/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext, SubjectType, ConsentStatus } from '@/lib/agreements/types';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
     const viewer: ViewerContext = {
-      userId: 'user_manager',
-      role: 'manager',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     const agreementTypeId = searchParams.get('agreementTypeId') ?? undefined;
@@ -52,8 +57,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const body = await request.json();
-    const actorUserId = 'user_manager';
 
     const result = repo.recordConsent(
       {
@@ -67,7 +75,7 @@ export async function POST(request: NextRequest) {
         consentedAt: body.consentedAt,
         validUntil: body.validUntil,
       },
-      actorUserId
+      user.uid
     );
 
     if (!result.success) {

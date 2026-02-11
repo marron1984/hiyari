@@ -25,6 +25,7 @@ import {
   REF_SOURCE_STATUS_CONFIG,
 } from '@/lib/refSources/types';
 import type { BusinessUnit } from '@/lib/business/types';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 // タイプアイコン
 const TYPE_ICONS: Record<RefSourceType, React.ReactNode> = {
@@ -35,6 +36,7 @@ const TYPE_ICONS: Record<RefSourceType, React.ReactNode> = {
 };
 
 export default function RefSourcesPage() {
+  const apiFetch = useApiFetch();
   const [sources, setSources] = useState<RefSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<RefSourceStatus | ''>('');
@@ -59,7 +61,7 @@ export default function RefSourcesPage() {
       if (typeFilter) params.append('type', typeFilter);
       if (searchQuery) params.append('q', searchQuery);
 
-      const res = await fetch(`/api/ref-sources?${params.toString()}`);
+      const res = await apiFetch(`/api/ref-sources?${params.toString()}`);
       const data = await res.json();
       setSources(data.items || []);
     } catch (error) {
@@ -67,15 +69,15 @@ export default function RefSourcesPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, typeFilter, searchQuery]);
+  }, [statusFilter, typeFilter, searchQuery, apiFetch]);
 
   // 事業単位取得
   useEffect(() => {
-    fetch('/api/business-units')
+    apiFetch('/api/business-units')
       .then((res) => res.json())
       .then((data) => setBusinessUnits(data.items || []))
       .catch(console.error);
-  }, []);
+  }, [apiFetch]);
 
   useEffect(() => {
     fetchData();
@@ -85,7 +87,7 @@ export default function RefSourcesPage() {
   const toggleStatus = async (ref: string, currentStatus: RefSourceStatus) => {
     const newStatus = currentStatus === 'active' ? 'disabled' : 'active';
     try {
-      const res = await fetch(`/api/ref-sources/${ref}`, {
+      const res = await apiFetch(`/api/ref-sources/${ref}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
@@ -115,7 +117,7 @@ export default function RefSourcesPage() {
     if (!newName) return;
     setCreating(true);
     try {
-      const res = await fetch('/api/ref-sources', {
+      const res = await apiFetch('/api/ref-sources', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

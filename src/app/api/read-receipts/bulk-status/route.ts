@@ -6,14 +6,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { listReadIds } from '@/lib/readTracking/repo';
 import type { EntityType } from '@/lib/readTracking/types';
 
 const VALID_ENTITY_TYPES: EntityType[] = ['announcement', 'document', 'training'];
 
 export async function POST(request: NextRequest) {
-  // 暫定：ユーザーIDはヘッダーから取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   // ボディ解析
   let body: { entityType: string; entityIds: string[] };
@@ -44,7 +46,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 既読ID一覧を取得
-  const readIdsSet = listReadIds(userId, entityType as EntityType, entityIds);
+  const readIdsSet = listReadIds(user.uid, entityType as EntityType, entityIds);
   const readEntityIds = Array.from(readIdsSet);
 
   return NextResponse.json({

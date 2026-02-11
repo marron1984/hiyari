@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import {
   listOffboardingTasks,
   getOverdueOffboardingTasks,
@@ -14,24 +15,18 @@ import {
   type OffboardingTaskStatus,
 } from '@/lib/hr';
 
-// TODO: 実際の認証から取得
-function getViewerContext(request: NextRequest): { userId: string; role: string } {
-  if (process.env.NODE_ENV !== 'production') {
-    return { userId: 'dev-admin', role: 'admin' };
-  }
-  const role = request.headers.get('x-user-role') || 'viewer';
-  const userId = request.headers.get('x-user-id') || 'unknown';
-  return { userId, role };
-}
 
 /**
  * GET /api/hr/offboarding-tasks
  */
 export async function GET(request: NextRequest) {
-  const viewer = getViewerContext(request);
+  // 認証
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   // RBAC
-  if (!canViewHr(viewer.role as any)) {
+  if (!canViewHr(user.role as any)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

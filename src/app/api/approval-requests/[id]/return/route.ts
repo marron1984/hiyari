@@ -10,6 +10,8 @@ import {
   getApprovalRequest,
 } from '@/lib/approvals/requestRepo';
 import { canApprove } from '@/lib/approvals/canApprove';
+import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 
 export async function POST(
@@ -18,10 +20,9 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  // ユーザー情報取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
-  const userName = request.headers.get('x-user-name') ?? '佐藤太郎';
-  const userRole = (request.headers.get('x-user-role') ?? 'staff') as AppRole;
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   const existing = getApprovalRequest(id);
   if (!existing) {
@@ -32,7 +33,7 @@ export async function POST(
   }
 
   // 承認権限チェック（差戻しも同じ権限）
-  const approveCheck = canApprove(userRole, userId, existing);
+  const approveCheck = canApprove(user.role as AppRole, user.uid, existing);
   if (!approveCheck.canApprove) {
     return NextResponse.json(
       { error: approveCheck.reason ?? '差戻し権限がありません' },
@@ -49,7 +50,7 @@ export async function POST(
     // ノートなしでもOK
   }
 
-  const result = returnRequest(id, userId, note, userName);
+  const result = returnRequest(id, user.uid, note, user.name);
 
   if (!result.success) {
     return NextResponse.json(
@@ -58,7 +59,22 @@ export async function POST(
     );
   }
 
-  // TODO: 通知センター連携（申請者への通知）
+  // 申請者への差戻し通知
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    await createNotificationAsync({
+      tenantId: 'default',
+      userId: result.request!.requesterUserId,
+      type: 'application_returned',
+      severity: 'warning',
+      title: '申請が差戻しされました',
+      message: `「${result.request!.title}」が差戻しされました。${note ? `理由: ${note}` : ''}`,
+      url: `/dashboard/approvals/${id}`,
+      fingerprint: `application_returned:${id}:${today}:${result.request!.requesterUserId}`,
+    });
+  } catch (e) {
+    console.error('[Notification] Failed to send application_returned notification:', e);
+  }
 
   return NextResponse.json({
     success: true,

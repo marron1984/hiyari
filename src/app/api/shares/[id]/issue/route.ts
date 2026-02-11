@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { issueShare, getShareById } from '@/lib/shares/share-service';
 import { getApprovalRequest, approveRequest } from '@/lib/approvals/requestRepo';
 
@@ -21,6 +22,10 @@ type RouteContext = {
  */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id: shareId } = await context.params;
 
     // 共有パッケージの存在確認
@@ -44,22 +49,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (share.approvalRequestId) {
       const approvalReq = getApprovalRequest(share.approvalRequestId);
       if (approvalReq && approvalReq.status === 'pending') {
-        // TODO: 実際の承認者情報を取得
         approveRequest(
           share.approvalRequestId,
-          'manager', // TODO: 実際のユーザーIDを取得
-          '承認者',  // TODO: 実際のユーザー名を取得
+          user.uid,
+          user.name,
           '外部共有を承認しました'
         );
       }
     }
 
     // 共有を発行
-    // TODO: 実際のユーザーIDを取得
     const result = issueShare(
       shareId,
-      'manager',
-      '承認者'
+      user.uid,
+      user.name
     );
 
     if (!result.success) {

@@ -25,6 +25,7 @@ import {
 import type { AccountingTemplate, JournalEntryDetail } from '@/types/accounting-template';
 import { COMMON_ACCOUNT_ITEMS } from '@/types/accounting-template';
 import type { TemplateSuggestion } from '@/types/template-improvement';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 export default function AccountingTemplatesPage() {
   return (
@@ -36,6 +37,7 @@ export default function AccountingTemplatesPage() {
 
 function AccountingTemplatesContent() {
   const { firebaseUser } = useAuth();
+  const apiFetch = useApiFetch();
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<AccountingTemplate[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -75,7 +77,7 @@ function AccountingTemplatesContent() {
   // テンプレート一覧取得
   const fetchTemplates = async () => {
     try {
-      const response = await fetch('/api/admin/accounting-templates');
+      const response = await apiFetch('/api/admin/accounting-templates');
       const data = await response.json();
       if (data.success) {
         setTemplates(data.templates);
@@ -97,10 +99,7 @@ function AccountingTemplatesContent() {
 
     setSuggestionsLoading(true);
     try {
-      const token = await firebaseUser.getIdToken();
-      const response = await fetch('/api/admin/template-suggestions?status=pending', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiFetch('/api/admin/template-suggestions?status=pending');
       const data = await response.json();
       if (data.success) {
         setSuggestions(data.suggestions);
@@ -126,13 +125,9 @@ function AccountingTemplatesContent() {
 
     setProcessingId(suggestionId);
     try {
-      const token = await firebaseUser.getIdToken();
-      const response = await fetch(`/api/admin/template-suggestions/${suggestionId}`, {
+      const response = await apiFetch(`/api/admin/template-suggestions/${suggestionId}`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'accept' }),
       });
       const data = await response.json();
@@ -158,13 +153,9 @@ function AccountingTemplatesContent() {
 
     setProcessingId(suggestionId);
     try {
-      const token = await firebaseUser.getIdToken();
-      const response = await fetch(`/api/admin/template-suggestions/${suggestionId}`, {
+      const response = await apiFetch(`/api/admin/template-suggestions/${suggestionId}`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'reject' }),
       });
       const data = await response.json();
@@ -285,13 +276,13 @@ function AccountingTemplatesContent() {
 
       let response;
       if (editingTemplate) {
-        response = await fetch(`/api/admin/accounting-templates/${editingTemplate.id}`, {
+        response = await apiFetch(`/api/admin/accounting-templates/${editingTemplate.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
       } else {
-        response = await fetch('/api/admin/accounting-templates', {
+        response = await apiFetch('/api/admin/accounting-templates', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -319,7 +310,7 @@ function AccountingTemplatesContent() {
     if (!confirm('このテンプレートを削除しますか？')) return;
 
     try {
-      const response = await fetch(`/api/admin/accounting-templates/${id}`, {
+      const response = await apiFetch(`/api/admin/accounting-templates/${id}`, {
         method: 'DELETE',
       });
       const data = await response.json();
@@ -340,7 +331,7 @@ function AccountingTemplatesContent() {
 
     setSeeding(true);
     try {
-      const response = await fetch('/api/admin/accounting-templates', {
+      const response = await apiFetch('/api/admin/accounting-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'seed' }),

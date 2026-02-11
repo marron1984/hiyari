@@ -14,39 +14,22 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { executeDailyOps, type DailyOpsStepName } from '@/lib/dailyOps';
 import { executeWeeklyOps, type WeeklyOpsStepName } from '@/lib/weeklyOps';
 import { buildMorningDigest, formatDigestNotification } from '@/lib/digest/morningDigest';
 import { createAlert } from '@/lib/alerts/repo';
 import { OPS_FAILURE_NOTIFICATION } from '@/config/opsSchedule';
 
-// TODO: 実際の認証ミドルウェアに置き換え
-async function checkAdminAuth(request: NextRequest): Promise<{
-  authorized: boolean;
-  userId?: string;
-  role?: string;
-}> {
-  // 開発環境ではadmin扱い
-  if (process.env.NODE_ENV !== 'production') {
-    return { authorized: true, userId: 'dev-admin', role: 'admin' };
-  }
-
-  // 実際の認証ロジック（セッション/JWTから取得）
-  // ここではヘッダーからロールを取得する仮実装
-  const role = request.headers.get('x-user-role');
-  const userId = request.headers.get('x-user-id');
-
-  if (role === 'admin') {
-    return { authorized: true, userId: userId || undefined, role };
-  }
-
-  return { authorized: false };
-}
 
 export async function POST(request: NextRequest) {
-  // 認証チェック
-  const auth = await checkAdminAuth(request);
-  if (!auth.authorized) {
+  // 認証
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
+  // admin権限チェック
+  if (user.role !== 'admin') {
     return NextResponse.json(
       { error: 'Unauthorized: admin role required' },
       { status: 403 }
@@ -72,7 +55,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  console.log(`[OpsRerun] Admin ${auth.userId} requesting rerun of ${job}`, { steps, force });
+  console.log(`[OpsRerun] Admin ${user.uid} requesting rerun of ${job}`, { steps, force });
 
   try {
     switch (job) {

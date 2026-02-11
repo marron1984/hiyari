@@ -5,14 +5,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { markRead } from '@/lib/readTracking/repo';
 import type { EntityType } from '@/lib/readTracking/types';
 
 const VALID_ENTITY_TYPES: EntityType[] = ['announcement', 'document', 'training'];
 
 export async function POST(request: NextRequest) {
-  // 暫定：ユーザーIDはヘッダーから取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   // ボディ解析
   let body: { entityType: string; entityId: string };
@@ -43,7 +45,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 既読をマーク
-  const receipt = markRead(userId, entityType as EntityType, entityId);
+  const receipt = markRead(user.uid, entityType as EntityType, entityId);
 
   return NextResponse.json({
     success: true,

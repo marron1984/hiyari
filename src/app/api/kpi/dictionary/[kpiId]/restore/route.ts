@@ -5,25 +5,28 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 import { restoreKPIDictionaryEntry } from '@/lib/kpiDictionary/repo';
-import { checkRole } from '@/lib/auth/requireRole';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ kpiId: string }> }
 ) {
+  // 認証
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   const { kpiId } = await params;
 
   // 管理者権限チェック
-  const isAdmin = await checkRole(['admin']);
-  if (!isAdmin) {
+  if ((user.role as AppRole) !== 'admin') {
     return NextResponse.json(
       { error: 'アクセス権限がありません（管理者のみ）' },
       { status: 403 }
     );
   }
-
-  const userId = request.headers.get('x-user-id') ?? 'admin';
 
   let note: string | undefined;
   try {
@@ -33,7 +36,7 @@ export async function POST(
     // ボディなしでもOK
   }
 
-  const result = restoreKPIDictionaryEntry(kpiId, userId, note);
+  const result = restoreKPIDictionaryEntry(kpiId, user.uid, note);
 
   if (!result.success) {
     return NextResponse.json(

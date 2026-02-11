@@ -9,13 +9,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchSheetRows } from '@/lib/vacancyImport/sheetsClient';
 import { normalizeRow } from '@/lib/vacancyImport/normalizeRow';
 import { dryRun } from '@/lib/vacancyImport/applyVacancySnapshot';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 
 const ALLOWED_ROLES: AppRole[] = ['admin', 'executive'];
 
 export async function POST(request: NextRequest) {
   try {
-    const role = (request.headers.get('x-user-role') || 'staff') as AppRole;
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as AppRole;
     if (!ALLOWED_ROLES.includes(role)) {
       return NextResponse.json(
         { error: 'この操作には管理者権限が必要です' },

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listAnnouncementsForUser } from '@/lib/announcements/store';
 import { countUnread, initializeDemoReadReceipts } from '@/lib/readTracking/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 
 // デモ用初期化フラグ
@@ -20,18 +21,19 @@ export async function GET(request: NextRequest) {
     demoInitialized = true;
   }
 
-  // 暫定：ユーザー情報はヘッダーから取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
-  const userRole = (request.headers.get('x-user-role') ?? 'staff') as AppRole;
-  const userBranchId = request.headers.get('x-user-branch-id') ?? undefined;
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
+  const userRole = user.role as AppRole;
 
   // 自分対象の公開済み周知を取得
-  const { announcements } = listAnnouncementsForUser(userRole, userId, userBranchId, {
+  const { announcements } = listAnnouncementsForUser(userRole, user.uid, user.baseId, {
     limit: 1000, // 全件取得
   });
 
   const announcementIds = announcements.map((a) => a.id);
-  const unreadCount = countUnread(userId, 'announcement', announcementIds);
+  const unreadCount = countUnread(user.uid, 'announcement', announcementIds);
 
   return NextResponse.json({
     unreadCount,

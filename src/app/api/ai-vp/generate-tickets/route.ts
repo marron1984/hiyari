@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/business/types';
 import {
   generateTicketsFromTop3,
@@ -26,6 +27,10 @@ import { createNotification } from '@/lib/notifications/repo';
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const body = await request.json();
     const {
       dryRun = false,
@@ -34,10 +39,9 @@ export async function POST(request: NextRequest) {
       weekId,
     } = body;
 
-    // 本来は認証から取得
     const viewer: ViewerContext = {
-      userId: body.userId ?? 'system_ai_vp',
-      role: body.role ?? 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     // 権限チェック（admin/executive/managerのみ実行可能）
@@ -60,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     // dryRunでない場合、担当者への通知を作成
     if (!dryRun) {
-      await createNotificationsForGeneratedTickets(result);
+      await createNotificationsForGeneratedTickets(result, user.uid);
     }
 
     // レポート生成
@@ -106,13 +110,13 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const userId = searchParams.get('userId') ?? 'system';
-    const role = searchParams.get('role') ?? 'admin';
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     const viewer: ViewerContext = {
-      userId,
-      role: role as ViewerContext['role'],
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     // 今週生成されたチケットを取得
@@ -146,13 +150,14 @@ export async function GET(request: NextRequest) {
 // ========== 通知作成 ==========
 
 async function createNotificationsForGeneratedTickets(
-  result: GenerationResult
+  result: GenerationResult,
+  requestUserId: string
 ): Promise<void> {
   for (const item of result.created) {
-    // チケット作成の通知（管理者向け）
+    // チケット作成の通知（実行者向け）
     createNotification({
       tenantId: 'default',
-      userId: 'user_manager',
+      userId: requestUserId,
       type: 'ai_vp_ticket_created',
       title: 'AI副社長がチケットを作成しました',
       message: `${item.ticket.title}\n事業: ${item.action.businessUnitName}\n優先度: ${item.ticket.priority}`,

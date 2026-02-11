@@ -7,6 +7,7 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { AppRole } from '@/config/appRoles';
+import { verifyIdToken, getAdminDb } from '@/lib/firebase-admin';
 
 // ロール階層（数値が大きいほど権限が高い）
 const ROLE_HIERARCHY: Record<AppRole, number> = {
@@ -33,25 +34,33 @@ export interface CurrentUser {
 export async function getCurrentUser(): Promise<CurrentUser> {
   const headersList = await headers();
 
-  // ヘッダーからユーザー情報を取得（開発/テスト用）
-  const userIdHeader = headersList.get('x-user-id');
-  const roleHeader = headersList.get('x-user-role');
+  // Authorization: Bearer トークンからFirebase認証
+  const authHeader = headersList.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    const idToken = authHeader.substring(7);
+    const decodedToken = await verifyIdToken(idToken);
+    if (decodedToken) {
+      const db = getAdminDb();
+      const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+      const userData = userDoc.data();
+      let role: AppRole = 'staff';
+      const userRole = userData?.role;
+      if (userRole && isValidAppRole(userRole)) {
+        role = userRole as AppRole;
+      }
 
-  let role: AppRole = 'admin';
-  if (roleHeader && isValidAppRole(roleHeader)) {
-    role = roleHeader as AppRole;
+      // asRoleパラメータをチェック（プレビューモード用、adminのみ）
+      const asRoleHeader = headersList.get('x-as-role');
+      if (role === 'admin' && asRoleHeader && isValidAppRole(asRoleHeader)) {
+        role = asRoleHeader as AppRole;
+      }
+
+      return { id: decodedToken.uid, role };
+    }
   }
 
-  // asRoleパラメータをチェック（プレビューモード用）
-  const asRoleHeader = headersList.get('x-as-role');
-  if (asRoleHeader && isValidAppRole(asRoleHeader)) {
-    role = asRoleHeader as AppRole;
-  }
-
-  return {
-    id: userIdHeader || 'user_001', // デフォルト: admin user
-    role,
-  };
+  // 認証なしの場合はスタッフ権限（最低権限）
+  return { id: 'anonymous', role: 'staff' };
 }
 
 /**

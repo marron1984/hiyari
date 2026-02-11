@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import * as repo from '@/lib/external-accounts/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/external-accounts/types';
 
 export async function GET(
@@ -14,15 +15,19 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
-    const user = repo.getExternalUserById(id, viewer);
+    const extUser = repo.getExternalUserById(id, viewer);
 
-    if (!user) {
+    if (!extUser) {
       return NextResponse.json(
         { success: false, error: '外部アカウントが見つかりません' },
         { status: 404 }
@@ -32,7 +37,7 @@ export async function GET(
     // アクセスポリシーも取得
     const policy = repo.getAccessPolicy(id);
 
-    return NextResponse.json({ success: true, user, policy });
+    return NextResponse.json({ success: true, user: extUser, policy });
   } catch (error) {
     console.error('External Account GET Error:', error);
     return NextResponse.json(
@@ -47,10 +52,14 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     const body = await request.json();
@@ -78,10 +87,14 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     const body = await request.json();
@@ -107,9 +120,9 @@ export async function POST(
     }
 
     // 更新後のユーザーを取得して返す
-    const user = repo.getExternalUserById(id, viewer);
+    const extUser = repo.getExternalUserById(id, viewer);
 
-    return NextResponse.json({ success: true, user });
+    return NextResponse.json({ success: true, user: extUser });
   } catch (error) {
     console.error('External Account Action Error:', error);
     return NextResponse.json(

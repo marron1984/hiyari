@@ -7,13 +7,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listApprovalRequests } from '@/lib/approvals/requestRepo';
 import { filterApprovableRequests } from '@/lib/approvals/canApprove';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import type { RequestType } from '@/lib/approvals/types';
 
 export async function GET(request: NextRequest) {
-  // ユーザー情報取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
-  const userRole = (request.headers.get('x-user-role') ?? 'staff') as AppRole;
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   const { searchParams } = new URL(request.url);
   const requestType = searchParams.get('requestType') as RequestType | null;
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
   });
 
   // 承認可能なものだけフィルタ
-  const approvable = filterApprovableRequests(userRole, userId, allPending);
+  const approvable = filterApprovableRequests(user.role as AppRole, user.uid, allPending);
   const total = approvable.length;
 
   // ページネーション

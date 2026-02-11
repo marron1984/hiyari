@@ -13,6 +13,7 @@ import {
 } from '@/lib/tickets/repo';
 import type { AppRole } from '@/config/appRoles';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 
 export async function GET(
   request: NextRequest,
@@ -77,8 +78,36 @@ export async function POST(
       );
     }
 
-    // TODO: 通知センターへコメント通知を送信
-    // requesterとassignee（自分以外）に通知
+    // コメント通知を送信（失敗しても本体処理には影響させない）
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const ticketResult = getTicketById(id, viewer);
+      if (ticketResult.success) {
+        const ticket = ticketResult.ticket;
+        const commenterName = result.comment.userName ?? 'ユーザー';
+        const notifyUserIds = new Set<string>();
+        if (ticket.requesterUserId && ticket.requesterUserId !== user.uid) {
+          notifyUserIds.add(ticket.requesterUserId);
+        }
+        if (ticket.assigneeUserId && ticket.assigneeUserId !== user.uid) {
+          notifyUserIds.add(ticket.assigneeUserId);
+        }
+        for (const targetUserId of notifyUserIds) {
+          await createNotificationAsync({
+            tenantId: 'default',
+            userId: targetUserId,
+            type: 'system',
+            severity: 'info',
+            title: 'チケットにコメントが追加されました',
+            message: `${commenterName}さんがチケット「${ticket.title}」にコメントしました`,
+            url: `/dashboard/tickets/${id}`,
+            fingerprint: `ticket_comment:${id}:${today}:${targetUserId}`,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to send ticket comment notification:', error);
+    }
 
     return NextResponse.json({ comment: result.comment }, { status: 201 });
   } catch (error) {

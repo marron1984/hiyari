@@ -12,6 +12,7 @@
 import { useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 interface OnboardingGuardProps {
   children: ReactNode;
@@ -20,6 +21,7 @@ interface OnboardingGuardProps {
 export function OnboardingGuard({ children }: OnboardingGuardProps) {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const apiFetch = useApiFetch();
   const [checking, setChecking] = useState(true);
   const [isComplete, setIsComplete] = useState(false);
 
@@ -48,7 +50,7 @@ export function OnboardingGuard({ children }: OnboardingGuardProps) {
 
   const checkOnboardingStatus = async () => {
     try {
-      const res = await fetch('/api/onboarding/status');
+      const res = await apiFetch('/api/onboarding/status');
       if (!res.ok) {
         // エラー時は通す（安全側ではないが、ブロックしすぎを避ける）
         console.error('[OnboardingGuard] Failed to fetch status');

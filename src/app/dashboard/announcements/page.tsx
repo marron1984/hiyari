@@ -18,6 +18,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import type { AnnouncementListItem, AnnouncementPriority } from '@/lib/announcements/types';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 // 優先度設定
 const PRIORITY_CONFIG: Record<
@@ -51,6 +52,7 @@ const PRIORITY_CONFIG: Record<
 };
 
 export default function AnnouncementsPage() {
+  const apiFetch = useApiFetch();
   const [announcements, setAnnouncements] = useState<AnnouncementListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -65,7 +67,7 @@ export default function AnnouncementsPage() {
       const params = new URLSearchParams();
       if (showOnlyUnread) params.set('onlyUnread', 'true');
 
-      const res = await fetch(`/api/announcements?${params}`);
+      const res = await apiFetch(`/api/announcements?${params}`);
       if (res.ok) {
         const data = await res.json();
         setAnnouncements(data.announcements);
@@ -76,7 +78,7 @@ export default function AnnouncementsPage() {
     } finally {
       setLoading(false);
     }
-  }, [showOnlyUnread]);
+  }, [showOnlyUnread, apiFetch]);
 
   useEffect(() => {
     fetchAnnouncements();
@@ -96,7 +98,7 @@ export default function AnnouncementsPage() {
     if (announcement && !announcement.isRead) {
       setMarkingRead(id);
       try {
-        const res = await fetch('/api/read-receipts', {
+        const res = await apiFetch('/api/read-receipts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

@@ -10,6 +10,7 @@ import {
   getApprovalRequest,
 } from '@/lib/approvals/requestRepo';
 import { canCancel } from '@/lib/approvals/canApprove';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function POST(
   request: NextRequest,
@@ -17,9 +18,9 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  // ユーザー情報取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
-  const userName = request.headers.get('x-user-name') ?? '佐藤太郎';
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   const existing = getApprovalRequest(id);
   if (!existing) {
@@ -30,14 +31,14 @@ export async function POST(
   }
 
   // 取消権限チェック
-  if (!canCancel(userId, existing)) {
+  if (!canCancel(user.uid, existing)) {
     return NextResponse.json(
       { error: '取消権限がありません（申請者本人のみ、draft/pending状態のみ）' },
       { status: 403 }
     );
   }
 
-  const result = cancelRequest(id, userId, userName);
+  const result = cancelRequest(id, user.uid, user.name);
 
   if (!result.success) {
     return NextResponse.json(

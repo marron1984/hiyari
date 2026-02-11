@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import {
   sendMorningDigest,
@@ -24,21 +24,6 @@ function isValidAppRole(role: string): role is AppRole {
   return ['admin', 'executive', 'manager', 'leader', 'staff', 'auditor'].includes(role);
 }
 
-/**
- * サーバー側でユーザー情報を取得
- */
-async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
-  const headersList = await headers();
-
-  const userIdHeader = headersList.get('x-user-id');
-  const roleHeader = headersList.get('x-user-role');
-
-  const userId = userIdHeader ?? 'user_001';
-  const role: AppRole =
-    roleHeader && isValidAppRole(roleHeader) ? (roleHeader as AppRole) : 'admin';
-
-  return { userId, role };
-}
 
 /**
  * GET /api/home/digest
@@ -51,10 +36,13 @@ async function getCurrentUser(): Promise<{ userId: string; role: AppRole }> {
  */
 export async function GET(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
+    // 認証
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     // admin のみ実行可能
-    if (currentUser.role !== 'admin') {
+    if ((user.role as AppRole) !== 'admin') {
       return NextResponse.json(
         { error: 'Admin access required' },
         { status: 403 }
@@ -67,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     // 特定ロールのみ
     if (roleParam && isValidAppRole(roleParam)) {
-      const digest = buildDailyDigest(roleParam, `user_${roleParam}`);
+      const digest = buildDailyDigest(roleParam, user.uid);
       const message = formatDigestAsMessage(digest);
 
       if (format === 'message') {
@@ -140,10 +128,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const currentUser = await getCurrentUser();
+    // 認証
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     // admin のみ実行可能
-    if (currentUser.role !== 'admin') {
+    if ((user.role as AppRole) !== 'admin') {
       return NextResponse.json(
         { error: 'Admin access required' },
         { status: 403 }
@@ -159,7 +150,7 @@ export async function POST(request: NextRequest) {
 
     // 特定ロールのみ
     if (role && isValidAppRole(role)) {
-      const result = sendMorningDigestForRole(role, `user_${role}`, {
+      const result = sendMorningDigestForRole(role, user.uid, {
         sendEmpty: sendEmpty ?? false,
       });
 

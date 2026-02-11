@@ -6,11 +6,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { listApprovalRequests } from '@/lib/approvals/requestRepo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { RequestStatus, RequestType } from '@/lib/approvals/types';
 
 export async function GET(request: NextRequest) {
-  // ユーザーID取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get('status') as RequestStatus | null;
@@ -19,7 +21,7 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(searchParams.get('offset') ?? '0', 10);
 
   const { requests, total } = listApprovalRequests({
-    requesterUserId: userId,
+    requesterUserId: user.uid,
     status: status ?? undefined,
     requestType: requestType ?? undefined,
     limit,

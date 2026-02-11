@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { saveCheckin, getCheckin } from '@/lib/chaos';
 import { CheckinFormData, SUPPORT_PURPOSE_TEXT } from '@/types/chaos';
 import { createAuditLog } from '@/lib/chaos';
@@ -43,16 +44,9 @@ function validateCheckinData(data: unknown): { valid: boolean; error?: string; d
 
 export async function POST(request: NextRequest) {
   try {
-    // 認証チェック（実際のプロダクションではセッションから取得）
-    const userId = request.headers.get('x-user-id');
-    const userName = request.headers.get('x-user-name');
-
-    if (!userId || !userName) {
-      return NextResponse.json(
-        { error: '認証が必要です', supportText: SUPPORT_PURPOSE_TEXT },
-        { status: 401 }
-      );
-    }
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     // リクエストボディのパース
     let body: unknown;
@@ -89,12 +83,12 @@ export async function POST(request: NextRequest) {
     }
 
     // チェックイン保存（スコア計算と介入判定も内部で実行）
-    const checkinId = await saveCheckin(userId, userName, date, validation.data);
+    const checkinId = await saveCheckin(user.uid, user.name, date, validation.data);
 
     // 監査ログ（個人のメモはログに出さない）
     await createAuditLog(
-      userId,
-      userName,
+      user.uid,
+      user.name,
       'checkin_submitted',
       'staffCheckins',
       checkinId,
@@ -102,7 +96,7 @@ export async function POST(request: NextRequest) {
     );
 
     // 保存後のチェックインを取得して返す
-    const savedCheckin = await getCheckin(userId, date);
+    const savedCheckin = await getCheckin(user.uid, date);
 
     return NextResponse.json({
       success: true,
@@ -124,14 +118,9 @@ export async function POST(request: NextRequest) {
 // GET: 指定日のチェックイン取得
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id');
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: '認証が必要です' },
-        { status: 401 }
-      );
-    }
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
@@ -144,7 +133,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const checkin = await getCheckin(userId, date);
+    const checkin = await getCheckin(user.uid, date);
 
     return NextResponse.json({
       success: true,

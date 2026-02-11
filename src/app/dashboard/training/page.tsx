@@ -28,10 +28,12 @@ import {
   TRAINING_CATEGORY_CONFIG,
   ATTENDANCE_STATUS_CONFIG,
 } from '@/lib/training/types';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 type TabType = 'sessions' | 'courses' | 'my';
 
 export default function TrainingPage() {
+  const apiFetch = useApiFetch();
   const [activeTab, setActiveTab] = useState<TabType>('sessions');
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [courses, setCourses] = useState<TrainingCourse[]>([]);
@@ -46,33 +48,33 @@ export default function TrainingPage() {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
 
-      const res = await fetch(`/api/training/sessions?${params.toString()}`);
+      const res = await apiFetch(`/api/training/sessions?${params.toString()}`);
       const data = await res.json();
       setSessions(data.sessions || []);
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
     }
-  }, [statusFilter]);
+  }, [statusFilter, apiFetch]);
 
   const fetchCourses = useCallback(async () => {
     try {
-      const res = await fetch('/api/training/courses?active=true');
+      const res = await apiFetch('/api/training/courses?active=true');
       const data = await res.json();
       setCourses(data.courses || []);
     } catch (error) {
       console.error('Failed to fetch courses:', error);
     }
-  }, []);
+  }, [apiFetch]);
 
   const fetchMySummary = useCallback(async () => {
     try {
-      const res = await fetch('/api/training/my');
+      const res = await apiFetch('/api/training/my');
       const data = await res.json();
       setMySummary(data);
     } catch (error) {
       console.error('Failed to fetch my summary:', error);
     }
-  }, []);
+  }, [apiFetch]);
 
   useEffect(() => {
     const loadData = async () => {

@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import * as repo from '@/lib/org/repo';
 import type { ViewerContext, UpdateOrgUnitInput } from '@/lib/org/types';
 import { canViewOrgTree, canEditOrg } from '@/lib/org/types';
@@ -15,9 +16,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     if (!canViewOrgTree(viewer.role)) {
@@ -56,9 +61,13 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const viewer: ViewerContext = {
-      userId: 'user_admin',
-      role: 'admin',
+      userId: user.uid,
+      role: user.role as ViewerContext['role'],
     };
 
     if (!canEditOrg(viewer.role)) {

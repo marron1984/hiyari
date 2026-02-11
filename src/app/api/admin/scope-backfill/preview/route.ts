@@ -6,21 +6,19 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { preview } from '@/lib/admin/backfill/repo';
 import { canAccessBackfill } from '@/lib/admin/backfill/types';
 import type { BackfillEntityType, BackfillFilters, AdminViewerContext } from '@/lib/admin/backfill/types';
 
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_ADMIN = {
-  userId: 'user_admin',
-  userName: '管理者',
-  role: 'admin' as const,
-};
-
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!canAccessBackfill(DEMO_ADMIN.role)) {
+    if (!canAccessBackfill(user.role)) {
       return NextResponse.json(
         { success: false, error: 'この操作にはadmin権限が必要です' },
         { status: 403 }
@@ -54,8 +52,8 @@ export async function POST(request: NextRequest) {
     };
 
     const viewer: AdminViewerContext = {
-      userId: DEMO_ADMIN.userId,
-      userName: DEMO_ADMIN.userName,
+      userId: user.uid,
+      userName: user.name,
       role: 'admin',
     };
 

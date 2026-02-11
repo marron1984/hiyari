@@ -12,6 +12,7 @@ import {
   updateCalculationRef,
   deleteCalculationRef,
 } from '@/lib/kpiDictionary/calculationRefRepo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { UpdateCalculationRefRequest } from '@/lib/kpiDictionary/types';
 
 interface RouteContext {
@@ -54,8 +55,11 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { refId } = await context.params;
     const decodedRefId = decodeURIComponent(refId);
 
-    // 権限チェック（簡易版）
-    const role = request.headers.get('x-user-role') || 'staff';
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as string;
     if (!['admin', 'executive', 'manager'].includes(role)) {
       return NextResponse.json(
         { error: '権限がありません' },
@@ -90,9 +94,11 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const { refId } = await context.params;
     const decodedRefId = decodeURIComponent(refId);
 
-    // 権限チェック（簡易版）
-    const role = request.headers.get('x-user-role') || 'staff';
-    if (role !== 'admin') {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (user.role !== 'admin') {
       return NextResponse.json(
         { error: '管理者権限が必要です' },
         { status: 403 }

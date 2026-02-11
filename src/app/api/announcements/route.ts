@@ -12,7 +12,7 @@ import {
   createAnnouncement,
 } from '@/lib/announcements/store';
 import { listReadIds, initializeDemoReadReceipts } from '@/lib/readTracking/repo';
-import { checkRole } from '@/lib/auth/requireRole';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import type { AnnouncementListItem, AnnouncementFilter, CreateAnnouncementRequest } from '@/lib/announcements/types';
 
@@ -26,10 +26,11 @@ export async function GET(request: NextRequest) {
     demoInitialized = true;
   }
 
-  // 暫定：ユーザー情報はヘッダーから取得（本番では認証から）
-  const userId = request.headers.get('x-user-id') ?? 'user_001';
-  const userRole = (request.headers.get('x-user-role') ?? 'staff') as AppRole;
-  const userBranchId = request.headers.get('x-user-branch-id') ?? undefined;
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
+  const userRole = user.role as AppRole;
 
   const { searchParams } = new URL(request.url);
   const onlyUnread = searchParams.get('onlyUnread') === 'true';
@@ -38,18 +39,18 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(searchParams.get('offset') ?? '0', 10);
 
   // 管理者は全件、それ以外は自分対象のみ
-  const isManager = await checkRole(['admin', 'executive', 'manager']);
+  const isManager = ['admin', 'executive', 'manager'].includes(userRole);
   const showAll = searchParams.get('all') === 'true' && isManager;
 
   const filter: AnnouncementFilter = { search, limit, offset };
 
   const { announcements, total } = showAll
     ? listAnnouncements(filter)
-    : listAnnouncementsForUser(userRole, userId, userBranchId, filter);
+    : listAnnouncementsForUser(userRole, user.uid, user.baseId, filter);
 
   // 既読情報を付与
   const announcementIds = announcements.map((a) => a.id);
-  const readIds = listReadIds(userId, 'announcement', announcementIds);
+  const readIds = listReadIds(user.uid, 'announcement', announcementIds);
 
   let items: AnnouncementListItem[] = announcements.map((a) => ({
     ...a,
@@ -72,18 +73,19 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   // 管理者権限チェック
-  const isManager = await checkRole(['admin', 'executive', 'manager']);
+  const userRole = user.role as AppRole;
+  const isManager = ['admin', 'executive', 'manager'].includes(userRole);
   if (!isManager) {
     return NextResponse.json(
       { error: 'アクセス権限がありません' },
       { status: 403 }
     );
   }
-
-  // 暫定：作成者情報
-  const authorId = request.headers.get('x-user-id') ?? 'user_001';
-  const authorName = request.headers.get('x-user-name') ?? 'システム管理者';
 
   // ボディ解析
   let body: CreateAnnouncementRequest;
@@ -112,7 +114,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 作成
-  const announcement = createAnnouncement(body, authorId, authorName);
+  const announcement = createAnnouncement(body, user.uid, user.name);
 
   return NextResponse.json({
     success: true,
