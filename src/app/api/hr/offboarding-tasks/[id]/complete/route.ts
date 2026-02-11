@@ -36,7 +36,7 @@ export async function POST(
   }
 
   // タスク存在確認
-  const existing = getOffboardingTask(id);
+  const existing = await getOffboardingTask(id);
   if (!existing) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
@@ -57,7 +57,7 @@ export async function POST(
   }
 
   try {
-    const task = completeOffboardingTask(id, body, user.uid);
+    const task = await completeOffboardingTask(id, body, user.uid);
     if (!task) {
       return NextResponse.json({ error: 'Failed to complete' }, { status: 500 });
     }

@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     }
 
     // クエリ実行
-    const result = queryAuditLogs({
+    const result = await queryAuditLogs({
       from,
       to,
       source,

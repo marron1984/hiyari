@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Badge, Button } from '@/components/ui';
+import { useToast } from '@/components/ui/Toast';
 import {
   Building2,
   Users,
@@ -37,6 +38,7 @@ const TYPE_ICONS: Record<RefSourceType, React.ReactNode> = {
 
 export default function RefSourcesPage() {
   const apiFetch = useApiFetch();
+  const { toast } = useToast();
   const [sources, setSources] = useState<RefSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<RefSourceStatus | ''>('');
@@ -138,7 +140,7 @@ export default function RefSourcesPage() {
         fetchData();
       } else {
         const data = await res.json();
-        alert(data.error || '作成に失敗しました');
+        toast(data.error || '作成に失敗しました', 'error');
       }
     } catch (error) {
       console.error('Failed to create:', error);

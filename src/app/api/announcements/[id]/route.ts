@@ -5,8 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAnnouncementById } from '@/lib/announcements/store';
-import { markRead, isRead as checkIsRead, initializeDemoReadReceipts } from '@/lib/readTracking/repo';
+import { getAnnouncementById } from '@/lib/announcements/store.firestore';
+import { markRead, isRead as checkIsRead, initializeDemoReadReceipts } from '@/lib/readTracking/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 // デモ用初期化フラグ
@@ -18,7 +18,7 @@ export async function GET(
 ) {
   // デモデータ初期化
   if (!demoInitialized) {
-    initializeDemoReadReceipts();
+    await initializeDemoReadReceipts();
     demoInitialized = true;
   }
 
@@ -29,7 +29,7 @@ export async function GET(
   const { id } = await params;
 
   // 周知を取得
-  const announcement = getAnnouncementById(id);
+  const announcement = await getAnnouncementById(id);
   if (!announcement) {
     return NextResponse.json(
       { error: '周知事項が見つかりません' },
@@ -46,8 +46,8 @@ export async function GET(
   }
 
   // 既読をマーク（開いたら既読）
-  const wasUnread = !checkIsRead(user.uid, 'announcement', id);
-  markRead(user.uid, 'announcement', id);
+  const wasUnread = !(await checkIsRead(user.uid, 'announcement', id));
+  await markRead(user.uid, 'announcement', id);
 
   return NextResponse.json({
     announcement: {

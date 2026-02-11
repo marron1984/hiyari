@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     }
 
     // エクスポート実行（RBAC適用）
-    const result = exportApprovalLogsForCsv(filter, user.role as AppRole, user.uid);
+    const result = await exportApprovalLogsForCsv(filter, user.role as AppRole, user.uid);
 
     if (!result.allowed) {
       return NextResponse.json(

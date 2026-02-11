@@ -10,7 +10,7 @@ import {
   updateFlowStep,
   removeFlowStep,
   getApprovalFlow,
-} from '@/lib/approvals/flowRepo';
+} from '@/lib/approvals/flowRepo.firestore';
 import { checkRole } from '@/lib/auth/requireRole';
 
 export async function PATCH(
@@ -29,7 +29,7 @@ export async function PATCH(
   }
 
   // フロー存在チェック
-  const flow = getApprovalFlow(id);
+  const flow = await getApprovalFlow(id);
   if (!flow) {
     return NextResponse.json(
       { error: 'フローが見つかりません' },
@@ -47,7 +47,7 @@ export async function PATCH(
     );
   }
 
-  const result = updateFlowStep(stepId, {
+  const result = await updateFlowStep(stepId, {
     stepOrder: body.stepOrder,
     approverType: body.approverType,
     approverRole: body.approverRole,
@@ -84,7 +84,7 @@ export async function DELETE(
   }
 
   // フロー存在チェック
-  const flow = getApprovalFlow(id);
+  const flow = await getApprovalFlow(id);
   if (!flow) {
     return NextResponse.json(
       { error: 'フローが見つかりません' },
@@ -92,7 +92,7 @@ export async function DELETE(
     );
   }
 
-  const result = removeFlowStep(stepId);
+  const result = await removeFlowStep(stepId);
 
   if (!result.success) {
     return NextResponse.json(

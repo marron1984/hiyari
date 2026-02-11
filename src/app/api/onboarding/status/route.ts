@@ -14,7 +14,7 @@ import {
   syncOnboardingForUser,
   getCurrentRequirementsVersion,
 } from '@/lib/onboarding/repo';
-import { getUserById } from '@/lib/roles/user-store';
+import { getUserById } from '@/lib/roles/user-store.firestore';
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const userId = user.uid;
 
     // ユーザー情報を取得
-    const storeUser = getUserById(userId);
+    const storeUser = await getUserById(userId);
     if (!storeUser) {
       return NextResponse.json(
         { error: 'ユーザーが見つかりません' },

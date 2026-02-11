@@ -48,6 +48,7 @@ export default function AlertCenterPage() {
   const [stats, setStats] = useState<AlertStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // フィルター状態
   const [selectedTab, setSelectedTab] = useState<AlertType | 'all'>('all');
@@ -57,6 +58,7 @@ export default function AlertCenterPage() {
   // データ取得
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
       if (selectedStatus !== 'all') params.set('status', selectedStatus);
@@ -73,8 +75,9 @@ export default function AlertCenterPage() {
 
       setAlerts(alertsData.alerts ?? []);
       setStats(statsData);
-    } catch (error) {
-      console.error('Failed to fetch alerts:', error);
+    } catch (err) {
+      console.error('Failed to fetch alerts:', err);
+      setError('アラートの取得に失敗しました');
     } finally {
       setLoading(false);
     }
@@ -169,6 +172,18 @@ export default function AlertCenterPage() {
           </div>
         </div>
 
+        {/* エラーバナー */}
+        {error && (
+          <Card className="p-4 mb-6 bg-red-50 border-red-200">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-red-700">{error}</p>
+              <Button variant="secondary" size="sm" onClick={fetchData} disabled={loading}>
+                再試行
+              </Button>
+            </div>
+          </Card>
+        )}
+
         {/* サマリーカード */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -180,7 +195,7 @@ export default function AlertCenterPage() {
             >
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl">🔔</span>
+                  <span className="text-2xl" role="img" aria-label="未対応">🔔</span>
                   <span className="text-3xl font-bold text-red-600">{stats.open}</span>
                 </div>
                 <p className="text-sm text-zinc-600 mt-1">未対応</p>
@@ -199,7 +214,7 @@ export default function AlertCenterPage() {
             >
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl">👁️</span>
+                  <span className="text-2xl" role="img" aria-label="確認済">👁️</span>
                   <span className="text-3xl font-bold text-amber-600">{stats.acknowledged}</span>
                 </div>
                 <p className="text-sm text-zinc-600 mt-1">確認済</p>
@@ -213,7 +228,7 @@ export default function AlertCenterPage() {
             >
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl">✅</span>
+                  <span className="text-2xl" role="img" aria-label="解決済">✅</span>
                   <span className="text-3xl font-bold text-green-600">{stats.resolved}</span>
                 </div>
                 <p className="text-sm text-zinc-600 mt-1">解決済</p>
@@ -222,7 +237,7 @@ export default function AlertCenterPage() {
             <Card>
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl">📊</span>
+                  <span className="text-2xl" role="img" aria-label="合計">📊</span>
                   <span className="text-3xl font-bold text-zinc-700">
                     {stats.open + stats.acknowledged + stats.resolved}
                   </span>

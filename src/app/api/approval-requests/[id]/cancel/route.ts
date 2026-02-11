@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   cancelRequest,
   getApprovalRequest,
-} from '@/lib/approvals/requestRepo';
+} from '@/lib/approvals/requestRepo.firestore';
 import { canCancel } from '@/lib/approvals/canApprove';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
@@ -22,7 +22,7 @@ export async function POST(
   if (!isApiUser(authResult)) return authResult;
   const user = authResult;
 
-  const existing = getApprovalRequest(id);
+  const existing = await getApprovalRequest(id);
   if (!existing) {
     return NextResponse.json(
       { error: '申請が見つかりません' },
@@ -38,7 +38,7 @@ export async function POST(
     );
   }
 
-  const result = cancelRequest(id, user.uid, user.name);
+  const result = await cancelRequest(id, user.uid, user.name);
 
   if (!result.success) {
     return NextResponse.json(

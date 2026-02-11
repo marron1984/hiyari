@@ -39,7 +39,7 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const employee = getEmployeeById(id);
+  const employee = await getEmployeeById(id);
   if (!employee) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
@@ -51,11 +51,11 @@ export async function GET(
   const response: Record<string, unknown> = { employee };
 
   if (includeEvents) {
-    response.events = getHrEvents(employee.userId, 50);
+    response.events = await getHrEvents(employee.userId, 50);
   }
 
   if (includeTasks) {
-    response.offboardingTasks = listOffboardingTasks({ userId: employee.userId });
+    response.offboardingTasks = await listOffboardingTasks({ userId: employee.userId });
   }
 
   return NextResponse.json(response);
@@ -87,7 +87,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const employee = updateEmployee(id, body, user.uid);
+  const employee = await updateEmployee(id, body, user.uid);
   if (!employee) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }

@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listRepairs, createRepair } from '@/lib/repairs/repo';
+import { listRepairs, createRepair } from '@/lib/repairs/repo.firestore';
 import type { RepairStatus, RepairCategory, SafetyRisk } from '@/lib/repairs/types';
 import type { AppRole } from '@/config/appRoles';
 import { validateApiGuardrail } from '@/lib/scope/guardrail';
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     };
 
     const viewer = { userId: user.uid, role: user.role as AppRole };
-    const { repairs, total } = listRepairs(viewer, filter);
+    const { repairs, total } = await listRepairs(viewer, filter);
 
     return NextResponse.json({ repairs, total });
   } catch (error) {
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     // Task 035: staff 向け businessUnitId 自動推定
     let finalBusinessUnitId = businessUnitId;
     if (requiresInference(user.role as AppRole)) {
-      const inferResult = processStaffCreation(
+      const inferResult = await processStaffCreation(
         user.uid,
         user.role as AppRole,
         'repairs',
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
       finalBusinessUnitId = inferResult.businessUnitId;
     }
 
-    const repair = createRepair(
+    const repair = await createRepair(
       {
         title,
         description,

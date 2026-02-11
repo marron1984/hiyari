@@ -161,9 +161,6 @@ export async function exchangeCodeForToken(code: string): Promise<{
 
   console.log('[FreeeToken] コードをトークンに交換', { code: code.substring(0, 10) + '...' });
 
-  // ダミー実装: 実際のAPIコールの代わりにダミートークンを返す
-  // 本番では以下のコメントアウト部分を使用
-  /*
   const response = await fetch(FREEE_OAUTH_CONFIG.tokenUrl, {
     method: 'POST',
     headers: {
@@ -189,15 +186,6 @@ export async function exchangeCodeForToken(code: string): Promise<{
     refreshToken: data.refresh_token,
     expiresIn: data.expires_in,
   };
-  */
-
-  // ダミー実装
-  console.log('[FreeeToken] ダミートークン生成');
-  return {
-    accessToken: `dummy_access_token_${Date.now()}`,
-    refreshToken: `dummy_refresh_token_${Date.now()}`,
-    expiresIn: 7200, // 2時間
-  };
 }
 
 /**
@@ -217,8 +205,6 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
 
   console.log('[FreeeToken] トークンリフレッシュ');
 
-  // ダミー実装
-  /*
   const response = await fetch(FREEE_OAUTH_CONFIG.tokenUrl, {
     method: 'POST',
     headers: {
@@ -242,15 +228,6 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
     expiresIn: data.expires_in,
-  };
-  */
-
-  // ダミー実装
-  console.log('[FreeeToken] ダミートークンリフレッシュ');
-  return {
-    accessToken: `dummy_access_token_refreshed_${Date.now()}`,
-    refreshToken: `dummy_refresh_token_${Date.now()}`,
-    expiresIn: 7200,
   };
 }
 
@@ -306,7 +283,7 @@ export async function refreshFreeeTokenIfNeeded(
   }
 }
 
-// ======== 事業所情報取得（ダミー） ========
+// ======== 事業所情報取得 ========
 
 /**
  * freee事業所一覧を取得
@@ -314,8 +291,6 @@ export async function refreshFreeeTokenIfNeeded(
 export async function getFreeeCompanies(accessToken: string): Promise<Array<{ id: number; name: string }>> {
   console.log('[FreeeToken] 事業所一覧取得');
 
-  // ダミー実装
-  /*
   const response = await fetch(`${FREEE_OAUTH_CONFIG.apiBaseUrl}/api/1/companies`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -327,15 +302,8 @@ export async function getFreeeCompanies(accessToken: string): Promise<Array<{ id
   }
 
   const data = await response.json();
-  return data.companies.map((c: any) => ({
+  return data.companies.map((c: { id: number; display_name?: string; name: string }) => ({
     id: c.id,
     name: c.display_name || c.name,
   }));
-  */
-
-  // ダミー実装
-  return [
-    { id: 12345, name: 'テスト株式会社' },
-    { id: 67890, name: 'サンプル事業所' },
-  ];
 }

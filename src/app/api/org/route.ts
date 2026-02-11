@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import * as repo from '@/lib/org/repo';
+import * as repo from '@/lib/org/repo.firestore';
 import type { ViewerContext, CreateOrgUnitInput } from '@/lib/org/types';
 import { canViewOrgTree, canEditOrg } from '@/lib/org/types';
 
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get('includeInactive') === 'true';
 
-    const units = repo.listOrgUnits({ includeInactive });
+    const units = await repo.listOrgUnits({ includeInactive });
 
     return NextResponse.json({ success: true, units });
   } catch (error) {
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = repo.createOrgUnit(body, viewer.userId);
+    const result = await repo.createOrgUnit(body, viewer.userId);
 
     if (!result.success) {
       return NextResponse.json(

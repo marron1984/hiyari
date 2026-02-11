@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import * as repo from '@/lib/external-accounts/repo';
+import * as repo from '@/lib/external-accounts/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/external-accounts/types';
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       role: user.role as ViewerContext['role'],
     };
 
-    const stats = repo.getStats(viewer);
+    const stats = await repo.getStats(viewer);
 
     if (!stats) {
       return NextResponse.json(

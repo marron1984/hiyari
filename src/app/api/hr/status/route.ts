@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   const user = authResult;
 
   // 従業員レコードを検索
-  const employee = getEmployeeByUserId(user.uid);
+  const employee = await getEmployeeByUserId(user.uid);
 
   // 従業員レコードがない場合（旧ユーザー等）
   if (!employee) {

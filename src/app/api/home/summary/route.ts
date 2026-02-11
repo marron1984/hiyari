@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     const widgetTypes: WidgetType[] = ROLE_WIDGET_CONFIG[effectiveRole] ?? [];
 
     // ウィジェットを構築
-    const widgets = buildWidgetsForRole(effectiveRole, effectiveUserId, widgetTypes);
+    const widgets = await buildWidgetsForRole(effectiveRole, effectiveUserId, widgetTypes);
 
     // Task 053: 役職に応じたウィジェットフィルタリング
     // canViewFinance=true の役職

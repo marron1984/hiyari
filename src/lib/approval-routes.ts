@@ -26,16 +26,15 @@ export async function getApprovalRoutes(
 ): Promise<RingiApprovalRoute[]> {
   const db = getAdminDb();
 
-  // シンプルなクエリ（index不要）
-  const routesSnap = await db.collection('approval_routes').get();
+  // tenantIdでサーバー側フィルタ（単一フィールドなのでindex不要）
+  const routesSnap = await db.collection('approval_routes')
+    .where('tenantId', '==', tenantId)
+    .get();
 
   const routes: RingiApprovalRoute[] = [];
 
   for (const doc of routesSnap.docs) {
     const data = doc.data();
-
-    // JS側でtenantIdフィルタ
-    if (data.tenantId !== tenantId) continue;
 
     // ステップを取得（index不要：シンプルget + JS sort）
     const stepsSnap = await db
@@ -361,13 +360,15 @@ export async function setDefaultApprovalRoute(
 ): Promise<void> {
   const db = getAdminDb();
 
-  // 既存のデフォルトを解除（index不要：全件取得してJS側でフィルタ）
-  const allRoutes = await db.collection('approval_routes').get();
+  // 既存のデフォルトを解除（tenantIdでサーバー側フィルタ）
+  const allRoutes = await db.collection('approval_routes')
+    .where('tenantId', '==', tenantId)
+    .get();
 
   const batch = db.batch();
   allRoutes.docs.forEach(doc => {
     const data = doc.data();
-    if (data.tenantId === tenantId && data.isDefault === true) {
+    if (data.isDefault === true) {
       batch.update(doc.ref, { isDefault: false, updatedAt: Timestamp.now() });
     }
   });

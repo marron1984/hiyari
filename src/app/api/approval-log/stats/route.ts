@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 統計取得（RBAC適用）
-    const stats = getApprovalLogStats(filter, user.role as AppRole, user.uid);
+    const stats = await getApprovalLogStats(filter, user.role as AppRole, user.uid);
 
     return NextResponse.json(stats);
   } catch (error) {

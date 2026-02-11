@@ -24,6 +24,7 @@ import {
   Facility,
 } from '@/types';
 import { Megaphone, Plus, Trash2, Archive, RefreshCw } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function InsightsAdminPage() {
   const { user } = useAuth();
@@ -34,6 +35,7 @@ export default function InsightsAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<InsightFormData>({
     type: 'custom',
@@ -107,15 +109,21 @@ export default function InsightsAdminPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!user || !hasMinRole(user.role, 'admin')) return;
-    if (!confirm('本当に削除しますか？')) return;
+    setDeleteTargetId(id);
+  };
+
+  const executeDelete = async () => {
+    if (!user || !deleteTargetId) return;
     try {
-      await deleteInsight(id, user.id, user.role);
+      await deleteInsight(deleteTargetId, user.id, user.role);
       setSuccess('削除しました');
       await fetchData();
     } catch (err) {
       setError(err instanceof Error ? err.message : '削除に失敗しました');
+    } finally {
+      setDeleteTargetId(null);
     }
   };
 
@@ -328,6 +336,15 @@ export default function InsightsAdminPage() {
             )}
           </div>
         </main>
+        <ConfirmDialog
+          open={!!deleteTargetId}
+          title="インサイトの削除"
+          message="本当に削除しますか？"
+          confirmLabel="削除する"
+          variant="danger"
+          onConfirm={executeDelete}
+          onCancel={() => setDeleteTargetId(null)}
+        />
       </div>
     </AuthGuard>
   );

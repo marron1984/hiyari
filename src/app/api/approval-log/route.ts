@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     filter.offset = offsetParam ? parseInt(offsetParam, 10) : 0;
 
     // ログ取得（RBAC適用）
-    const result = listApprovalLogs(filter, user.role as AppRole, user.uid);
+    const result = await listApprovalLogs(filter, user.role as AppRole, user.uid);
 
     return NextResponse.json({
       items: result.items,

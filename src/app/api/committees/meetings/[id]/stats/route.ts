@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getMeetingStats } from '@/lib/committees/repo';
+import { getMeetingStats } from '@/lib/committees/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(
@@ -17,7 +17,7 @@ export async function GET(
     if (!isApiUser(authResult)) return authResult;
 
     const { id } = await params;
-    const stats = getMeetingStats(id);
+    const stats = await getMeetingStats(id);
 
     if (!stats) {
       return NextResponse.json(

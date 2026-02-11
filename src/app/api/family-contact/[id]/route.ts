@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import { getFamilyLogById, updateFamilyLog } from '@/lib/familyLog/repo';
+import { getFamilyLogById, updateFamilyLog } from '@/lib/familyLog/repo.firestore';
 import { canEditFamilyLog } from '@/lib/familyLog/types';
 import type { AppRole } from '@/config/appRoles';
 import type { UpdateFamilyLogRequest, ViewerContext } from '@/lib/familyLog/types';
@@ -27,7 +27,7 @@ export async function GET(
     };
 
     const { id } = await params;
-    const log = getFamilyLogById(id, viewer);
+    const log = await getFamilyLogById(id, viewer);
 
     if (!log) {
       return NextResponse.json(
@@ -61,7 +61,7 @@ export async function PATCH(
     };
 
     const { id } = await params;
-    const log = getFamilyLogById(id, viewer);
+    const log = await getFamilyLogById(id, viewer);
 
     if (!log) {
       return NextResponse.json(
@@ -94,7 +94,7 @@ export async function PATCH(
     if (body.relatedType !== undefined) updateRequest.relatedType = body.relatedType;
     if (body.relatedId !== undefined) updateRequest.relatedId = body.relatedId;
 
-    const updated = updateFamilyLog(id, updateRequest, user.uid);
+    const updated = await updateFamilyLog(id, updateRequest, user.uid);
 
     return NextResponse.json({ log: updated });
   } catch (error) {

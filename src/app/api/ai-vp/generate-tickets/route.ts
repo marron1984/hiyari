@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     };
 
     // チケット生成実行
-    const result = generateTicketsFromTop3(viewer, options);
+    const result = await generateTicketsFromTop3(viewer, options);
 
     // dryRunでない場合、担当者への通知を作成
     if (!dryRun) {

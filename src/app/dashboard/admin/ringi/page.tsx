@@ -7,6 +7,8 @@ import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
 import { Card, CardContent, Button, Badge, Input, Select } from '@/components/ui';
 import { PageHeader, ErrorBanner, FilterChips } from '@/components/ui';
+import { useToast } from '@/components/ui/Toast';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   Clock,
   CheckCircle,
@@ -62,7 +64,9 @@ export default function AdminRingiPage() {
 
 function AdminRingiContent() {
   const { user, isAdmin, canApprove, firebaseUser } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('pending');
+  const [confirmAction, setConfirmAction] = useState<{ type: string; id: string; message: string } | null>(null);
   const [ringis, setRingis] = useState<Ringi[]>([]);
   const [routes, setRoutes] = useState<RingiApprovalRoute[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -192,14 +196,15 @@ function AdminRingiContent() {
 
       if (data.seeded) {
         // 作成成功 → リロード
+        toast('テンプレートを作成しました', 'success');
         await loadRoutes(false);
       } else {
         // 既に存在する場合
-        alert(data.message);
+        toast(data.message, 'info');
       }
     } catch (err) {
       console.error('Failed to seed templates:', err);
-      alert(err instanceof Error ? err.message : '作成に失敗しました');
+      toast(err instanceof Error ? err.message : '作成に失敗しました', 'error');
     } finally {
       setSeeding(false);
     }
@@ -221,10 +226,11 @@ function AdminRingiContent() {
     setActionLoading(ringiId);
     try {
       await approveRingi(ringiId, user.id, user.name, user.role, user.branchId);
+      toast('承認しました', 'success');
       await loadRingis(false);
     } catch (err) {
       console.error('Approve failed:', err);
-      alert(err instanceof Error ? err.message : '承認に失敗しました');
+      toast(err instanceof Error ? err.message : '承認に失敗しました', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -233,7 +239,7 @@ function AdminRingiContent() {
   // 却下処理
   const handleReject = async () => {
     if (!user || !rejectModal || !rejectReason.trim()) {
-      alert('却下理由を入力してください');
+      toast('却下理由を入力してください', 'warning');
       return;
     }
     setActionLoading(rejectModal.ringiId);
@@ -241,10 +247,11 @@ function AdminRingiContent() {
       await rejectRingi(rejectModal.ringiId, user.id, user.name, user.role, user.branchId, rejectReason);
       setRejectModal(null);
       setRejectReason('');
+      toast('却下しました', 'success');
       await loadRingis(false);
     } catch (err) {
       console.error('Reject failed:', err);
-      alert(err instanceof Error ? err.message : '却下に失敗しました');
+      toast(err instanceof Error ? err.message : '却下に失敗しました', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -309,11 +316,11 @@ function AdminRingiContent() {
   const saveRoute = async () => {
     if (!editingRoute || !editForm || !firebaseUser) return;
     if (!editForm.name.trim()) {
-      alert('経路名を入力してください');
+      toast('経路名を入力してください', 'warning');
       return;
     }
     if (editForm.steps.length === 0) {
-      alert('承認ステップを1つ以上追加してください');
+      toast('承認ステップを1つ以上追加してください', 'warning');
       return;
     }
 
@@ -344,18 +351,22 @@ function AdminRingiContent() {
       setEditingRoute(null);
       setEditForm(null);
       setIsNewRoute(false);
+      toast('保存しました', 'success');
     } catch (err) {
       console.error('Failed to save route:', err);
-      alert(err instanceof Error ? err.message : '保存に失敗しました');
+      toast(err instanceof Error ? err.message : '保存に失敗しました', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  // 経路削除
+  // 経路削除（確認後に実行）
+  const confirmDeleteRoute = (routeId: string) => {
+    setConfirmAction({ type: 'deleteRoute', id: routeId, message: 'この承認経路を削除しますか？' });
+  };
+
   const deleteRoute = async (routeId: string) => {
     if (!firebaseUser) return;
-    if (!confirm('この承認経路を削除しますか？')) return;
 
     setDeleting(routeId);
     try {
@@ -378,20 +389,24 @@ function AdminRingiContent() {
         setEditForm(null);
       }
 
+      toast('削除しました', 'success');
       // リスト再読み込み
       await loadRoutes(false);
     } catch (err) {
       console.error('Failed to delete route:', err);
-      alert(err instanceof Error ? err.message : '削除に失敗しました');
+      toast(err instanceof Error ? err.message : '削除に失敗しました', 'error');
     } finally {
       setDeleting(null);
     }
   };
 
-  // デフォルト経路設定
+  // デフォルト経路設定（確認後に実行）
+  const confirmSetDefault = (routeId: string) => {
+    setConfirmAction({ type: 'setDefault', id: routeId, message: 'この経路をデフォルトに設定しますか？' });
+  };
+
   const setDefaultRoute = async (routeId: string) => {
     if (!firebaseUser) return;
-    if (!confirm('この経路をデフォルトに設定しますか？')) return;
 
     setSaving(true);
     try {
@@ -410,11 +425,12 @@ function AdminRingiContent() {
         throw new Error(data.error || '設定に失敗しました');
       }
 
+      toast('デフォルト経路を設定しました', 'success');
       // リスト再読み込み
       await loadRoutes(false);
     } catch (err) {
       console.error('Failed to set default route:', err);
-      alert(err instanceof Error ? err.message : '設定に失敗しました');
+      toast(err instanceof Error ? err.message : '設定に失敗しました', 'error');
     } finally {
       setSaving(false);
     }
@@ -655,7 +671,7 @@ function AdminRingiContent() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setDefaultRoute(route.id);
+                                  confirmSetDefault(route.id);
                                 }}
                                 className="p-1.5 hover:bg-blue-50 rounded text-zinc-400 hover:text-blue-600"
                                 title="デフォルトに設定"
@@ -666,7 +682,7 @@ function AdminRingiContent() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                deleteRoute(route.id);
+                                confirmDeleteRoute(route.id);
                               }}
                               className="p-1.5 hover:bg-red-50 rounded text-zinc-400 hover:text-red-600"
                               disabled={deleting === route.id}
@@ -1044,6 +1060,25 @@ function AdminRingiContent() {
           </>
         )}
       </div>
+
+      {/* 確認ダイアログ */}
+      <ConfirmDialog
+        open={!!confirmAction}
+        title="確認"
+        message={confirmAction?.message ?? ''}
+        confirmLabel={confirmAction?.type === 'deleteRoute' ? '削除' : '設定'}
+        variant={confirmAction?.type === 'deleteRoute' ? 'danger' : 'default'}
+        onConfirm={async () => {
+          if (!confirmAction) return;
+          if (confirmAction.type === 'deleteRoute') {
+            await deleteRoute(confirmAction.id);
+          } else if (confirmAction.type === 'setDefault') {
+            await setDefaultRoute(confirmAction.id);
+          }
+          setConfirmAction(null);
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
 
       {/* Reject Modal */}
       {rejectModal && (

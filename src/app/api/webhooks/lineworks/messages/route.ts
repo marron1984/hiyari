@@ -7,6 +7,8 @@ import {
   generateDefaultReply,
 } from '@/lib/ai-vp-messages';
 import { AiReplyStatus } from '@/types/ai-vp';
+import { sendLineWorksMessage } from '@/lib/lineworks';
+import { getLineWorksUsers, isLineWorksAdminConfigured } from '@/lib/lineworks-admin';
 
 // Firebase Admin SDK初期化
 if (getApps().length === 0) {
@@ -85,7 +87,7 @@ export async function POST(request: NextRequest) {
       messageId,
       roomId: payload.source.channelId || 'direct',
       senderId: payload.source.userId,
-      senderName: 'LINE WORKS User', // TODO: ユーザー名を取得
+      senderName: await resolveSenderName(payload.source.userId),
       text: payload.content.text,
       receivedAt: now,
       createdAt: now,
@@ -144,8 +146,29 @@ export async function POST(request: NextRequest) {
 
     await db.collection('aiReplyAuditLogs').add(auditData);
 
-    // L1の場合、Preview環境でなければ自動送信処理をキックできる
-    // TODO: PR4で実装 - 自動送信ジョブ
+    // L1の場合、Preview環境でなければ自動送信
+    if (riskLevel === 'L1' && APP_ENV !== 'preview' && payload.source.channelId) {
+      try {
+        const sendResult = await sendLineWorksMessage(draftText, payload.source.channelId);
+        if (sendResult.success) {
+          await db.collection('aiReplies').doc(replyRef.id).update({
+            status: 'sent',
+            sentAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          });
+          await db.collection('aiReplyAuditLogs').add({
+            tenantId: DEFAULT_TENANT_ID,
+            replyId: replyRef.id,
+            action: 'auto_sent',
+            details: { riskLevel: 'L1', channelId: payload.source.channelId },
+            dryRun: false,
+            createdAt: Timestamp.now(),
+          });
+        }
+      } catch (sendError) {
+        console.error('[LW Webhook] L1 auto-send error:', sendError);
+      }
+    }
 
     return NextResponse.json({
       ok: true,
@@ -165,6 +188,27 @@ export async function POST(request: NextRequest) {
       { error: 'Internal server error', message: errorMessage },
       { status: 500 }
     );
+  }
+}
+
+// ユーザー名キャッシュ（プロセス内）
+const userNameCache = new Map<string, string>();
+
+async function resolveSenderName(userId: string): Promise<string> {
+  if (userNameCache.has(userId)) return userNameCache.get(userId)!;
+  if (!isLineWorksAdminConfigured()) return userId;
+
+  try {
+    const users = await getLineWorksUsers();
+    for (const u of users) {
+      const name = u.userName
+        ? `${u.userName.lastName} ${u.userName.firstName}`.trim()
+        : u.userId;
+      userNameCache.set(u.userId, name);
+    }
+    return userNameCache.get(userId) ?? userId;
+  } catch {
+    return userId;
   }
 }
 

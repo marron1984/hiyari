@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getById, markPaid } from '@/lib/receivables/repo';
+import { getById, markPaid } from '@/lib/receivables/repo.firestore';
 import { canEditReceivables } from '@/lib/receivables/types';
 import type { UserRole as ReceivablesRole } from '@/lib/receivables/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -42,7 +42,7 @@ export async function POST(
       );
     }
 
-    const existing = getById(id, viewer);
+    const existing = await getById(id, viewer);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -50,7 +50,7 @@ export async function POST(
       );
     }
 
-    const receivable = markPaid(id, paidAt, user.uid);
+    const receivable = await markPaid(id, paidAt, user.uid);
 
     return NextResponse.json({ receivable });
   } catch (error) {

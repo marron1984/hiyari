@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       role: user.role as ViewerContext['role'],
     };
 
-    const summary = repo.generateBusinessSummary(viewer, businessUnitId, range);
+    const summary = await repo.generateBusinessSummary(viewer, businessUnitId, range);
 
     if (!summary) {
       return NextResponse.json(

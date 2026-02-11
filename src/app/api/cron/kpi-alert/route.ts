@@ -9,7 +9,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getMockKPITimeSeries, getDefaultAlertConfigs } from '@/lib/kpi/mock-data';
+import { getAllKpiTimeSeries } from '@/lib/kpi/kpi-store.firestore';
+import { getDefaultAlertConfigs } from '@/lib/kpi/mock-data';
 import { detectAllAnomalies } from '@/lib/kpi/anomaly-detector';
 import {
   sendAlertNotifications,
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
     console.log('[KPI Alert] Starting anomaly detection...');
 
     // 1. KPIデータを取得
-    const timeSeriesData = getMockKPITimeSeries();
+    const timeSeriesData = await getAllKpiTimeSeries();
 
     // 2. DB優先でアラート設定を取得（Task 041: 堅牢化）
     let alertConfigs: AlertConfig[];
@@ -164,7 +165,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // KPIデータを取得
-    const timeSeriesData = getMockKPITimeSeries();
+    const timeSeriesData = await getAllKpiTimeSeries();
 
     // DB優先でアラート設定を取得（Task 041: 堅牢化）
     let alertConfigs: AlertConfig[];

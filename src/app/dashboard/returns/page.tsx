@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   RotateCcw,
   Calendar,
@@ -8,7 +8,12 @@ import {
   FileText,
   CheckCircle,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useApiFetch } from '@/hooks/useApiFetch';
+import { Loading } from '@/components/Loading';
+import type { ApprovalRequestListItem, ApprovalAction, RequestType } from '@/lib/approvals/types';
 
 interface ReturnRecord {
   id: string;
@@ -38,15 +43,94 @@ const TYPE_LABELS: Record<string, string> = {
 
 type TabType = 'all' | 'pending' | 'resolved';
 
-const DEMO_DATA: ReturnRecord[] = [
-  { id: '1', originalTitle: '備品購入申請（プリンター）', originalType: 'approval', returnedBy: '田中部長', returnedAt: '2026-02-09T14:30:00Z', reason: '見積書の添付が不足しています', status: 'pending', submitterName: '鈴木一郎', resubmittedAt: null },
-  { id: '2', originalTitle: '月次報告書（1月度）', originalType: 'report', returnedBy: '山田課長', returnedAt: '2026-02-07T10:00:00Z', reason: '出席率データの修正が必要', status: 'resubmitted', submitterName: '佐藤美咲', resubmittedAt: '2026-02-08T09:15:00Z' },
-  { id: '3', originalTitle: '有給休暇申請', originalType: 'application', returnedBy: '高橋リーダー', returnedAt: '2026-02-05T16:00:00Z', reason: '代替要員の記載が必要', status: 'resolved', submitterName: '中村健', resubmittedAt: '2026-02-06T08:30:00Z' },
-  { id: '4', originalTitle: '研修参加申請', originalType: 'application', returnedBy: '田中部長', returnedAt: '2026-02-04T11:00:00Z', reason: '予算コード変更のため再申請', status: 'pending', submitterName: '渡辺隆', resubmittedAt: null },
-];
+/** Map RequestType to originalType */
+function mapRequestType(rt: RequestType): ReturnRecord['originalType'] {
+  switch (rt) {
+    case 'expense': return 'approval';
+    case 'overtime': return 'application';
+    case 'generic': return 'other';
+    case 'share_issue': return 'report';
+    default: return 'other';
+  }
+}
+
+/** Map request status to return record status */
+function mapReturnStatus(requestStatus: string): ReturnRecord['status'] {
+  switch (requestStatus) {
+    case 'returned': return 'pending';
+    case 'pending': return 'resubmitted';
+    case 'approved': return 'resolved';
+    case 'cancelled': return 'cancelled';
+    case 'rejected': return 'cancelled';
+    default: return 'pending';
+  }
+}
 
 export default function ReturnsPage() {
+  const { firebaseUser } = useAuth();
+  const apiFetch = useApiFetch();
   const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [records, setRecords] = useState<ReturnRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    if (!firebaseUser) return;
+    setError(null);
+    try {
+      // Fetch returned requests
+      const res = await apiFetch('/api/approval-requests/my?status=returned&limit=100');
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+      const data = await res.json();
+      const requests: ApprovalRequestListItem[] = data.requests || [];
+
+      // For each returned request, fetch actions to get return details
+      const returnRecords: ReturnRecord[] = await Promise.all(
+        requests.map(async (req) => {
+          let returnAction: ApprovalAction | null = null;
+          try {
+            const actionsRes = await apiFetch(`/api/approval-requests/${req.id}/actions`);
+            if (actionsRes.ok) {
+              const actionsData = await actionsRes.json();
+              const actions: ApprovalAction[] = actionsData.actions || [];
+              // Find the most recent return action
+              const returnActions = actions.filter((a) => a.action === 'return');
+              if (returnActions.length > 0) {
+                returnAction = returnActions[returnActions.length - 1];
+              }
+            }
+          } catch {
+            // If actions fetch fails, continue with partial data
+          }
+
+          return {
+            id: req.id,
+            originalTitle: req.title,
+            originalType: mapRequestType(req.requestType),
+            returnedBy: returnAction?.actorUserName || '不明',
+            returnedAt: returnAction?.createdAt || req.updatedAt,
+            reason: returnAction?.note || '理由なし',
+            status: mapReturnStatus(req.status),
+            submitterName: req.requesterUserName || '不明',
+            resubmittedAt: null,
+          };
+        })
+      );
+
+      setRecords(returnRecords);
+    } catch (err) {
+      console.error('Failed to load returns:', err);
+      setError('差戻し情報の読み込みに失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }, [firebaseUser, apiFetch]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const tabs: { id: TabType; label: string }[] = [
     { id: 'all', label: 'すべて' },
@@ -54,27 +138,46 @@ export default function ReturnsPage() {
     { id: 'resolved', label: '解決済み' },
   ];
 
-  const filtered = DEMO_DATA.filter((r) => {
+  const filtered = records.filter((r) => {
     if (activeTab === 'pending') return r.status === 'pending';
     if (activeTab === 'resolved') return r.status === 'resolved' || r.status === 'cancelled';
     return true;
   });
 
-  const pendingCount = DEMO_DATA.filter((r) => r.status === 'pending').length;
+  const pendingCount = records.filter((r) => r.status === 'pending').length;
+
+  if (loading) {
+    return <Loading text="差戻し情報を読み込み中..." />;
+  }
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-6 safe-bottom">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2 text-zinc-900">
-          <RotateCcw className="w-6 h-6" />
-          差戻し管理
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-zinc-900">
+            <RotateCcw className="w-6 h-6" />
+            差戻し管理
+          </h1>
+          <button
+            onClick={() => { setLoading(true); loadData(); }}
+            className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors"
+            title="再読み込み"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
         <p className="text-sm text-zinc-500 mt-1">差戻し案件の対応状況を追跡</p>
       </div>
 
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
         <div className="bg-white border rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-zinc-900">{DEMO_DATA.length}</p>
+          <p className="text-2xl font-bold text-zinc-900">{records.length}</p>
           <p className="text-xs text-zinc-500">全差戻し</p>
         </div>
         <div className="bg-white border rounded-xl p-3 text-center">
@@ -82,7 +185,7 @@ export default function ReturnsPage() {
           <p className="text-xs text-zinc-500">対応待ち</p>
         </div>
         <div className="bg-white border rounded-xl p-3 text-center">
-          <p className="text-2xl font-bold text-green-600">{DEMO_DATA.filter((r) => r.status === 'resolved').length}</p>
+          <p className="text-2xl font-bold text-green-600">{records.filter((r) => r.status === 'resolved').length}</p>
           <p className="text-xs text-zinc-500">解決済み</p>
         </div>
       </div>

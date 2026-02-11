@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession, updateSession } from '@/lib/training/repo';
+import { getSession, updateSession } from '@/lib/training/repo.firestore';
 import { canManageTraining } from '@/lib/training/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -20,7 +20,7 @@ export async function GET(
     if (!isApiUser(authResult)) return authResult;
 
     const { id } = await params;
-    const session = getSession(id);
+    const session = await getSession(id);
 
     if (!session) {
       return NextResponse.json(
@@ -59,7 +59,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const result = updateSession(id, body, user.uid);
+    const result = await updateSession(id, body, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

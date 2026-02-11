@@ -14,7 +14,7 @@ import {
   getSuggestionById,
   applySuggestion,
   dismissSuggestion,
-} from '@/lib/vacancySuggestions/repo';
+} from '@/lib/vacancySuggestions/repo.firestore';
 import { canManageSuggestions, canViewSuggestions } from '@/lib/vacancySuggestions/types';
 import type { AppRole } from '@/config/appRoles';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const suggestion = getSuggestionById(id);
+    const suggestion = await getSuggestionById(id);
     if (!suggestion) {
       return NextResponse.json(
         { error: '提案が見つかりません' },
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (action === 'apply') {
       result = await applySuggestion(id, user.uid, user.name);
     } else {
-      result = dismissSuggestion(id, user.uid, reason);
+      result = await dismissSuggestion(id, user.uid, reason);
     }
 
     if (!result.success) {

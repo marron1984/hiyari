@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
 
   try {
     // 1. 未完了ユーザーをスキャン
-    const scanResult = scanPendingUsers(getAllUserOnboardings, getUserInfo);
+    const scanResult = await scanPendingUsers(getAllUserOnboardings, getUserInfo);
 
     // プレビューの場合は通知・チケットを作成しない
     if (preview) {
@@ -112,9 +112,9 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Manager/Admin ユーザーIDを取得
-    const { users: managers } = listUsers({ role: 'manager' });
-    const { users: admins } = listUsers({ role: 'admin' });
-    const { users: executives } = listUsers({ role: 'executive' });
+    const { users: managers } = await listUsers({ role: 'manager' });
+    const { users: admins } = await listUsers({ role: 'admin' });
+    const { users: executives } = await listUsers({ role: 'executive' });
 
     const managerUserIds = managers.map((u) => u.id);
     const adminUserIds = [...admins.map((u) => u.id), ...executives.map((u) => u.id)];
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
     );
 
     // 4. Ticket 099: エスカレーションチケットを作成
-    const escalationResult = createEscalationTickets(scanResult.pendingUsers);
+    const escalationResult = await createEscalationTickets(scanResult.pendingUsers);
 
     return NextResponse.json({
       success: true,

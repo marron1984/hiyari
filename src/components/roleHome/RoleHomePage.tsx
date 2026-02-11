@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, Button } from '@/components/ui';
+import { useToast } from '@/components/ui/Toast';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RoleHomeWidget } from './RoleHomeWidget';
 import type { RoleHomeData } from '@/lib/roleHome/types';
 import type { AppRole } from '@/config/appRoles';
@@ -32,12 +34,15 @@ interface RoleHomePageProps {
 export function RoleHomePage({ userRole, userId, previewRole }: RoleHomePageProps) {
   const router = useRouter();
   const apiFetch = useApiFetch();
+  const { toast } = useToast();
   const [data, setData] = useState<RoleHomeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPreviewRole, setSelectedPreviewRole] = useState<AppRole | undefined>(previewRole);
   const [showRoleSelector, setShowRoleSelector] = useState(false);
+  const [showDailyOpsConfirm, setShowDailyOpsConfirm] = useState(false);
+  const [dailyOpsRunning, setDailyOpsRunning] = useState(false);
 
   const isAdmin = userRole === 'admin';
   const effectiveRole = selectedPreviewRole ?? userRole;
@@ -90,9 +95,12 @@ export function RoleHomePage({ userRole, userId, previewRole }: RoleHomePageProp
   };
 
   // 日次オペ実行
-  const handleRunDailyOps = async () => {
-    if (!confirm('日次オペレーションを実行しますか？')) return;
+  const handleRunDailyOps = () => {
+    setShowDailyOpsConfirm(true);
+  };
 
+  const executeDailyOps = async () => {
+    setDailyOpsRunning(true);
     try {
       const response = await apiFetch('/api/cron/daily-ops', {
         method: 'POST',
@@ -102,11 +110,14 @@ export function RoleHomePage({ userRole, userId, previewRole }: RoleHomePageProp
         throw new Error('Failed to run daily ops');
       }
 
-      alert('日次オペレーションを開始しました');
+      setShowDailyOpsConfirm(false);
+      toast('日次オペレーションを開始しました', 'success');
       fetchData(true);
     } catch (err) {
       console.error('[RoleHomePage] Failed to run daily ops:', err);
-      alert('日次オペレーションの実行に失敗しました');
+      toast('日次オペレーションの実行に失敗しました', 'error');
+    } finally {
+      setDailyOpsRunning(false);
     }
   };
 
@@ -268,6 +279,17 @@ export function RoleHomePage({ userRole, userId, previewRole }: RoleHomePageProp
           最終更新: {data?.fetchedAt ? new Date(data.fetchedAt).toLocaleString('ja-JP') : '-'}
         </p>
       </div>
+
+      {/* 日次オペ確認ダイアログ */}
+      <ConfirmDialog
+        open={showDailyOpsConfirm}
+        title="日次オペレーション"
+        message="日次オペレーションを実行しますか？"
+        confirmLabel="実行"
+        loading={dailyOpsRunning}
+        onConfirm={executeDailyOps}
+        onCancel={() => setShowDailyOpsConfirm(false)}
+      />
     </div>
   );
 }

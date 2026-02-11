@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listUsers } from '@/lib/roles/user-store';
+import { listUsers } from '@/lib/roles/user-store.firestore';
 import { requireAdmin } from '@/lib/auth/requireRole';
 import type { AppRole } from '@/config/appRoles';
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get('search');
 
   // フィルタオプションを渡してlistUsersを呼び出し
-  const { users, total } = listUsers({
+  const { users, total } = await listUsers({
     role: role ?? undefined,
     search: search ?? undefined,
   });

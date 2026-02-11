@@ -10,8 +10,8 @@ import {
   listAnnouncementsForUser,
   listAnnouncements,
   createAnnouncement,
-} from '@/lib/announcements/store';
-import { listReadIds, initializeDemoReadReceipts } from '@/lib/readTracking/repo';
+} from '@/lib/announcements/store.firestore';
+import { listReadIds, initializeDemoReadReceipts } from '@/lib/readTracking/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import type { AnnouncementListItem, AnnouncementFilter, CreateAnnouncementRequest } from '@/lib/announcements/types';
@@ -22,7 +22,7 @@ let demoInitialized = false;
 export async function GET(request: NextRequest) {
   // デモデータ初期化
   if (!demoInitialized) {
-    initializeDemoReadReceipts();
+    await initializeDemoReadReceipts();
     demoInitialized = true;
   }
 
@@ -45,12 +45,12 @@ export async function GET(request: NextRequest) {
   const filter: AnnouncementFilter = { search, limit, offset };
 
   const { announcements, total } = showAll
-    ? listAnnouncements(filter)
-    : listAnnouncementsForUser(userRole, user.uid, user.baseId, filter);
+    ? await listAnnouncements(filter)
+    : await listAnnouncementsForUser(userRole, user.uid, user.baseId, filter);
 
   // 既読情報を付与
   const announcementIds = announcements.map((a) => a.id);
-  const readIds = listReadIds(user.uid, 'announcement', announcementIds);
+  const readIds = await listReadIds(user.uid, 'announcement', announcementIds);
 
   let items: AnnouncementListItem[] = announcements.map((a) => ({
     ...a,
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 作成
-  const announcement = createAnnouncement(body, user.uid, user.name);
+  const announcement = await createAnnouncement(body, user.uid, user.name);
 
   return NextResponse.json({
     success: true,

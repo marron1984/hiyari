@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { getUserRoleStats } from '@/lib/roles/user-store';
+import { getUserRoleStats } from '@/lib/roles/user-store.firestore';
 import { requireAdmin } from '@/lib/auth/requireRole';
 
 export async function GET() {
@@ -19,7 +19,7 @@ export async function GET() {
     );
   }
 
-  const stats = getUserRoleStats();
+  const stats = await getUserRoleStats();
 
   return NextResponse.json(stats);
 }

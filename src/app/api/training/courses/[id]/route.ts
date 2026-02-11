@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getCourse, updateCourse } from '@/lib/training/repo';
+import { getCourse, updateCourse } from '@/lib/training/repo.firestore';
 import { canManageTraining } from '@/lib/training/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -21,7 +21,7 @@ export async function GET(
     const user = authResult;
 
     const { id } = await params;
-    const course = getCourse(id);
+    const course = await getCourse(id);
 
     if (!course) {
       return NextResponse.json(
@@ -60,7 +60,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const result = updateCourse(id, body, user.uid);
+    const result = await updateCourse(id, body, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

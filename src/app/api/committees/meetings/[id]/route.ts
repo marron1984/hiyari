@@ -13,7 +13,7 @@ import {
   getMinutes,
   listActionItems,
   getMeetingStats,
-} from '@/lib/committees/repo';
+} from '@/lib/committees/repo.firestore';
 import { canManageCommittees } from '@/lib/committees/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -27,7 +27,7 @@ export async function GET(
     if (!isApiUser(authResult)) return authResult;
 
     const { id } = await params;
-    const meeting = getMeeting(id);
+    const meeting = await getMeeting(id);
 
     if (!meeting) {
       return NextResponse.json(
@@ -36,10 +36,10 @@ export async function GET(
       );
     }
 
-    const committee = getCommittee(meeting.committeeId);
-    const minutes = getMinutes(id);
-    const actionItems = listActionItems({ meetingId: id });
-    const stats = getMeetingStats(id);
+    const committee = await getCommittee(meeting.committeeId);
+    const minutes = await getMinutes(id);
+    const actionItems = await listActionItems({ meetingId: id });
+    const stats = await getMeetingStats(id);
 
     return NextResponse.json({
       success: true,
@@ -77,7 +77,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const result = updateMeeting(id, body, user.uid);
+    const result = await updateMeeting(id, body, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

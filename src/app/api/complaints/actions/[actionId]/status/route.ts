@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { changeActionStatus } from '@/lib/complaints/repo';
+import { changeActionStatus } from '@/lib/complaints/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 
@@ -29,7 +29,7 @@ export async function POST(
       );
     }
 
-    const result = changeActionStatus(actionId, status, user.uid);
+    const result = await changeActionStatus(actionId, status, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

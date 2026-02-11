@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listContracts, createContract } from '@/lib/contracts/repo';
+import { listContracts, createContract } from '@/lib/contracts/repo.firestore';
 import { canEditContracts } from '@/lib/contracts/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ContractStatus, ContractType, ContractRiskLevel } from '@/lib/contracts/types';
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     };
 
     const viewer = { userId: user.uid, role: user.role as UserRole };
-    const { items, total } = listContracts(viewer, filters, pagination);
+    const { items, total } = await listContracts(viewer, filters, pagination);
 
     return NextResponse.json({ contracts: items, total });
   } catch (error) {
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const contract = createContract(body, user.uid);
+    const contract = await createContract(body, user.uid);
 
     return NextResponse.json({ contract }, { status: 201 });
   } catch (error) {

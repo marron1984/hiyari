@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listReceivables, createReceivable } from '@/lib/receivables/repo';
+import { listReceivables, createReceivable } from '@/lib/receivables/repo.firestore';
 import {
   canViewReceivables,
   canCreateReceivables,
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const { items, total } = listReceivables(viewer, filters, { limit, offset });
+    const { items, total } = await listReceivables(viewer, filters, { limit, offset });
 
     return NextResponse.json({ items, total });
   } catch (error) {
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const receivable = createReceivable(
+    const receivable = await createReceivable(
       {
         subjectType,
         subjectId,

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getById, updateContact } from '@/lib/keyPerson/repo';
+import { getById, updateContact } from '@/lib/keyPerson/repo.firestore';
 import { canViewKeyPerson, canEditKeyPerson } from '@/lib/keyPerson/types';
 import type { UpdateKeyPersonRequest } from '@/lib/keyPerson/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -30,7 +30,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const contact = getById(id, { userId: user.uid, role: user.role as AppRole });
+    const contact = await getById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!contact) {
       return NextResponse.json(
@@ -67,7 +67,7 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const contact = getById(id, { userId: user.uid, role: user.role as AppRole });
+    const contact = await getById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!contact) {
       return NextResponse.json(
@@ -93,7 +93,7 @@ export async function PATCH(
     if (body.isEmergency !== undefined) updateRequest.isEmergency = body.isEmergency;
     if (body.consentStatus !== undefined) updateRequest.consentStatus = body.consentStatus;
 
-    const updated = updateContact(id, updateRequest, user.uid);
+    const updated = await updateContact(id, updateRequest, user.uid);
 
     return NextResponse.json({ contact: updated });
   } catch (error) {

@@ -19,11 +19,14 @@ import {
   IMPROVEMENT_STATUS_LABELS, IMPROVEMENT_STATUS_COLORS, IMPROVEMENT_POINTS
 } from '@/types';
 import { hasMinRole } from '@/lib/auth';
+import { useToast } from '@/components/ui/Toast';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function ImprovementDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [improvement, setImprovement] = useState<Improvement | null>(null);
   const [comments, setComments] = useState<ImprovementComment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +35,8 @@ export default function ImprovementDetailPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectModal, setRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const improvementId = params.id as string;
 
@@ -81,14 +86,20 @@ export default function ImprovementDetailPage() {
     }
   };
 
-  const handleDeleteComment = async (commentId: string) => {
-    if (!confirm('コメントを削除しますか？')) return;
+  const handleDeleteComment = (commentId: string) => {
+    setDeleteCommentId(commentId);
+  };
+
+  const executeDeleteComment = async () => {
+    if (!deleteCommentId) return;
     try {
-      await deleteComment(commentId, improvementId, user!.id);
-      setComments(comments.filter((c) => c.id !== commentId));
+      await deleteComment(deleteCommentId, improvementId, user!.id);
+      setComments(comments.filter((c) => c.id !== deleteCommentId));
       setImprovement((prev) => prev ? { ...prev, commentCount: prev.commentCount - 1 } : prev);
     } catch (error) {
-      alert(error instanceof Error ? error.message : '削除に失敗しました');
+      toast(error instanceof Error ? error.message : '削除に失敗しました', 'error');
+    } finally {
+      setDeleteCommentId(null);
     }
   };
 
@@ -110,7 +121,7 @@ export default function ImprovementDetailPage() {
       }
       if (updated) setImprovement(updated);
     } catch (error) {
-      alert(error instanceof Error ? error.message : '操作に失敗しました');
+      toast(error instanceof Error ? error.message : '操作に失敗しました', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -118,7 +129,7 @@ export default function ImprovementDetailPage() {
 
   const handleReject = async () => {
     if (!user || !rejectReason.trim()) {
-      alert('理由を入力してください');
+      toast('理由を入力してください', 'warning');
       return;
     }
     setActionLoading(true);
@@ -128,19 +139,26 @@ export default function ImprovementDetailPage() {
       setRejectModal(false);
       setRejectReason('');
     } catch (error) {
-      alert(error instanceof Error ? error.message : '操作に失敗しました');
+      toast(error instanceof Error ? error.message : '操作に失敗しました', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!user || !confirm('この提案を削除しますか？')) return;
+  const handleDelete = () => {
+    if (!user) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const executeDelete = async () => {
+    if (!user) return;
     try {
       await deleteImprovement(improvementId, user.id);
+      setShowDeleteConfirm(false);
       router.push('/improvements');
     } catch (error) {
-      alert(error instanceof Error ? error.message : '削除に失敗しました');
+      toast(error instanceof Error ? error.message : '削除に失敗しました', 'error');
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -333,6 +351,28 @@ export default function ImprovementDetailPage() {
           </form>
         </Card>
       </div>
+
+      {/* Delete Comment Confirm */}
+      <ConfirmDialog
+        open={!!deleteCommentId}
+        title="コメントの削除"
+        message="コメントを削除しますか？"
+        confirmLabel="削除する"
+        variant="danger"
+        onConfirm={executeDeleteComment}
+        onCancel={() => setDeleteCommentId(null)}
+      />
+
+      {/* Delete Improvement Confirm */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="提案の削除"
+        message="この提案を削除しますか？"
+        confirmLabel="削除する"
+        variant="danger"
+        onConfirm={executeDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
 
       {/* Reject Modal */}
       {rejectModal && (

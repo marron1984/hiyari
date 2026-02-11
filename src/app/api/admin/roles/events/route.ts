@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getRoleChangeEvents } from '@/lib/roles/user-store';
+import { getRoleChangeEvents } from '@/lib/roles/user-store.firestore';
 import { requireAdmin } from '@/lib/auth/requireRole';
 
 export async function GET(request: NextRequest) {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') ?? '50', 10);
   const targetUserId = searchParams.get('targetUserId') ?? undefined;
 
-  const events = getRoleChangeEvents({
+  const events = await getRoleChangeEvents({
     limit,
     targetUserId,
   });

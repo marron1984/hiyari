@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import { listReadIds } from '@/lib/readTracking/repo';
+import { listReadIds } from '@/lib/readTracking/repo.firestore';
 import type { EntityType } from '@/lib/readTracking/types';
 
 const VALID_ENTITY_TYPES: EntityType[] = ['announcement', 'document', 'training'];
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 既読ID一覧を取得
-  const readIdsSet = listReadIds(user.uid, entityType as EntityType, entityIds);
+  const readIdsSet = await listReadIds(user.uid, entityType as EntityType, entityIds);
   const readEntityIds = Array.from(readIdsSet);
 
   return NextResponse.json({

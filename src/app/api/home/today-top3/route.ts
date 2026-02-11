@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Top3を生成
-    const result = buildTodayTop3(effectiveRole, effectiveUserId);
+    const result = await buildTodayTop3(effectiveRole, effectiveUserId);
 
     // フォーマット別に返却
     switch (format) {

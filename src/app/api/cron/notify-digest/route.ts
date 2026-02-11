@@ -15,9 +15,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildMorningDigest, formatDigestNotification } from '@/lib/digest/morningDigest';
 import { NOTIFY_DIGEST_SCHEDULE, OPS_FAILURE_NOTIFICATION } from '@/config/opsSchedule';
-import { createAlert } from '@/lib/alerts/repo';
+import { createAlertAsync } from '@/lib/alerts/repo.firestore';
 import { processDigestQueue } from '@/lib/notifications/repo';
-import { listUsers } from '@/lib/roles/user-store';
+import { listUsers } from '@/lib/roles/user-store.firestore';
 import type { AppRole } from '@/config/appRoles';
 import { create as createNotification } from '@/lib/notifications/repo';
 
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     const targetRoles: AppRole[] = ['admin', 'executive', 'manager'];
     const usersByRole = new Map<AppRole, string[]>();
     for (const role of targetRoles) {
-      const { users } = listUsers({ role });
+      const { users } = await listUsers({ role });
       if (users.length > 0) {
         usersByRole.set(role, users.map(u => u.id));
       }
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
     const date = new Date().toISOString().split('T')[0];
 
     // Ticket 067: 失敗時に system_error アラートを作成
-    createAlert({
+    await createAlertAsync({
       type: 'system_error',
       sourceId: 'notify-digest',
       title: 'ダイジェスト通知失敗',

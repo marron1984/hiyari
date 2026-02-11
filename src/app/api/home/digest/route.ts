@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     // 特定ロールのみ
     if (roleParam && isValidAppRole(roleParam)) {
-      const digest = buildDailyDigest(roleParam, user.uid);
+      const digest = await buildDailyDigest(roleParam, user.uid);
       const message = formatDigestAsMessage(digest);
 
       if (format === 'message') {
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 全ロールのプレビュー
-    const preview = previewMorningDigest();
+    const preview = await previewMorningDigest();
     const result: Record<string, {
       title: string;
       wouldSend: boolean;
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
 
     // 特定ロールのみ
     if (role && isValidAppRole(role)) {
-      const result = sendMorningDigestForRole(role, user.uid, {
+      const result = await sendMorningDigestForRole(role, user.uid, {
         sendEmpty: sendEmpty ?? false,
       });
 

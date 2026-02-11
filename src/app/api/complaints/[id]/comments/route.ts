@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getComplaintById, listComments, addComment } from '@/lib/complaints/repo';
+import { getComplaintById, listComments, addComment } from '@/lib/complaints/repo.firestore';
 import { canEditComplaint } from '@/lib/complaints/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -21,7 +21,7 @@ export async function GET(
     const user = authResult;
 
     const { id } = await params;
-    const complaint = getComplaintById(id, { userId: user.uid, role: user.role as AppRole });
+    const complaint = await getComplaintById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!complaint) {
       return NextResponse.json(
@@ -30,7 +30,7 @@ export async function GET(
       );
     }
 
-    const comments = listComments(id);
+    const comments = await listComments(id);
 
     return NextResponse.json({
       success: true,
@@ -55,7 +55,7 @@ export async function POST(
     const user = authResult;
 
     const { id } = await params;
-    const complaint = getComplaintById(id, { userId: user.uid, role: user.role as AppRole });
+    const complaint = await getComplaintById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!complaint) {
       return NextResponse.json(
@@ -81,7 +81,7 @@ export async function POST(
       );
     }
 
-    const result = addComment(id, message, user.uid);
+    const result = await addComment(id, message, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

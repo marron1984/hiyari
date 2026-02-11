@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import * as repo from '@/lib/org/repo';
+import * as repo from '@/lib/org/repo.firestore';
 import type { ViewerContext } from '@/lib/org/types';
 import { canEditOrg } from '@/lib/org/types';
 
@@ -34,7 +34,7 @@ export async function POST(
     const body = await request.json();
     const newParentId = body.newParentId ?? null;
 
-    const result = repo.moveOrgUnit(id, newParentId, viewer.userId);
+    const result = await repo.moveOrgUnit(id, newParentId, viewer.userId);
 
     if (!result.success) {
       return NextResponse.json(

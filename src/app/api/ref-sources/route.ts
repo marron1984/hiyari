@@ -14,7 +14,7 @@ import {
   listRefSources,
   createRefSource,
   seedRefSourcesIfEmpty,
-} from '@/lib/refSources/repo';
+} from '@/lib/refSources/repo.firestore';
 import {
   canManageRefSources,
   canViewRefSources,
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const user = authResult;
 
     // シードデータ
-    seedRefSourcesIfEmpty();
+    await seedRefSourcesIfEmpty();
 
     const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canViewRefSources(viewer)) {
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       ? parseInt(searchParams.get('offset')!, 10)
       : 0;
 
-    const { items, total } = listRefSources({
+    const { items, total } = await listRefSources({
       status: status ?? undefined,
       type: type ?? undefined,
       businessUnitId,
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const source = createRefSource(
+    const source = await createRefSource(
       {
         ref,
         name,

@@ -11,26 +11,26 @@
  */
 
 import { NextResponse } from 'next/server';
-import { listAlerts, getAlertStats } from '@/lib/alerts/repo';
+import { listAlertsAsync, getAlertStatsAsync } from '@/lib/alerts/repo.firestore';
 
 export async function GET() {
   try {
-    const stats = getAlertStats();
+    const stats = await getAlertStatsAsync();
 
     // system_error の open 件数
-    const systemErrorAlerts = listAlerts({
+    const systemErrorAlerts = await listAlertsAsync({
       type: 'system_error',
       status: 'open',
       limit: 1000,
     });
 
     // unclassified の open 件数（両方のタイプをカウント）
-    const unclassifiedAlerts1 = listAlerts({
+    const unclassifiedAlerts1 = await listAlertsAsync({
       type: 'business_scope_unclassified',
       status: 'open',
       limit: 1000,
     });
-    const unclassifiedAlerts2 = listAlerts({
+    const unclassifiedAlerts2 = await listAlertsAsync({
       type: 'unclassified_scope',
       status: 'open',
       limit: 1000,

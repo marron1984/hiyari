@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   importFromFreee,
+  importFromCSV,
   listEmployees,
   listHRImportAuditLogs,
   listHRImportRuns,
@@ -150,24 +151,24 @@ export async function POST(request: NextRequest) {
         break;
 
       case 'csv':
-        // CSVからインポート（未対応のdry_run）
+        // CSVからインポート
         if (!csvData || typeof csvData !== 'string') {
           return NextResponse.json(
             { success: false, error: 'csvData は必須です' },
             { status: 400 }
           );
         }
-        // TODO: CSVインポートもdry_run対応
-        return NextResponse.json(
-          { success: false, error: 'CSVインポートはdry_run未対応です。freeeを使用してください。' },
-          { status: 501 }
-        );
+        result = await importFromCSV(tenantId, csvData);
+        break;
 
       case 'sheets':
-        // Google Sheetsからインポート（未実装）
+        // Google Sheetsは外部依存のため、CSVエクスポート→csvインポートを案内
         return NextResponse.json(
-          { success: false, error: 'sheets インポートは未実装です' },
-          { status: 501 }
+          {
+            success: false,
+            error: 'Google Sheetsからの直接インポートは非対応です。シートをCSVにエクスポートし、source=csv で送信してください。',
+          },
+          { status: 400 }
         );
 
       default:

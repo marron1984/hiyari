@@ -5,11 +5,14 @@
  */
 
 import { NextResponse } from 'next/server';
-import * as alertsRepo from '@/lib/alerts/repo';
-import * as complaintsRepo from '@/lib/complaints/repo';
-import * as trainingRepo from '@/lib/training/repo';
-import * as receivablesRepo from '@/lib/receivables/repo';
+import * as alertsRepo from '@/lib/alerts/repo.firestore';
+import * as complaintsRepo from '@/lib/complaints/repo.firestore';
+import * as trainingRepo from '@/lib/training/repo.firestore';
+import * as receivablesRepo from '@/lib/receivables/repo.firestore';
 import * as collectionRepo from '@/lib/collection/repo';
+import * as correctiveActionsRepo from '@/lib/correctiveActions/repo.firestore';
+import * as licensesRepo from '@/lib/licenses/repo.firestore';
+import * as repairsRepo from '@/lib/repairs/repo.firestore';
 import type { ViewerContext } from '@/lib/complaints/types';
 
 // 今週の開始日（月曜日）を取得
@@ -87,15 +90,15 @@ export async function GET() {
     };
 
     // ========== アラート ==========
-    const alertStats = alertsRepo.getAlertStats();
-    const alertsAll = alertsRepo.listAlerts({ status: 'open' });
+    const alertStats = await alertsRepo.getAlertStatsAsync();
+    const alertsAll = await alertsRepo.listAlertsAsync({ status: 'open' });
     const warningOpen = alertsAll.alerts.filter((a) => a.severity === 'warning').length;
 
     // ========== クレーム ==========
-    const complaintStats = complaintsRepo.getStats(viewer);
-    const criticalComplaints = complaintsRepo.scanCriticalOpen();
-    const highComplaints = complaintsRepo
-      .listComplaints(viewer, {})
+    const complaintStats = await complaintsRepo.getStats(viewer);
+    const criticalComplaints = await complaintsRepo.scanCriticalOpen();
+    const complaintsResult = await complaintsRepo.listComplaints(viewer, {});
+    const highComplaints = complaintsResult
       .complaints.filter(
         (c) =>
           c.severity === 'high' &&
@@ -103,9 +106,9 @@ export async function GET() {
       );
 
     // ========== 研修 ==========
-    const overdueTraining = trainingRepo.overdueAssignmentsScan();
+    const overdueTraining = await trainingRepo.overdueAssignmentsScan();
     const weekStart = getWeekStart();
-    const allSessions = trainingRepo.listSessions({});
+    const allSessions = await trainingRepo.listSessions({});
     const sessionsDoneThisWeek = allSessions.filter(
       (s) =>
         s.status === 'done' &&
@@ -114,40 +117,66 @@ export async function GET() {
     ).length;
 
     // ========== 未収 ==========
-    const receivableStats = receivablesRepo.getStats(viewer);
+    const receivableStats = await receivablesRepo.getStats(viewer);
 
     // ========== 回収フロー ==========
     const collectionStats = collectionRepo.getStats(viewer);
 
-    // ========== 未実装ドメイン（プレースホルダー） ==========
-    // 事故・ヒヤリ（Firestore依存なので集計は別途）
-    // 実際の集計は本番環境でFirestore連携時に実装
-    const incidentsThisWeek = 0;
-    const severIncidentsThisWeek = 0;
+    // ========== 事故・ヒヤリ ==========
+    // インシデントモジュールはFirestoreのhiyari_reportsコレクションから直接集計
+    let incidentsThisWeek = 0;
+    let severIncidentsThisWeek = 0;
+    try {
+      const { getAdminDb } = await import('@/lib/firebase-admin');
+      const db = getAdminDb();
+      const incidentSnap = await db.collection('hiyari_reports')
+        .where('createdAt', '>=', weekStart.toISOString())
+        .get();
+      incidentsThisWeek = incidentSnap.size;
+      severIncidentsThisWeek = incidentSnap.docs.filter(
+        (d) => d.data().riskLevel === 'L3' || d.data().riskLevel === 'L4'
+      ).length;
+    } catch (e) {
+      console.error('[quality-risk] incidents scan error:', e);
+    }
 
-    // 是正措置（未実装）
+    // ========== 是正措置 ==========
+    const caStats = await correctiveActionsRepo.getStats(viewer);
     const correctiveActionsStats = {
-      criticalOpen: 0,
-      overdue: 0,
-      doneThisWeek: 0,
+      criticalOpen: caStats.criticalOpen,
+      overdue: caStats.overdue,
+      doneThisWeek: caStats.completedThisMonth, // 今月完了を代用
     };
 
-    // 資格（未実装）
+    // ========== 資格 ==========
+    const licRaw = await licensesRepo.getStats(viewer);
     const licenseStats = {
-      expired: 0,
-      expiring30: 0,
+      expired: licRaw?.expired ?? 0,
+      expiring30: licRaw?.expiring30 ?? 0,
     };
 
-    // 修繕（未実装）
+    // ========== 修繕 ==========
+    const repairRaw = await repairsRepo.getStats(viewer);
     const repairStats = {
-      highRiskOpen: 0,
-      overdue: 0,
+      highRiskOpen: repairRaw.highRiskOpen,
+      overdue: repairRaw.overdue,
     };
 
-    // 在庫（未実装）
-    const inventoryStats = {
-      lowStock: 0,
-    };
+    // ========== 在庫 ==========
+    // 在庫モジュールは個別コレクションから直接集計
+    let inventoryLowStock = 0;
+    try {
+      const { getAdminDb } = await import('@/lib/firebase-admin');
+      const db = getAdminDb();
+      const invSnap = await db.collection('inventory_items').get();
+      inventoryLowStock = invSnap.docs.filter((d) => {
+        const data = d.data();
+        return data.currentStock < data.minStock;
+      }).length;
+    } catch (e) {
+      console.error('[quality-risk] inventory scan error:', e);
+    }
+    const inventoryStats = { lowStock: inventoryLowStock };
 
     // ========== レスポンス構築 ==========
     const summary: QualityRiskSummary = {
@@ -211,7 +240,7 @@ export async function GET() {
 
     // aging60Countを正しく計算（件数ベース）
     if (receivableStats) {
-      const receivablesAll = receivablesRepo.listReceivables(viewer, { agingMinDays: 60 });
+      const receivablesAll = await receivablesRepo.listReceivables(viewer, { agingMinDays: 60 });
       summary.receivables.aging60Count = receivablesAll.total;
     }
 

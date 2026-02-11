@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listSessions, createSession } from '@/lib/training/repo';
+import { listSessions, createSession } from '@/lib/training/repo.firestore';
 import { canManageTraining } from '@/lib/training/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo') ?? undefined;
     const q = searchParams.get('q') ?? undefined;
 
-    const sessions = listSessions({
+    const sessions = await listSessions({
       courseId,
       status: status ?? undefined,
       dateFrom,
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = createSession(
+    const result = await createSession(
       { courseId, name, scheduledAt, durationMinutes, location, instructorName, notes },
       user.uid
     );

@@ -1,13 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Award,
   Calendar,
   CheckCircle,
   Clock,
   Users,
+  RefreshCw,
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useApiFetch } from '@/hooks/useApiFetch';
+import { Loading } from '@/components/Loading';
+import type { LicenseListItem, LicenseCategoryType, UserLicenseStatus } from '@/lib/licenses/types';
 
 interface Certification {
   id: string;
@@ -36,16 +41,76 @@ const TYPE_LABELS: Record<string, string> = {
 
 type TabType = 'all' | 'expiring' | 'expired';
 
-const DEMO_DATA: Certification[] = [
-  { id: '1', staffName: '田中花子', certName: '介護福祉士', certType: 'national', status: 'valid', acquiredAt: '2022-04-01', expiresAt: '2027-03-31', renewalDueAt: null },
-  { id: '2', staffName: '鈴木一郎', certName: '介護支援専門員', certType: 'national', status: 'expiring', acquiredAt: '2021-10-01', expiresAt: '2026-03-31', renewalDueAt: '2026-02-28' },
-  { id: '3', staffName: '山田太郎', certName: '認知症介護実践者研修', certType: 'prefectural', status: 'valid', acquiredAt: '2023-08-15', expiresAt: null, renewalDueAt: null },
-  { id: '4', staffName: '佐藤美咲', certName: '福祉用具専門相談員', certType: 'private', status: 'expired', acquiredAt: '2020-06-01', expiresAt: '2025-05-31', renewalDueAt: '2025-04-30' },
-  { id: '5', staffName: '高橋健', certName: '普通救命講習', certType: 'internal', status: 'expiring', acquiredAt: '2024-01-15', expiresAt: '2026-01-14', renewalDueAt: '2025-12-15' },
-];
+/** Map LicenseCategoryType to certType */
+function mapCategory(category: LicenseCategoryType): Certification['certType'] {
+  switch (category) {
+    case 'care': return 'national';
+    case 'nursing': return 'prefectural';
+    case 'admin': return 'private';
+    case 'other': return 'internal';
+    default: return 'internal';
+  }
+}
+
+/** Map UserLicenseStatus to display status, with expiring-soon detection */
+function mapStatus(status: UserLicenseStatus, expiresAt: string | null): Certification['status'] {
+  if (status === 'expired') return 'expired';
+  if (status === 'suspended') return 'pending';
+  if (status === 'unknown') return 'pending';
+  // active — check if expiring soon (within 90 days)
+  if (status === 'active' && expiresAt) {
+    const expiryDate = new Date(expiresAt);
+    const now = new Date();
+    const daysUntilExpiry = (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    if (daysUntilExpiry <= 90) return 'expiring';
+  }
+  return 'valid';
+}
+
+/** Map a LicenseListItem from the API to the Certification interface */
+function mapToCertification(item: LicenseListItem): Certification {
+  return {
+    id: item.userLicense.id,
+    staffName: item.user.name || '名前未設定',
+    certName: item.licenseType.name,
+    certType: mapCategory(item.licenseType.category),
+    status: mapStatus(item.userLicense.status, item.userLicense.expiresAt),
+    acquiredAt: item.userLicense.issuedAt || item.userLicense.createdAt,
+    expiresAt: item.userLicense.expiresAt,
+    renewalDueAt: null,
+  };
+}
 
 export default function CertificationsPage() {
+  const { firebaseUser } = useAuth();
+  const apiFetch = useApiFetch();
   const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [certifications, setCertifications] = useState<Certification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    if (!firebaseUser) return;
+    setError(null);
+    try {
+      const res = await apiFetch('/api/licenses?limit=200');
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`);
+      }
+      const data = await res.json();
+      const items: LicenseListItem[] = data.items || [];
+      setCertifications(items.map(mapToCertification));
+    } catch (err) {
+      console.error('Failed to load certifications:', err);
+      setError('資格情報の読み込みに失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  }, [firebaseUser, apiFetch]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const tabs: { id: TabType; label: string }[] = [
     { id: 'all', label: 'すべて' },
@@ -53,28 +118,47 @@ export default function CertificationsPage() {
     { id: 'expired', label: '期限切れ' },
   ];
 
-  const filtered = DEMO_DATA.filter((c) => {
+  const filtered = certifications.filter((c) => {
     if (activeTab === 'expiring') return c.status === 'expiring';
     if (activeTab === 'expired') return c.status === 'expired';
     return true;
   });
 
   const stats = {
-    total: DEMO_DATA.length,
-    valid: DEMO_DATA.filter((c) => c.status === 'valid').length,
-    expiring: DEMO_DATA.filter((c) => c.status === 'expiring').length,
-    expired: DEMO_DATA.filter((c) => c.status === 'expired').length,
+    total: certifications.length,
+    valid: certifications.filter((c) => c.status === 'valid').length,
+    expiring: certifications.filter((c) => c.status === 'expiring').length,
+    expired: certifications.filter((c) => c.status === 'expired').length,
   };
+
+  if (loading) {
+    return <Loading text="資格情報を読み込み中..." />;
+  }
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-6 safe-bottom">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold flex items-center gap-2 text-zinc-900">
-          <Award className="w-6 h-6" />
-          資格管理
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-zinc-900">
+            <Award className="w-6 h-6" />
+            資格管理
+          </h1>
+          <button
+            onClick={() => { setLoading(true); loadData(); }}
+            className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors"
+            title="再読み込み"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
         <p className="text-sm text-zinc-500 mt-1">従業員の資格取得状況・有効期限を管理</p>
       </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <div className="bg-white border rounded-xl p-3 text-center">

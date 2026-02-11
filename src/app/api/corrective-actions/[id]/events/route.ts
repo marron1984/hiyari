@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listEvents, getById } from '@/lib/correctiveActions/repo';
+import { listEvents, getById } from '@/lib/correctiveActions/repo.firestore';
 import type { AppRole } from '@/config/appRoles';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
@@ -21,7 +21,7 @@ export async function GET(
     const { id } = await params;
 
     const viewer = { userId: user.uid, role: user.role as AppRole };
-    const result = getById(id, viewer);
+    const result = await getById(id, viewer);
 
     if (!result.success) {
       return NextResponse.json(
@@ -30,7 +30,7 @@ export async function GET(
       );
     }
 
-    const events = listEvents(id);
+    const events = await listEvents(id);
     return NextResponse.json({ events });
   } catch (error) {
     console.error('corrective-actions events GET error:', error);

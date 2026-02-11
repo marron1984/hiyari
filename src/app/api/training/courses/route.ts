@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listCourses, createCourse } from '@/lib/training/repo';
+import { listCourses, createCourse } from '@/lib/training/repo.firestore';
 import { canManageTraining } from '@/lib/training/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category') as TrainingCategory | null;
     const activeParam = searchParams.get('active');
 
-    const courses = listCourses({
+    const courses = await listCourses({
       q,
       category: category ?? undefined,
       active: activeParam === 'true' ? true : activeParam === 'false' ? false : undefined,
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const course = createCourse(
+    const course = await createCourse(
       { title, description, category, frequency, required, defaultDueDays },
       user.uid
     );

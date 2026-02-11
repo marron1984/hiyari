@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStats } from '@/lib/receivables/repo';
+import { getStats } from '@/lib/receivables/repo.firestore';
 import { canViewStats } from '@/lib/receivables/types';
 import type { UserRole as ReceivablesRole } from '@/lib/receivables/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const stats = getStats(viewer);
+    const stats = await getStats(viewer);
 
     if (!stats) {
       return NextResponse.json(

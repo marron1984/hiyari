@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listApprovalRequests } from '@/lib/approvals/requestRepo';
+import { listApprovalRequests } from '@/lib/approvals/requestRepo.firestore';
 import { filterApprovableRequests } from '@/lib/approvals/canApprove';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(searchParams.get('offset') ?? '0', 10);
 
   // pending状態の申請を取得
-  const { requests: allPending } = listApprovalRequests({
+  const { requests: allPending } = await listApprovalRequests({
     status: 'pending',
     requestType: requestType ?? undefined,
     limit: 1000, // 一旦全件取得してフィルタ
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   });
 
   // 承認可能なものだけフィルタ
-  const approvable = filterApprovableRequests(user.role as AppRole, user.uid, allPending);
+  const approvable = await filterApprovableRequests(user.role as AppRole, user.uid, allPending);
   const total = approvable.length;
 
   // ページネーション

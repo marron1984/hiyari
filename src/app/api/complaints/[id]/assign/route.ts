@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getComplaintById, assignComplaint } from '@/lib/complaints/repo';
+import { getComplaintById, assignComplaint } from '@/lib/complaints/repo.firestore';
 import { canManageComplaints } from '@/lib/complaints/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -30,7 +30,7 @@ export async function POST(
     const body = await request.json();
     const { assigneeUserId } = body;
 
-    const result = assignComplaint(id, assigneeUserId, user.uid);
+    const result = await assignComplaint(id, assigneeUserId, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

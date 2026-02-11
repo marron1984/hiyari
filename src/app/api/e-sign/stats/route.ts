@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import * as repo from '@/lib/esign/repo';
+import * as repo from '@/lib/esign/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       role: user.role as AppRole,
     };
 
-    const stats = repo.getStats(viewer);
+    const stats = await repo.getStats(viewer);
 
     if (!stats) {
       return NextResponse.json(

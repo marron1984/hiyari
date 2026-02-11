@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import * as repo from '@/lib/org/repo';
+import * as repo from '@/lib/org/repo.firestore';
 import type { ViewerContext, AddMemberInput } from '@/lib/org/types';
 import { canViewOrgTree, canEditMembership } from '@/lib/org/types';
 
@@ -32,7 +32,7 @@ export async function GET(
       );
     }
 
-    const unit = repo.getOrgUnitById(id);
+    const unit = await repo.getOrgUnitById(id);
     if (!unit) {
       return NextResponse.json(
         { success: false, error: '組織が見つかりません' },
@@ -40,7 +40,7 @@ export async function GET(
       );
     }
 
-    const members = repo.listMembers(id);
+    const members = await repo.listMembers(id);
 
     return NextResponse.json({ success: true, members });
   } catch (error) {
@@ -83,7 +83,7 @@ export async function POST(
       );
     }
 
-    const result = repo.addMember(id, body, viewer.userId);
+    const result = await repo.addMember(id, body, viewer.userId);
 
     if (!result.success) {
       return NextResponse.json(

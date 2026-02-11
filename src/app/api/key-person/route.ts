@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listBySubject, createContact } from '@/lib/keyPerson/repo';
+import { listBySubject, createContact } from '@/lib/keyPerson/repo.firestore';
 import { canManageKeyPerson, canViewKeyPerson } from '@/lib/keyPerson/types';
 import type {
   CreateKeyPersonRequest,
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const contacts = listBySubject(subjectType, subjectId, { userId: user.uid, role: user.role as AppRole });
+    const contacts = await listBySubject(subjectType, subjectId, { userId: user.uid, role: user.role as AppRole });
 
     return NextResponse.json({ contacts });
   } catch (error) {
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const contact = createContact(createRequest, user.uid);
+    const contact = await createContact(createRequest, user.uid);
 
     return NextResponse.json({ contact }, { status: 201 });
   } catch (error) {

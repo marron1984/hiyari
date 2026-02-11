@@ -36,7 +36,7 @@ export async function POST(
   }
 
   // 従業員存在確認
-  const existing = getEmployeeById(id);
+  const existing = await getEmployeeById(id);
   if (!existing) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
@@ -65,7 +65,7 @@ export async function POST(
   }
 
   try {
-    const result = terminateEmployee(id, body, user.uid);
+    const result = await terminateEmployee(id, body, user.uid);
     if (!result) {
       return NextResponse.json({ error: 'Failed to terminate' }, { status: 500 });
     }

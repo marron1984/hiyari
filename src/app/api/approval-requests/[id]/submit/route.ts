@@ -5,8 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { submitApprovalRequest, getApprovalRequest } from '@/lib/approvals/requestRepo';
-import { getApprovalFlow } from '@/lib/approvals/flowRepo';
+import { submitApprovalRequest, getApprovalRequest } from '@/lib/approvals/requestRepo.firestore';
+import { getApprovalFlow } from '@/lib/approvals/flowRepo.firestore';
 import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
@@ -20,7 +20,7 @@ export async function POST(
   if (!isApiUser(authResult)) return authResult;
   const user = authResult;
 
-  const existing = getApprovalRequest(id);
+  const existing = await getApprovalRequest(id);
   if (!existing) {
     return NextResponse.json(
       { error: '申請が見つかりません' },
@@ -28,7 +28,7 @@ export async function POST(
     );
   }
 
-  const result = submitApprovalRequest(id, user.uid, user.name);
+  const result = await submitApprovalRequest(id, user.uid, user.name);
 
   if (!result.success) {
     return NextResponse.json(
@@ -40,7 +40,7 @@ export async function POST(
   // 承認者への通知
   try {
     const today = new Date().toISOString().split('T')[0];
-    const flow = getApprovalFlow(result.request!.flowId);
+    const flow = await getApprovalFlow(result.request!.flowId);
     const currentStep = flow?.steps.find(
       (s) => s.stepOrder === result.request!.currentStepOrder
     );

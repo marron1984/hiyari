@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import type { WBRReport } from '@/lib/wbr-generator';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
@@ -44,10 +45,26 @@ export default function WbrPage() {
   const [selectedReportIndex, setSelectedReportIndex] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
   const [mode, setMode] = useState<WbrMode>(modeParam ?? 'executive');
+  const [wbrHistory, setWbrHistory] = useState<WBRReport[]>([]);
 
   // WBRを生成
-  const wbrHistory = useMemo(() => generateWBRHistory(8), []);
+  useEffect(() => {
+    setWbrHistory(generateWBRHistory(8));
+  }, []);
   const currentReport = wbrHistory[selectedReportIndex];
+
+  if (!currentReport) {
+    return (
+      <main className="pb-8">
+        <div className="max-w-4xl mx-auto px-4 py-6 flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+            <p className="text-sm text-zinc-500">読み込み中...</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   // テキスト出力
   const handleExportText = () => {
@@ -290,7 +307,7 @@ export default function WbrPage() {
         {/* フッター */}
         <div className="mt-6 text-center print:hidden">
           <p className="text-xs text-zinc-400 mb-4">
-            Generated: {currentReport.generatedAt.toLocaleString('ja-JP')}
+            生成日時: {currentReport.generatedAt.toLocaleString('ja-JP')}
           </p>
           <div className="flex justify-center gap-4 text-sm text-zinc-400">
             <Link href="/dashboard/kpi" className="hover:text-zinc-600">

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listComplaints, createComplaint } from '@/lib/complaints/repo';
+import { listComplaints, createComplaint } from '@/lib/complaints/repo.firestore';
 import { canManageComplaints } from '@/lib/complaints/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       offset: searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined,
     };
 
-    const result = listComplaints({ userId: user.uid, role: user.role as AppRole }, filter);
+    const result = await listComplaints({ userId: user.uid, role: user.role as AppRole }, filter);
 
     return NextResponse.json({
       success: true,
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = createComplaint(
+    const result = await createComplaint(
       { title, description, category, severity, requesterType, requesterName, contactHint, occurredAt, dueAt },
       user.uid
     );

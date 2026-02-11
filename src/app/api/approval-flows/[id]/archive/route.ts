@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { archiveApprovalFlow } from '@/lib/approvals/flowRepo';
+import { archiveApprovalFlow } from '@/lib/approvals/flowRepo.firestore';
 import { checkRole } from '@/lib/auth/requireRole';
 
 export async function POST(
@@ -23,7 +23,7 @@ export async function POST(
     );
   }
 
-  const result = archiveApprovalFlow(id);
+  const result = await archiveApprovalFlow(id);
 
   if (!result.success) {
     return NextResponse.json(

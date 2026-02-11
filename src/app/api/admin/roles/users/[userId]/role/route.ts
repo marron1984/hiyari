@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { changeUserRole, getUserById } from '@/lib/roles/user-store';
+import { changeUserRole, getUserById } from '@/lib/roles/user-store.firestore';
 import { requireAdmin } from '@/lib/auth/requireRole';
 import type { AppRole } from '@/config/appRoles';
 
@@ -29,7 +29,7 @@ export async function POST(
   const { userId } = await params;
 
   // ユーザー存在確認
-  const targetUser = getUserById(userId);
+  const targetUser = await getUserById(userId);
   if (!targetUser) {
     return NextResponse.json(
       { error: 'ユーザーが見つかりません' },
@@ -71,7 +71,7 @@ export async function POST(
   const actorUserName = 'システム管理者';
 
   // ロール変更実行
-  const result = changeUserRole(
+  const result = await changeUserRole(
     {
       userId,
       newRole: newRole as AppRole,

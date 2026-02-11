@@ -21,7 +21,7 @@ import {
   getExternalUserById,
   getAccessPolicy,
   addAuditLog,
-} from '@/lib/external-accounts/repo';
+} from '@/lib/external-accounts/repo.firestore';
 
 export async function GET(request: NextRequest) {
   try {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 外部ユーザー取得（デモ用に admin viewer で取得）
-    const externalUser = getExternalUserById(authHeader, {
+    const externalUser = await getExternalUserById(authHeader, {
       userId: 'system',
       role: 'admin',
     });
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     }
 
     // アクセスポリシー取得
-    const policy = getAccessPolicy(externalUser.id);
+    const policy = await getAccessPolicy(externalUser.id);
     const allowedBusinessUnitIds = policy?.allowBusinessUnitIds ?? [];
 
     const { searchParams } = new URL(request.url);
@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
     const publicItems = filteredItems.map(toPublicVacancyUnit);
 
     // 監査ログ記録
-    addAuditLog(
+    await addAuditLog(
       externalUser.id,
       'view',
       'vacancies',

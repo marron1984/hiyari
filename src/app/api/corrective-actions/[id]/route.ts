@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getById, changeStatus } from '@/lib/correctiveActions/repo';
+import { getById, changeStatus } from '@/lib/correctiveActions/repo.firestore';
 import type { CorrectiveActionStatus } from '@/lib/correctiveActions/types';
 import type { AppRole } from '@/config/appRoles';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -22,7 +22,7 @@ export async function GET(
   try {
     const { id } = await params;
     const viewer = { userId: user.uid, role: user.role as AppRole };
-    const result = getById(id, viewer);
+    const result = await getById(id, viewer);
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 404 });
@@ -53,7 +53,7 @@ export async function PATCH(
     }
 
     const viewer = { userId: user.uid, role: user.role as AppRole };
-    const result = changeStatus(id, status as CorrectiveActionStatus, viewer);
+    const result = await changeStatus(id, status as CorrectiveActionStatus, viewer);
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 400 });

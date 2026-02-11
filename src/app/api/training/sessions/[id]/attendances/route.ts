@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listAttendances, getSession } from '@/lib/training/repo';
+import { listAttendances, getSession } from '@/lib/training/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(
@@ -18,7 +18,7 @@ export async function GET(
 
     const { id: sessionId } = await params;
 
-    const session = getSession(sessionId);
+    const session = await getSession(sessionId);
     if (!session) {
       return NextResponse.json(
         { error: '研修セッションが見つかりません' },
@@ -26,7 +26,7 @@ export async function GET(
       );
     }
 
-    const attendances = listAttendances(sessionId);
+    const attendances = await listAttendances(sessionId);
 
     return NextResponse.json({ attendances });
   } catch (error) {

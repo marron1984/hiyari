@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { setMeetingStatus } from '@/lib/committees/repo';
+import { setMeetingStatus } from '@/lib/committees/repo.firestore';
 import { canManageCommittees } from '@/lib/committees/types';
 import type { MeetingStatus } from '@/lib/committees/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -38,7 +38,7 @@ export async function POST(
       );
     }
 
-    const result = setMeetingStatus(id, status, user.uid, heldAt);
+    const result = await setMeetingStatus(id, status, user.uid, heldAt);
 
     if (!result.success) {
       return NextResponse.json(

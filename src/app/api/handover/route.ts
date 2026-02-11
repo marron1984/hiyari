@@ -9,8 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   listHandoverItems,
   createHandoverItem,
-} from '@/lib/handover/repo';
-import { createAlert } from '@/lib/alerts/repo';
+} from '@/lib/handover/repo.firestore';
+import { createAlertAsync } from '@/lib/alerts/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { HandoverStatus, HandoverPriority, HandoverShift } from '@/lib/handover/types';
 import type { AppRole } from '@/config/appRoles';
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       offset: offsetParam ? parseInt(offsetParam, 10) : 0,
     };
 
-    const { items, total } = listHandoverItems(filter, user.role as AppRole, user.uid);
+    const { items, total } = await listHandoverItems(filter, user.role as AppRole, user.uid);
 
     return NextResponse.json({
       items,
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const item = createHandoverItem(
+    const item = await createHandoverItem(
       {
         title,
         body: itemBody,
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     // urgentの場合はアラートセンターに通知
     if (priority === 'urgent') {
-      createAlert({
+      await createAlertAsync({
         type: 'handover_urgent',
         sourceId: item.id,
         title: `【重要】申し送り：${title}`,

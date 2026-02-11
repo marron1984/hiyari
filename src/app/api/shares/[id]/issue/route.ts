@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { issueShare, getShareById } from '@/lib/shares/share-service';
-import { getApprovalRequest, approveRequest } from '@/lib/approvals/requestRepo';
+import { getApprovalRequest, approveRequest } from '@/lib/approvals/requestRepo.firestore';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -47,9 +47,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // 承認申請を承認（approvals側）
     if (share.approvalRequestId) {
-      const approvalReq = getApprovalRequest(share.approvalRequestId);
+      const approvalReq = await getApprovalRequest(share.approvalRequestId);
       if (approvalReq && approvalReq.status === 'pending') {
-        approveRequest(
+        await approveRequest(
           share.approvalRequestId,
           user.uid,
           user.name,
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // 共有を発行
-    const result = issueShare(
+    const result = await issueShare(
       shareId,
       user.uid,
       user.name

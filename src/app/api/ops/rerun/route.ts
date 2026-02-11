@@ -18,7 +18,7 @@ import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { executeDailyOps, type DailyOpsStepName } from '@/lib/dailyOps';
 import { executeWeeklyOps, type WeeklyOpsStepName } from '@/lib/weeklyOps';
 import { buildMorningDigest, formatDigestNotification } from '@/lib/digest/morningDigest';
-import { createAlert } from '@/lib/alerts/repo';
+import { createAlertAsync } from '@/lib/alerts/repo.firestore';
 import { OPS_FAILURE_NOTIFICATION } from '@/config/opsSchedule';
 
 
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
 
           // システムエラーアラートを作成
           const date = new Date().toISOString().split('T')[0];
-          createAlert({
+          await createAlertAsync({
             type: 'system_error',
             sourceId: 'notify-digest',
             title: 'ダイジェスト生成失敗',

@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     }
 
     // CSV生成
-    const csv = exportAuditLogsToCsv({
+    const csv = await exportAuditLogsToCsv({
       from,
       to,
       source,

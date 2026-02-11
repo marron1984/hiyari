@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getKpiHighlights } from '@/lib/kpi/kpi-store';
+import { getKpiHighlights } from '@/lib/kpi/kpi-store.firestore';
 import type { KPICategory } from '@/lib/kpi/types';
 
 export async function GET(request: NextRequest) {
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   const externalOnly = searchParams.get('externalOnly') === 'true';
   const limit = searchParams.get('limit');
 
-  const highlights = getKpiHighlights({
+  const highlights = await getKpiHighlights({
     category: category ?? undefined,
     externalOnly,
     limit: limit ? parseInt(limit, 10) : undefined,

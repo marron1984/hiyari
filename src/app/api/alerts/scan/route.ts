@@ -6,7 +6,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createAlertsFromScan } from '@/lib/alerts/repo';
+import { createAlertsFromScanAsync } from '@/lib/alerts/repo.firestore';
 import { scanKpiAnomalies } from '@/lib/alerts/scanners/kpi-scanner';
 import { scanApprovalBacklog } from '@/lib/alerts/scanners/approval-scanner';
 import { scanDeadlines } from '@/lib/alerts/scanners/deadline-scanner';
@@ -22,23 +22,23 @@ export async function POST() {
   allRequests.push(...kpiAlerts);
 
   // 承認滞留スキャン
-  const approvalAlerts = scanApprovalBacklog();
+  const approvalAlerts = await scanApprovalBacklog();
   allRequests.push(...approvalAlerts);
 
   // 期限超過スキャン
-  const deadlineAlerts = scanDeadlines();
+  const deadlineAlerts = await scanDeadlines();
   allRequests.push(...deadlineAlerts);
 
   // 一括作成
-  const result = createAlertsFromScan(allRequests);
+  const result = await createAlertsFromScanAsync(allRequests);
 
   // Task 033: 未分類スコープスキャン（別fingerprint管理のため別処理）
-  const unclassifiedResult = createUnclassifiedAlerts();
+  const unclassifiedResult = await createUnclassifiedAlerts();
 
   // Task 033: 未分類通知も作成
   let notificationCreated = false;
   if (unclassifiedResult.created > 0) {
-    const counts = getUnclassifiedCounts();
+    const counts = await getUnclassifiedCounts();
     const notification = createUnclassifiedScopeNotification(counts);
     notificationCreated = notification !== null;
   }

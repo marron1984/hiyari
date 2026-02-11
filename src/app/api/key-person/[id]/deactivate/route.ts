@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getById, deactivateContact } from '@/lib/keyPerson/repo';
+import { getById, deactivateContact } from '@/lib/keyPerson/repo.firestore';
 import { canEditKeyPerson } from '@/lib/keyPerson/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -28,7 +28,7 @@ export async function POST(
     }
 
     const { id } = await params;
-    const contact = getById(id, { userId: user.uid, role: user.role as AppRole });
+    const contact = await getById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!contact) {
       return NextResponse.json(
@@ -37,7 +37,7 @@ export async function POST(
       );
     }
 
-    const deactivated = deactivateContact(id, user.uid);
+    const deactivated = await deactivateContact(id, user.uid);
 
     return NextResponse.json({ contact: deactivated });
   } catch (error) {

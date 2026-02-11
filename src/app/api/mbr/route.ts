@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid month format. Use YYYY-MM' }, { status: 400 });
     }
 
-    const mbr = generateMbr(month);
+    const mbr = await generateMbr(month);
     saveMbr(mbr);
 
     return NextResponse.json({ mbr }, { status: 201 });

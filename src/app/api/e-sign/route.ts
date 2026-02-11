@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import * as repo from '@/lib/esign/repo';
+import * as repo from '@/lib/esign/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ListESignRecordsFilter, SignStatus, SubjectType, SignMethod, ExternalProvider } from '@/lib/esign/types';
 import type { AppRole } from '@/config/appRoles';
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       filter.expiringWithinDays = parseInt(expiringWithinDays, 10);
     }
 
-    const result = repo.listESignRecords(viewer, filter);
+    const result = await repo.listESignRecords(viewer, filter);
 
     return NextResponse.json({
       success: true,
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = repo.createESignRecord(
+    const result = await repo.createESignRecord(
       {
         subjectType: body.subjectType as SubjectType,
         subjectId: body.subjectId || null,

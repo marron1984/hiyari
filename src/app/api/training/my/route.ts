@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { myTrainingSummary } from '@/lib/training/repo';
+import { myTrainingSummary } from '@/lib/training/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     if (!isApiUser(authResult)) return authResult;
     const user = authResult;
 
-    const summary = myTrainingSummary(user.uid);
+    const summary = await myTrainingSummary(user.uid);
 
     return NextResponse.json(summary);
   } catch (error) {

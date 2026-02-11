@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { addFlowStep, getApprovalFlow } from '@/lib/approvals/flowRepo';
+import { addFlowStep, getApprovalFlow } from '@/lib/approvals/flowRepo.firestore';
 import { checkRole } from '@/lib/auth/requireRole';
 
 export async function POST(
@@ -24,7 +24,7 @@ export async function POST(
   }
 
   // フロー存在チェック
-  const flow = getApprovalFlow(id);
+  const flow = await getApprovalFlow(id);
   if (!flow) {
     return NextResponse.json(
       { error: 'フローが見つかりません' },
@@ -50,7 +50,7 @@ export async function POST(
     );
   }
 
-  const result = addFlowStep(id, {
+  const result = await addFlowStep(id, {
     stepOrder: body.stepOrder,
     approverType: body.approverType,
     approverRole: body.approverRole,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, Badge } from '@/components/ui';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   Database,
   Search,
@@ -141,12 +142,16 @@ export default function ScopeBackfillPage() {
     }
   };
 
+  const [showApplyConfirm, setShowApplyConfirm] = useState(false);
+
+  // 適用確認
+  const handleApplyClick = () => {
+    setShowApplyConfirm(true);
+  };
+
   // 適用実行
   const handleApply = async () => {
-    if (!confirm(`${previewCount}件のレコードに事業単位を一括付与します。よろしいですか？`)) {
-      return;
-    }
-
+    setShowApplyConfirm(false);
     setApplyLoading(true);
     setApplyError(null);
     setApplyResult(null);
@@ -543,7 +548,7 @@ export default function ScopeBackfillPage() {
                       リセット
                     </button>
                     <button
-                      onClick={handleApply}
+                      onClick={handleApplyClick}
                       disabled={applyLoading || previewCount === 0}
                       className="flex items-center gap-2 px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
@@ -595,6 +600,17 @@ export default function ScopeBackfillPage() {
           </>
         )}
       </div>
+
+      {/* 適用確認ダイアログ */}
+      <ConfirmDialog
+        open={showApplyConfirm}
+        title="一括付与の確認"
+        message={`${previewCount}件のレコードに事業単位を一括付与します。よろしいですか？`}
+        confirmLabel="適用"
+        variant="danger"
+        onConfirm={handleApply}
+        onCancel={() => setShowApplyConfirm(false)}
+      />
     </main>
   );
 }

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listActionItems } from '@/lib/committees/repo';
+import { listActionItems } from '@/lib/committees/repo.firestore';
 import type { ActionItemStatus } from '@/lib/committees/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const overdue = overdueParam === 'true' ? true : undefined;
     const ownerUserId = searchParams.get('ownerUserId') || undefined;
 
-    const actionItems = listActionItems({
+    const actionItems = await listActionItems({
       meetingId,
       committeeId,
       status,

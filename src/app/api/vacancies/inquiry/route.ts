@@ -18,11 +18,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getByIdAsync, seedIfEmptyAsync } from '@/lib/vacancyUnits/repo';
-import { validateRef, seedRefSourcesIfEmpty, logRefAccess } from '@/lib/refSources/repo';
+import { validateRef, seedRefSourcesIfEmpty, logRefAccess } from '@/lib/refSources/repo.firestore';
 import {
   createPending,
   generateVerifyUrl,
-} from '@/lib/vacancyInquiryPending/repo';
+} from '@/lib/vacancyInquiryPending/repo.firestore';
 import { checkSpam } from '@/lib/spam/check';
 
 // Ticket 072: 拡張リクエスト型
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   try {
     // シードデータ確認
     await seedIfEmptyAsync();
-    seedRefSourcesIfEmpty();  // Ticket 073: refシードデータ
+    await seedRefSourcesIfEmpty();  // Ticket 073: refシードデータ
 
     const body = await request.json() as VacancyInquiryRequestV2;
 
@@ -122,14 +122,14 @@ export async function POST(request: NextRequest) {
     let validatedRefName: string | undefined;
 
     if (ref && targetBusinessUnitId) {
-      const refSource = validateRef(ref, targetBusinessUnitId);
+      const refSource = await validateRef(ref, targetBusinessUnitId);
       if (refSource) {
         // 有効な紹介元
         validatedRef = refSource.ref;
         validatedRefName = refName || refSource.name;
 
         // アクセスログ記録
-        logRefAccess(
+        await logRefAccess(
           ref,
           '/api/vacancies/inquiry',
           clientIp,
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Ticket 076: pending 作成（tickets は作らない）
-    const { pending, token } = createPending(
+    const { pending, token } = await createPending(
       {
         businessUnitId: targetBusinessUnitId,
         vacancyUnitId,

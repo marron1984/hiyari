@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { assignUsers, getSession } from '@/lib/training/repo';
+import { assignUsers, getSession } from '@/lib/training/repo.firestore';
 import { canManageTraining } from '@/lib/training/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -40,7 +40,7 @@ export async function POST(
       );
     }
 
-    const result = assignUsers(
+    const result = await assignUsers(
       sessionId,
       userIds,
       dueAt ?? null,
@@ -57,7 +57,7 @@ export async function POST(
     // 割当通知を送信（失敗しても本体処理には影響させない）
     try {
       const today = new Date().toISOString().split('T')[0];
-      const session = getSession(sessionId);
+      const session = await getSession(sessionId);
       const sessionTitle = session?.name ?? '研修セッション';
       for (const targetUserId of userIds) {
         await createNotificationAsync({

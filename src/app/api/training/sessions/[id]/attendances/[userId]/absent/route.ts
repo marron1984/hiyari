@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { markAbsent } from '@/lib/training/repo';
+import { markAbsent } from '@/lib/training/repo.firestore';
 import { canManageTraining } from '@/lib/training/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -32,7 +32,7 @@ export async function POST(
     const body = await request.json().catch(() => ({}));
     const { note } = body;
 
-    const result = markAbsent(
+    const result = await markAbsent(
       sessionId,
       userId,
       user.uid,

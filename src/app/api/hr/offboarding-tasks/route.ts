@@ -36,14 +36,14 @@ export async function GET(request: NextRequest) {
   const overdueOnly = searchParams.get('overdueOnly') === 'true';
 
   if (overdueOnly) {
-    const tasks = getOverdueOffboardingTasks();
+    const tasks = await getOverdueOffboardingTasks();
     return NextResponse.json({
       tasks,
       total: tasks.length,
     });
   }
 
-  const tasks = listOffboardingTasks({
+  const tasks = await listOffboardingTasks({
     userId: userId ?? undefined,
     status: status ?? undefined,
   });

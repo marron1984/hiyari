@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listKpiDefinitions, getKpiSummary } from '@/lib/kpi/kpi-store';
+import { listKpiDefinitions, getKpiSummary } from '@/lib/kpi/kpi-store.firestore';
 import type { KPICategory } from '@/lib/kpi/types';
 
 export async function GET(request: NextRequest) {
@@ -13,12 +13,12 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get('category') as KPICategory | null;
   const externalOnly = searchParams.get('externalOnly') === 'true';
 
-  const definitions = listKpiDefinitions({
+  const definitions = await listKpiDefinitions({
     category: category ?? undefined,
     externalOnly,
   });
 
-  const summary = getKpiSummary();
+  const summary = await getKpiSummary();
 
   return NextResponse.json({
     success: true,

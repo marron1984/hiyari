@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { updateAlertStatus, getAlertById } from '@/lib/alerts/repo';
+import { updateAlertStatusAsync, getAlertByIdAsync } from '@/lib/alerts/repo.firestore';
 
 export async function POST(
   request: NextRequest,
@@ -14,7 +14,7 @@ export async function POST(
   const { id } = await params;
 
   // アラート存在確認
-  const existing = getAlertById(id);
+  const existing = await getAlertByIdAsync(id);
   if (!existing) {
     return NextResponse.json(
       { success: false, error: 'アラートが見つかりません' },
@@ -31,7 +31,7 @@ export async function POST(
   }
 
   // ステータス更新
-  const alert = updateAlertStatus(id, 'acknowledged', null);
+  const alert = await updateAlertStatusAsync(id, 'acknowledged', null);
 
   return NextResponse.json({
     success: true,

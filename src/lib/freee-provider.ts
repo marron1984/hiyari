@@ -1,5 +1,4 @@
 // ======== freee支払いプロバイダー ========
-// ダミー実装（インターフェース確定用）
 
 import type {
   Payment,
@@ -14,6 +13,7 @@ import type {
   FreeeWalletable,
   FreeePartner,
 } from '@/types/freee';
+import { FREEE_OAUTH_CONFIG } from '@/types/freee';
 import type { JournalEntry } from '@/types/accounting-template';
 import { getFreeeIntegration, refreshFreeeTokenIfNeeded } from './freee-token';
 import {
@@ -22,11 +22,12 @@ import {
   generateDescription,
 } from './accounting-template';
 
-// ======== freeeクライアント（ダミー） ========
+const API_BASE = FREEE_OAUTH_CONFIG.apiBaseUrl;
+
+// ======== freeeクライアント ========
 
 /**
- * freee APIクライアント（ダミー実装）
- * 本番では実際のfreee APIを呼び出す
+ * freee APIクライアント
  */
 export class FreeeApiClient {
   private accessToken: string;
@@ -37,58 +38,103 @@ export class FreeeApiClient {
     this.companyId = companyId;
   }
 
+  private async apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+    const url = `${API_BASE}${path}`;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`freee API error (${response.status}): ${errorText}`);
+    }
+
+    return response.json();
+  }
+
   /**
-   * 事業所情報を取得（ダミー）
+   * 事業所情報を取得
    */
   async getCompany(): Promise<FreeeCompany> {
-    console.log('[FreeeApiClient] 事業所情報取得', { companyId: this.companyId });
-    // ダミー: 固定値を返す
+    const data = await this.apiRequest<{ company: { id: number; name: string; display_name?: string } }>(
+      `/api/1/companies/${this.companyId}`
+    );
     return {
-      id: this.companyId,
-      name: 'テスト事業所',
-      displayName: 'テスト事業所（ダミー）',
+      id: data.company.id,
+      name: data.company.name,
+      displayName: data.company.display_name || data.company.name,
     };
   }
 
   /**
-   * 口座一覧を取得（ダミー）
+   * 口座一覧を取得
    */
   async getWalletables(): Promise<FreeeWalletable[]> {
-    console.log('[FreeeApiClient] 口座一覧取得', { companyId: this.companyId });
-    // ダミー: 固定値を返す
-    return [
-      { id: 1, name: 'メイン銀行口座', type: 'bank_account', walletableBalance: 1000000 },
-      { id: 2, name: '経費用クレジットカード', type: 'credit_card' },
-    ];
+    const data = await this.apiRequest<{ walletables: Array<{ id: number; name: string; type: string; walletable_balance?: number }> }>(
+      `/api/1/walletables?company_id=${this.companyId}`
+    );
+    return data.walletables.map((w) => ({
+      id: w.id,
+      name: w.name,
+      type: w.type as FreeeWalletable['type'],
+      walletableBalance: w.walletable_balance,
+    }));
   }
 
   /**
-   * 取引先一覧を取得（ダミー）
+   * 取引先一覧を取得
    */
   async getPartners(): Promise<FreeePartner[]> {
-    console.log('[FreeeApiClient] 取引先一覧取得', { companyId: this.companyId });
-    // ダミー: 固定値を返す
-    return [
-      { id: 1, name: '株式会社テスト', code: 'TEST001' },
-      { id: 2, name: '有限会社サンプル', code: 'SAMPLE001' },
-    ];
+    const data = await this.apiRequest<{ partners: Array<{ id: number; name: string; code?: string }> }>(
+      `/api/1/partners?company_id=${this.companyId}`
+    );
+    return data.partners.map((p) => ({
+      id: p.id,
+      name: p.name,
+      code: p.code,
+    }));
   }
 
   /**
-   * 取引先を検索/作成（ダミー）
+   * 取引先を検索/作成
    */
   async findOrCreatePartner(name: string): Promise<FreeePartner> {
-    console.log('[FreeeApiClient] 取引先検索/作成', { companyId: this.companyId, name });
-    // ダミー: 新規作成したことにする
+    // まず名前で検索
+    const searchData = await this.apiRequest<{ partners: Array<{ id: number; name: string; code?: string }> }>(
+      `/api/1/partners?company_id=${this.companyId}&keyword=${encodeURIComponent(name)}`
+    );
+
+    const existing = searchData.partners.find((p) => p.name === name);
+    if (existing) {
+      return { id: existing.id, name: existing.name, code: existing.code };
+    }
+
+    // 見つからなければ新規作成
+    const createData = await this.apiRequest<{ partner: { id: number; name: string; code?: string } }>(
+      `/api/1/partners`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          company_id: this.companyId,
+          name,
+        }),
+      }
+    );
+
     return {
-      id: Date.now(),
-      name,
-      code: `AUTO-${Date.now()}`,
+      id: createData.partner.id,
+      name: createData.partner.name,
+      code: createData.partner.code,
     };
   }
 
   /**
-   * 支払依頼を作成（ダミー）
+   * 支払依頼を作成
    */
   async createPaymentRequest(params: {
     title: string;
@@ -98,16 +144,25 @@ export class FreeeApiClient {
     description?: string;
     targetDate?: string;
   }): Promise<{ id: number }> {
-    console.log('[FreeeApiClient] 支払依頼作成', {
-      companyId: this.companyId,
-      ...params,
-    });
-    // ダミー: 成功を返す
-    return { id: Date.now() };
+    const data = await this.apiRequest<{ payment_request: { id: number } }>(
+      `/api/1/payment_requests`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          company_id: this.companyId,
+          title: params.title,
+          total_amount: params.totalAmount,
+          partner_id: params.partnerId,
+          description: params.description,
+          payment_date: params.targetDate,
+        }),
+      }
+    );
+    return { id: data.payment_request.id };
   }
 
   /**
-   * 振込依頼を作成（ダミー）
+   * 振込依頼を作成
    */
   async createTransfer(params: {
     fromWalletableId: number;
@@ -120,53 +175,64 @@ export class FreeeApiClient {
     toAccountType: 'ordinary' | 'checking';
     description?: string;
   }): Promise<{ id: number }> {
-    console.log('[FreeeApiClient] 振込依頼作成', {
-      companyId: this.companyId,
-      ...params,
-    });
-    // ダミー: 成功を返す
-    return { id: Date.now() };
+    const data = await this.apiRequest<{ transfer: { id: number } }>(
+      `/api/1/transfers`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          company_id: this.companyId,
+          from_walletable_id: params.fromWalletableId,
+          from_walletable_type: 'bank_account',
+          to_walletable_id: null,
+          amount: params.amount,
+          date: params.transferDate,
+          description: params.description,
+        }),
+      }
+    );
+    return { id: data.transfer.id };
   }
 
   /**
-   * 支払依頼ステータスを取得（ダミー）
+   * 支払依頼ステータスを取得
    */
   async getPaymentRequestStatus(paymentRequestId: number): Promise<string> {
-    console.log('[FreeeApiClient] 支払依頼ステータス取得', {
-      companyId: this.companyId,
-      paymentRequestId,
-    });
-    // ダミー: 完了を返す
-    return 'settled';
+    const data = await this.apiRequest<{ payment_request: { status: string } }>(
+      `/api/1/payment_requests/${paymentRequestId}?company_id=${this.companyId}`
+    );
+    return data.payment_request.status;
   }
 
   /**
-   * 仕訳（取引）を作成（ダミー）
+   * 仕訳（取引）を作成
    */
   async createDeal(journalEntry: JournalEntry): Promise<{ id: number }> {
-    console.log('[FreeeApiClient] 仕訳作成', {
-      companyId: this.companyId,
-      issueDate: journalEntry.issueDate,
-      type: journalEntry.type,
-      partnerName: journalEntry.partnerName,
-      description: journalEntry.description,
-      detailsCount: journalEntry.details.length,
-      details: journalEntry.details.map(d => ({
-        accountItemId: d.accountItemId,
-        amount: d.amount,
-        description: d.description,
-      })),
-    });
-
-    // ダミー: 成功を返す
-    return { id: Date.now() };
+    const data = await this.apiRequest<{ deal: { id: number } }>(
+      `/api/1/deals`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          company_id: this.companyId,
+          issue_date: journalEntry.issueDate,
+          type: journalEntry.type === 'expense' ? 'expense' : 'income',
+          partner_id: journalEntry.partnerId,
+          details: journalEntry.details.map((d) => ({
+            account_item_id: d.accountItemId,
+            tax_code: d.taxCode,
+            amount: d.amount,
+            description: d.description,
+          })),
+        }),
+      }
+    );
+    return { id: data.deal.id };
   }
 }
 
 // ======== freee支払いプロバイダー ========
 
 /**
- * freee支払いプロバイダー（ダミー実装）
+ * freee支払いプロバイダー
  */
 export class FreeePaymentProvider implements PaymentProviderInterface {
   private name = 'FreeePaymentProvider';
