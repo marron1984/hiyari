@@ -354,7 +354,8 @@ export default function AuditDashboardPage() {
                 <h2 className="text-lg font-bold text-zinc-800">監査ログ詳細</h2>
                 <button
                   onClick={() => setSelectedEntry(null)}
-                  className="text-zinc-400 hover:text-zinc-600"
+                  className="text-zinc-400 hover:text-zinc-600 p-1 rounded hover:bg-zinc-100"
+                  aria-label="閉じる"
                 >
                   ×
                 </button>

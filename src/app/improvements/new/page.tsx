@@ -10,11 +10,13 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { ArrowLeft, Send, Lightbulb } from 'lucide-react';
 import { createImprovement } from '@/lib/improvement';
+import { useToast } from '@/components/ui/Toast';
 import { ImprovementFormData, ImprovementCategory, IMPROVEMENT_CATEGORIES } from '@/types';
 
 export default function NewImprovementPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<ImprovementFormData>({
     title: '',
@@ -28,7 +30,7 @@ export default function NewImprovementPage() {
     if (!user) return;
 
     if (!formData.title.trim() || !formData.description.trim()) {
-      alert('タイトルと内容は必須です');
+      toast('タイトルと内容は必須です', 'warning');
       return;
     }
 
@@ -38,7 +40,7 @@ export default function NewImprovementPage() {
       router.push('/improvements');
     } catch (error) {
       console.error('Submit failed:', error);
-      alert(error instanceof Error ? error.message : '投稿に失敗しました');
+      toast(error instanceof Error ? error.message : '投稿に失敗しました', 'error');
     } finally {
       setLoading(false);
     }

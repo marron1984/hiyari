@@ -7,3 +7,5 @@ export { PageHeader } from './PageHeader';
 export { KPICard, KPIGrid } from './KPICard';
 export { ErrorBanner, WarningList } from './ErrorBanner';
 export { FilterChips, StatusFilter } from './FilterChips';
+export { ToastProvider, useToast } from './Toast';
+export { ConfirmDialog } from './ConfirmDialog';

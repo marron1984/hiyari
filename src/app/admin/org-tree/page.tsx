@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Move,
 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 // ========== 型定義 ==========
 
@@ -350,6 +351,7 @@ function OrgDetailPanel({ unit, allUnits, onClose, onUpdate }: OrgDetailPanelPro
 
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [moveTargetId, setMoveTargetId] = useState<string | null>(unit.parentId);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
 
   const config = TYPE_CONFIG[unit.type];
 
@@ -393,8 +395,11 @@ function OrgDetailPanel({ unit, allUnits, onClose, onUpdate }: OrgDetailPanelPro
     }
   }
 
-  async function handleDeactivate() {
-    if (!confirm(`「${unit.name}」を無効化しますか？`)) return;
+  function handleDeactivate() {
+    setShowDeactivateConfirm(true);
+  }
+
+  async function executeDeactivate() {
     try {
       const res = await fetch(`/api/org/${unit.id}/deactivate`, {
         method: 'POST',
@@ -406,6 +411,8 @@ function OrgDetailPanel({ unit, allUnits, onClose, onUpdate }: OrgDetailPanelPro
       }
     } catch (err) {
       console.error('Failed to deactivate:', err);
+    } finally {
+      setShowDeactivateConfirm(false);
     }
   }
 
@@ -635,6 +642,17 @@ function OrgDetailPanel({ unit, allUnits, onClose, onUpdate }: OrgDetailPanelPro
           </div>
         )}
       </div>
+
+      {/* 無効化確認 */}
+      <ConfirmDialog
+        open={showDeactivateConfirm}
+        title="組織の無効化"
+        message={`「${unit.name}」を無効化しますか？`}
+        confirmLabel="無効化する"
+        variant="danger"
+        onConfirm={executeDeactivate}
+        onCancel={() => setShowDeactivateConfirm(false)}
+      />
 
       {/* 移動モーダル */}
       {showMoveModal && (

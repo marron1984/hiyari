@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Card, Button } from '@/components/ui';
 import { Loading } from '@/components/Loading';
+import { useToast } from '@/components/ui/Toast';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useRole } from '@/contexts/RoleContext';
 import { useApiFetch } from '@/hooks/useApiFetch';
 import Link from 'next/link';
@@ -97,6 +99,8 @@ export default function ApprovalRequestDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [actionNote, setActionNote] = useState('');
+  const [pendingAction, setPendingAction] = useState<'approve' | 'reject' | 'return' | 'cancel' | null>(null);
+  const { toast } = useToast();
 
   // データ取得
   const fetchData = useCallback(async () => {
@@ -130,35 +134,42 @@ export default function ApprovalRequestDetailPage() {
     fetchData();
   }, [fetchData]);
 
-  // アクション実行
-  const handleAction = async (actionType: 'approve' | 'reject' | 'return' | 'cancel') => {
+  const confirmMessages: Record<string, string> = {
+    approve: 'この申請を承認しますか？',
+    reject: 'この申請を却下しますか？',
+    return: 'この申請を差戻しますか？',
+    cancel: 'この申請を取消しますか？',
+  };
+
+  // アクション確認
+  const handleAction = (actionType: 'approve' | 'reject' | 'return' | 'cancel') => {
     if (!request) return;
+    setPendingAction(actionType);
+  };
 
-    const confirmMessages: Record<string, string> = {
-      approve: 'この申請を承認しますか？',
-      reject: 'この申請を却下しますか？',
-      return: 'この申請を差戻しますか？',
-      cancel: 'この申請を取消しますか？',
-    };
+  // アクション実行
+  const executeAction = async () => {
+    if (!pendingAction) return;
 
-    if (!confirm(confirmMessages[actionType])) return;
-
+    setPendingAction(null);
     setActionLoading(true);
     try {
-      const res = await apiFetch(`/api/approval-requests/${requestId}/${actionType}`, {
+      const res = await apiFetch(`/api/approval-requests/${requestId}/${pendingAction}`, {
         method: 'POST',
         body: JSON.stringify({ note: actionNote || undefined }),
       });
 
       if (res.ok) {
         setActionNote('');
+        toast('処理を実行しました', 'success');
         fetchData();
       } else {
         const data = await res.json();
-        alert(data.error || 'アクションの実行に失敗しました');
+        toast(data.error || 'アクションの実行に失敗しました', 'error');
       }
     } catch (err) {
       console.error('Failed to execute action:', err);
+      toast('アクションの実行に失敗しました', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -525,6 +536,17 @@ export default function ApprovalRequestDetailPage() {
           </div>
         </div>
       </main>
+
+      {/* アクション確認ダイアログ */}
+      <ConfirmDialog
+        open={!!pendingAction}
+        title="確認"
+        message={pendingAction ? confirmMessages[pendingAction] : ''}
+        confirmLabel={pendingAction === 'approve' ? '承認' : pendingAction === 'reject' ? '却下' : pendingAction === 'return' ? '差戻' : '取消'}
+        variant={pendingAction === 'approve' ? 'default' : 'danger'}
+        onConfirm={executeAction}
+        onCancel={() => setPendingAction(null)}
+      />
     </div>
   );
 }

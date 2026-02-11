@@ -26,6 +26,8 @@ import type { AccountingTemplate, JournalEntryDetail } from '@/types/accounting-
 import { COMMON_ACCOUNT_ITEMS } from '@/types/accounting-template';
 import type { TemplateSuggestion } from '@/types/template-improvement';
 import { useApiFetch } from '@/hooks/useApiFetch';
+import { useToast } from '@/components/ui/Toast';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function AccountingTemplatesPage() {
   return (
@@ -38,6 +40,7 @@ export default function AccountingTemplatesPage() {
 function AccountingTemplatesContent() {
   const { firebaseUser } = useAuth();
   const apiFetch = useApiFetch();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<AccountingTemplate[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -54,6 +57,14 @@ function AccountingTemplatesContent() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [expandedSuggestionId, setExpandedSuggestionId] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    variant: 'default' | 'danger';
+    execute: () => Promise<void>;
+  } | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
 
   // フォーム状態
   const [formData, setFormData] = useState({
@@ -118,59 +129,82 @@ function AccountingTemplatesContent() {
     }
   }, [activeTab]);
 
-  // 提案を承認
-  const handleAcceptSuggestion = async (suggestionId: string) => {
-    if (!firebaseUser) return;
-    if (!confirm('この改善提案を採用しますか？テンプレートが更新されます。')) return;
-
-    setProcessingId(suggestionId);
+  const handleConfirm = async () => {
+    if (!pendingAction) return;
+    setConfirmLoading(true);
     try {
-      const response = await apiFetch(`/api/admin/template-suggestions/${suggestionId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'accept' }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        await fetchSuggestions();
-        await fetchTemplates();
-        alert('提案を採用しました');
-      } else {
-        alert(data.error || '処理に失敗しました');
-      }
-    } catch (error) {
-      console.error('提案承認エラー:', error);
-      alert('処理に失敗しました');
+      await pendingAction.execute();
     } finally {
-      setProcessingId(null);
+      setConfirmLoading(false);
+      setPendingAction(null);
     }
   };
 
-  // 提案を見送り
-  const handleRejectSuggestion = async (suggestionId: string) => {
+  // 提案を承認
+  const handleAcceptSuggestion = (suggestionId: string) => {
     if (!firebaseUser) return;
-    if (!confirm('この改善提案を見送りますか？')) return;
+    setPendingAction({
+      title: '改善提案の採用',
+      message: 'この改善提案を採用しますか？テンプレートが更新されます。',
+      confirmLabel: '採用する',
+      variant: 'default',
+      execute: async () => {
+        setProcessingId(suggestionId);
+        try {
+          const response = await apiFetch(`/api/admin/template-suggestions/${suggestionId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'accept' }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            await fetchSuggestions();
+            await fetchTemplates();
+            toast('提案を採用しました', 'success');
+          } else {
+            toast(data.error || '処理に失敗しました', 'error');
+          }
+        } catch (error) {
+          console.error('提案承認エラー:', error);
+          toast('処理に失敗しました', 'error');
+        } finally {
+          setProcessingId(null);
+        }
+      },
+    });
+  };
 
-    setProcessingId(suggestionId);
-    try {
-      const response = await apiFetch(`/api/admin/template-suggestions/${suggestionId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reject' }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        await fetchSuggestions();
-        alert('提案を見送りました');
-      } else {
-        alert(data.error || '処理に失敗しました');
-      }
-    } catch (error) {
-      console.error('提案見送りエラー:', error);
-      alert('処理に失敗しました');
-    } finally {
-      setProcessingId(null);
-    }
+  // 提案を見送り
+  const handleRejectSuggestion = (suggestionId: string) => {
+    if (!firebaseUser) return;
+    setPendingAction({
+      title: '改善提案の見送り',
+      message: 'この改善提案を見送りますか？',
+      confirmLabel: '見送る',
+      variant: 'default',
+      execute: async () => {
+        setProcessingId(suggestionId);
+        try {
+          const response = await apiFetch(`/api/admin/template-suggestions/${suggestionId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'reject' }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            await fetchSuggestions();
+            toast('提案を見送りました', 'success');
+          } else {
+            toast(data.error || '処理に失敗しました', 'error');
+          }
+        } catch (error) {
+          console.error('提案見送りエラー:', error);
+          toast('処理に失敗しました', 'error');
+        } finally {
+          setProcessingId(null);
+        }
+      },
+    });
   };
 
   // トリガー理由の表示テキスト
@@ -232,7 +266,7 @@ function AccountingTemplatesContent() {
   // 保存
   const handleSave = async () => {
     if (!formData.name) {
-      alert('テンプレート名は必須です');
+      toast('テンプレート名は必須です', 'warning');
       return;
     }
 
@@ -295,60 +329,72 @@ function AccountingTemplatesContent() {
         setShowForm(false);
         resetForm();
       } else {
-        alert(data.error || '保存に失敗しました');
+        toast(data.error || '保存に失敗しました', 'error');
       }
     } catch (error) {
       console.error('保存エラー:', error);
-      alert('保存に失敗しました');
+      toast('保存に失敗しました', 'error');
     } finally {
       setSaving(false);
     }
   };
 
   // 削除
-  const handleDelete = async (id: string) => {
-    if (!confirm('このテンプレートを削除しますか？')) return;
-
-    try {
-      const response = await apiFetch(`/api/admin/accounting-templates/${id}`, {
-        method: 'DELETE',
-      });
-      const data = await response.json();
-      if (data.success) {
-        await fetchTemplates();
-      } else {
-        alert(data.error || '削除に失敗しました');
-      }
-    } catch (error) {
-      console.error('削除エラー:', error);
-      alert('削除に失敗しました');
-    }
+  const handleDelete = (id: string) => {
+    setPendingAction({
+      title: 'テンプレートの削除',
+      message: 'このテンプレートを削除しますか？',
+      confirmLabel: '削除する',
+      variant: 'danger',
+      execute: async () => {
+        try {
+          const response = await apiFetch(`/api/admin/accounting-templates/${id}`, {
+            method: 'DELETE',
+          });
+          const data = await response.json();
+          if (data.success) {
+            await fetchTemplates();
+          } else {
+            toast(data.error || '削除に失敗しました', 'error');
+          }
+        } catch (error) {
+          console.error('削除エラー:', error);
+          toast('削除に失敗しました', 'error');
+        }
+      },
+    });
   };
 
   // デフォルトテンプレート作成
-  const handleSeedDefaults = async () => {
-    if (!confirm('デフォルトの仕訳テンプレートを作成しますか？\n既存のテンプレートがある場合はスキップされます。')) return;
-
-    setSeeding(true);
-    try {
-      const response = await apiFetch('/api/admin/accounting-templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'seed' }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        await fetchTemplates();
-        alert('デフォルトテンプレートを作成しました');
-      } else {
-        alert(data.error || '作成に失敗しました');
-      }
-    } catch (error) {
-      console.error('シードエラー:', error);
-      alert('作成に失敗しました');
-    } finally {
-      setSeeding(false);
-    }
+  const handleSeedDefaults = () => {
+    setPendingAction({
+      title: 'デフォルトテンプレート作成',
+      message: 'デフォルトの仕訳テンプレートを作成しますか？\n既存のテンプレートがある場合はスキップされます。',
+      confirmLabel: '作成する',
+      variant: 'default',
+      execute: async () => {
+        setSeeding(true);
+        try {
+          const response = await apiFetch('/api/admin/accounting-templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'seed' }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            await fetchTemplates();
+            toast('デフォルトテンプレートを作成しました', 'success');
+          } else {
+            toast(data.error || '作成に失敗しました', 'error');
+          }
+        } catch (error) {
+          console.error('シードエラー:', error);
+          toast('作成に失敗しました', 'error');
+        } finally {
+          setSeeding(false);
+        }
+      },
+    });
   };
 
   if (loading) {
@@ -902,6 +948,16 @@ function AccountingTemplatesContent() {
             </a>
           </div>
         </div>
+        <ConfirmDialog
+          open={!!pendingAction}
+          title={pendingAction?.title ?? ''}
+          message={pendingAction?.message ?? ''}
+          confirmLabel={pendingAction?.confirmLabel ?? '実行'}
+          variant={pendingAction?.variant ?? 'default'}
+          loading={confirmLoading}
+          onConfirm={handleConfirm}
+          onCancel={() => setPendingAction(null)}
+        />
       </main>
     </>
   );

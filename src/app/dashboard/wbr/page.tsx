@@ -54,7 +54,16 @@ export default function WbrPage() {
   const currentReport = wbrHistory[selectedReportIndex];
 
   if (!currentReport) {
-    return <main className="pb-8"><div className="max-w-4xl mx-auto px-4 py-6">読み込み中...</div></main>;
+    return (
+      <main className="pb-8">
+        <div className="max-w-4xl mx-auto px-4 py-6 flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-zinc-900" />
+            <p className="text-sm text-zinc-500">読み込み中...</p>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   // テキスト出力
@@ -298,7 +307,7 @@ export default function WbrPage() {
         {/* フッター */}
         <div className="mt-6 text-center print:hidden">
           <p className="text-xs text-zinc-400 mb-4">
-            Generated: {currentReport.generatedAt.toLocaleString('ja-JP')}
+            生成日時: {currentReport.generatedAt.toLocaleString('ja-JP')}
           </p>
           <div className="flex justify-center gap-4 text-sm text-zinc-400">
             <Link href="/dashboard/kpi" className="hover:text-zinc-600">

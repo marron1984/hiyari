@@ -29,6 +29,7 @@ import {
   INCIDENT_TAGS,
 } from '@/types';
 import { Camera, X, AlertTriangle } from 'lucide-react';
+import { useToast } from '@/components/ui/Toast';
 
 export default function SubmitPage() {
   return (
@@ -41,6 +42,7 @@ export default function SubmitPage() {
 function SubmitContent() {
   const { user, isAdmin } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -136,11 +138,11 @@ function SubmitContent() {
     const newFiles = Array.from(files).slice(0, 3 - images.length);
     const validFiles = newFiles.filter((file) => {
       if (!file.type.startsWith('image/')) {
-        alert('画像ファイルのみアップロードできます');
+        toast('画像ファイルのみアップロードできます', 'warning');
         return false;
       }
       if (file.size > 5 * 1024 * 1024) {
-        alert('画像サイズは5MB以下にしてください');
+        toast('画像サイズは5MB以下にしてください', 'warning');
         return false;
       }
       return true;

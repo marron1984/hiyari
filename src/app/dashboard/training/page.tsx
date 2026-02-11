@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent, Badge } from '@/components/ui';
+import { Loading } from '@/components/Loading';
 import {
   GraduationCap,
   Plus,
@@ -39,6 +40,7 @@ export default function TrainingPage() {
   const [courses, setCourses] = useState<TrainingCourse[]>([]);
   const [mySummary, setMySummary] = useState<MyTrainingSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // フィルタ
   const [statusFilter, setStatusFilter] = useState<SessionStatus | ''>('');
@@ -79,8 +81,14 @@ export default function TrainingPage() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchSessions(), fetchCourses(), fetchMySummary()]);
-      setLoading(false);
+      setError(null);
+      try {
+        await Promise.all([fetchSessions(), fetchCourses(), fetchMySummary()]);
+      } catch {
+        setError('データの取得に失敗しました');
+      } finally {
+        setLoading(false);
+      }
     };
     loadData();
   }, [fetchSessions, fetchCourses, fetchMySummary]);
@@ -216,8 +224,15 @@ export default function TrainingPage() {
           </button>
         </div>
 
+        {/* エラーバナー */}
+        {error && (
+          <Card className="p-4 mb-6 bg-red-50 border-red-200">
+            <p className="text-sm text-red-700">{error}</p>
+          </Card>
+        )}
+
         {loading ? (
-          <div className="text-center py-12 text-zinc-500">読み込み中...</div>
+          <Loading />
         ) : (
           <>
             {/* セッションタブ */}

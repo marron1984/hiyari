@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Badge, Button } from '@/components/ui';
+import { useToast } from '@/components/ui/Toast';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   Shield,
   ShieldOff,
@@ -30,8 +32,11 @@ type TabType = 'rules' | 'blocklist' | 'events';
 
 export default function SpamDashboardPage() {
   const apiFetch = useApiFetch();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<TabType>('rules');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   // ルール
   const [rules, setRules] = useState<SpamRule[]>([]);
@@ -94,8 +99,14 @@ export default function SpamDashboardPage() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([fetchRules(), fetchBlocklist(), fetchEvents()]);
-    setLoading(false);
+    setError(null);
+    try {
+      await Promise.all([fetchRules(), fetchBlocklist(), fetchEvents()]);
+    } catch {
+      setError('データの取得に失敗しました');
+    } finally {
+      setLoading(false);
+    }
   }, [fetchRules, fetchBlocklist, fetchEvents]);
 
   useEffect(() => {
@@ -114,13 +125,15 @@ export default function SpamDashboardPage() {
       if (res.ok) {
         setShowRuleModal(false);
         setNewRule({ type: 'ng_word', pattern: '', severity: 'warn', description: '' });
+        toast('ルールを作成しました', 'success');
         fetchRules();
       } else {
         const data = await res.json();
-        alert(data.error || 'ルールの作成に失敗しました');
+        toast(data.error || 'ルールの作成に失敗しました', 'error');
       }
     } catch (error) {
       console.error('Failed to create rule:', error);
+      toast('ルールの作成に失敗しました', 'error');
     }
   };
 
@@ -139,27 +152,38 @@ export default function SpamDashboardPage() {
       if (res.ok) {
         setShowBlocklistModal(false);
         setNewBlocklist({ kind: 'email', value: '', reason: '', expiresAt: '' });
+        toast('ブロックリストに追加しました', 'success');
         fetchBlocklist();
       } else {
         const data = await res.json();
-        alert(data.error || '追加に失敗しました');
+        toast(data.error || '追加に失敗しました', 'error');
       }
     } catch (error) {
       console.error('Failed to add to blocklist:', error);
+      toast('追加に失敗しました', 'error');
     }
   };
 
   // ブロックリスト削除
-  const handleRemoveBlocklist = async (id: string) => {
-    if (!confirm('この項目を削除しますか？')) return;
+  const handleRemoveBlocklist = (id: string) => {
+    setDeleteTarget(id);
+  };
 
+  const executeRemoveBlocklist = async () => {
+    if (!deleteTarget) return;
     try {
-      const res = await apiFetch(`/api/spam-blocklist?id=${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/spam-blocklist?id=${deleteTarget}`, { method: 'DELETE' });
       if (res.ok) {
+        toast('ブロックリストから削除しました', 'success');
         fetchBlocklist();
+      } else {
+        toast('削除に失敗しました', 'error');
       }
     } catch (error) {
       console.error('Failed to remove from blocklist:', error);
+      toast('削除に失敗しました', 'error');
+    } finally {
+      setDeleteTarget(null);
     }
   };
 
@@ -200,7 +224,7 @@ export default function SpamDashboardPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.byAction.allow ?? 0}</div>
-              <div className="text-xs text-gray-500">Allow</div>
+              <div className="text-xs text-gray-500">許可</div>
             </div>
           </div>
         </Card>
@@ -211,7 +235,7 @@ export default function SpamDashboardPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.byAction.warn ?? 0}</div>
-              <div className="text-xs text-gray-500">Warn</div>
+              <div className="text-xs text-gray-500">警告</div>
             </div>
           </div>
         </Card>
@@ -222,7 +246,7 @@ export default function SpamDashboardPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.byAction.throttle ?? 0}</div>
-              <div className="text-xs text-gray-500">Throttle</div>
+              <div className="text-xs text-gray-500">制限</div>
             </div>
           </div>
         </Card>
@@ -233,7 +257,7 @@ export default function SpamDashboardPage() {
             </div>
             <div>
               <div className="text-2xl font-bold">{stats.byAction.block ?? 0}</div>
-              <div className="text-xs text-gray-500">Block</div>
+              <div className="text-xs text-gray-500">ブロック</div>
             </div>
           </div>
         </Card>
@@ -287,7 +311,7 @@ export default function SpamDashboardPage() {
                         {rule.enabled ? '有効' : '無効'}
                       </Badge>
                       <Badge className={rule.severity === 'block' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}>
-                        {rule.severity === 'block' ? 'Block' : 'Warn'}
+                        {rule.severity === 'block' ? 'ブロック' : '警告'}
                       </Badge>
                       <span className="text-sm text-gray-500">{rule.type}</span>
                       <code className="px-2 py-1 bg-gray-100 rounded text-sm">
@@ -427,8 +451,8 @@ export default function SpamDashboardPage() {
                   onChange={(e) => setNewRule({ ...newRule, severity: e.target.value as 'warn' | 'block' })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
-                  <option value="warn">Warn（通すが記録）</option>
-                  <option value="block">Block（拒否）</option>
+                  <option value="warn">警告（通すが記録）</option>
+                  <option value="block">ブロック（拒否）</option>
                 </select>
               </div>
 
@@ -455,6 +479,24 @@ export default function SpamDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* エラーバナー */}
+      {error && (
+        <Card className="p-4 bg-red-50 border-red-200">
+          <p className="text-sm text-red-700">{error}</p>
+        </Card>
+      )}
+
+      {/* 削除確認ダイアログ */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="ブロックリスト削除"
+        message="この項目を削除しますか？"
+        confirmLabel="削除"
+        variant="danger"
+        onConfirm={executeRemoveBlocklist}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* ブロックリスト追加モーダル */}
       {showBlocklistModal && (

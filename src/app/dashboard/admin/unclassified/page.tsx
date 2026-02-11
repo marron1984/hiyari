@@ -8,6 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import { AlertTriangle, CheckSquare, Square, Building2, Search, RefreshCw } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 // ========== 型定義 ==========
 
@@ -48,6 +49,7 @@ export default function UnclassifiedPage() {
   const [isAssigning, setIsAssigning] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showAssignConfirm, setShowAssignConfirm] = useState(false);
 
   // 事業単位一覧を取得
   useEffect(() => {
@@ -122,8 +124,8 @@ export default function UnclassifiedPage() {
     setSelectedIds(new Set());
   };
 
-  // 一括付与
-  const handleAssign = async () => {
+  // 一括付与確認
+  const handleAssignClick = () => {
     if (selectedIds.size === 0) {
       setMessage({ type: 'error', text: '対象を選択してください' });
       return;
@@ -132,12 +134,12 @@ export default function UnclassifiedPage() {
       setMessage({ type: 'error', text: '付与先の事業単位を選択してください' });
       return;
     }
+    setShowAssignConfirm(true);
+  };
 
-    const targetBu = businessUnits.find((bu) => bu.id === targetBuId);
-    const confirmMsg = `${selectedIds.size}件に「${targetBu?.name || targetBuId}」を付与します。よろしいですか？`;
-
-    if (!confirm(confirmMsg)) return;
-
+  // 一括付与実行
+  const handleAssign = async () => {
+    setShowAssignConfirm(false);
     setIsAssigning(true);
     setMessage(null);
 
@@ -300,7 +302,7 @@ export default function UnclassifiedPage() {
               ))}
             </select>
             <button
-              onClick={handleAssign}
+              onClick={handleAssignClick}
               disabled={isAssigning || !targetBuId}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -313,8 +315,11 @@ export default function UnclassifiedPage() {
       {/* テーブル */}
       <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
         {isLoading ? (
-          <div className="p-8 text-center text-zinc-500">
-            読み込み中...
+          <div className="p-8 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <RefreshCw className="w-6 h-6 animate-spin text-zinc-400" />
+              <p className="text-sm text-zinc-500">読み込み中...</p>
+            </div>
           </div>
         ) : items.length === 0 ? (
           <div className="p-8 text-center text-zinc-500">
@@ -394,6 +399,17 @@ export default function UnclassifiedPage() {
       <div className="mt-4 text-xs text-zinc-400">
         ※ 一括付与は、現在 businessUnitId が未設定のレコードのみが対象となります（安全装置）
       </div>
+
+      {/* 一括付与確認ダイアログ */}
+      <ConfirmDialog
+        open={showAssignConfirm}
+        title="一括付与の確認"
+        message={`${selectedIds.size}件に「${businessUnits.find(bu => bu.id === targetBuId)?.name || targetBuId}」を付与します。よろしいですか？`}
+        confirmLabel="付与する"
+        variant="danger"
+        onConfirm={handleAssign}
+        onCancel={() => setShowAssignConfirm(false)}
+      />
     </div>
   );
 }

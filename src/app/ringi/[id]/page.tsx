@@ -26,11 +26,14 @@ import {
   RingiApprovalFlow, RingiApprovalFlowStep,
 } from '@/types';
 import { Select } from '@/components/ui/Select';
+import { useToast } from '@/components/ui/Toast';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function RingiDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [ringi, setRingi] = useState<Ringi | null>(null);
   const [auditLogs, setAuditLogs] = useState<RingiAuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +43,7 @@ export default function RingiDetailPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const ringiId = params.id as string;
 
@@ -79,7 +83,8 @@ export default function RingiDetailPage() {
     }
 
     if (action === 'delete') {
-      if (!confirm('この稟議を削除しますか？')) return;
+      setShowDeleteConfirm(true);
+      return;
     }
 
     setActionLoading(true);
@@ -94,15 +99,11 @@ export default function RingiDetailPage() {
         case 'approve':
           await approveRingi(ringiId, user.id, user.name, user.role, user.branchId);
           break;
-        case 'delete':
-          await deleteRingi(ringiId, user.id);
-          router.push('/ringi');
-          return;
       }
       await loadData();
     } catch (error) {
       console.error('Action failed:', error);
-      alert(error instanceof Error ? error.message : '操作に失敗しました');
+      toast(error instanceof Error ? error.message : '操作に失敗しました', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -110,7 +111,7 @@ export default function RingiDetailPage() {
 
   const handleReject = async () => {
     if (!user || !ringi || !rejectReason.trim()) {
-      alert('却下理由を入力してください');
+      toast('却下理由を入力してください', 'warning');
       return;
     }
 
@@ -122,7 +123,7 @@ export default function RingiDetailPage() {
       await loadData();
     } catch (error) {
       console.error('Reject failed:', error);
-      alert(error instanceof Error ? error.message : '却下に失敗しました');
+      toast(error instanceof Error ? error.message : '却下に失敗しました', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -138,7 +139,22 @@ export default function RingiDetailPage() {
       await loadData();
     } catch (error) {
       console.error('Update failed:', error);
-      alert(error instanceof Error ? error.message : '更新に失敗しました');
+      toast(error instanceof Error ? error.message : '更新に失敗しました', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!user) return;
+    setActionLoading(true);
+    try {
+      await deleteRingi(ringiId, user.id);
+      setShowDeleteConfirm(false);
+      router.push('/ringi');
+    } catch (error) {
+      console.error('Delete failed:', error);
+      toast(error instanceof Error ? error.message : '削除に失敗しました', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -576,6 +592,18 @@ export default function RingiDetailPage() {
           </Card>
         )}
       </div>
+
+      {/* Delete Confirm Dialog */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="稟議の削除"
+        message="この稟議を削除しますか？"
+        confirmLabel="削除する"
+        variant="danger"
+        loading={actionLoading}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
 
       {/* Reject Modal */}
       {showRejectModal && (
