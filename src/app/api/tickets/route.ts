@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     // Task 035: staff 向け businessUnitId 自動推定
     let finalBusinessUnitId = businessUnitId;
     if (requiresInference(user.role as AppRole)) {
-      const inferResult = processStaffCreation(
+      const inferResult = await processStaffCreation(
         user.uid,
         user.role as AppRole,
         'tickets',
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
       finalBusinessUnitId = inferResult.businessUnitId;
     }
 
-    const ticket = createTicket(
+    const ticket = await createTicket(
       {
         title,
         description,

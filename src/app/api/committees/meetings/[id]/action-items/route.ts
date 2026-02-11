@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createActionItem } from '@/lib/committees/repo';
+import { createActionItem } from '@/lib/committees/repo.firestore';
 import { canManageCommittees } from '@/lib/committees/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -37,7 +37,7 @@ export async function POST(
       );
     }
 
-    const result = createActionItem(
+    const result = await createActionItem(
       id,
       { title, description, ownerUserId, ownerRole, dueAt },
       user.uid

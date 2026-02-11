@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import * as repo from '@/lib/org/repo';
+import * as repo from '@/lib/org/repo.firestore';
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     if (!isApiUser(authResult)) return authResult;
     const user = authResult;
 
-    const context = repo.getUserOrgContext(user.uid);
+    const context = await repo.getUserOrgContext(user.uid);
 
     return NextResponse.json({ success: true, context });
   } catch (error) {

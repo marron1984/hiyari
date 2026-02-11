@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import * as repo from '@/lib/org/repo';
+import * as repo from '@/lib/org/repo.firestore';
 import type { ViewerContext, OrgManagerType } from '@/lib/org/types';
 import { canViewOrgTree, canEditOrg } from '@/lib/org/types';
 
@@ -32,7 +32,7 @@ export async function GET(
       );
     }
 
-    const unit = repo.getOrgUnitById(id);
+    const unit = await repo.getOrgUnitById(id);
     if (!unit) {
       return NextResponse.json(
         { success: false, error: '組織が見つかりません' },
@@ -40,7 +40,7 @@ export async function GET(
       );
     }
 
-    const managers = repo.listManagers(id);
+    const managers = await repo.listManagers(id);
 
     return NextResponse.json({ success: true, managers });
   } catch (error) {
@@ -88,9 +88,9 @@ export async function POST(
 
     let result;
     if (action === 'remove') {
-      result = repo.removeOrgManager(id, userId, type, viewer.userId);
+      result = await repo.removeOrgManager(id, userId, type, viewer.userId);
     } else {
-      result = repo.setOrgManager(id, userId, type, viewer.userId);
+      result = await repo.setOrgManager(id, userId, type, viewer.userId);
     }
 
     if (!result.success) {
@@ -101,7 +101,7 @@ export async function POST(
     }
 
     // 更新後の責任者一覧を返す
-    const managers = repo.listManagers(id);
+    const managers = await repo.listManagers(id);
 
     return NextResponse.json({ success: true, managers });
   } catch (error) {

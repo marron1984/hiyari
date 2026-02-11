@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   listCorrectiveActions,
   create,
-} from '@/lib/correctiveActions/repo';
+} from '@/lib/correctiveActions/repo.firestore';
 import type {
   CorrectiveActionStatus,
   CorrectiveActionSeverity,
@@ -23,7 +23,7 @@ import type { AppRole } from '@/config/appRoles';
 import { validateApiGuardrail } from '@/lib/scope/guardrail';
 import { processStaffCreation, requiresInference } from '@/lib/scope/inferBusinessUnit';
 import { getTicketById } from '@/lib/tickets/repo';
-import { getRepairById } from '@/lib/repairs/repo';
+import { getRepairById } from '@/lib/repairs/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
 
     const viewer = { userId: user.uid, role: user.role as AppRole };
-    const result = listCorrectiveActions(viewer, {
+    const result = await listCorrectiveActions(viewer, {
       businessUnitId,
       status: status ?? undefined,
       severity: severity ?? undefined,
@@ -124,14 +124,14 @@ export async function POST(request: NextRequest) {
             sourceBusinessUnitId = ticketResult.ticket.businessUnitId ?? null;
           }
         } else if (sourceType === 'repair') {
-          const repairResult = getRepairById(sourceId, adminViewer);
+          const repairResult = await getRepairById(sourceId, adminViewer);
           if (repairResult.success) {
             sourceBusinessUnitId = repairResult.repair.businessUnitId ?? null;
           }
         }
       }
 
-      const inferResult = processStaffCreation(
+      const inferResult = await processStaffCreation(
         user.uid,
         user.role as AppRole,
         'correctiveActions',
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
       finalBusinessUnitId = inferResult.businessUnitId;
     }
 
-    const ca = create(
+    const ca = await create(
       {
         title,
         description,

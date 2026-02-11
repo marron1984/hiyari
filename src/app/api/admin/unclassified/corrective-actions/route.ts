@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get('limit');
     const offsetParam = searchParams.get('offset');
 
-    const result = listUnclassifiedCorrectiveActions({
+    const result = await listUnclassifiedCorrectiveActions({
       q,
       limit: limitParam ? parseInt(limitParam, 10) : 100,
       offset: offsetParam ? parseInt(offsetParam, 10) : 0,

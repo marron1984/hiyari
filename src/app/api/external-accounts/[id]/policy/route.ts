@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import * as repo from '@/lib/external-accounts/repo';
+import * as repo from '@/lib/external-accounts/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/external-accounts/types';
 
@@ -25,7 +25,7 @@ export async function GET(
     };
 
     // ユーザー存在確認
-    const extUser = repo.getExternalUserById(id, viewer);
+    const extUser = await repo.getExternalUserById(id, viewer);
     if (!extUser) {
       return NextResponse.json(
         { success: false, error: '外部アカウントが見つかりません' },
@@ -33,7 +33,7 @@ export async function GET(
       );
     }
 
-    const policy = repo.getAccessPolicy(id);
+    const policy = await repo.getAccessPolicy(id);
 
     if (!policy) {
       return NextResponse.json(
@@ -68,7 +68,7 @@ export async function PATCH(
     };
 
     const body = await request.json();
-    const result = repo.updateAccessPolicy(id, body, viewer);
+    const result = await repo.updateAccessPolicy(id, body, viewer);
 
     if (!result.success) {
       return NextResponse.json(

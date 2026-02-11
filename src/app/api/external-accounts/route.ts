@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import * as repo from '@/lib/external-accounts/repo';
+import * as repo from '@/lib/external-accounts/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/external-accounts/types';
 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get('role') as string | null;
     const search = searchParams.get('search');
 
-    const users = repo.listExternalUsers(viewer, {
+    const users = await repo.listExternalUsers(viewer, {
       status: status ?? undefined,
       role: role as repo.ListExternalUsersFilters['role'],
       search: search ?? undefined,
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    const result = repo.createExternalUser(body, viewer);
+    const result = await repo.createExternalUser(body, viewer);
 
     if (!result.success) {
       return NextResponse.json(

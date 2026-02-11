@@ -5,10 +5,10 @@
  */
 
 import { NextResponse } from 'next/server';
-import { getAlertStats } from '@/lib/alerts/repo';
+import { getAlertStatsAsync } from '@/lib/alerts/repo.firestore';
 
 export async function GET() {
-  const stats = getAlertStats();
+  const stats = await getAlertStatsAsync();
 
   return NextResponse.json({
     success: true,

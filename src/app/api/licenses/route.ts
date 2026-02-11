@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listLicenses, listLicenseTypes } from '@/lib/licenses/repo';
+import { listLicenses, listLicenseTypes } from '@/lib/licenses/repo.firestore';
 import type { LicenseListFilters, ViewerContext, LicenseCategoryType, UserLicenseStatus } from '@/lib/licenses/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { userRoleToAppRole } from '@/lib/roles/types';
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const result = listLicenses(viewer, filters, { limit, offset });
+    const result = await listLicenses(viewer, filters, { limit, offset });
 
     return NextResponse.json({
       items: result.items,

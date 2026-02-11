@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import * as repo from '@/lib/org/repo';
+import * as repo from '@/lib/org/repo.firestore';
 import type { ViewerContext, UpdateOrgUnitInput } from '@/lib/org/types';
 import { canViewOrgTree, canEditOrg } from '@/lib/org/types';
 
@@ -32,7 +32,7 @@ export async function GET(
       );
     }
 
-    const unit = repo.getOrgUnitById(id);
+    const unit = await repo.getOrgUnitById(id);
 
     if (!unit) {
       return NextResponse.json(
@@ -42,8 +42,8 @@ export async function GET(
     }
 
     // メンバーと責任者も取得
-    const members = repo.listMembers(id);
-    const managers = repo.listManagers(id);
+    const members = await repo.listMembers(id);
+    const managers = await repo.listManagers(id);
 
     return NextResponse.json({ success: true, unit, members, managers });
   } catch (error) {
@@ -78,7 +78,7 @@ export async function PATCH(
     }
 
     const body = (await request.json()) as UpdateOrgUnitInput;
-    const result = repo.updateOrgUnit(id, body, viewer.userId);
+    const result = await repo.updateOrgUnit(id, body, viewer.userId);
 
     if (!result.success) {
       return NextResponse.json(

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listAlerts } from '@/lib/alerts/repo';
+import { listAlertsAsync } from '@/lib/alerts/repo.firestore';
 import type { AlertStatus, AlertSeverity, AlertType } from '@/lib/alerts/types';
 
 export async function GET(request: NextRequest) {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     ? parseInt(searchParams.get('offset')!, 10)
     : undefined;
 
-  const result = listAlerts({
+  const result = await listAlertsAsync({
     status: status ?? undefined,
     severity: severity ?? undefined,
     type: type ?? undefined,

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import * as repo from '@/lib/esign/repo';
+import * as repo from '@/lib/esign/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 
@@ -26,7 +26,7 @@ export async function GET(
     const { id } = await context.params;
 
     // レコードの閲覧権限確認
-    const record = repo.getESignRecordById(id, viewer);
+    const record = await repo.getESignRecordById(id, viewer);
     if (!record) {
       return NextResponse.json(
         { success: false, error: '電子署名レコードが見つかりません' },
@@ -34,7 +34,7 @@ export async function GET(
       );
     }
 
-    const events = repo.getESignEvents(id);
+    const events = await repo.getESignEvents(id);
 
     return NextResponse.json({
       success: true,

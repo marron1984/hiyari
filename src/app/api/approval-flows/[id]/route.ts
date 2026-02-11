@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getApprovalFlow,
   updateApprovalFlow,
-} from '@/lib/approvals/flowRepo';
+} from '@/lib/approvals/flowRepo.firestore';
 import { checkRole } from '@/lib/auth/requireRole';
 
 export async function GET(
@@ -18,7 +18,7 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const flow = getApprovalFlow(id);
+  const flow = await getApprovalFlow(id);
   if (!flow) {
     return NextResponse.json(
       { error: 'フローが見つかりません' },
@@ -54,7 +54,7 @@ export async function PATCH(
     );
   }
 
-  const result = updateApprovalFlow(id, {
+  const result = await updateApprovalFlow(id, {
     name: body.name,
     description: body.description,
     conditionJson: body.conditionJson,

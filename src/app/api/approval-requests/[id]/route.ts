@@ -8,8 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getApprovalRequest,
   listRequestActions,
-} from '@/lib/approvals/requestRepo';
-import { getApprovalFlow } from '@/lib/approvals/flowRepo';
+} from '@/lib/approvals/requestRepo.firestore';
+import { getApprovalFlow } from '@/lib/approvals/flowRepo.firestore';
 import { canViewRequest } from '@/lib/approvals/canApprove';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -24,7 +24,7 @@ export async function GET(
   if (!isApiUser(authResult)) return authResult;
   const user = authResult;
 
-  const approvalRequest = getApprovalRequest(id);
+  const approvalRequest = await getApprovalRequest(id);
   if (!approvalRequest) {
     return NextResponse.json(
       { error: '申請が見つかりません' },
@@ -33,10 +33,10 @@ export async function GET(
   }
 
   // アクション履歴取得
-  const actions = listRequestActions(id);
+  const actions = await listRequestActions(id);
 
   // 閲覧権限チェック
-  if (!canViewRequest(user.role as AppRole, user.uid, approvalRequest, actions)) {
+  if (!(await canViewRequest(user.role as AppRole, user.uid, approvalRequest, actions))) {
     return NextResponse.json(
       { error: 'この申請を閲覧する権限がありません' },
       { status: 403 }
@@ -44,7 +44,7 @@ export async function GET(
   }
 
   // フロー情報取得
-  const flow = getApprovalFlow(approvalRequest.flowId);
+  const flow = await getApprovalFlow(approvalRequest.flowId);
 
   return NextResponse.json({
     request: approvalRequest,

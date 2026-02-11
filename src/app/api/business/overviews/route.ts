@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       role: user.role as ViewerContext['role'],
     };
 
-    const overviews = repo.getBusinessSummaryOverviews(viewer);
+    const overviews = await repo.getBusinessSummaryOverviews(viewer);
 
     return NextResponse.json({ success: true, overviews });
   } catch (error) {

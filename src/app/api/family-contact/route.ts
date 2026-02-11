@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import { listFamilyLogs, createFamilyLog } from '@/lib/familyLog/repo';
+import { listFamilyLogs, createFamilyLog } from '@/lib/familyLog/repo.firestore';
 import type { AppRole } from '@/config/appRoles';
 import type {
   ListFamilyLogsOptions,
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     const offset = searchParams.get('offset');
     if (offset) options.offset = parseInt(offset, 10);
 
-    const { logs, total } = listFamilyLogs(viewer, options);
+    const { logs, total } = await listFamilyLogs(viewer, options);
 
     return NextResponse.json({ logs, total });
   } catch (error) {
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const log = createFamilyLog(createRequest, user.uid);
+    const log = await createFamilyLog(createRequest, user.uid);
 
     return NextResponse.json({ log }, { status: 201 });
   } catch (error) {

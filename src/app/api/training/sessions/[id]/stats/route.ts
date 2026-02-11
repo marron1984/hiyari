@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionStats } from '@/lib/training/repo';
+import { getSessionStats } from '@/lib/training/repo.firestore';
 import { canViewAllStats } from '@/lib/training/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -29,7 +29,7 @@ export async function GET(
       );
     }
 
-    const stats = getSessionStats(sessionId);
+    const stats = await getSessionStats(sessionId);
 
     if (!stats) {
       return NextResponse.json(

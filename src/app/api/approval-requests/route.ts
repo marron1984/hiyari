@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createApprovalRequest } from '@/lib/approvals/requestRepo';
+import { createApprovalRequest } from '@/lib/approvals/requestRepo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = createApprovalRequest(
+  const result = await createApprovalRequest(
     {
       requestType: body.requestType,
       entityId: body.entityId,

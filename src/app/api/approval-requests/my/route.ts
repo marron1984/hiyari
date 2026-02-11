@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listApprovalRequests } from '@/lib/approvals/requestRepo';
+import { listApprovalRequests } from '@/lib/approvals/requestRepo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { RequestStatus, RequestType } from '@/lib/approvals/types';
 
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') ?? '100', 10);
   const offset = parseInt(searchParams.get('offset') ?? '0', 10);
 
-  const { requests, total } = listApprovalRequests({
+  const { requests, total } = await listApprovalRequests({
     requesterUserId: user.uid,
     status: status ?? undefined,
     requestType: requestType ?? undefined,

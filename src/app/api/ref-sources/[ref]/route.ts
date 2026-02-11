@@ -16,7 +16,7 @@ import {
   updateRefSource,
   deleteRefSource,
   getRefAccessLogs,
-} from '@/lib/refSources/repo';
+} from '@/lib/refSources/repo.firestore';
 import {
   canManageRefSources,
   canViewRefSources,
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const source = getRefSourceByRef(ref);
+    const source = await getRefSourceByRef(ref);
     if (!source) {
       return NextResponse.json(
         { error: '紹介元が見つかりません' },
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // アクセスログも取得
-    const accessLogs = getRefAccessLogs(ref, 20);
+    const accessLogs = await getRefAccessLogs(ref, 20);
 
     return NextResponse.json({
       source,
@@ -105,7 +105,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const source = updateRefSource(ref, {
+    const source = await updateRefSource(ref, {
       name,
       type: type as RefSourceType | undefined,
       status: status as RefSourceStatus | undefined,
@@ -146,7 +146,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const deleted = deleteRefSource(ref);
+    const deleted = await deleteRefSource(ref);
     if (!deleted) {
       return NextResponse.json(
         { error: '紹介元が見つかりません' },

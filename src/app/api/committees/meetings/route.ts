@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listMeetings, createMeeting } from '@/lib/committees/repo';
+import { listMeetings, createMeeting } from '@/lib/committees/repo.firestore';
 import { canManageCommittees } from '@/lib/committees/types';
 import type { MeetingStatus } from '@/lib/committees/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const dateFrom = searchParams.get('dateFrom') || undefined;
     const dateTo = searchParams.get('dateTo') || undefined;
 
-    const meetings = listMeetings({ committeeId, status, dateFrom, dateTo });
+    const meetings = await listMeetings({ committeeId, status, dateFrom, dateTo });
 
     return NextResponse.json({
       success: true,
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = createMeeting(
+    const result = await createMeeting(
       { committeeId, title, scheduledAt, location, notes },
       user.uid
     );

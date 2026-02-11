@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getById, getActions, addAction } from '@/lib/receivables/repo';
+import { getById, getActions, addAction } from '@/lib/receivables/repo.firestore';
 import { canViewReceivables, canEditReceivables } from '@/lib/receivables/types';
 import type { ReceivableActionType, ReceivableActionOutcome, UserRole as ReceivablesRole } from '@/lib/receivables/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -37,7 +37,7 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const existing = getById(id, viewer);
+    const existing = await getById(id, viewer);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -45,7 +45,7 @@ export async function GET(
       );
     }
 
-    const { actions, total } = getActions(id, limit, offset);
+    const { actions, total } = await getActions(id, limit, offset);
 
     return NextResponse.json({ actions, total });
   } catch (error) {
@@ -107,7 +107,7 @@ export async function POST(
       );
     }
 
-    const existing = getById(id, viewer);
+    const existing = await getById(id, viewer);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -115,7 +115,7 @@ export async function POST(
       );
     }
 
-    const action = addAction(
+    const action = await addAction(
       id,
       {
         actionType,

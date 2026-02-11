@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { unblockAction } from '@/lib/correctiveActions/repo';
+import { unblockAction } from '@/lib/correctiveActions/repo.firestore';
 import type { AppRole } from '@/config/appRoles';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
@@ -34,7 +34,7 @@ export async function POST(
     }
 
     const viewer = { userId: user.uid, role: user.role as AppRole };
-    const result = unblockAction(id, status, viewer);
+    const result = await unblockAction(id, status, viewer);
 
     if (!result.success) {
       return NextResponse.json(

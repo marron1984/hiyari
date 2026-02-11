@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getById, assignOwner } from '@/lib/receivables/repo';
+import { getById, assignOwner } from '@/lib/receivables/repo.firestore';
 import { canAssignOwner } from '@/lib/receivables/types';
 import type { UserRole as ReceivablesRole } from '@/lib/receivables/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -35,7 +35,7 @@ export async function POST(
 
     const { ownerUserId } = body as { ownerUserId: string | null };
 
-    const existing = getById(id, viewer);
+    const existing = await getById(id, viewer);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -43,7 +43,7 @@ export async function POST(
       );
     }
 
-    const receivable = assignOwner(id, ownerUserId, user.uid);
+    const receivable = await assignOwner(id, ownerUserId, user.uid);
 
     return NextResponse.json({ receivable });
   } catch (error) {

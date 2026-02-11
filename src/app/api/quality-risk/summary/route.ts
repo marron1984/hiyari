@@ -5,10 +5,10 @@
  */
 
 import { NextResponse } from 'next/server';
-import * as alertsRepo from '@/lib/alerts/repo';
-import * as complaintsRepo from '@/lib/complaints/repo';
-import * as trainingRepo from '@/lib/training/repo';
-import * as receivablesRepo from '@/lib/receivables/repo';
+import * as alertsRepo from '@/lib/alerts/repo.firestore';
+import * as complaintsRepo from '@/lib/complaints/repo.firestore';
+import * as trainingRepo from '@/lib/training/repo.firestore';
+import * as receivablesRepo from '@/lib/receivables/repo.firestore';
 import * as collectionRepo from '@/lib/collection/repo';
 import type { ViewerContext } from '@/lib/complaints/types';
 
@@ -87,15 +87,15 @@ export async function GET() {
     };
 
     // ========== アラート ==========
-    const alertStats = alertsRepo.getAlertStats();
-    const alertsAll = alertsRepo.listAlerts({ status: 'open' });
+    const alertStats = await alertsRepo.getAlertStatsAsync();
+    const alertsAll = await alertsRepo.listAlertsAsync({ status: 'open' });
     const warningOpen = alertsAll.alerts.filter((a) => a.severity === 'warning').length;
 
     // ========== クレーム ==========
-    const complaintStats = complaintsRepo.getStats(viewer);
-    const criticalComplaints = complaintsRepo.scanCriticalOpen();
-    const highComplaints = complaintsRepo
-      .listComplaints(viewer, {})
+    const complaintStats = await complaintsRepo.getStats(viewer);
+    const criticalComplaints = await complaintsRepo.scanCriticalOpen();
+    const complaintsResult = await complaintsRepo.listComplaints(viewer, {});
+    const highComplaints = complaintsResult
       .complaints.filter(
         (c) =>
           c.severity === 'high' &&
@@ -103,9 +103,9 @@ export async function GET() {
       );
 
     // ========== 研修 ==========
-    const overdueTraining = trainingRepo.overdueAssignmentsScan();
+    const overdueTraining = await trainingRepo.overdueAssignmentsScan();
     const weekStart = getWeekStart();
-    const allSessions = trainingRepo.listSessions({});
+    const allSessions = await trainingRepo.listSessions({});
     const sessionsDoneThisWeek = allSessions.filter(
       (s) =>
         s.status === 'done' &&
@@ -114,7 +114,7 @@ export async function GET() {
     ).length;
 
     // ========== 未収 ==========
-    const receivableStats = receivablesRepo.getStats(viewer);
+    const receivableStats = await receivablesRepo.getStats(viewer);
 
     // ========== 回収フロー ==========
     const collectionStats = collectionRepo.getStats(viewer);
@@ -211,7 +211,7 @@ export async function GET() {
 
     // aging60Countを正しく計算（件数ベース）
     if (receivableStats) {
-      const receivablesAll = receivablesRepo.listReceivables(viewer, { agingMinDays: 60 });
+      const receivablesAll = await receivablesRepo.listReceivables(viewer, { agingMinDays: 60 });
       summary.receivables.aging60Count = receivablesAll.total;
     }
 

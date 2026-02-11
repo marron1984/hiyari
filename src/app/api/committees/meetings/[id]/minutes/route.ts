@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getMinutes, upsertMinutes } from '@/lib/committees/repo';
+import { getMinutes, upsertMinutes } from '@/lib/committees/repo.firestore';
 import { canManageCommittees } from '@/lib/committees/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -20,7 +20,7 @@ export async function GET(
     if (!isApiUser(authResult)) return authResult;
 
     const { id } = await params;
-    const minutes = getMinutes(id);
+    const minutes = await getMinutes(id);
 
     return NextResponse.json({
       success: true,
@@ -62,7 +62,7 @@ export async function POST(
       );
     }
 
-    const result = upsertMinutes(
+    const result = await upsertMinutes(
       id,
       { summary, discussion, decisions, risks },
       user.uid

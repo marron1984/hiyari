@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { blockAction } from '@/lib/correctiveActions/repo';
+import { blockAction } from '@/lib/correctiveActions/repo.firestore';
 import type { BlockedReasonCode } from '@/lib/correctiveActions/types';
 import { BLOCKED_REASON_CODES } from '@/lib/correctiveActions/types';
 import type { AppRole } from '@/config/appRoles';
@@ -37,7 +37,7 @@ export async function POST(
     }
 
     const viewer = { userId: user.uid, role: user.role as AppRole };
-    const result = blockAction(
+    const result = await blockAction(
       id,
       {
         blockedReasonCode: blockedReasonCode as BlockedReasonCode,

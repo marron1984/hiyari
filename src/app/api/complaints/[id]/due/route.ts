@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { setDueAt } from '@/lib/complaints/repo';
+import { setDueAt } from '@/lib/complaints/repo.firestore';
 import { canManageComplaints } from '@/lib/complaints/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -30,7 +30,7 @@ export async function POST(
     const body = await request.json();
     const { dueAt } = body;
 
-    const result = setDueAt(id, dueAt, user.uid);
+    const result = await setDueAt(id, dueAt, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

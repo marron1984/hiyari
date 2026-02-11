@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuditTrail } from '@/lib/keyPerson/repo';
+import { getAuditTrail } from '@/lib/keyPerson/repo.firestore';
 import { canViewAuditLog } from '@/lib/keyPerson/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -33,7 +33,7 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const { events, total } = getAuditTrail(id, limit, offset);
+    const { events, total } = await getAuditTrail(id, limit, offset);
 
     return NextResponse.json({ events, total });
   } catch (error) {

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listCommittees, createCommittee } from '@/lib/committees/repo';
+import { listCommittees, createCommittee } from '@/lib/committees/repo.firestore';
 import { canManageCommittees } from '@/lib/committees/types';
 import type { CommitteeCategory } from '@/lib/committees/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const activeParam = searchParams.get('active');
     const active = activeParam === 'true' ? true : activeParam === 'false' ? false : undefined;
 
-    const committees = listCommittees({ q, category, active });
+    const committees = await listCommittees({ q, category, active });
 
     return NextResponse.json({
       success: true,
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = createCommittee(
+    const result = await createCommittee(
       { name, category, required, cadence, defaultDueDayOfMonth, description },
       user.uid
     );

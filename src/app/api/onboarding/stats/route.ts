@@ -15,7 +15,7 @@ import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import { computeOnboardingStats, getManagerScopeOrgUnitIds } from '@/lib/onboarding/stats';
 import { getUserFollowupTicket } from '@/lib/onboarding/escalation';
-import { getUserById } from '@/lib/roles/user-store';
+import { getUserById } from '@/lib/roles/user-store.firestore';
 
 /**
  * admin/manager のみアクセス可能か判定
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const userId = user.uid;
 
     // ユーザー情報を取得
-    const storeUser = getUserById(userId);
+    const storeUser = await getUserById(userId);
     const role: AppRole = storeUser?.role ?? (user.role as AppRole);
 
     // RBAC チェック
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     let scopeOrgUnitIds: string[] | undefined;
     if (role === 'manager') {
       // manager は自分が管理する組織のみ
-      scopeOrgUnitIds = getManagerScopeOrgUnitIds(userId);
+      scopeOrgUnitIds = await getManagerScopeOrgUnitIds(userId);
       if (scopeOrgUnitIds.length === 0) {
         // 管理組織がない場合は空の結果を返す
         return NextResponse.json({
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 統計を計算
-    const stats = computeOnboardingStats({
+    const stats = await computeOnboardingStats({
       scopeOrgUnitIds,
       maskPII: false, // admin/manager は名前を見られる
     });

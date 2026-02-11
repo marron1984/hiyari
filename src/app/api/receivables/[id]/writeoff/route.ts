@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getById, writeOff } from '@/lib/receivables/repo';
+import { getById, writeOff } from '@/lib/receivables/repo.firestore';
 import { canWriteOff } from '@/lib/receivables/types';
 import type { UserRole as ReceivablesRole } from '@/lib/receivables/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -35,7 +35,7 @@ export async function POST(
 
     const { note } = body as { note?: string };
 
-    const existing = getById(id, viewer);
+    const existing = await getById(id, viewer);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -43,7 +43,7 @@ export async function POST(
       );
     }
 
-    const receivable = writeOff(id, note ?? null, user.uid);
+    const receivable = await writeOff(id, note ?? null, user.uid);
 
     return NextResponse.json({ receivable });
   } catch (error) {

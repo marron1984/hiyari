@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getById, updateReceivable } from '@/lib/receivables/repo';
+import { getById, updateReceivable } from '@/lib/receivables/repo.firestore';
 import { canViewReceivables, canEditReceivables } from '@/lib/receivables/types';
 import type { UserRole as ReceivablesRole } from '@/lib/receivables/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -32,7 +32,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const receivable = getById(id, viewer);
+    const receivable = await getById(id, viewer);
 
     if (!receivable) {
       return NextResponse.json(
@@ -87,7 +87,7 @@ export async function PATCH(
       nextActionType,
     } = body;
 
-    const receivable = updateReceivable(
+    const receivable = await updateReceivable(
       id,
       {
         subjectName,

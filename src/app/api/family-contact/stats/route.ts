@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import { getFamilyLogStats } from '@/lib/familyLog/repo';
+import { getFamilyLogStats } from '@/lib/familyLog/repo.firestore';
 import { canViewFamilyLogStats } from '@/lib/familyLog/types';
 import type { AppRole } from '@/config/appRoles';
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const stats = getFamilyLogStats();
+    const stats = await getFamilyLogStats();
 
     return NextResponse.json({ stats });
   } catch (error) {

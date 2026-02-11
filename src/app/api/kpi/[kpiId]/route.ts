@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getKpiDefinition, getKpiTimeSeries } from '@/lib/kpi/kpi-store';
+import { getKpiDefinition, getKpiTimeSeries } from '@/lib/kpi/kpi-store.firestore';
 
 export async function GET(
   request: NextRequest,
@@ -19,7 +19,7 @@ export async function GET(
   const limit = searchParams.get('limit');
 
   // KPI定義を取得
-  const definition = getKpiDefinition(kpiId);
+  const definition = await getKpiDefinition(kpiId);
   if (!definition) {
     return NextResponse.json(
       { success: false, error: `KPI not found: ${kpiId}` },
@@ -28,7 +28,7 @@ export async function GET(
   }
 
   // 時系列データを取得
-  const timeSeries = getKpiTimeSeries(kpiId, {
+  const timeSeries = await getKpiTimeSeries(kpiId, {
     startDate: startDate ?? undefined,
     endDate: endDate ?? undefined,
     limit: limit ? parseInt(limit, 10) : undefined,

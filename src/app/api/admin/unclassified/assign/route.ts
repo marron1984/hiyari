@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 一括付与実行
-    const result = assignBusinessUnit(
+    const result = await assignBusinessUnit(
       { userId: user.uid, userName: user.name, role: user.role as 'admin' },
       {
         entityType: entityType as BackfillEntityType,

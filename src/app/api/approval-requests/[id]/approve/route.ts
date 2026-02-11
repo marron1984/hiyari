@@ -8,8 +8,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   approveRequest,
   getApprovalRequest,
-} from '@/lib/approvals/requestRepo';
-import { getApprovalFlow } from '@/lib/approvals/flowRepo';
+} from '@/lib/approvals/requestRepo.firestore';
+import { getApprovalFlow } from '@/lib/approvals/flowRepo.firestore';
 import { canApprove } from '@/lib/approvals/canApprove';
 import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -25,7 +25,7 @@ export async function POST(
   if (!isApiUser(authResult)) return authResult;
   const user = authResult;
 
-  const existing = getApprovalRequest(id);
+  const existing = await getApprovalRequest(id);
   if (!existing) {
     return NextResponse.json(
       { error: '申請が見つかりません' },
@@ -34,7 +34,7 @@ export async function POST(
   }
 
   // 承認権限チェック
-  const approveCheck = canApprove(user.role as AppRole, user.uid, existing);
+  const approveCheck = await canApprove(user.role as AppRole, user.uid, existing);
   if (!approveCheck.canApprove) {
     return NextResponse.json(
       { error: approveCheck.reason ?? '承認権限がありません' },
@@ -51,7 +51,7 @@ export async function POST(
     // ノートなしでもOK
   }
 
-  const result = approveRequest(id, user.uid, note, user.name);
+  const result = await approveRequest(id, user.uid, note, user.name);
 
   if (!result.success) {
     return NextResponse.json(
@@ -77,7 +77,7 @@ export async function POST(
       });
     } else {
       // 次ステップへ → 次の承認者へ通知
-      const flow = getApprovalFlow(result.request!.flowId);
+      const flow = await getApprovalFlow(result.request!.flowId);
       const nextStep = flow?.steps.find(
         (s) => s.stepOrder === result.request!.currentStepOrder
       );

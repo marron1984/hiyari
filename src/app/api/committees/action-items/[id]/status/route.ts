@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getActionItem, setActionItemStatus } from '@/lib/committees/repo';
+import { getActionItem, setActionItemStatus } from '@/lib/committees/repo.firestore';
 import { canUpdateActionItem } from '@/lib/committees/types';
 import type { ActionItemStatus } from '@/lib/committees/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -21,7 +21,7 @@ export async function POST(
     const user = authResult;
 
     const { id } = await params;
-    const actionItem = getActionItem(id);
+    const actionItem = await getActionItem(id);
 
     if (!actionItem) {
       return NextResponse.json(
@@ -47,7 +47,7 @@ export async function POST(
       );
     }
 
-    const result = setActionItemStatus(id, status, user.uid);
+    const result = await setActionItemStatus(id, status, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStats } from '@/lib/licenses/repo';
+import { getStats } from '@/lib/licenses/repo.firestore';
 import type { ViewerContext } from '@/lib/licenses/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { userRoleToAppRole } from '@/lib/roles/types';
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     // manager以上のみ orgUnitIds フィルタが有効
     // staff/leader は自分の統計のみ（リポジトリ側で制御）
-    const stats = getStats(viewer, orgUnitIds ? { orgUnitIds } : undefined);
+    const stats = await getStats(viewer, orgUnitIds ? { orgUnitIds } : undefined);
 
     if (!stats) {
       return NextResponse.json(

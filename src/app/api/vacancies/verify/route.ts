@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken, markAsVerified } from '@/lib/vacancyInquiryPending/repo';
+import { verifyToken, markAsVerified } from '@/lib/vacancyInquiryPending/repo.firestore';
 import {
   createTicket,
   listTickets,
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     // トークン検証
-    const verifyResult = verifyToken(token);
+    const verifyResult = await verifyToken(token);
     if (!verifyResult.success) {
       return NextResponse.json(
         { error: verifyResult.error },
@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
 
         if (mergeResult.success) {
           // pending を verified に更新（統合先のチケットIDを記録）
-          markAsVerified(pending.id, existingTicket.id, clientIp, userAgent);
+          await markAsVerified(pending.id, existingTicket.id, clientIp, userAgent);
 
           // 担当者に統合通知
           if (existingTicket.assigneeUserId) {
@@ -288,7 +288,7 @@ export async function POST(request: NextRequest) {
     }
 
     // チケット作成
-    const ticket = createTicket(
+    const ticket = await createTicket(
       {
         title: `空室問い合わせ: ${displayName}様${titleSuffix}`,
         description,
@@ -304,7 +304,7 @@ export async function POST(request: NextRequest) {
     );
 
     // pending を verified に更新
-    markAsVerified(pending.id, ticket.id, clientIp, userAgent);
+    await markAsVerified(pending.id, ticket.id, clientIp, userAgent);
 
     // Ticket 078: 自動返信データ生成
     const receiptNumber = generateReceiptNumber(ticket.id);

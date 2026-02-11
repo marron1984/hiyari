@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getComplaintById, listActions, createAction } from '@/lib/complaints/repo';
+import { getComplaintById, listActions, createAction } from '@/lib/complaints/repo.firestore';
 import { canManageComplaints } from '@/lib/complaints/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -21,7 +21,7 @@ export async function GET(
     const user = authResult;
 
     const { id } = await params;
-    const complaint = getComplaintById(id, { userId: user.uid, role: user.role as AppRole });
+    const complaint = await getComplaintById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!complaint) {
       return NextResponse.json(
@@ -30,7 +30,7 @@ export async function GET(
       );
     }
 
-    const actions = listActions(id);
+    const actions = await listActions(id);
 
     return NextResponse.json({
       success: true,
@@ -72,7 +72,7 @@ export async function POST(
       );
     }
 
-    const result = createAction(id, { title, ownerUserId, dueAt }, user.uid);
+    const result = await createAction(id, { title, ownerUserId, dueAt }, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

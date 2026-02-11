@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { reorderContacts } from '@/lib/keyPerson/repo';
+import { reorderContacts } from '@/lib/keyPerson/repo.firestore';
 import { canEditKeyPerson } from '@/lib/keyPerson/types';
 import type { KeyPersonSubjectType } from '@/lib/keyPerson/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const contacts = reorderContacts(
+    const contacts = await reorderContacts(
       subjectType,
       subjectId,
       orderedIds,

@@ -24,7 +24,7 @@ import {
   reevaluateOnboardingStatus,
 } from '@/lib/onboarding/repo';
 import { triggerPostCompleteIfNeeded } from '@/lib/onboarding/postComplete';
-import { getUserById } from '@/lib/roles/user-store';
+import { getUserById } from '@/lib/roles/user-store.firestore';
 import type { SignDocumentRequest } from '@/lib/onboarding/types';
 
 export async function POST(request: NextRequest) {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const userId = user.uid;
 
     // ユーザー情報を取得
-    const storeUser = getUserById(userId);
+    const storeUser = await getUserById(userId);
     if (!storeUser) {
       return NextResponse.json(
         { error: 'ユーザーが見つかりません' },

@@ -22,7 +22,7 @@ import {
   getSignedDocumentVersionIds,
   logOnboardingEvent,
 } from '@/lib/onboarding/repo';
-import { getUserById } from '@/lib/roles/user-store';
+import { getUserById } from '@/lib/roles/user-store.firestore';
 
 /**
  * 差分レスポンス
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
 
     // ユーザー情報を取得
     const userId = user.uid;
-    const storeUser = getUserById(userId);
+    const storeUser = await getUserById(userId);
     if (!storeUser) {
       return NextResponse.json(
         { error: 'ユーザーが見つかりません' },
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 現在のバージョンを取得
-    const currentVersion = getDocumentVersion(documentVersionId);
+    const currentVersion = await getDocumentVersion(documentVersionId);
     if (!currentVersion) {
       return NextResponse.json<DiffResponse>({
         hasPreviousVersion: false,
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
     const signedVersionIds = getSignedDocumentVersionIds(userId);
 
     // 旧バージョンを探す
-    const previousVersion = findPreviousSignedVersion(
+    const previousVersion = await findPreviousSignedVersion(
       currentVersion.documentId,
       documentVersionId,
       signedVersionIds

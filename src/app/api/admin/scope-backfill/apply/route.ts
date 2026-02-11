@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       role: 'admin',
     };
 
-    const result = apply(
+    const result = await apply(
       viewer,
       entityType as BackfillEntityType,
       safeFilters,

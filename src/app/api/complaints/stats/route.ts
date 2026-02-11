@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStats } from '@/lib/complaints/repo';
+import { getStats } from '@/lib/complaints/repo.firestore';
 import { canViewComplaintStats } from '@/lib/complaints/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const stats = getStats({ userId: user.uid, role: user.role as AppRole });
+    const stats = await getStats({ userId: user.uid, role: user.role as AppRole });
 
     return NextResponse.json({
       success: true,

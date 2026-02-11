@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import * as repo from '@/lib/org/repo';
+import * as repo from '@/lib/org/repo.firestore';
 import type { ViewerContext, UpdateMembershipInput } from '@/lib/org/types';
 import { canEditMembership } from '@/lib/org/types';
 
@@ -33,7 +33,7 @@ export async function PATCH(
     }
 
     const body = (await request.json()) as UpdateMembershipInput;
-    const result = repo.updateMembership(membershipId, body, viewer.userId);
+    const result = await repo.updateMembership(membershipId, body, viewer.userId);
 
     if (!result.success) {
       return NextResponse.json(
@@ -84,7 +84,7 @@ export async function POST(
       );
     }
 
-    const result = repo.removeMember(membershipId, viewer.userId);
+    const result = await repo.removeMember(membershipId, viewer.userId);
 
     if (!result.success) {
       return NextResponse.json(

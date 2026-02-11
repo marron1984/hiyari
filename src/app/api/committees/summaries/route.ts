@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getCommitteeSummaries } from '@/lib/committees/repo';
+import { getCommitteeSummaries } from '@/lib/committees/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const authResult = await requireApiUser(request);
     if (!isApiUser(authResult)) return authResult;
 
-    const summaries = getCommitteeSummaries();
+    const summaries = await getCommitteeSummaries();
 
     return NextResponse.json({
       success: true,

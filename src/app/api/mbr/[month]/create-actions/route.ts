@@ -60,7 +60,7 @@ export async function POST(
   }
 
   try {
-    const result = createCorrectiveActionsFromMbr(mbr, user.uid);
+    const result = await createCorrectiveActionsFromMbr(mbr, user.uid);
 
     return NextResponse.json({
       createdCount: result.createdCount,

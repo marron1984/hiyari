@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   returnRequest,
   getApprovalRequest,
-} from '@/lib/approvals/requestRepo';
+} from '@/lib/approvals/requestRepo.firestore';
 import { canApprove } from '@/lib/approvals/canApprove';
 import { createAsync as createNotificationAsync } from '@/lib/notifications/index';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -24,7 +24,7 @@ export async function POST(
   if (!isApiUser(authResult)) return authResult;
   const user = authResult;
 
-  const existing = getApprovalRequest(id);
+  const existing = await getApprovalRequest(id);
   if (!existing) {
     return NextResponse.json(
       { error: '申請が見つかりません' },
@@ -33,7 +33,7 @@ export async function POST(
   }
 
   // 承認権限チェック（差戻しも同じ権限）
-  const approveCheck = canApprove(user.role as AppRole, user.uid, existing);
+  const approveCheck = await canApprove(user.role as AppRole, user.uid, existing);
   if (!approveCheck.canApprove) {
     return NextResponse.json(
       { error: approveCheck.reason ?? '差戻し権限がありません' },
@@ -50,7 +50,7 @@ export async function POST(
     // ノートなしでもOK
   }
 
-  const result = returnRequest(id, user.uid, note, user.name);
+  const result = await returnRequest(id, user.uid, note, user.name);
 
   if (!result.success) {
     return NextResponse.json(

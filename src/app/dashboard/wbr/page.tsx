@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import type { WBRReport } from '@/lib/wbr-generator';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/components/ui';
@@ -44,10 +45,17 @@ export default function WbrPage() {
   const [selectedReportIndex, setSelectedReportIndex] = useState(0);
   const [showHistory, setShowHistory] = useState(false);
   const [mode, setMode] = useState<WbrMode>(modeParam ?? 'executive');
+  const [wbrHistory, setWbrHistory] = useState<WBRReport[]>([]);
 
   // WBRを生成
-  const wbrHistory = useMemo(() => generateWBRHistory(8), []);
+  useEffect(() => {
+    setWbrHistory(generateWBRHistory(8));
+  }, []);
   const currentReport = wbrHistory[selectedReportIndex];
+
+  if (!currentReport) {
+    return <main className="pb-8"><div className="max-w-4xl mx-auto px-4 py-6">読み込み中...</div></main>;
+  }
 
   // テキスト出力
   const handleExportText = () => {

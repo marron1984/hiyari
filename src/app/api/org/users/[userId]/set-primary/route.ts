@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import * as repo from '@/lib/org/repo';
+import * as repo from '@/lib/org/repo.firestore';
 import type { ViewerContext } from '@/lib/org/types';
 import { canEditMembership } from '@/lib/org/types';
 
@@ -41,7 +41,7 @@ export async function POST(
       );
     }
 
-    const result = repo.setPrimaryMembership(targetUserId, orgUnitId, viewer.userId);
+    const result = await repo.setPrimaryMembership(targetUserId, orgUnitId, viewer.userId);
 
     if (!result.success) {
       return NextResponse.json(
@@ -51,7 +51,7 @@ export async function POST(
     }
 
     // 更新後のコンテキストを返す
-    const context = repo.getUserOrgContext(targetUserId);
+    const context = await repo.getUserOrgContext(targetUserId);
 
     return NextResponse.json({ success: true, context });
   } catch (error) {

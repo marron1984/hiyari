@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   listApprovalFlows,
   createApprovalFlow,
-} from '@/lib/approvals/flowRepo';
+} from '@/lib/approvals/flowRepo.firestore';
 import { checkRole } from '@/lib/auth/requireRole';
 import type { FlowStatus, RequestType } from '@/lib/approvals/types';
 
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') ?? '100', 10);
   const offset = parseInt(searchParams.get('offset') ?? '0', 10);
 
-  const { flows, total } = listApprovalFlows({
+  const { flows, total } = await listApprovalFlows({
     requestType: requestType ?? undefined,
     status: status ?? undefined,
     limit,
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = createApprovalFlow({
+  const result = await createApprovalFlow({
     name: body.name,
     requestType: body.requestType,
     description: body.description,

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { setSessionStatus } from '@/lib/training/repo';
+import { setSessionStatus } from '@/lib/training/repo.firestore';
 import { canManageTraining } from '@/lib/training/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -42,7 +42,7 @@ export async function POST(
       );
     }
 
-    const result = setSessionStatus(id, status, user.uid);
+    const result = await setSessionStatus(id, status, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

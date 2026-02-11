@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import * as repo from '@/lib/org/repo';
+import * as repo from '@/lib/org/repo.firestore';
 import type { ViewerContext } from '@/lib/org/types';
 import { canViewOrgTree } from '@/lib/org/types';
 
@@ -31,8 +31,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get('includeInactive') === 'true';
 
-    const tree = repo.getTree({ includeInactive });
-    const stats = repo.getStats();
+    const tree = await repo.getTree({ includeInactive });
+    const stats = await repo.getStats();
 
     return NextResponse.json({ success: true, tree, stats });
   } catch (error) {

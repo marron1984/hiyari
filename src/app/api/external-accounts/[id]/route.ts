@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import * as repo from '@/lib/external-accounts/repo';
+import * as repo from '@/lib/external-accounts/repo.firestore';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ViewerContext } from '@/lib/external-accounts/types';
 
@@ -25,7 +25,7 @@ export async function GET(
       role: user.role as ViewerContext['role'],
     };
 
-    const extUser = repo.getExternalUserById(id, viewer);
+    const extUser = await repo.getExternalUserById(id, viewer);
 
     if (!extUser) {
       return NextResponse.json(
@@ -35,7 +35,7 @@ export async function GET(
     }
 
     // アクセスポリシーも取得
-    const policy = repo.getAccessPolicy(id);
+    const policy = await repo.getAccessPolicy(id);
 
     return NextResponse.json({ success: true, user: extUser, policy });
   } catch (error) {
@@ -63,7 +63,7 @@ export async function PATCH(
     };
 
     const body = await request.json();
-    const result = repo.updateExternalUser(id, body, viewer);
+    const result = await repo.updateExternalUser(id, body, viewer);
 
     if (!result.success) {
       return NextResponse.json(
@@ -102,9 +102,9 @@ export async function POST(
 
     let result;
     if (action === 'disable') {
-      result = repo.disableExternalUser(id, viewer);
+      result = await repo.disableExternalUser(id, viewer);
     } else if (action === 'activate') {
-      result = repo.activateExternalUser(id, viewer);
+      result = await repo.activateExternalUser(id, viewer);
     } else {
       return NextResponse.json(
         { success: false, error: '無効なアクションです' },
@@ -120,7 +120,7 @@ export async function POST(
     }
 
     // 更新後のユーザーを取得して返す
-    const extUser = repo.getExternalUserById(id, viewer);
+    const extUser = await repo.getExternalUserById(id, viewer);
 
     return NextResponse.json({ success: true, user: extUser });
   } catch (error) {

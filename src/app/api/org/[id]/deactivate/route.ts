@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
-import * as repo from '@/lib/org/repo';
+import * as repo from '@/lib/org/repo.firestore';
 import type { ViewerContext } from '@/lib/org/types';
 import { canEditOrg } from '@/lib/org/types';
 
@@ -36,9 +36,9 @@ export async function POST(
 
     let result;
     if (action === 'reactivate') {
-      result = repo.reactivateOrgUnit(id, viewer.userId);
+      result = await repo.reactivateOrgUnit(id, viewer.userId);
     } else {
-      result = repo.deactivateOrgUnit(id, viewer.userId);
+      result = await repo.deactivateOrgUnit(id, viewer.userId);
     }
 
     if (!result.success) {
@@ -49,7 +49,7 @@ export async function POST(
     }
 
     // 更新後の組織を返す
-    const unit = repo.getOrgUnitById(id);
+    const unit = await repo.getOrgUnitById(id);
 
     return NextResponse.json({ success: true, unit });
   } catch (error) {

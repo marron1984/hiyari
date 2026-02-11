@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(searchParams.get('offset') || '0', 10);
   const includeStats = searchParams.get('includeStats') === 'true';
 
-  const result = listEmployees({
+  const result = await listEmployees({
     status: status ?? undefined,
     onboardingStatus: onboardingStatus ?? undefined,
     businessUnitId: businessUnitId ?? undefined,
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
   };
 
   if (includeStats) {
-    response.stats = getHrStats();
+    response.stats = await getHrStats();
   }
 
   return NextResponse.json(response);
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const employee = createEmployee(body, user.uid);
+    const employee = await createEmployee(body, user.uid);
 
     return NextResponse.json({
       success: true,

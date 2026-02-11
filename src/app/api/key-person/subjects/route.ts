@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSubjectsWithContacts } from '@/lib/keyPerson/repo';
+import { getSubjectsWithContacts } from '@/lib/keyPerson/repo.firestore';
 import { canViewKeyPerson } from '@/lib/keyPerson/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const subjects = getSubjectsWithContacts();
+    const subjects = await getSubjectsWithContacts();
 
     return NextResponse.json({ subjects });
   } catch (error) {

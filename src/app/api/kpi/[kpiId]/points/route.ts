@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { addKpiPoint, getKpiDefinition } from '@/lib/kpi/kpi-store';
+import { addKpiPoint, getKpiDefinition } from '@/lib/kpi/kpi-store.firestore';
 
 interface AddPointRequest {
   date: string;
@@ -20,7 +20,7 @@ export async function POST(
   const { kpiId } = await params;
 
   // KPI定義を確認
-  const definition = getKpiDefinition(kpiId);
+  const definition = await getKpiDefinition(kpiId);
   if (!definition) {
     return NextResponse.json(
       { success: false, error: `KPI not found: ${kpiId}` },
@@ -47,7 +47,7 @@ export async function POST(
     }
 
     // データポイントを追加
-    const result = addKpiPoint(kpiId, {
+    const result = await addKpiPoint(kpiId, {
       date: body.date,
       value: body.value,
       source: body.source,

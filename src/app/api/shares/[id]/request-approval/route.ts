@@ -36,7 +36,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // 承認依頼を作成
-    const result = requestShareApproval(
+    const result = await requestShareApproval(
       shareId,
       user.uid,
       user.name

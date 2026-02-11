@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getActionItem, updateActionItem } from '@/lib/committees/repo';
+import { getActionItem, updateActionItem } from '@/lib/committees/repo.firestore';
 import { canUpdateActionItem } from '@/lib/committees/types';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
@@ -20,7 +20,7 @@ export async function GET(
     if (!isApiUser(authResult)) return authResult;
 
     const { id } = await params;
-    const actionItem = getActionItem(id);
+    const actionItem = await getActionItem(id);
 
     if (!actionItem) {
       return NextResponse.json(
@@ -52,7 +52,7 @@ export async function PATCH(
     const user = authResult;
 
     const { id } = await params;
-    const actionItem = getActionItem(id);
+    const actionItem = await getActionItem(id);
 
     if (!actionItem) {
       return NextResponse.json(
@@ -69,7 +69,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const result = updateActionItem(id, body, user.uid);
+    const result = await updateActionItem(id, body, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

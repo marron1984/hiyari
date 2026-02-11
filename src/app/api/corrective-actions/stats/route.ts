@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getStats } from '@/lib/correctiveActions/repo';
+import { getStats } from '@/lib/correctiveActions/repo.firestore';
 import type { AppRole } from '@/config/appRoles';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       : (businessUnitIdParam ?? undefined);
 
     const viewer = { userId: user.uid, role: user.role as AppRole };
-    const stats = getStats(viewer, { businessUnitId });
+    const stats = await getStats(viewer, { businessUnitId });
 
     return NextResponse.json(stats);
   } catch (error) {

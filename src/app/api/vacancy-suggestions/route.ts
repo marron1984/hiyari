@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { listSuggestions, getSuggestionStats } from '@/lib/vacancySuggestions/repo';
+import { listSuggestions, getSuggestionStats } from '@/lib/vacancySuggestions/repo.firestore';
 import { canViewSuggestions } from '@/lib/vacancySuggestions/types';
 import type { AppRole } from '@/config/appRoles';
 import { requireApiUser, isApiUser } from '@/lib/api-auth';
@@ -34,14 +34,14 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') ?? '50', 10);
     const offset = parseInt(searchParams.get('offset') ?? '0', 10);
 
-    const { items, total } = listSuggestions({
+    const { items, total } = await listSuggestions({
       businessUnitId,
       status,
       limit,
       offset,
     });
 
-    const stats = getSuggestionStats(businessUnitId);
+    const stats = await getSuggestionStats(businessUnitId);
 
     return NextResponse.json({
       items,
