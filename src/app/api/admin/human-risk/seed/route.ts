@@ -1,15 +1,33 @@
 // ======== 人材リスク予測 ダミーデータ投入 API ========
 // 管理者専用・一時利用
 
-import { NextResponse } from 'next/server';
-import { getAdminDb } from '@/lib/firebase-admin';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
+import { hasMinRole } from '@/lib/auth';
 
 const ASSESSMENTS_COLLECTION = 'human_risk_assessments';
 
-export async function POST() {
-  // TODO: 本番では管理者ロールチェックを入れること
-
+export async function POST(request: NextRequest) {
   try {
+    // 認証チェック
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    const idToken = authHeader.substring(7);
+    const decodedToken = await verifyIdToken(idToken);
+    if (!decodedToken) {
+      return NextResponse.json({ error: '無効なトークンです' }, { status: 401 });
+    }
+
+    // 管理者権限チェック
+    const adminDoc = await getAdminDb().collection('users').doc(decodedToken.uid).get();
+    const adminRole = adminDoc.data()?.role || 'user';
+    if (!hasMinRole(adminRole, 'admin')) {
+      return NextResponse.json({ error: '管理者権限が必要です' }, { status: 403 });
+    }
+
     const now = new Date();
     const assessmentRef = getAdminDb().collection(ASSESSMENTS_COLLECTION).doc();
 
