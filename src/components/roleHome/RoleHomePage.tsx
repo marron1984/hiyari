@@ -13,6 +13,7 @@ import {
   User,
   ChevronDown,
 } from 'lucide-react';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 interface RoleHomePageProps {
   /** 現在のユーザー役職 */
@@ -30,6 +31,7 @@ interface RoleHomePageProps {
  */
 export function RoleHomePage({ userRole, userId, previewRole }: RoleHomePageProps) {
   const router = useRouter();
+  const apiFetch = useApiFetch();
   const [data, setData] = useState<RoleHomeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,7 +57,7 @@ export function RoleHomePage({ userRole, userId, previewRole }: RoleHomePageProp
         params.set('asRole', selectedPreviewRole);
       }
 
-      const response = await fetch(`/api/home/summary?${params.toString()}`, {
+      const response = await apiFetch(`/api/home/summary?${params.toString()}`, {
         headers: {
           'x-user-id': userId,
           'x-user-role': userRole,
@@ -75,7 +77,7 @@ export function RoleHomePage({ userRole, userId, previewRole }: RoleHomePageProp
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userId, userRole, isAdmin, selectedPreviewRole]);
+  }, [userId, userRole, isAdmin, selectedPreviewRole, apiFetch]);
 
   useEffect(() => {
     fetchData();
@@ -97,7 +99,7 @@ export function RoleHomePage({ userRole, userId, previewRole }: RoleHomePageProp
     if (!confirm('日次オペレーションを実行しますか？')) return;
 
     try {
-      const response = await fetch('/api/cron/daily-ops', {
+      const response = await apiFetch('/api/cron/daily-ops', {
         method: 'POST',
         headers: {
           'x-user-id': userId,

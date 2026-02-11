@@ -31,6 +31,7 @@ import {
   Server,
   ExternalLink,
 } from 'lucide-react';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 // タブ定義
 const TABS: { id: AlertType | 'all'; label: string; icon: React.ReactNode }[] = [
@@ -42,6 +43,7 @@ const TABS: { id: AlertType | 'all'; label: string; icon: React.ReactNode }[] = 
 ];
 
 export default function AlertCenterPage() {
+  const apiFetch = useApiFetch();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [stats, setStats] = useState<AlertStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,8 +64,8 @@ export default function AlertCenterPage() {
       if (selectedTab !== 'all') params.set('type', selectedTab);
 
       const [alertsRes, statsRes] = await Promise.all([
-        fetch(`/api/alerts?${params.toString()}`),
-        fetch('/api/alerts/stats'),
+        apiFetch(`/api/alerts?${params.toString()}`),
+        apiFetch('/api/alerts/stats'),
       ]);
 
       const alertsData = await alertsRes.json();
@@ -76,7 +78,7 @@ export default function AlertCenterPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedTab, selectedStatus, selectedSeverity]);
+  }, [selectedTab, selectedStatus, selectedSeverity, apiFetch]);
 
   useEffect(() => {
     fetchData();
@@ -86,7 +88,7 @@ export default function AlertCenterPage() {
   const handleScan = async () => {
     setScanning(true);
     try {
-      const res = await fetch('/api/alerts/scan', { method: 'POST' });
+      const res = await apiFetch('/api/alerts/scan', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         // 再取得
@@ -102,7 +104,7 @@ export default function AlertCenterPage() {
   // ACK
   const handleAck = async (alertId: string) => {
     try {
-      const res = await fetch(`/api/alerts/${alertId}/ack`, { method: 'POST' });
+      const res = await apiFetch(`/api/alerts/${alertId}/ack`, { method: 'POST' });
       if (res.ok) {
         await fetchData();
       }
@@ -114,7 +116,7 @@ export default function AlertCenterPage() {
   // RESOLVE
   const handleResolve = async (alertId: string) => {
     try {
-      const res = await fetch(`/api/alerts/${alertId}/resolve`, { method: 'POST' });
+      const res = await apiFetch(`/api/alerts/${alertId}/resolve`, { method: 'POST' });
       if (res.ok) {
         await fetchData();
       }

@@ -15,6 +15,7 @@ import {
   BarChart3,
   RefreshCw,
 } from 'lucide-react';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 // カテゴリ表示名
 const CATEGORY_LABELS: Record<string, string> = {
@@ -71,6 +72,7 @@ type HighlightsResponse = {
 };
 
 export default function KpiDashboardPage() {
+  const apiFetch = useApiFetch();
   const [data, setData] = useState<HighlightsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -84,7 +86,7 @@ export default function KpiDashboardPage() {
       if (selectedCategory) params.set('category', selectedCategory);
       if (showExternalOnly) params.set('externalOnly', 'true');
 
-      const res = await fetch(`/api/kpi/highlights?${params.toString()}`);
+      const res = await apiFetch(`/api/kpi/highlights?${params.toString()}`);
       const json = await res.json();
       setData(json);
     } catch (error) {

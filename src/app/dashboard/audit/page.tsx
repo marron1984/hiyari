@@ -16,6 +16,7 @@ import {
   type AuditSeverity,
   type AuditEntry,
 } from '@/lib/audit/types';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 // ========== 型定義 ==========
 
@@ -60,6 +61,7 @@ function formatDateTime(isoString: string): string {
 // ========== コンポーネント ==========
 
 export default function AuditDashboardPage() {
+  const apiFetch = useApiFetch();
   const defaultDates = getDefaultDates();
 
   const [filters, setFilters] = useState<FilterState>({
@@ -94,7 +96,7 @@ export default function AuditDashboardPage() {
       params.set('limit', String(limit));
       params.set('offset', String(page * limit));
 
-      const response = await fetch(`/api/audit-log?${params}`);
+      const response = await apiFetch(`/api/audit-log?${params}`);
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || '取得に失敗しました');
@@ -107,7 +109,7 @@ export default function AuditDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [filters, page]);
+  }, [filters, page, apiFetch]);
 
   useEffect(() => {
     fetchAuditLogs();

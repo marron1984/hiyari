@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 import { Card, CardHeader, CardTitle, CardContent, Button, Select } from '@/components/ui';
 import { Loading } from '@/components/Loading';
 import { Bell, Save, Info, Lock, AlertTriangle } from 'lucide-react';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 type NotifyMode = 'immediate' | 'digest' | 'off';
 
@@ -35,6 +36,7 @@ const MODE_OPTIONS = [
 ];
 
 export default function NotificationSettingsPage() {
+  const apiFetch = useApiFetch();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
@@ -49,7 +51,7 @@ export default function NotificationSettingsPage() {
 
   const fetchSettings = async () => {
     try {
-      const res = await fetch('/api/notification-settings');
+      const res = await apiFetch('/api/notification-settings');
       if (!res.ok) throw new Error('Failed to fetch settings');
 
       const data = await res.json();
@@ -81,7 +83,7 @@ export default function NotificationSettingsPage() {
     setMessage(null);
 
     try {
-      const res = await fetch('/api/notification-settings', {
+      const res = await apiFetch('/api/notification-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ modeDefault, overrides }),

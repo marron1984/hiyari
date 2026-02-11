@@ -18,12 +18,14 @@ import {
 import Link from 'next/link';
 import type { AnnouncementListItem } from '@/lib/announcements/types';
 import type { ReadStats, UnreadUser } from '@/lib/readTracking/types';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 interface AnnouncementWithStats extends AnnouncementListItem {
   stats?: ReadStats & { unreadUsers: UnreadUser[] };
 }
 
 export default function ReadStatusPage() {
+  const apiFetch = useApiFetch();
   const { currentRole } = useRole();
   const isManager = ['admin', 'executive', 'manager'].includes(currentRole);
 
@@ -37,7 +39,7 @@ export default function ReadStatusPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/announcements?all=true');
+      const res = await apiFetch('/api/announcements?all=true');
       if (res.ok) {
         const data = await res.json();
         setAnnouncements(data.announcements);
@@ -48,7 +50,7 @@ export default function ReadStatusPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [apiFetch]);
 
   useEffect(() => {
     fetchData();
@@ -60,7 +62,7 @@ export default function ReadStatusPage() {
 
     setLoadingStats(announcementId);
     try {
-      const res = await fetch(`/api/announcements/${announcementId}/read-stats`);
+      const res = await apiFetch(`/api/announcements/${announcementId}/read-stats`);
       if (res.ok) {
         const stats = await res.json();
         setAnnouncements((prev) =>

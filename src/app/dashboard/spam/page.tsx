@@ -15,6 +15,7 @@ import {
   Activity,
 } from 'lucide-react';
 import type { SpamRule, SpamEvent, BlocklistEntry, SpamAction } from '@/lib/spam/types';
+import { useApiFetch } from '@/hooks/useApiFetch';
 
 // アクション別アイコン
 const ACTION_CONFIG: Record<SpamAction, { icon: React.ReactNode; color: string; bg: string }> = {
@@ -28,6 +29,7 @@ const ACTION_CONFIG: Record<SpamAction, { icon: React.ReactNode; color: string; 
 type TabType = 'rules' | 'blocklist' | 'events';
 
 export default function SpamDashboardPage() {
+  const apiFetch = useApiFetch();
   const [activeTab, setActiveTab] = useState<TabType>('rules');
   const [loading, setLoading] = useState(true);
 
@@ -61,34 +63,34 @@ export default function SpamDashboardPage() {
   // データ取得
   const fetchRules = useCallback(async () => {
     try {
-      const res = await fetch('/api/spam-rules');
+      const res = await apiFetch('/api/spam-rules');
       const data = await res.json();
       setRules(data.rules || []);
     } catch (error) {
       console.error('Failed to fetch rules:', error);
     }
-  }, []);
+  }, [apiFetch]);
 
   const fetchBlocklist = useCallback(async () => {
     try {
-      const res = await fetch('/api/spam-blocklist');
+      const res = await apiFetch('/api/spam-blocklist');
       const data = await res.json();
       setBlocklist(data.entries || []);
     } catch (error) {
       console.error('Failed to fetch blocklist:', error);
     }
-  }, []);
+  }, [apiFetch]);
 
   const fetchEvents = useCallback(async () => {
     try {
-      const res = await fetch('/api/spam-events?limit=100');
+      const res = await apiFetch('/api/spam-events?limit=100');
       const data = await res.json();
       setEvents(data.events || []);
       setStats(data.stats || { total: 0, byAction: {} });
     } catch (error) {
       console.error('Failed to fetch events:', error);
     }
-  }, []);
+  }, [apiFetch]);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -103,7 +105,7 @@ export default function SpamDashboardPage() {
   // ルール作成
   const handleCreateRule = async () => {
     try {
-      const res = await fetch('/api/spam-rules', {
+      const res = await apiFetch('/api/spam-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRule),
@@ -125,7 +127,7 @@ export default function SpamDashboardPage() {
   // ブロックリスト追加
   const handleAddBlocklist = async () => {
     try {
-      const res = await fetch('/api/spam-blocklist', {
+      const res = await apiFetch('/api/spam-blocklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -152,7 +154,7 @@ export default function SpamDashboardPage() {
     if (!confirm('この項目を削除しますか？')) return;
 
     try {
-      const res = await fetch(`/api/spam-blocklist?id=${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`/api/spam-blocklist?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchBlocklist();
       }
