@@ -8,18 +8,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listSessions, createSession } from '@/lib/training/repo';
 import { canManageTraining } from '@/lib/training/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import type { SessionStatus } from '@/lib/training/types';
 
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
-
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const { searchParams } = new URL(request.url);
 
     const courseId = searchParams.get('courseId') ?? undefined;
@@ -48,7 +45,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
 
     if (!canManageTraining(viewer)) {
       return NextResponse.json(
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     const result = createSession(
       { courseId, name, scheduledAt, durationMinutes, location, instructorName, notes },
-      DEMO_USER.id
+      user.uid
     );
 
     if (!result.success) {

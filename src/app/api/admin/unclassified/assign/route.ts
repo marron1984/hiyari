@@ -10,17 +10,15 @@ import { assignBusinessUnit } from '@/lib/admin/unclassified/repo';
 import { canAccessUnclassified } from '@/lib/admin/unclassified/types';
 import type { BackfillEntityType } from '@/lib/admin/backfill/types';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー
-const DEMO_USER = {
-  id: 'user_manager',
-  name: '田中管理者',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   // 権限チェック
-  if (!canAccessUnclassified(DEMO_USER.role)) {
+  if (!canAccessUnclassified(user.role as AppRole)) {
     return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 });
   }
 
@@ -53,7 +51,7 @@ export async function POST(request: NextRequest) {
 
     // 一括付与実行
     const result = assignBusinessUnit(
-      { userId: DEMO_USER.id, userName: DEMO_USER.name, role: 'admin' },
+      { userId: user.uid, userName: user.name, role: user.role as 'admin' },
       {
         entityType: entityType as BackfillEntityType,
         ids,

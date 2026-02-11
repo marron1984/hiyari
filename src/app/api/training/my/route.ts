@@ -4,20 +4,17 @@
  * GET /api/training/my
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { myTrainingSummary } from '@/lib/training/repo';
-import type { AppRole } from '@/config/appRoles';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const summary = myTrainingSummary(DEMO_USER.id);
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const summary = myTrainingSummary(user.uid);
 
     return NextResponse.json(summary);
   } catch (error) {

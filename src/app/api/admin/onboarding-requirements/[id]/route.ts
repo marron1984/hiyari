@@ -16,12 +16,8 @@ import {
 } from '@/lib/onboarding/repo';
 import type { UpdateOnboardingRequirementRequest } from '@/lib/onboarding/types';
 import { canManageOnboardingRequirements } from '@/lib/onboarding/types';
-
-// デモユーザー情報（実際の実装ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_001',
-  role: 'admin' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -31,12 +27,16 @@ interface RouteParams {
  * GET - 要件を取得
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // RBAC チェック
-    if (!canManageOnboardingRequirements(DEMO_USER.role)) {
+    if (!canManageOnboardingRequirements(user.role as AppRole)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }
@@ -73,8 +73,12 @@ export async function PUT(
   { params }: RouteParams
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // RBAC チェック
-    if (!canManageOnboardingRequirements(DEMO_USER.role)) {
+    if (!canManageOnboardingRequirements(user.role as AppRole)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }
@@ -105,7 +109,7 @@ export async function PUT(
 
     const requirement = updateRequirement(id, {
       ...body,
-      actorUserId: DEMO_USER.id,
+      actorUserId: user.uid,
     });
 
     return NextResponse.json({
@@ -126,12 +130,16 @@ export async function PUT(
  * DELETE - 要件を削除
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // RBAC チェック
-    if (!canManageOnboardingRequirements(DEMO_USER.role)) {
+    if (!canManageOnboardingRequirements(user.role as AppRole)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }

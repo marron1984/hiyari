@@ -14,20 +14,20 @@ import {
   getEvents,
 } from '@/lib/complaints/repo';
 import { canEditComplaint } from '@/lib/complaints/types';
-
-// デモ用ユーザー
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
-    const complaint = getComplaintById(id, DEMO_USER);
+    const complaint = getComplaintById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!complaint) {
       return NextResponse.json(
@@ -61,8 +61,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
-    const complaint = getComplaintById(id, DEMO_USER);
+    const complaint = getComplaintById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!complaint) {
       return NextResponse.json(
@@ -71,7 +75,7 @@ export async function PATCH(
       );
     }
 
-    if (!canEditComplaint(DEMO_USER, complaint)) {
+    if (!canEditComplaint({ userId: user.uid, role: user.role as AppRole }, complaint)) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -79,7 +83,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const result = updateComplaint(id, body, DEMO_USER.userId);
+    const result = updateComplaint(id, body, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

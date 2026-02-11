@@ -8,21 +8,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getById, updateReceivable } from '@/lib/receivables/repo';
 import { canViewReceivables, canEditReceivables } from '@/lib/receivables/types';
-import type { ViewerContext } from '@/lib/receivables/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import type { UserRole as ReceivablesRole } from '@/lib/receivables/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as ReceivablesRole;
+    const viewer = { userId: user.uid, role };
+
     // 権限チェック
-    if (!canViewReceivables(DEMO_VIEWER.role)) {
+    if (!canViewReceivables(role)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -30,7 +32,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const receivable = getById(id, DEMO_VIEWER);
+    const receivable = getById(id, viewer);
 
     if (!receivable) {
       return NextResponse.json(
@@ -54,8 +56,14 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as ReceivablesRole;
+
     // 権限チェック
-    if (!canEditReceivables(DEMO_VIEWER.role)) {
+    if (!canEditReceivables(role)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -94,7 +102,7 @@ export async function PATCH(
         nextActionAt,
         nextActionType,
       },
-      DEMO_VIEWER.userId
+      user.uid
     );
 
     if (!receivable) {

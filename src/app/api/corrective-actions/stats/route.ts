@@ -8,15 +8,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStats } from '@/lib/correctiveActions/repo';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+  const user = authResult;
+
   try {
     const { searchParams } = new URL(request.url);
 
@@ -27,7 +25,7 @@ export async function GET(request: NextRequest) {
       ? null
       : (businessUnitIdParam ?? undefined);
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     const stats = getStats(viewer, { businessUnitId });
 
     return NextResponse.json(stats);

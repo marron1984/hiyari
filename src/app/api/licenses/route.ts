@@ -9,25 +9,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listLicenses, listLicenseTypes } from '@/lib/licenses/repo';
 import type { LicenseListFilters, ViewerContext, LicenseCategoryType, UserLicenseStatus } from '@/lib/licenses/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-  orgUnitIds: ['org_higashi', 'org_nishi'],  // マネージャーの管轄組織
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import { userRoleToAppRole } from '@/lib/roles/types';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
 
     // Viewer context
     const viewer: ViewerContext = {
-      userId: DEMO_USER.id,
-      role: DEMO_USER.role,
-      orgUnitIds: DEMO_USER.orgUnitIds,
+      userId: user.uid,
+      role: userRoleToAppRole(user.role),
     };
 
     // フィルタ構築
@@ -93,7 +89,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const authResult = await requireApiUser(request);
+  if (!isApiUser(authResult)) return authResult;
+
   // 資格の新規作成は別途実装（管理者機能）
   return NextResponse.json(
     { error: '未実装' },

@@ -18,20 +18,18 @@ import {
 import { canViewVacancyUnits, canManageVacancyUnits } from '@/lib/vacancyUnits/types';
 import type { VacancyUnitStatus } from '@/lib/vacancyUnits/types';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // シードデータ初期化
     await seedIfEmptyAsync();
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canViewVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '権限がありません' },
@@ -78,7 +76,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canManageVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '空室ユニットを作成する権限がありません' },
@@ -135,8 +137,8 @@ export async function POST(request: NextRequest) {
         priceRangeJson,
         status,
       },
-      DEMO_USER.id,
-      DEMO_USER.name
+      user.uid,
+      user.name
     );
 
     return NextResponse.json({ unit }, { status: 201 });

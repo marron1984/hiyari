@@ -10,16 +10,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listApprovalLogs, type ApprovalLogFilter } from '@/lib/approvals/logRepo';
 import type { AppRole } from '@/config/appRoles';
 import type { RequestType, RequestStatus, ActionType } from '@/lib/approvals/types';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_006',
-  name: '山田マネージャー',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
 
     // クエリパラメータからフィルタを構築
@@ -82,7 +80,7 @@ export async function GET(request: NextRequest) {
     filter.offset = offsetParam ? parseInt(offsetParam, 10) : 0;
 
     // ログ取得（RBAC適用）
-    const result = listApprovalLogs(filter, DEMO_USER.role, DEMO_USER.id);
+    const result = listApprovalLogs(filter, user.role as AppRole, user.uid);
 
     return NextResponse.json({
       items: result.items,

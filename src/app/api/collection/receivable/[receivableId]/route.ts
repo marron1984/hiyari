@@ -14,20 +14,18 @@ import {
   resumeAssignment,
 } from '@/lib/collection/repo';
 import { canViewCollectionFlow } from '@/lib/collection/types';
-import type { ViewerContext } from '@/lib/collection/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ receivableId: string }> }
 ) {
   try {
-    if (!canViewCollectionFlow(DEMO_VIEWER.role)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canViewCollectionFlow(user.role as any)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -71,11 +69,15 @@ export async function POST(
 ) {
   try {
     const { receivableId } = await params;
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const body = await request.json();
     const { action } = body;
 
     if (action === 'pause') {
-      const assignment = pauseAssignment(receivableId, DEMO_VIEWER.userId);
+      const assignment = pauseAssignment(receivableId, user.uid);
       if (!assignment) {
         return NextResponse.json(
           { error: '一時停止に失敗しました' },
@@ -86,7 +88,7 @@ export async function POST(
     }
 
     if (action === 'resume') {
-      const assignment = resumeAssignment(receivableId, DEMO_VIEWER.userId);
+      const assignment = resumeAssignment(receivableId, user.uid);
       if (!assignment) {
         return NextResponse.json(
           { error: '再開に失敗しました' },

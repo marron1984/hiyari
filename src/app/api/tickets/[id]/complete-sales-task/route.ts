@@ -10,13 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { completeSalesTask } from '@/lib/tickets/repo';
 import type { AppRole } from '@/config/appRoles';
 import type { SalesTaskResultCode } from '@/lib/tickets/types';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 const VALID_RESULT_CODES: SalesTaskResultCode[] = [
   'contacted_success',
@@ -36,6 +30,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const body = await request.json();
     const { resultCode, resultNote, nextFollowUpAt } = body;
@@ -63,7 +61,7 @@ export async function POST(
       );
     }
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     const result = completeSalesTask(
       id,
       {

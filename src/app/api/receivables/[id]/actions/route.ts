@@ -8,21 +8,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getById, getActions, addAction } from '@/lib/receivables/repo';
 import { canViewReceivables, canEditReceivables } from '@/lib/receivables/types';
-import type { ViewerContext, ReceivableActionType, ReceivableActionOutcome } from '@/lib/receivables/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import type { ReceivableActionType, ReceivableActionOutcome, UserRole as ReceivablesRole } from '@/lib/receivables/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as ReceivablesRole;
+    const viewer = { userId: user.uid, role };
+
     // 権限チェック
-    if (!canViewReceivables(DEMO_VIEWER.role)) {
+    if (!canViewReceivables(role)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -35,7 +37,7 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const existing = getById(id, DEMO_VIEWER);
+    const existing = getById(id, viewer);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -60,8 +62,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const role = user.role as ReceivablesRole;
+    const viewer = { userId: user.uid, role };
+
     // 権限チェック
-    if (!canEditReceivables(DEMO_VIEWER.role)) {
+    if (!canEditReceivables(role)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -98,7 +107,7 @@ export async function POST(
       );
     }
 
-    const existing = getById(id, DEMO_VIEWER);
+    const existing = getById(id, viewer);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -118,7 +127,7 @@ export async function POST(
         amountPaid,
         nextActionAt,
       },
-      DEMO_VIEWER.userId
+      user.uid
     );
 
     if (!action) {

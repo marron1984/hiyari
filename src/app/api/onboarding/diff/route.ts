@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import {
   getDocumentVersion,
@@ -22,13 +23,6 @@ import {
   logOnboardingEvent,
 } from '@/lib/onboarding/repo';
 import { getUserById } from '@/lib/roles/user-store';
-
-// デモユーザー情報
-const DEMO_USER = {
-  id: 'user_005',  // staff ユーザー
-  name: '佐藤 健二',
-  role: 'staff' as AppRole,
-};
 
 /**
  * 差分レスポンス
@@ -52,6 +46,10 @@ interface DiffResponse {
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
     const documentVersionId = searchParams.get('documentVersionId');
     const logView = searchParams.get('logView') === 'true';
@@ -64,9 +62,9 @@ export async function GET(request: NextRequest) {
     }
 
     // ユーザー情報を取得
-    const userId = DEMO_USER.id;
-    const user = getUserById(userId);
-    if (!user) {
+    const userId = user.uid;
+    const storeUser = getUserById(userId);
+    if (!storeUser) {
       return NextResponse.json(
         { error: 'ユーザーが見つかりません' },
         { status: 404 }
@@ -74,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     // オンボーディング情報を同期
-    const onboarding = syncOnboardingForUser(userId, user.role, []);
+    const onboarding = syncOnboardingForUser(userId, storeUser.role, []);
 
     // 対象の文書がrequiredItemsに含まれているかチェック
     const targetItem = onboarding.requiredItems.find(

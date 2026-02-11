@@ -24,13 +24,7 @@ import {
   type RefSourceStatus,
 } from '@/lib/refSources/types';
 import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 interface RouteParams {
   params: Promise<{ ref: string }>;
@@ -38,9 +32,13 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { ref } = await params;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canViewRefSources(viewer)) {
       return NextResponse.json(
         { error: '紹介元を閲覧する権限がありません' },
@@ -74,9 +72,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { ref } = await params;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canManageRefSources(viewer)) {
       return NextResponse.json(
         { error: '紹介元を更新する権限がありません' },
@@ -130,9 +132,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { ref } = await params;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canManageRefSources(viewer)) {
       return NextResponse.json(
         { error: '紹介元を削除する権限がありません' },

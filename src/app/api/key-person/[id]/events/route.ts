@@ -7,21 +7,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuditTrail } from '@/lib/keyPerson/repo';
 import { canViewAuditLog } from '@/lib/keyPerson/types';
-import type { ViewerContext } from '@/lib/keyPerson/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!canViewAuditLog(DEMO_VIEWER.role)) {
+    if (!canViewAuditLog(user.role as AppRole)) {
       return NextResponse.json(
         { error: '監査ログ閲覧権限がありません' },
         { status: 403 }

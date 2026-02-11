@@ -11,16 +11,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
 import { computeOnboardingStats, getManagerScopeOrgUnitIds } from '@/lib/onboarding/stats';
 import { getUserFollowupTicket } from '@/lib/onboarding/escalation';
 import { getUserById } from '@/lib/roles/user-store';
-
-// デモユーザー情報（実際はセッションから取得）
-const DEMO_USER = {
-  id: 'user_001',  // admin ユーザー
-  role: 'admin' as AppRole,
-};
 
 /**
  * admin/manager のみアクセス可能か判定
@@ -31,20 +26,15 @@ function canAccessOnboardingStats(role: AppRole): boolean {
 
 export async function GET(request: NextRequest) {
   try {
-    // 実際の実装ではセッションからユーザーIDを取得
-    // クエリパラメータで切り替え可能（デモ用）
-    const { searchParams } = new URL(request.url);
-    const demoRole = searchParams.get('role') as AppRole | null;
-    const demoUserId = searchParams.get('userId');
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    let userId = demoUserId ?? DEMO_USER.id;
-    let role = demoRole ?? DEMO_USER.role;
+    const userId = user.uid;
 
     // ユーザー情報を取得
-    const user = getUserById(userId);
-    if (user) {
-      role = user.role;
-    }
+    const storeUser = getUserById(userId);
+    const role: AppRole = storeUser?.role ?? (user.role as AppRole);
 
     // RBAC チェック
     if (!canAccessOnboardingStats(role)) {

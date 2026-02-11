@@ -12,7 +12,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 import {
   getVacancyUnitById,
   updateVacancyUnit,
@@ -24,25 +23,8 @@ import {
   canManageVacancyUnits,
 } from '@/lib/vacancyUnits/types';
 import { revalidateVacanciesForBusinessUnit } from '@/lib/cache/vacancyTags';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { AppRole } from '@/config/appRoles';
-
-// デフォルトユーザー情報（ヘッダーから取得できない場合）
-const DEFAULT_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
-
-/**
- * リクエストヘッダーからユーザー情報を取得
- */
-async function getUserFromHeaders() {
-  const headersList = await headers();
-  const userId = headersList.get('x-user-id') || DEFAULT_USER.id;
-  const userName = headersList.get('x-user-name') || DEFAULT_USER.name;
-  const role = (headersList.get('x-user-role') || DEFAULT_USER.role) as AppRole;
-  return { userId, userName, role };
-}
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -50,10 +32,13 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = await params;
-    const { userId, role } = await getUserFromHeaders();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    const viewer = { userId, role };
+    const { id } = await params;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canViewVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '権限がありません' },
@@ -81,10 +66,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = await params;
-    const { userId, userName, role } = await getUserFromHeaders();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    const viewer = { userId, role };
+    const { id } = await params;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canEditVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '空室ユニットを編集する権限がありません' },
@@ -134,8 +122,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         priceRangeJson,
         status,
       },
-      userId,
-      userName
+      user.uid,
+      user.name
     );
 
     if (!unit) {
@@ -165,10 +153,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = await params;
-    const { userId, userName, role } = await getUserFromHeaders();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    const viewer = { userId, role };
+    const { id } = await params;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canEditVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '空室ユニットを編集する権限がありません' },
@@ -223,8 +214,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const unit = updateVacancyUnit(
       id,
       updateData,
-      userId,
-      userName
+      user.uid,
+      user.name
     );
 
     if (!unit) {
@@ -249,10 +240,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = await params;
-    const { userId, role } = await getUserFromHeaders();
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
-    const viewer = { userId, role };
+    const { id } = await params;
+
+    const viewer = { userId: user.uid, role: user.role as AppRole };
     if (!canManageVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '空室ユニットを削除する権限がありません' },

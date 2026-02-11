@@ -8,22 +8,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getHandoverItem, getHandoverReadStats } from '@/lib/handover/repo';
 import { getHandoverTargetUserIds, getAllUsers } from '@/lib/handover/getHandoverTargetUserIds';
 import { listUnreadUserIds } from '@/lib/readTracking/repo';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック: manager以上のみ
-    if (!['admin', 'executive', 'manager'].includes(DEMO_USER.role)) {
+    if (!['admin', 'executive', 'manager'].includes(user.role)) {
       return NextResponse.json(
         { error: '既読統計を閲覧する権限がありません' },
         { status: 403 }

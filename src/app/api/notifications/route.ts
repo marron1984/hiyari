@@ -8,18 +8,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { listByRole, getUnreadCountByRole } from '@/lib/notifications/repo';
-import type { AppRole } from '@/config/appRoles';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { NotificationType } from '@/types/notification';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_manager',
-  name: '田中管理者',
-  role: 'manager' as AppRole,
-};
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
 
     const statusParam = searchParams.get('status');
@@ -36,7 +33,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(limitParam ? parseInt(limitParam, 10) : 50, 1), 100);
     const offset = Math.max(offsetParam ? parseInt(offsetParam, 10) : 0, 0);
 
-    const { items, total, unreadCount } = listByRole(DEMO_USER.role, {
+    const { items, total, unreadCount } = listByRole(user.role, {
       status: status as 'unread' | 'read' | 'all',
       type: (typeParam || undefined) as NotificationType | undefined,
       limit,

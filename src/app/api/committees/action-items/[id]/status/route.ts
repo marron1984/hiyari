@@ -8,18 +8,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getActionItem, setActionItemStatus } from '@/lib/committees/repo';
 import { canUpdateActionItem } from '@/lib/committees/types';
 import type { ActionItemStatus } from '@/lib/committees/types';
-
-// デモ用ユーザー
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { id } = await params;
     const actionItem = getActionItem(id);
 
@@ -30,7 +30,7 @@ export async function POST(
       );
     }
 
-    if (!canUpdateActionItem(DEMO_USER, actionItem)) {
+    if (!canUpdateActionItem({ userId: user.uid, role: user.role as AppRole }, actionItem)) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -47,7 +47,7 @@ export async function POST(
       );
     }
 
-    const result = setActionItemStatus(id, status, DEMO_USER.userId);
+    const result = setActionItemStatus(id, status, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

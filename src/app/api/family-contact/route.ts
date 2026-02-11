@@ -6,7 +6,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import { listFamilyLogs, createFamilyLog } from '@/lib/familyLog/repo';
+import type { AppRole } from '@/config/appRoles';
 import type {
   ListFamilyLogsOptions,
   CreateFamilyLogRequest,
@@ -17,14 +19,17 @@ import type {
   ViewerContext,
 } from '@/lib/familyLog/types';
 
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    const viewer: ViewerContext = {
+      userId: user.uid,
+      role: user.role as AppRole,
+    };
+
     const { searchParams } = new URL(request.url);
 
     const options: ListFamilyLogsOptions = {};
@@ -62,7 +67,7 @@ export async function GET(request: NextRequest) {
     const offset = searchParams.get('offset');
     if (offset) options.offset = parseInt(offset, 10);
 
-    const { logs, total } = listFamilyLogs(DEMO_VIEWER, options);
+    const { logs, total } = listFamilyLogs(viewer, options);
 
     return NextResponse.json({ logs, total });
   } catch (error) {
@@ -76,6 +81,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const body = await request.json();
 
     const createRequest: CreateFamilyLogRequest = {
@@ -101,7 +110,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const log = createFamilyLog(createRequest, DEMO_VIEWER.userId);
+    const log = createFamilyLog(createRequest, user.uid);
 
     return NextResponse.json({ log }, { status: 201 });
   } catch (error) {

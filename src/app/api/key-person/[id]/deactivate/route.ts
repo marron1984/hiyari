@@ -7,21 +7,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getById, deactivateContact } from '@/lib/keyPerson/repo';
 import { canEditKeyPerson } from '@/lib/keyPerson/types';
-import type { ViewerContext } from '@/lib/keyPerson/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     // 権限チェック
-    if (!canEditKeyPerson(DEMO_VIEWER.role)) {
+    if (!canEditKeyPerson(user.role as AppRole)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -29,7 +28,7 @@ export async function POST(
     }
 
     const { id } = await params;
-    const contact = getById(id, DEMO_VIEWER);
+    const contact = getById(id, { userId: user.uid, role: user.role as AppRole });
 
     if (!contact) {
       return NextResponse.json(
@@ -38,7 +37,7 @@ export async function POST(
       );
     }
 
-    const deactivated = deactivateContact(id, DEMO_VIEWER.userId);
+    const deactivated = deactivateContact(id, user.uid);
 
     return NextResponse.json({ contact: deactivated });
   } catch (error) {

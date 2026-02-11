@@ -7,18 +7,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateAction } from '@/lib/complaints/repo';
 import { canManageComplaints } from '@/lib/complaints/types';
-
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ actionId: string }> }
 ) {
   try {
-    if (!canManageComplaints(DEMO_USER)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canManageComplaints({ userId: user.uid, role: user.role as AppRole })) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -28,7 +29,7 @@ export async function PATCH(
     const { actionId } = await params;
     const body = await request.json();
 
-    const result = updateAction(actionId, body, DEMO_USER.userId);
+    const result = updateAction(actionId, body, user.uid);
 
     if (!result.success) {
       return NextResponse.json(

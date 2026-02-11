@@ -3,19 +3,14 @@
 // DELETE: サブスクリプション削除
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { createHash } from 'crypto';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 const MAX_USER_AGENT_LENGTH = 500;
 const MAX_ENDPOINT_LENGTH = 2048;
-
-async function authenticate(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  return verifyIdToken(authHeader.substring(7));
-}
 
 /** エンドポイントURLからSHA-256ハッシュでドキュメントIDを生成（衝突回避） */
 function endpointToDocId(endpoint: string): string {
@@ -40,10 +35,9 @@ function validateSubscription(subscription: unknown): subscription is {
 
 export async function POST(request: NextRequest) {
   try {
-    const decodedToken = await authenticate(request);
-    if (!decodedToken) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     const body = await request.json();
     const { subscription } = body;
@@ -56,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getAdminDb();
-    const userId = decodedToken.uid;
+    const userId = user.uid;
     const docId = endpointToDocId(subscription.endpoint);
     const userAgent = (request.headers.get('user-agent') || '').slice(0, MAX_USER_AGENT_LENGTH);
 
@@ -82,10 +76,9 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const decodedToken = await authenticate(request);
-    if (!decodedToken) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
 
     const { endpoint } = await request.json();
     if (typeof endpoint !== 'string' || !endpoint) {
@@ -97,7 +90,7 @@ export async function DELETE(request: NextRequest) {
 
     // 自分のサブスクリプションのみ削除可能
     const doc = await db.collection('pushSubscriptions').doc(docId).get();
-    if (doc.exists && doc.data()?.userId !== decodedToken.uid) {
+    if (doc.exists && doc.data()?.userId !== user.uid) {
       return NextResponse.json({ error: '権限がありません' }, { status: 403 });
     }
 

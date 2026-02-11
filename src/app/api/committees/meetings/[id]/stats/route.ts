@@ -6,12 +6,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getMeetingStats } from '@/lib/committees/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const { id } = await params;
     const stats = getMeetingStats(id);
 

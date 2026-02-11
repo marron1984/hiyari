@@ -4,11 +4,15 @@
  * GET /api/committees/summaries - 委員会サマリー一覧取得
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getCommitteeSummaries } from '@/lib/committees/repo';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+
     const summaries = getCommitteeSummaries();
 
     return NextResponse.json({

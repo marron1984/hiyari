@@ -8,16 +8,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listContracts, createContract } from '@/lib/contracts/repo';
 import { canEditContracts } from '@/lib/contracts/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
 import type { ContractStatus, ContractType, ContractRiskLevel } from '@/lib/contracts/types';
 import type { UserRole } from '@/lib/contracts/types';
 
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as UserRole,
-};
-
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
 
     const status = searchParams.get('status') as ContractStatus | undefined;
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       offset: offsetParam ? parseInt(offsetParam, 10) : 0,
     };
 
-    const viewer = { userId: DEMO_USER.userId, role: DEMO_USER.role };
+    const viewer = { userId: user.uid, role: user.role as UserRole };
     const { items, total } = listContracts(viewer, filters, pagination);
 
     return NextResponse.json({ contracts: items, total });
@@ -54,7 +54,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!canEditContracts(DEMO_USER.role)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canEditContracts(user.role as UserRole)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }
@@ -71,7 +75,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const contract = createContract(body, DEMO_USER.userId);
+    const contract = createContract(body, user.uid);
 
     return NextResponse.json({ contract }, { status: 201 });
   } catch (error) {

@@ -8,16 +8,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listComplaints, createComplaint } from '@/lib/complaints/repo';
 import { canManageComplaints } from '@/lib/complaints/types';
+import { requireApiUser, isApiUser } from '@/lib/api-auth';
+import type { AppRole } from '@/config/appRoles';
 import type { ComplaintStatus, ComplaintSeverity, ComplaintCategory } from '@/lib/complaints/types';
-
-// デモ用ユーザー
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
 
 export async function GET(request: NextRequest) {
   try {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
     const { searchParams } = new URL(request.url);
 
     const filter = {
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       offset: searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined,
     };
 
-    const result = listComplaints(DEMO_USER, filter);
+    const result = listComplaints({ userId: user.uid, role: user.role as AppRole }, filter);
 
     return NextResponse.json({
       success: true,
@@ -49,7 +49,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!canManageComplaints(DEMO_USER)) {
+    const authResult = await requireApiUser(request);
+    if (!isApiUser(authResult)) return authResult;
+    const user = authResult;
+
+    if (!canManageComplaints({ userId: user.uid, role: user.role as AppRole })) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -68,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     const result = createComplaint(
       { title, description, category, severity, requesterType, requesterName, contactHint, occurredAt, dueAt },
-      DEMO_USER.userId
+      user.uid
     );
 
     if (!result.success) {
