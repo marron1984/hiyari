@@ -38,6 +38,12 @@ export async function checkOnboardingGate(): Promise<void> {
   try {
     const user = await getCurrentUser();
 
+    // サーバーサイドで認証できない場合（Authorizationヘッダーなし）は
+    // クライアント側の認証に委ねてスキップする
+    if (user.id === 'anonymous') {
+      return;
+    }
+
     // 対象外ロールはスキップ
     if (EXEMPT_ROLES.includes(user.role as typeof EXEMPT_ROLES[number])) {
       return;
@@ -87,6 +93,11 @@ export async function getOnboardingState(): Promise<{
 }> {
   try {
     const user = await getCurrentUser();
+
+    // サーバーサイドで認証できない場合は完了扱い
+    if (user.id === 'anonymous') {
+      return { isRequired: false, isComplete: true, pendingCount: 0, totalCount: 0 };
+    }
 
     // 対象外ロールは完了扱い
     if (EXEMPT_ROLES.includes(user.role as typeof EXEMPT_ROLES[number])) {

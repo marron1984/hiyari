@@ -15,6 +15,7 @@ import {
   type UserOnboarding,
 } from '@/lib/onboarding/types';
 import { useApiFetch } from '@/hooks/useApiFetch';
+import { LAUNCH_MODE } from '@/config/launchMode';
 
 export default function OnboardingContractsPage() {
   const apiFetch = useApiFetch();
@@ -62,22 +63,46 @@ export default function OnboardingContractsPage() {
 
   // 完了済みの場合
   if (onboarding?.status === 'completed') {
+    const dashboardHref = LAUNCH_MODE ? '/launch' : '/dashboard';
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-sm p-8 max-w-md text-center">
+        <div className="bg-white rounded-lg shadow-sm p-8 max-w-lg text-center">
           <div className="text-4xl mb-4">✅</div>
-          <h1 className="text-xl font-semibold text-green-700 mb-4">
+          <h1 className="text-xl font-semibold text-green-700 mb-2">
             契約署名完了
           </h1>
           <p className="text-zinc-600 mb-6">
-            すべての必須文書への署名が完了しました。
+            すべての必須文書への署名が完了しました。業務を開始できます。
           </p>
           <Link
-            href="/dashboard"
+            href={dashboardHref}
             className="inline-block bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
           >
             ダッシュボードへ
           </Link>
+          <div className="mt-6 pt-6 border-t border-zinc-200">
+            <p className="text-sm text-zinc-500 mb-3">よく使う機能</p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Link
+                href="/attendance"
+                className="inline-block bg-zinc-100 text-zinc-700 px-4 py-2 rounded-md text-sm hover:bg-zinc-200"
+              >
+                打刻
+              </Link>
+              <Link
+                href="/dashboard/prospects"
+                className="inline-block bg-zinc-100 text-zinc-700 px-4 py-2 rounded-md text-sm hover:bg-zinc-200"
+              >
+                入居希望
+              </Link>
+              <Link
+                href="/dashboard/approvals"
+                className="inline-block bg-zinc-100 text-zinc-700 px-4 py-2 rounded-md text-sm hover:bg-zinc-200"
+              >
+                承認
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -85,6 +110,7 @@ export default function OnboardingContractsPage() {
 
   // 必須文書がない場合
   if (!onboarding || onboarding.requiredItems.length === 0) {
+    const dashboardHref = LAUNCH_MODE ? '/launch' : '/dashboard';
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
         <div className="bg-white rounded-lg shadow-sm p-8 max-w-md text-center">
@@ -92,7 +118,7 @@ export default function OnboardingContractsPage() {
             署名が必要な文書はありません
           </h1>
           <Link
-            href="/dashboard"
+            href={dashboardHref}
             className="inline-block bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
           >
             ダッシュボードへ
