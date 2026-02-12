@@ -104,8 +104,8 @@ export const ALL_MODULES: ModuleConfig[] = [
     id: 'ai-vp',
     label: 'AI副社長',
     labelEn: 'AI VP',
-    routes: ['/dashboard/ai', '/admin/ai-vp'],
-    apiRoutes: ['/api/ai-vp'],
+    routes: ['/dashboard/ai', '/dashboard/ai-vp', '/admin/ai-vp'],
+    apiRoutes: ['/api/ai-vp', '/api/fukusha-ask'],
   },
   {
     id: 'docs',

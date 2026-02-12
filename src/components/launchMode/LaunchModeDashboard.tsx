@@ -18,6 +18,7 @@ import {
   Briefcase,
   Activity,
   Trophy,
+  MessageCircle,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApiFetch } from '@/hooks/useApiFetch';
@@ -435,6 +436,23 @@ export function LaunchModeDashboard() {
             );
           })}
         </div>
+
+        {/* ふくしゃに聞く CTA */}
+        <Link
+          href="/dashboard/ai-vp/ask"
+          className="group mt-3 block overflow-hidden rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 to-white transition-all duration-200 hover:shadow-md hover:border-purple-300 active:scale-[0.98]"
+        >
+          <div className="p-4 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-purple-500 shadow-sm">
+              <MessageCircle className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-base font-bold text-zinc-900">ふくしゃに聞く</h3>
+              <p className="text-xs text-zinc-500">迷ったら気軽に相談。匿名もOK</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-purple-300 group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+          </div>
+        </Link>
 
         {/* お知らせエリア */}
         <div className="mt-5 bg-white rounded-2xl border border-zinc-200 p-4">

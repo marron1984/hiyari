@@ -79,8 +79,9 @@ export const LAUNCH_ALLOWED_ROUTES = [
   // 経営OS (Management OS)
   '/dashboard/os',
 
-  // AI副社長 (AI VP)
+  // AI副社長 (AI VP) / ふくしゃに聞く
   '/dashboard/ai',
+  '/dashboard/ai-vp',
   '/admin/ai-vp',
 
   // 通知設定（共通機能）
@@ -88,6 +89,7 @@ export const LAUNCH_ALLOWED_ROUTES = [
 
   // API エンドポイント（機能に必要なもの）
   '/api/prospects',
+  '/api/fukusha-ask',
   '/api/vacancies',
   '/api/vacancy',
   '/api/attendance',
@@ -212,5 +214,12 @@ export const LAUNCH_NAV_ITEMS: LaunchNavItem[] = [
     href: '/dashboard/os',
     icon: 'Activity',
     description: 'コンディション管理',
+  },
+  {
+    label: 'ふくしゃに聞く',
+    labelEn: 'Ask VP',
+    href: '/dashboard/ai-vp/ask',
+    icon: 'MessageCircle',
+    description: '判断相談・質問箱',
   },
 ];
