@@ -11,6 +11,7 @@ import { LaunchModeDashboard } from '@/components/launchMode';
 import { LAUNCH_MODE } from '@/config/launchMode';
 import type { AppRole } from '@/config/appRoles';
 import type { UserRole } from '@/types';
+import { motion } from 'framer-motion';
 import {
   Shield,
   MessageSquare,
@@ -195,7 +196,12 @@ function DashboardContent() {
   const noteColor = navKey === 'staff' ? 'border-green-100' : navKey === 'manager' ? 'border-blue-100' : 'border-purple-100';
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="max-w-5xl mx-auto px-4 py-6"
+    >
       {/* Task 053: プレビューモード表示 */}
       {isPreviewMode && (
         <div className="mb-4 px-4 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
@@ -213,91 +219,114 @@ function DashboardContent() {
       )}
 
       {/* OSナビ（ロール別最上段固定導線） */}
-      <Card className={`mb-6 bg-gradient-to-br ${navConfig.bgGradient} ${borderColor} shadow-sm`}>
-        <CardContent className="p-5">
-          <div className="flex items-start gap-4">
-            <div className={`p-3 ${navConfig.iconBg} rounded-xl flex-shrink-0`}>
-              <HelpCircle className={`w-6 h-6 ${iconColor}`} />
-            </div>
-            <div className="flex-1">
-              <p className={`text-xs font-medium ${iconColor} mb-1`}>{navConfig.subtitle}</p>
-              <h2 className="text-lg font-bold text-zinc-800 mb-2">
-                {navConfig.title}
-              </h2>
-              <p className="text-sm text-zinc-600 mb-4 leading-relaxed whitespace-pre-line">
-                {navConfig.description}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Link href={navConfig.primaryAction.href || '#'}>
-                  <button className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 ${primaryBg} text-white font-medium rounded-lg transition-colors`}>
-                    <MessageSquare className="w-4 h-4" />
-                    {navConfig.primaryAction.label}
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </Link>
-                <Link href={navConfig.secondaryAction.href}>
-                  <button className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-zinc-50 text-zinc-700 font-medium rounded-lg border border-zinc-300 transition-colors">
-                    <BookOpen className="w-4 h-4" />
-                    {navConfig.secondaryAction.label}
-                  </button>
-                </Link>
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1, duration: 0.4, ease: 'easeOut' }}
+      >
+        <Card className={`mb-6 bg-gradient-to-br ${navConfig.bgGradient} ${borderColor} shadow-sm`}>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-4">
+              <div className={`p-3 ${navConfig.iconBg} rounded-xl flex-shrink-0`}>
+                <HelpCircle className={`w-6 h-6 ${iconColor}`} />
               </div>
-              <div className={`mt-4 pt-3 border-t ${noteColor}`}>
-                <p className="text-xs text-zinc-500">
-                  {navConfig.note}
+              <div className="flex-1 min-w-0">
+                <p className={`text-xs font-medium ${iconColor} mb-1`}>{navConfig.subtitle}</p>
+                <h2 className="text-base sm:text-lg font-bold text-zinc-800 mb-2">
+                  {navConfig.title}
+                </h2>
+                <p className="text-sm text-zinc-600 mb-4 leading-relaxed whitespace-pre-line">
+                  {navConfig.description}
                 </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Link href={navConfig.primaryAction.href || '#'}>
+                    <button className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 ${primaryBg} text-white font-medium rounded-lg transition-all active:scale-[0.97]`}>
+                      <MessageSquare className="w-4 h-4" />
+                      {navConfig.primaryAction.label}
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </Link>
+                  <Link href={navConfig.secondaryAction.href}>
+                    <button className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-white hover:bg-zinc-50 text-zinc-700 font-medium rounded-lg border border-zinc-300 transition-all active:scale-[0.97]">
+                      <BookOpen className="w-4 h-4" />
+                      {navConfig.secondaryAction.label}
+                    </button>
+                  </Link>
+                </div>
+                <div className={`mt-4 pt-3 border-t ${noteColor}`}>
+                  <p className="text-xs text-zinc-500">
+                    {navConfig.note}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* 支援目的の注意文 */}
-      <Card className="mb-6 bg-zinc-50 border-zinc-200">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <Shield className="w-5 h-5 text-zinc-500 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-zinc-600">
-              これは支援のための仕組みです。評価や査定のためではありません。
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.35 }}
+      >
+        <Card className="mb-6 bg-zinc-50 border-zinc-200">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Shield className="w-5 h-5 text-zinc-500 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-zinc-600">
+                これは支援のための仕組みです。評価や査定のためではありません。
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
 
       {/* Task 053: 役職別ホーム（RoleHomePage） - asRoleをpreviewRoleとして渡す */}
-      <RoleHomePage
-        userRole={actualAppRole}
-        userId={user.id}
-        previewRole={isPreviewMode ? effectiveAppRole : undefined}
-      />
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.35 }}
+      >
+        <RoleHomePage
+          userRole={actualAppRole}
+          userId={user.id}
+          previewRole={isPreviewMode ? effectiveAppRole : undefined}
+        />
+      </motion.div>
 
       {/* フッター */}
-      <div className="mt-8 pt-6 border-t border-zinc-200">
-        <div className="flex items-center justify-center gap-4 text-sm text-zinc-400">
-          <Link href="/dashboard/os/checkin" className="hover:text-zinc-600">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5, duration: 0.4 }}
+        className="mt-8 pt-6 border-t border-zinc-200"
+      >
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-zinc-400">
+          <Link href="/dashboard/os/checkin" className="hover:text-zinc-600 transition-colors">
             チェックイン
           </Link>
           <span>・</span>
-          <Link href="/dashboard/approvals" className="hover:text-zinc-600">
+          <Link href="/dashboard/approvals" className="hover:text-zinc-600 transition-colors">
             稟議
           </Link>
           <span>・</span>
-          <Link href="/dashboard/os/team" className="hover:text-zinc-600">
+          <Link href="/dashboard/os/team" className="hover:text-zinc-600 transition-colors">
             チーム
           </Link>
           <span>・</span>
-          <Link href="/dashboard/knowledge" className="hover:text-zinc-600">
+          <Link href="/dashboard/knowledge" className="hover:text-zinc-600 transition-colors">
             知識ハブ
           </Link>
           {(navKey === 'exec' || navKey === 'manager') && (
             <>
               <span>・</span>
-              <Link href="/dashboard/business-summary" className="hover:text-zinc-600 flex items-center gap-1">
+              <Link href="/dashboard/business-summary" className="hover:text-zinc-600 transition-colors flex items-center gap-1">
                 <BarChart3 className="w-3 h-3" />
                 業務サマリー
               </Link>
               <span>・</span>
-              <Link href="/dashboard/quality-risk" className="hover:text-zinc-600 flex items-center gap-1">
+              <Link href="/dashboard/quality-risk" className="hover:text-zinc-600 transition-colors flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
                 品質・リスク
               </Link>
@@ -306,18 +335,18 @@ function DashboardContent() {
           {navKey === 'exec' && (
             <>
               <span>・</span>
-              <Link href="/dashboard/os-map" className="hover:text-zinc-600">
+              <Link href="/dashboard/os-map" className="hover:text-zinc-600 transition-colors">
                 OSマップ
               </Link>
               <span>・</span>
-              <Link href="/admin/ai-vp" className="hover:text-zinc-600">
+              <Link href="/admin/ai-vp" className="hover:text-zinc-600 transition-colors">
                 AI副社長
               </Link>
             </>
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

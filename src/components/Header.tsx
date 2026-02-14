@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity, Bot, Sparkles, FolderOpen } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { RoleSwitcher } from '@/components/navigation/RoleSwitcher';
@@ -139,32 +140,40 @@ export function Header() {
                   <span>管理</span>
                   <ChevronDown className={cn('w-3 h-3 transition-transform', adminMenuOpen && 'rotate-180')} />
                 </button>
-                {adminMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-zinc-100 overflow-hidden z-50 animate-slide-down">
-                    <div className="p-2">
-                      {adminItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = pathname.startsWith(item.href);
-                        return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={() => setAdminMenuOpen(false)}
-                            className={cn(
-                              'flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors',
-                              isActive
-                                ? 'bg-zinc-100 text-zinc-900 font-medium'
-                                : 'text-zinc-600 hover:bg-zinc-50'
-                            )}
-                          >
-                            <Icon className="w-4 h-4" />
-                            {item.label}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                <AnimatePresence>
+                  {adminMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-zinc-100 overflow-hidden z-50"
+                    >
+                      <div className="p-2">
+                        {adminItems.map((item) => {
+                          const Icon = item.icon;
+                          const isActive = pathname.startsWith(item.href);
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              onClick={() => setAdminMenuOpen(false)}
+                              className={cn(
+                                'flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors',
+                                isActive
+                                  ? 'bg-zinc-100 text-zinc-900 font-medium'
+                                  : 'text-zinc-600 hover:bg-zinc-50'
+                              )}
+                            >
+                              <Icon className="w-4 h-4" />
+                              {item.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
 
@@ -245,23 +254,31 @@ export function Header() {
                   </div>
                 )}
               </button>
-              {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-zinc-100 overflow-hidden z-50 animate-slide-down">
-                  <div className="px-4 py-3 border-b border-zinc-100">
-                    <p className="text-sm font-medium text-zinc-900 truncate">{user.name}</p>
-                    <p className="text-xs text-zinc-500 truncate">{user.email}</p>
-                  </div>
-                  <div className="p-2">
-                    <button
-                      onClick={handleSignOut}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 rounded-xl hover:bg-red-50 transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      ログアウト
-                    </button>
-                  </div>
-                </div>
-              )}
+              <AnimatePresence>
+                {userMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
+                    className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-zinc-100 overflow-hidden z-50"
+                  >
+                    <div className="px-4 py-3 border-b border-zinc-100">
+                      <p className="text-sm font-medium text-zinc-900 truncate">{user.name}</p>
+                      <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                    </div>
+                    <div className="p-2">
+                      <button
+                        onClick={handleSignOut}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 rounded-xl hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        ログアウト
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>

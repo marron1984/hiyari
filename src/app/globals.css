@@ -23,6 +23,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   min-height: 100dvh;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -36,9 +37,10 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Smooth scrolling */
+/* Smooth scrolling & prevent horizontal overflow */
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 /* Minimal scrollbar */

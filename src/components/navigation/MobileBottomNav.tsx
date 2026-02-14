@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Home,
   FileText,
@@ -109,88 +110,104 @@ export function MobileBottomNav() {
     return (
       <>
         {/* Launch Mode その他メニュー */}
-        {moreMenuOpen && (
-          <div className="fixed inset-0 z-40 md:hidden">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setMoreMenuOpen(false)} />
-            <div className="absolute bottom-16 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto animate-slide-up safe-bottom">
-              <div className="sticky top-0 bg-white border-b border-zinc-100 px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
+        <AnimatePresence>
+          {moreMenuOpen && (
+            <div className="fixed inset-0 z-40 md:hidden">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 bg-black/50"
+                onClick={() => setMoreMenuOpen(false)}
+              />
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                className="absolute bottom-16 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto safe-bottom"
+              >
+                <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b border-zinc-100 px-4 py-3 flex items-center justify-between">
                   <span className="text-base font-semibold text-zinc-900">その他のメニュー</span>
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" />
-                    Launch
-                  </span>
+                  <button onClick={() => setMoreMenuOpen(false)} className="p-2 -mr-2 rounded-full hover:bg-zinc-100 active:bg-zinc-200 transition-colors">
+                    <X className="w-5 h-5 text-zinc-500" />
+                  </button>
                 </div>
-                <button onClick={() => setMoreMenuOpen(false)} className="p-2 -mr-2 rounded-full hover:bg-zinc-100">
-                  <X className="w-5 h-5 text-zinc-500" />
-                </button>
-              </div>
-              <div className="px-4 py-3">
-                <div className="grid grid-cols-4 gap-2">
-                  {launchMoreItems.map((item) => {
-                    const Icon = item.icon;
-                    const active = isActiveLaunch(item);
-                    return (
-                      <Link key={item.href} href={item.href} onClick={() => setMoreMenuOpen(false)}
-                        className={cn('flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors',
-                          active ? 'bg-zinc-900 text-white' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
-                        )}>
-                        <Icon className="w-5 h-5" />
-                        <span className="text-xs font-medium">{item.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-                {launchAdminItems.length > 0 && (
-                  <>
-                    <div className="mt-4 mb-2 px-1">
-                      <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">管理機能</span>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2">
-                      {launchAdminItems.map((item) => {
-                        const Icon = item.icon;
-                        const active = pathname.startsWith(item.href);
-                        return (
-                          <Link key={item.href} href={item.href} onClick={() => setMoreMenuOpen(false)}
-                            className={cn('flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors',
+                <div className="px-3 py-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    {launchMoreItems.map((item, i) => {
+                      const Icon = item.icon;
+                      const active = isActiveLaunch(item);
+                      return (
+                        <motion.div
+                          key={item.href}
+                          initial={{ opacity: 0, y: 12 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.03, duration: 0.25 }}
+                        >
+                          <Link href={item.href} onClick={() => setMoreMenuOpen(false)}
+                            className={cn('flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors active:scale-95',
                               active ? 'bg-zinc-900 text-white' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
                             )}>
                             <Icon className="w-5 h-5" />
-                            <span className="text-xs font-medium">{item.label}</span>
+                            <span className="text-[11px] font-medium leading-tight text-center">{item.label}</span>
                           </Link>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-                <div className="mt-4 pt-4 border-t border-zinc-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {user.photoURL ? (
-                        <img src={user.photoURL} alt={user.name} className="w-10 h-10 rounded-xl object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-white text-sm font-medium">
-                          {user.name.charAt(0)}
-                        </div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-zinc-900 truncate">{user.name}</p>
-                        <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                  {launchAdminItems.length > 0 && (
+                    <>
+                      <div className="mt-4 mb-2 px-1">
+                        <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">管理機能</span>
                       </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {launchAdminItems.map((item) => {
+                          const Icon = item.icon;
+                          const active = pathname.startsWith(item.href);
+                          return (
+                            <Link key={item.href} href={item.href} onClick={() => setMoreMenuOpen(false)}
+                              className={cn('flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors active:scale-95',
+                                active ? 'bg-zinc-900 text-white' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
+                              )}>
+                              <Icon className="w-5 h-5" />
+                              <span className="text-[11px] font-medium leading-tight text-center">{item.label}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  <div className="mt-4 pt-4 border-t border-zinc-100">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {user.photoURL ? (
+                          <img src={user.photoURL} alt={user.name} className="w-10 h-10 rounded-xl object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
+                            {user.name.charAt(0)}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-zinc-900 truncate">{user.name}</p>
+                          <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                        </div>
+                      </div>
+                      <button onClick={async () => { await signOut(); setMoreMenuOpen(false); }}
+                        className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 active:bg-red-200 transition-colors flex-shrink-0">
+                        <LogOut className="w-4 h-4" />
+                        <span>ログアウト</span>
+                      </button>
                     </div>
-                    <button onClick={async () => { await signOut(); setMoreMenuOpen(false); }}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition-colors">
-                      <LogOut className="w-4 h-4" />
-                      <span>ログアウト</span>
-                    </button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
-          </div>
-        )}
+          )}
+        </AnimatePresence>
 
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-zinc-200 md:hidden safe-bottom">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-lg border-t border-zinc-200 md:hidden safe-bottom">
           <div className="flex items-center justify-around h-16">
             {launchMainItems.map((item) => {
               const Icon = item.icon;
@@ -200,24 +217,33 @@ export function MobileBottomNav() {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors',
+                    'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative',
                     active ? 'text-zinc-900' : 'text-zinc-400'
                   )}
                 >
-                  <Icon className={cn('w-6 h-6', active && 'text-zinc-900')} />
-                  <span className="text-[10px] font-medium">{item.label}</span>
+                  <Icon className={cn('w-6 h-6 transition-transform', active && 'text-zinc-900 scale-110')} />
+                  <span className="text-[11px] font-medium">{item.label}</span>
+                  {active && (
+                    <motion.div
+                      layoutId="bottomNavIndicator"
+                      className="absolute -top-px left-1/2 -translate-x-1/2 w-6 h-0.5 bg-zinc-900 rounded-full"
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    />
+                  )}
                 </Link>
               );
             })}
             <button
               onClick={() => setMoreMenuOpen(!moreMenuOpen)}
               className={cn(
-                'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors',
+                'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative',
                 moreMenuOpen ? 'text-zinc-900' : 'text-zinc-400'
               )}
             >
-              <MoreHorizontal className={cn('w-6 h-6', moreMenuOpen && 'text-zinc-900')} />
-              <span className="text-[10px] font-medium">その他</span>
+              <motion.div animate={{ rotate: moreMenuOpen ? 90 : 0 }} transition={{ duration: 0.2 }}>
+                <MoreHorizontal className={cn('w-6 h-6', moreMenuOpen && 'text-zinc-900')} />
+              </motion.div>
+              <span className="text-[11px] font-medium">その他</span>
             </button>
           </div>
         </nav>
@@ -334,159 +360,169 @@ export function MobileBottomNav() {
   return (
     <>
       {/* その他メニューオーバーレイ */}
-      {moreMenuOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          {/* 背景オーバーレイ */}
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setMoreMenuOpen(false)}
-          />
+      <AnimatePresence>
+        {moreMenuOpen && (
+          <div className="fixed inset-0 z-40 md:hidden">
+            {/* 背景オーバーレイ */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-black/50"
+              onClick={() => setMoreMenuOpen(false)}
+            />
 
-          {/* メニューパネル */}
-          <div className="absolute bottom-16 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto animate-slide-up safe-bottom">
-            {/* ヘッダー */}
-            <div className="sticky top-0 bg-white border-b border-zinc-100 px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            {/* メニューパネル */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="absolute bottom-16 left-0 right-0 bg-white rounded-t-2xl max-h-[70vh] overflow-y-auto safe-bottom"
+            >
+              {/* ヘッダー */}
+              <div className="sticky top-0 bg-white/90 backdrop-blur-sm border-b border-zinc-100 px-4 py-3 flex items-center justify-between">
                 <span className="text-base font-semibold text-zinc-900">その他のメニュー</span>
-                {LAUNCH_MODE && (
-                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" />
-                    Launch
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={() => setMoreMenuOpen(false)}
-                className="p-2 -mr-2 rounded-full hover:bg-zinc-100"
-              >
-                <X className="w-5 h-5 text-zinc-500" />
-              </button>
-            </div>
-
-            {/* メニュー項目 */}
-            <div className="px-4 py-3">
-              {/* 基本メニュー */}
-              <div className="grid grid-cols-4 gap-2">
-                {moreItems.map((item) => {
-                  const Icon = item.icon;
-                  const active = pathname === item.href || pathname.startsWith(item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMoreMenuOpen(false)}
-                      className={cn(
-                        'flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors',
-                        active ? 'bg-zinc-900 text-white' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
-                      )}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span className="text-xs font-medium">{item.label}</span>
-                    </Link>
-                  );
-                })}
+                <button
+                  onClick={() => setMoreMenuOpen(false)}
+                  className="p-2 -mr-2 rounded-full hover:bg-zinc-100 active:bg-zinc-200 transition-colors"
+                >
+                  <X className="w-5 h-5 text-zinc-500" />
+                </button>
               </div>
 
-              {/* AI副社長メニュー */}
-              {aiVpItems.length > 0 && (
-                <>
-                  <div className="mt-4 mb-2 px-1">
-                    <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                      AI副社長
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {aiVpItems.map((item) => {
-                      const Icon = item.icon;
-                      const active = pathname.startsWith(item.href);
-                      return (
+              {/* メニュー項目 */}
+              <div className="px-3 py-3">
+                {/* 基本メニュー */}
+                <div className="grid grid-cols-3 gap-2">
+                  {moreItems.map((item, i) => {
+                    const Icon = item.icon;
+                    const active = pathname === item.href || pathname.startsWith(item.href);
+                    return (
+                      <motion.div
+                        key={item.href}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03, duration: 0.25 }}
+                      >
                         <Link
-                          key={item.href}
                           href={item.href}
                           onClick={() => setMoreMenuOpen(false)}
                           className={cn(
-                            'flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors',
-                            active
-                              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
-                              : 'bg-gradient-to-r from-purple-50 to-indigo-50 text-purple-700'
-                          )}
-                        >
-                          <Icon className="w-5 h-5" />
-                          <span className="text-xs font-medium">{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-
-              {/* 管理者メニュー */}
-              {adminMoreItems.length > 0 && (
-                <>
-                  <div className="mt-4 mb-2 px-1">
-                    <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                      管理機能
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2">
-                    {adminMoreItems.map((item) => {
-                      const Icon = item.icon;
-                      const active = pathname.startsWith(item.href);
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          onClick={() => setMoreMenuOpen(false)}
-                          className={cn(
-                            'flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors',
+                            'flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors active:scale-95',
                             active ? 'bg-zinc-900 text-white' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
                           )}
                         >
                           <Icon className="w-5 h-5" />
-                          <span className="text-xs font-medium">{item.label}</span>
+                          <span className="text-[11px] font-medium leading-tight text-center">{item.label}</span>
                         </Link>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
 
-              {/* ユーザー情報・ログアウト */}
-              <div className="mt-4 pt-4 border-t border-zinc-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {user.photoURL ? (
-                      <img
-                        src={user.photoURL}
-                        alt={user.name}
-                        className="w-10 h-10 rounded-xl object-cover"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-white text-sm font-medium">
-                        {user.name.charAt(0)}
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-zinc-900 truncate">{user.name}</p>
-                      <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                {/* AI副社長メニュー */}
+                {aiVpItems.length > 0 && (
+                  <>
+                    <div className="mt-4 mb-2 px-1">
+                      <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">
+                        AI副社長
+                      </span>
                     </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {aiVpItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = pathname.startsWith(item.href);
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setMoreMenuOpen(false)}
+                            className={cn(
+                              'flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors active:scale-95',
+                              active
+                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
+                                : 'bg-gradient-to-r from-purple-50 to-indigo-50 text-purple-700'
+                            )}
+                          >
+                            <Icon className="w-5 h-5" />
+                            <span className="text-[11px] font-medium leading-tight text-center">{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* 管理者メニュー */}
+                {adminMoreItems.length > 0 && (
+                  <>
+                    <div className="mt-4 mb-2 px-1">
+                      <span className="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">
+                        管理機能
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {adminMoreItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = pathname.startsWith(item.href);
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setMoreMenuOpen(false)}
+                            className={cn(
+                              'flex flex-col items-center gap-1.5 p-3 rounded-xl transition-colors active:scale-95',
+                              active ? 'bg-zinc-900 text-white' : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
+                            )}
+                          >
+                            <Icon className="w-5 h-5" />
+                            <span className="text-[11px] font-medium leading-tight text-center">{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* ユーザー情報・ログアウト */}
+                <div className="mt-4 pt-4 border-t border-zinc-100">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {user.photoURL ? (
+                        <img
+                          src={user.photoURL}
+                          alt={user.name}
+                          className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
+                          {user.name.charAt(0)}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-zinc-900 truncate">{user.name}</p>
+                        <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSignOut}
+                      className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 active:bg-red-200 transition-colors flex-shrink-0"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>ログアウト</span>
+                    </button>
                   </div>
-                  <button
-                    onClick={handleSignOut}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    <span>ログアウト</span>
-                  </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* 固定ボトムナビ */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-zinc-200 md:hidden safe-bottom">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-lg border-t border-zinc-200 md:hidden safe-bottom">
         <div className="flex items-center justify-around h-16">
           {mainNavItems.map((item) => {
             const Icon = item.icon;
@@ -498,12 +534,14 @@ export function MobileBottomNav() {
                   key="more"
                   onClick={() => handleNavClick(item)}
                   className={cn(
-                    'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors',
+                    'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative',
                     active ? 'text-zinc-900' : 'text-zinc-400'
                   )}
                 >
-                  <Icon className={cn('w-6 h-6', active && 'text-zinc-900')} />
-                  <span className="text-[10px] font-medium">{item.label}</span>
+                  <motion.div animate={{ rotate: active ? 90 : 0 }} transition={{ duration: 0.2 }}>
+                    <Icon className={cn('w-6 h-6', active && 'text-zinc-900')} />
+                  </motion.div>
+                  <span className="text-[11px] font-medium">{item.label}</span>
                 </button>
               );
             }
@@ -514,12 +552,19 @@ export function MobileBottomNav() {
                 href={item.href}
                 onClick={() => handleNavClick(item)}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors',
+                  'flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors relative',
                   active ? 'text-zinc-900' : 'text-zinc-400'
                 )}
               >
-                <Icon className={cn('w-6 h-6', active && 'text-zinc-900')} />
-                <span className="text-[10px] font-medium">{item.label}</span>
+                <Icon className={cn('w-6 h-6 transition-transform', active && 'text-zinc-900 scale-110')} />
+                <span className="text-[11px] font-medium">{item.label}</span>
+                {active && (
+                  <motion.div
+                    layoutId="bottomNavIndicatorNormal"
+                    className="absolute -top-px left-1/2 -translate-x-1/2 w-6 h-0.5 bg-zinc-900 rounded-full"
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
               </Link>
             );
           })}
