@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>AA-HUB OS 機能一覧</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 15mm;
+    @bottom-center {
+      content: counter(page) " / " counter(pages);
+      font-size: 9px;
+      color: #888;
+    }
+  }
+  body {
+    font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+    font-size: 10px;
+    line-height: 1.5;
+    color: #1a1a1a;
+  }
+  h1 {
+    font-size: 22px;
+    text-align: center;
+    margin-bottom: 4px;
+    color: #111;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 6px;
+  }
+  .date {
+    text-align: center;
+    font-size: 10px;
+    color: #999;
+    margin-bottom: 24px;
+  }
+  .summary {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    page-break-inside: avoid;
+  }
+  .summary h2 {
+    font-size: 13px;
+    margin: 0 0 8px 0;
+    color: #333;
+  }
+  .summary-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+  .summary-item {
+    font-size: 10px;
+    min-width: 180px;
+  }
+  .summary-item .num {
+    font-weight: bold;
+    color: #2563eb;
+  }
+  .module {
+    margin-bottom: 16px;
+    page-break-inside: avoid;
+  }
+  .module h2 {
+    font-size: 14px;
+    color: #fff;
+    background: #334155;
+    padding: 6px 12px;
+    margin: 0 0 0 0;
+    border-radius: 4px 4px 0 0;
+  }
+  .module h2 .en {
+    font-size: 10px;
+    font-weight: normal;
+    color: #cbd5e1;
+    margin-left: 8px;
+  }
+  .module h2 .count {
+    float: right;
+    font-size: 10px;
+    font-weight: normal;
+    color: #94a3b8;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0;
+    font-size: 9.5px;
+  }
+  th {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    padding: 4px 8px;
+    text-align: left;
+    font-weight: 600;
+    color: #475569;
+  }
+  td {
+    border: 1px solid #e2e8f0;
+    padding: 3px 8px;
+  }
+  tr:nth-child(even) td {
+    background: #fafbfc;
+  }
+  .route {
+    font-family: "SF Mono", "Consolas", monospace;
+    font-size: 9px;
+    color: #2563eb;
+  }
+  .note {
+    font-size: 9px;
+    color: #666;
+    margin-top: 16px;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<h1>AA-HUB OS 機能一覧</h1>
+<p class="subtitle">介護施設管理システム 全ルート・ページインベントリ</p>
+<p class="date">作成日: 2026年2月14日 ｜ 総ページ数: 187ルート</p>
+
+<div class="summary">
+  <h2>モジュール概要</h2>
+  <div class="summary-grid">
+    <div class="summary-item">1. 入居希望 (Prospects): <span class="num">9</span> ルート</div>
+    <div class="summary-item">2. 空室 (Vacancies): <span class="num">13</span> ルート</div>
+    <div class="summary-item">3. 打刻 (Attendance): <span class="num">8</span> ルート</div>
+    <div class="summary-item">4. 承認 (Approvals/Ringi): <span class="num">16</span> ルート</div>
+    <div class="summary-item">5. 報告 (Incidents): <span class="num">10</span> ルート</div>
+    <div class="summary-item">6. 改善 (Improvements): <span class="num">4</span> ルート</div>
+    <div class="summary-item">7. ランキング (Rankings): <span class="num">1</span> ルート</div>
+    <div class="summary-item">8. ドキュメント (Documents): <span class="num">12</span> ルート</div>
+    <div class="summary-item">9. 営業 (Sales): <span class="num">5</span> ルート</div>
+    <div class="summary-item">10. 経営OS (Management OS): <span class="num">22</span> ルート</div>
+    <div class="summary-item">11. AI副社長 (AI VP): <span class="num">16</span> ルート</div>
+    <div class="summary-item">12. 共通・システム (Common): <span class="num">71</span> ルート</div>
+  </div>
+</div>
+
+<!-- 1. 入居希望 -->
+<div class="module">
+  <h2>1. 入居希望 <span class="en">Prospects</span><span class="count">9 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/dashboard/prospects</td><td>入居希望者一覧</td></tr>
+    <tr><td>2</td><td class="route">/dashboard/prospects/:id</td><td>入居希望者詳細</td></tr>
+    <tr><td>3</td><td class="route">/dashboard/prospects/new</td><td>入居希望者新規登録</td></tr>
+    <tr><td>4</td><td class="route">/dashboard/residents</td><td>入居者一覧</td></tr>
+    <tr><td>5</td><td class="route">/dashboard/residents/:id</td><td>入居者詳細</td></tr>
+    <tr><td>6</td><td class="route">/dashboard/family-contact</td><td>ご家族連絡先一覧</td></tr>
+    <tr><td>7</td><td class="route">/dashboard/family-contact/:id</td><td>ご家族連絡先詳細</td></tr>
+    <tr><td>8</td><td class="route">/dashboard/key-person</td><td>キーパーソン一覧</td></tr>
+    <tr><td>9</td><td class="route">/admin/prospects/import</td><td>入居希望者データインポート</td></tr>
+  </table>
+</div>
+
+<!-- 2. 空室 -->
+<div class="module">
+  <h2>2. 空室 <span class="en">Vacancies</span><span class="count">13 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/dashboard/vacancy</td><td>空室状況ダッシュボード</td></tr>
+    <tr><td>2</td><td class="route">/dashboard/vacancies</td><td>空室一覧</td></tr>
+    <tr><td>3</td><td class="route">/dashboard/vacancies/suggestions</td><td>空室マッチング提案</td></tr>
+    <tr><td>4</td><td class="route">/dashboard/vacancy-analytics</td><td>空室分析</td></tr>
+    <tr><td>5</td><td class="route">/dashboard/vacancy-inquiries</td><td>空室問い合わせ管理</td></tr>
+    <tr><td>6</td><td class="route">/vacancies</td><td>空室情報（外部公開）</td></tr>
+    <tr><td>7</td><td class="route">/vacancies/inquiry</td><td>空室問い合わせフォーム</td></tr>
+    <tr><td>8</td><td class="route">/vacancies/thanks</td><td>問い合わせ完了</td></tr>
+    <tr><td>9</td><td class="route">/vacancies/verify</td><td>問い合わせ確認</td></tr>
+    <tr><td>10</td><td class="route">/dashboard/receivables</td><td>売掛金管理</td></tr>
+    <tr><td>11</td><td class="route">/dashboard/receivables/:id</td><td>売掛金詳細</td></tr>
+    <tr><td>12</td><td class="route">/dashboard/collection-flow</td><td>回収フロー管理</td></tr>
+    <tr><td>13</td><td class="route">/dashboard/dunning-history</td><td>督促履歴</td></tr>
+  </table>
+</div>
+
+<!-- 3. 打刻 -->
+<div class="module">
+  <h2>3. 打刻 <span class="en">Attendance</span><span class="count">8 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/attendance</td><td>打刻（出退勤記録）</td></tr>
+    <tr><td>2</td><td class="route">/attendance/history</td><td>打刻履歴</td></tr>
+    <tr><td>3</td><td class="route">/attendance/overtime</td><td>残業管理</td></tr>
+    <tr><td>4</td><td class="route">/dashboard/attendance/overtime/new</td><td>残業申請</td></tr>
+    <tr><td>5</td><td class="route">/admin/attendance</td><td>勤怠管理（管理者）</td></tr>
+    <tr><td>6</td><td class="route">/admin/attendance/dashboard</td><td>勤怠ダッシュボード</td></tr>
+    <tr><td>7</td><td class="route">/admin/attendance/import</td><td>勤怠データインポート</td></tr>
+    <tr><td>8</td><td class="route">/admin/attendance/realtime</td><td>リアルタイム出勤状況</td></tr>
+  </table>
+</div>
+
+<!-- 4. 承認 -->
+<div class="module">
+  <h2>4. 承認 <span class="en">Approvals / Ringi</span><span class="count">16 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/dashboard/approvals</td><td>承認一覧</td></tr>
+    <tr><td>2</td><td class="route">/dashboard/approvals/:id</td><td>承認詳細</td></tr>
+    <tr><td>3</td><td class="route">/dashboard/approvals/new</td><td>新規承認申請</td></tr>
+    <tr><td>4</td><td class="route">/dashboard/approval-flow</td><td>承認フロー一覧</td></tr>
+    <tr><td>5</td><td class="route">/dashboard/approval-flow/:id</td><td>承認フロー詳細</td></tr>
+    <tr><td>6</td><td class="route">/dashboard/approval-log</td><td>承認ログ</td></tr>
+    <tr><td>7</td><td class="route">/ringi</td><td>稟議一覧</td></tr>
+    <tr><td>8</td><td class="route">/ringi/:id</td><td>稟議詳細</td></tr>
+    <tr><td>9</td><td class="route">/ringi/new</td><td>新規稟議作成</td></tr>
+    <tr><td>10</td><td class="route">/dashboard/admin/ringi</td><td>稟議管理（管理者）</td></tr>
+    <tr><td>11</td><td class="route">/admin/ringi</td><td>稟議設定</td></tr>
+    <tr><td>12</td><td class="route">/admin/approval-routes</td><td>承認ルート設定</td></tr>
+    <tr><td>13</td><td class="route">/dashboard/tickets</td><td>チケット一覧</td></tr>
+    <tr><td>14</td><td class="route">/dashboard/tickets/:id</td><td>チケット詳細</td></tr>
+    <tr><td>15</td><td class="route">/dashboard/tickets/new</td><td>新規チケット作成</td></tr>
+    <tr><td>16</td><td class="route">/dashboard/repair-tickets</td><td>修繕チケット</td></tr>
+  </table>
+</div>
+
+<!-- 5. 報告 -->
+<div class="module">
+  <h2>5. 報告 <span class="en">Incidents</span><span class="count">10 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/submit</td><td>ヒヤリハット報告</td></tr>
+    <tr><td>2</td><td class="route">/incident/:id</td><td>インシデント詳細</td></tr>
+    <tr><td>3</td><td class="route">/incident/:id/edit</td><td>インシデント編集</td></tr>
+    <tr><td>4</td><td class="route">/admin/incidents</td><td>インシデント管理（管理者）</td></tr>
+    <tr><td>5</td><td class="route">/dashboard/complaints</td><td>苦情・クレーム一覧</td></tr>
+    <tr><td>6</td><td class="route">/dashboard/complaints/:id</td><td>苦情詳細</td></tr>
+    <tr><td>7</td><td class="route">/dashboard/corrective-actions</td><td>是正措置一覧</td></tr>
+    <tr><td>8</td><td class="route">/dashboard/corrective-actions/:id</td><td>是正措置詳細</td></tr>
+    <tr><td>9</td><td class="route">/dashboard/corrective-actions/new</td><td>是正措置作成</td></tr>
+    <tr><td>10</td><td class="route">/dashboard/quality-risk</td><td>品質リスク管理</td></tr>
+  </table>
+</div>
+
+<!-- 6. 改善 -->
+<div class="module">
+  <h2>6. 改善 <span class="en">Improvements</span><span class="count">4 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/improvements</td><td>改善提案一覧</td></tr>
+    <tr><td>2</td><td class="route">/improvements/:id</td><td>改善提案詳細</td></tr>
+    <tr><td>3</td><td class="route">/improvements/new</td><td>改善提案作成</td></tr>
+    <tr><td>4</td><td class="route">/admin/improvements</td><td>改善管理（管理者）</td></tr>
+  </table>
+</div>
+
+<!-- 7. ランキング -->
+<div class="module">
+  <h2>7. ランキング <span class="en">Rankings</span><span class="count">1 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/rankings</td><td>報告ランキング</td></tr>
+  </table>
+</div>
+
+<!-- 8. ドキュメント -->
+<div class="module">
+  <h2>8. ドキュメント <span class="en">Documents</span><span class="count">12 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/dashboard/docs</td><td>文書一覧</td></tr>
+    <tr><td>2</td><td class="route">/dashboard/docs/:id</td><td>文書詳細</td></tr>
+    <tr><td>3</td><td class="route">/dashboard/docs/templates</td><td>文書テンプレート</td></tr>
+    <tr><td>4</td><td class="route">/dashboard/knowledge</td><td>ナレッジベース</td></tr>
+    <tr><td>5</td><td class="route">/dashboard/consent</td><td>同意書管理</td></tr>
+    <tr><td>6</td><td class="route">/dashboard/e-sign</td><td>電子署名一覧</td></tr>
+    <tr><td>7</td><td class="route">/dashboard/e-sign/:id</td><td>電子署名詳細</td></tr>
+    <tr><td>8</td><td class="route">/dashboard/e-sign/new</td><td>電子署名作成</td></tr>
+    <tr><td>9</td><td class="route">/dashboard/esign-log</td><td>電子署名ログ</td></tr>
+    <tr><td>10</td><td class="route">/dashboard/read-status</td><td>既読状況確認</td></tr>
+    <tr><td>11</td><td class="route">/onboarding/contracts</td><td>契約署名（オンボーディング）</td></tr>
+    <tr><td>12</td><td class="route">/onboarding/contracts/sign/:id</td><td>契約署名実行</td></tr>
+  </table>
+</div>
+
+<!-- 9. 営業 -->
+<div class="module">
+  <h2>9. 営業 <span class="en">Sales</span><span class="count">5 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/sales</td><td>営業ダッシュボード</td></tr>
+    <tr><td>2</td><td class="route">/sales/accounts</td><td>取引先管理</td></tr>
+    <tr><td>3</td><td class="route">/sales/deals</td><td>案件一覧</td></tr>
+    <tr><td>4</td><td class="route">/sales/deals/:id</td><td>案件詳細</td></tr>
+    <tr><td>5</td><td class="route">/dashboard/sales/pipeline</td><td>営業パイプライン</td></tr>
+  </table>
+</div>
+
+<!-- 10. 経営OS -->
+<div class="module">
+  <h2>10. 経営OS <span class="en">Management OS</span><span class="count">22 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/dashboard/os</td><td>経営OSダッシュボード</td></tr>
+    <tr><td>2</td><td class="route">/dashboard/os/checkin</td><td>チェックイン</td></tr>
+    <tr><td>3</td><td class="route">/dashboard/os/decision</td><td>意思決定支援</td></tr>
+    <tr><td>4</td><td class="route">/dashboard/os/team</td><td>チーム管理</td></tr>
+    <tr><td>5</td><td class="route">/dashboard/os-map</td><td>OSマップ</td></tr>
+    <tr><td>6</td><td class="route">/dashboard/handover</td><td>申し送り一覧</td></tr>
+    <tr><td>7</td><td class="route">/dashboard/handover/:id</td><td>申し送り詳細</td></tr>
+    <tr><td>8</td><td class="route">/dashboard/training</td><td>研修管理</td></tr>
+    <tr><td>9</td><td class="route">/dashboard/training/sessions/:id</td><td>研修セッション詳細</td></tr>
+    <tr><td>10</td><td class="route">/dashboard/training/sessions/new</td><td>研修セッション作成</td></tr>
+    <tr><td>11</td><td class="route">/dashboard/training-reports</td><td>研修レポート</td></tr>
+    <tr><td>12</td><td class="route">/dashboard/announcements</td><td>お知らせ管理</td></tr>
+    <tr><td>13</td><td class="route">/dashboard/alerts</td><td>アラート一覧</td></tr>
+    <tr><td>14</td><td class="route">/dashboard/alerts/birthdays</td><td>誕生日アラート</td></tr>
+    <tr><td>15</td><td class="route">/dashboard/executive-summary</td><td>経営サマリー</td></tr>
+    <tr><td>16</td><td class="route">/dashboard/kpi</td><td>KPIダッシュボード</td></tr>
+    <tr><td>17</td><td class="route">/dashboard/kpi/:kpiId</td><td>KPI詳細</td></tr>
+    <tr><td>18</td><td class="route">/dashboard/kpi-dictionary</td><td>KPI辞書</td></tr>
+    <tr><td>19</td><td class="route">/dashboard/kpi-dictionary/:kpiId</td><td>KPI辞書詳細</td></tr>
+    <tr><td>20</td><td class="route">/dashboard/wbr</td><td>週次ビジネスレビュー</td></tr>
+    <tr><td>21</td><td class="route">/dashboard/business-summary</td><td>事業サマリー</td></tr>
+    <tr><td>22</td><td class="route">/dashboard/mbr</td><td>月次ビジネスレビュー</td></tr>
+  </table>
+</div>
+
+<!-- 11. AI副社長 -->
+<div class="module">
+  <h2>11. AI副社長 <span class="en">AI VP / ふくしゃに聞く</span><span class="count">16 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td>1</td><td class="route">/dashboard/ai-vp</td><td>AI副社長ダッシュボード</td></tr>
+    <tr><td>2</td><td class="route">/dashboard/ai-vp/ask</td><td>ふくしゃに聞く（質問投稿）</td></tr>
+    <tr><td>3</td><td class="route">/dashboard/ai-vp/ask/:id</td><td>質問詳細・回答</td></tr>
+    <tr><td>4</td><td class="route">/dashboard/ai-vp/explanation</td><td>AI判断説明</td></tr>
+    <tr><td>5</td><td class="route">/dashboard/ai-vp/human-risk</td><td>人的リスク分析</td></tr>
+    <tr><td>6</td><td class="route">/dashboard/ai-vp/settings</td><td>AI副社長設定</td></tr>
+    <tr><td>7</td><td class="route">/dashboard/ai-vp/simulation</td><td>シミュレーション</td></tr>
+    <tr><td>8</td><td class="route">/dashboard/ai-vp/yoshida-learning</td><td>吉田学習モデル</td></tr>
+    <tr><td>9</td><td class="route">/admin/ai-vp</td><td>AI副社長管理</td></tr>
+    <tr><td>10</td><td class="route">/admin/ai-vp/approval</td><td>AI判断承認</td></tr>
+    <tr><td>11</td><td class="route">/admin/ai-vp/ask-inbox</td><td>質問受信箱</td></tr>
+    <tr><td>12</td><td class="route">/admin/ai-vp/condition</td><td>コンディション設定</td></tr>
+    <tr><td>13</td><td class="route">/admin/ai-vp/extraction/:id</td><td>知見抽出詳細</td></tr>
+    <tr><td>14</td><td class="route">/admin/ai-vp/history</td><td>AI副社長履歴</td></tr>
+    <tr><td>15</td><td class="route">/admin/ai-vp/new</td><td>AI副社長新規作成</td></tr>
+    <tr><td>16</td><td class="route">/admin/ai-vp/settings</td><td>AI副社長管理設定</td></tr>
+  </table>
+</div>
+
+<!-- 12. 共通・システム -->
+<div class="module">
+  <h2>12. 共通・システム <span class="en">Common / System</span><span class="count">71 ルート</span></h2>
+  <table>
+    <tr><th style="width:30px">#</th><th>ルートパス</th><th>説明</th></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">認証・オンボーディング</td></tr>
+    <tr><td>1</td><td class="route">/</td><td>トップ（リダイレクト）</td></tr>
+    <tr><td>2</td><td class="route">/login</td><td>ログイン</td></tr>
+    <tr><td>3</td><td class="route">/onboarding</td><td>オンボーディング</td></tr>
+    <tr><td>4</td><td class="route">/terminated</td><td>アカウント停止画面</td></tr>
+    <tr><td>5</td><td class="route">/launch</td><td>Launch Modeホーム</td></tr>
+    <tr><td>6</td><td class="route">/coming-soon</td><td>Coming Soon画面</td></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">ダッシュボード・通知</td></tr>
+    <tr><td>7</td><td class="route">/dashboard</td><td>メインダッシュボード</td></tr>
+    <tr><td>8</td><td class="route">/dashboard/notifications</td><td>通知一覧</td></tr>
+    <tr><td>9</td><td class="route">/dashboard/notification-settings</td><td>通知設定</td></tr>
+    <tr><td>10</td><td class="route">/settings/notifications</td><td>通知設定（別パス）</td></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">管理者機能</td></tr>
+    <tr><td>11</td><td class="route">/admin</td><td>管理者トップ</td></tr>
+    <tr><td>12</td><td class="route">/admin/employees</td><td>従業員管理</td></tr>
+    <tr><td>13</td><td class="route">/admin/users</td><td>ユーザー管理</td></tr>
+    <tr><td>14</td><td class="route">/admin/roles</td><td>ロール管理</td></tr>
+    <tr><td>15</td><td class="route">/admin/module-permissions</td><td>モジュール権限設定</td></tr>
+    <tr><td>16</td><td class="route">/admin/org-tree</td><td>組織ツリー</td></tr>
+    <tr><td>17</td><td class="route">/admin/external-accounts</td><td>外部アカウント管理</td></tr>
+    <tr><td>18</td><td class="route">/admin/settings</td><td>管理者設定</td></tr>
+    <tr><td>19</td><td class="route">/admin/settings/freee</td><td>freee連携設定</td></tr>
+    <tr><td>20</td><td class="route">/admin/sync</td><td>データ同期</td></tr>
+    <tr><td>21</td><td class="route">/admin/sync/google-sheets</td><td>Google Sheets同期</td></tr>
+    <tr><td>22</td><td class="route">/admin/reports</td><td>レポート管理</td></tr>
+    <tr><td>23</td><td class="route">/admin/insights</td><td>インサイト</td></tr>
+    <tr><td>24</td><td class="route">/admin/points</td><td>ポイント管理</td></tr>
+    <tr><td>25</td><td class="route">/admin/shares</td><td>共有管理</td></tr>
+    <tr><td>26</td><td class="route">/admin/financial-ai</td><td>財務AI</td></tr>
+    <tr><td>27</td><td class="route">/admin/accounting-templates</td><td>会計テンプレート</td></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">ダッシュボード管理者</td></tr>
+    <tr><td>28</td><td class="route">/dashboard/admin</td><td>ダッシュボード管理</td></tr>
+    <tr><td>29</td><td class="route">/dashboard/admin/scope-backfill</td><td>スコープバックフィル</td></tr>
+    <tr><td>30</td><td class="route">/dashboard/admin/self-check</td><td>セルフチェック</td></tr>
+    <tr><td>31</td><td class="route">/dashboard/admin/unclassified</td><td>未分類管理</td></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">AI機能（共通）</td></tr>
+    <tr><td>32</td><td class="route">/dashboard/ai-executive-assistant</td><td>AIエグゼクティブアシスタント</td></tr>
+    <tr><td>33</td><td class="route">/dashboard/ai/inbox</td><td>AI受信箱</td></tr>
+    <tr><td>34</td><td class="route">/dashboard/ai/organization-health</td><td>組織ヘルス分析</td></tr>
+    <tr><td>35</td><td class="route">/dashboard/ai/policies</td><td>AIポリシー設定</td></tr>
+    <tr><td>36</td><td class="route">/dashboard/ai/replies/:id</td><td>AI回答詳細</td></tr>
+    <tr><td>37</td><td class="route">/dashboard/ai/todos</td><td>AIタスク管理</td></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">人事・労務</td></tr>
+    <tr><td>38</td><td class="route">/dashboard/hr/employees</td><td>人事：従業員管理</td></tr>
+    <tr><td>39</td><td class="route">/dashboard/hr/offboarding</td><td>退職手続き</td></tr>
+    <tr><td>40</td><td class="route">/dashboard/certifications</td><td>資格管理</td></tr>
+    <tr><td>41</td><td class="route">/dashboard/licenses</td><td>免許管理</td></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">申請・リクエスト</td></tr>
+    <tr><td>42</td><td class="route">/dashboard/applications</td><td>申請一覧</td></tr>
+    <tr><td>43</td><td class="route">/dashboard/applications/:id</td><td>申請詳細</td></tr>
+    <tr><td>44</td><td class="route">/dashboard/applications/expense/new</td><td>経費申請</td></tr>
+    <tr><td>45</td><td class="route">/dashboard/applications/overtime/new</td><td>残業申請</td></tr>
+    <tr><td>46</td><td class="route">/requests</td><td>リクエスト一覧</td></tr>
+    <tr><td>47</td><td class="route">/requests/:id</td><td>リクエスト詳細</td></tr>
+    <tr><td>48</td><td class="route">/requests/new</td><td>新規リクエスト</td></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">施設管理</td></tr>
+    <tr><td>49</td><td class="route">/dashboard/inventory</td><td>在庫管理</td></tr>
+    <tr><td>50</td><td class="route">/dashboard/repairs</td><td>修繕管理</td></tr>
+    <tr><td>51</td><td class="route">/dashboard/repairs/new</td><td>修繕依頼作成</td></tr>
+    <tr><td>52</td><td class="route">/dashboard/contracts</td><td>契約管理</td></tr>
+    <tr><td>53</td><td class="route">/dashboard/returns</td><td>返却管理</td></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">コミュニケーション</td></tr>
+    <tr><td>54</td><td class="route">/dashboard/contact-history</td><td>連絡履歴</td></tr>
+    <tr><td>55</td><td class="route">/dashboard/committees</td><td>委員会一覧</td></tr>
+    <tr><td>56</td><td class="route">/dashboard/committees/:committeeId</td><td>委員会詳細</td></tr>
+    <tr><td>57</td><td class="route">/dashboard/committees/meetings/:meetingId</td><td>会議詳細</td></tr>
+    <tr><td>58</td><td class="route">/dashboard/meeting-minutes</td><td>議事録</td></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">分析・レポート</td></tr>
+    <tr><td>59</td><td class="route">/dashboard/audit</td><td>監査ログ</td></tr>
+    <tr><td>60</td><td class="route">/dashboard/ops-report</td><td>運営レポート</td></tr>
+    <tr><td>61</td><td class="route">/dashboard/ref-sources</td><td>参照ソース</td></tr>
+    <tr><td>62</td><td class="route">/dashboard/leads/suggestions</td><td>リード提案</td></tr>
+    <tr><td colspan="3" style="background:#f1f5f9;font-weight:600;color:#475569">その他</td></tr>
+    <tr><td>63</td><td class="route">/dashboard/chaos</td><td>カオスエンジニアリング</td></tr>
+    <tr><td>64</td><td class="route">/dashboard/chaos/checkin</td><td>カオスチェックイン</td></tr>
+    <tr><td>65</td><td class="route">/dashboard/spam</td><td>スパム管理</td></tr>
+    <tr><td>66</td><td class="route">/share/:token</td><td>共有リンク</td></tr>
+  </table>
+</div>
+
+<div class="note">
+  <strong>備考:</strong> 本ドキュメントはソースコード（src/app/**/page.tsx）から自動生成されたルート一覧です。
+  Launch Mode（段階公開モード）では、featureGate.ts および launchRoutes.ts で許可されたルートのみアクセス可能です。
+</div>
+
+</body>
+</html>
