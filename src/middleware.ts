@@ -4,8 +4,8 @@ import { isRouteEnabledByGate } from '@/config/featureGate';
 
 // ======== Launch Mode ========
 
-// デフォルト true（本番カットオーバー状態）。全機能開放は NEXT_PUBLIC_LAUNCH_MODE=false
-const LAUNCH_MODE = process.env.NEXT_PUBLIC_LAUNCH_MODE !== 'false';
+// デフォルト false（本番オープン状態）。機能制限が必要な場合は NEXT_PUBLIC_LAUNCH_MODE=true
+const LAUNCH_MODE = process.env.NEXT_PUBLIC_LAUNCH_MODE === 'true';
 
 // ======== セキュリティヘッダー ========
 

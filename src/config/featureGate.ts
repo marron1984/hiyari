@@ -2,7 +2,8 @@
  * Feature Gate - モジュール単位の公開制御
  *
  * 各モジュールの有効/無効を一元管理する。
- * Launch Mode では全11モジュール有効。
+ * 本番オープン状態（LAUNCH_MODE=false）では全モジュール有効。
+ * Launch Mode 有効時は LAUNCH_ENABLED リストで公開範囲を制御可能。
  * (AI副社長は isAiVpOwner で別途アクセス制御)
  */
 
