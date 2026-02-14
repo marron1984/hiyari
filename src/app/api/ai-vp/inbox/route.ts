@@ -1,25 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { isAiVpOwner } from '@/lib/auth';
 import { toDate } from '@/lib/date';
 import { AiReplyRiskLevel, AiReplyStatus } from '@/types/ai-vp';
 
-// Firebase Admin SDK初期化
-if (getApps().length === 0) {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  if (serviceAccount) {
-    try {
-      initializeApp({
-        credential: cert(JSON.parse(serviceAccount)),
-      });
-    } catch {
-      // Already initialized or error
-    }
-  }
-}
-
-const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || 'default';
+const DEFAULT_TENANT_ID = 'defaultTenant';
 
 /**
  * AI受信箱一覧API
@@ -48,7 +33,7 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get('limit');
     const limitCount = limitParam ? parseInt(limitParam, 10) : 50;
 
-    const db = getFirestore();
+    const db = getAdminDb();
 
     // メッセージを取得
     const messagesSnapshot = await db.collection('lwMessages')

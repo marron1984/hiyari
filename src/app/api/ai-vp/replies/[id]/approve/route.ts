@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
+import { getAdminDb } from '@/lib/firebase-admin';
 import { isAiVpOwner } from '@/lib/auth';
 import { sendLineWorksMessage } from '@/lib/lineworks';
 import { AiReplyStatus } from '@/types/ai-vp';
 
-// Firebase Admin SDK初期化
-if (getApps().length === 0) {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  if (serviceAccount) {
-    try {
-      initializeApp({
-        credential: cert(JSON.parse(serviceAccount)),
-      });
-    } catch {
-      // Already initialized or error
-    }
-  }
-}
-
-const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || 'default';
+const DEFAULT_TENANT_ID = 'defaultTenant';
 const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV || 'production';
 
 interface ApprovalRequest {
@@ -74,7 +60,7 @@ export async function POST(
       );
     }
 
-    const db = getFirestore();
+    const db = getAdminDb();
     const now = Timestamp.now();
     const isPreview = APP_ENV === 'preview';
 

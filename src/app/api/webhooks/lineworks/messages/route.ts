@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
+import { getAdminDb } from '@/lib/firebase-admin';
 import {
   determineRiskLevel,
   determineCategory,
@@ -10,21 +10,7 @@ import { AiReplyStatus } from '@/types/ai-vp';
 import { sendLineWorksMessage } from '@/lib/lineworks';
 import { getLineWorksUsers, isLineWorksAdminConfigured } from '@/lib/lineworks-admin';
 
-// Firebase Admin SDK初期化
-if (getApps().length === 0) {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  if (serviceAccount) {
-    try {
-      initializeApp({
-        credential: cert(JSON.parse(serviceAccount)),
-      });
-    } catch {
-      // Already initialized or error
-    }
-  }
-}
-
-const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || 'default';
+const DEFAULT_TENANT_ID = 'defaultTenant';
 const LINEWORKS_WEBHOOK_TOKEN = process.env.LINEWORKS_WEBHOOK_TOKEN;
 const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV || 'production';
 
@@ -77,7 +63,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, message: 'Non-text message ignored' });
     }
 
-    const db = getFirestore();
+    const db = getAdminDb();
     const now = Timestamp.now();
 
     // メッセージを保存
