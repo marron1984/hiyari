@@ -33,6 +33,10 @@ import {
   BookOpen,
   Ticket,
   CheckCircle2,
+  MessageCircle,
+  ArrowLeftRight,
+  Bell,
+  UserCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { isAiVpOwner } from '@/lib/auth';
@@ -72,7 +76,12 @@ export function MobileBottomNav() {
       { href: '/dashboard/docs', label: 'ドキュメント', icon: FolderOpen, matchPaths: ['/dashboard/docs'] },
       { href: '/sales', label: '営業', icon: Briefcase, matchPaths: ['/sales'] },
       { href: '/dashboard/os', label: '経営OS', icon: Activity, matchPaths: ['/dashboard/os'] },
+      { href: '/dashboard/ai-vp/ask', label: 'ふくしゃに聞く', icon: MessageCircle, matchPaths: ['/dashboard/ai-vp/ask'] },
       { href: '/dashboard/tickets', label: 'チケット', icon: Ticket, matchPaths: ['/dashboard/tickets'] },
+      { href: '/dashboard/announcements', label: 'お知らせ', icon: Megaphone, matchPaths: ['/dashboard/announcements'] },
+      { href: '/dashboard/handover', label: '申し送り', icon: ArrowLeftRight, matchPaths: ['/dashboard/handover'] },
+      { href: '/dashboard/alerts', label: 'アラート', icon: Bell, matchPaths: ['/dashboard/alerts'] },
+      { href: '/dashboard/residents', label: '入居者', icon: UserCheck, matchPaths: ['/dashboard/residents'] },
     ];
     const launchMoreItems = filterNavItems(launchMoreAll);
 
@@ -251,7 +260,12 @@ export function MobileBottomNav() {
     { href: '/rankings', label: 'ランク', icon: Trophy },
     { href: '/dashboard/docs', label: 'ドキュメント', icon: FolderOpen },
     { href: '/dashboard/os', label: '経営OS', icon: Activity },
+    { href: '/dashboard/ai-vp/ask', label: 'ふくしゃに聞く', icon: MessageCircle },
     { href: '/dashboard/tickets', label: 'チケット', icon: Ticket },
+    { href: '/dashboard/announcements', label: 'お知らせ', icon: Megaphone },
+    { href: '/dashboard/handover', label: '申し送り', icon: ArrowLeftRight },
+    { href: '/dashboard/alerts', label: 'アラート', icon: Bell },
+    { href: '/dashboard/residents', label: '入居者', icon: UserCheck },
   ];
 
   // featureGate でフィルタ

@@ -2,7 +2,8 @@
  * Feature Gate - モジュール単位の公開制御
  *
  * 各モジュールの有効/無効を一元管理する。
- * Launch Mode では全11モジュール有効。
+ * 本番オープン状態（LAUNCH_MODE=false）では全モジュール有効。
+ * Launch Mode 有効時は LAUNCH_ENABLED リストで公開範囲を制御可能。
  * (AI副社長は isAiVpOwner で別途アクセス制御)
  */
 
@@ -48,28 +49,28 @@ export const ALL_MODULES: ModuleConfig[] = [
     id: 'approvals',
     label: '承認',
     labelEn: 'Approvals',
-    routes: ['/dashboard/approvals', '/ringi', '/dashboard/admin/ringi', '/admin/ringi', '/admin/approval-routes', '/requests', '/dashboard/applications', '/dashboard/approval-flow', '/dashboard/approval-log'],
+    routes: ['/dashboard/approvals', '/ringi', '/dashboard/admin/ringi', '/admin/ringi', '/admin/approval-routes', '/requests', '/dashboard/applications', '/dashboard/approval-flow', '/dashboard/approval-log', '/dashboard/tickets', '/dashboard/repair-tickets'],
     apiRoutes: ['/api/approvals', '/api/ringi'],
   },
   {
     id: 'prospects',
     label: '入居希望',
     labelEn: 'Prospects',
-    routes: ['/dashboard/prospects', '/admin/prospects'],
-    apiRoutes: ['/api/prospects'],
+    routes: ['/dashboard/prospects', '/admin/prospects', '/dashboard/residents', '/dashboard/family-contact', '/dashboard/key-person'],
+    apiRoutes: ['/api/prospects', '/api/residents'],
   },
   {
     id: 'vacancies',
     label: '空室',
     labelEn: 'Vacancies',
-    routes: ['/dashboard/vacancy', '/dashboard/vacancies', '/vacancies', '/dashboard/vacancy-inquiries', '/dashboard/vacancy-analytics'],
+    routes: ['/dashboard/vacancy', '/dashboard/vacancies', '/vacancies', '/dashboard/vacancy-inquiries', '/dashboard/vacancy-analytics', '/dashboard/receivables', '/dashboard/collection-flow'],
     apiRoutes: ['/api/vacancies', '/api/vacancy', '/api/admin/vacancies'],
   },
   {
     id: 'incidents',
     label: '報告',
     labelEn: 'Incidents',
-    routes: ['/submit', '/admin/incidents', '/incident'],
+    routes: ['/submit', '/admin/incidents', '/incident', '/dashboard/complaints', '/dashboard/corrective-actions', '/dashboard/quality-risk'],
     apiRoutes: ['/api/incidents'],
   },
   {
@@ -97,21 +98,21 @@ export const ALL_MODULES: ModuleConfig[] = [
     id: 'os',
     label: '経営OS',
     labelEn: 'Management OS',
-    routes: ['/dashboard/os'],
+    routes: ['/dashboard/os', '/dashboard/handover', '/dashboard/training', '/dashboard/announcements', '/dashboard/alerts', '/dashboard/executive-summary', '/dashboard/kpi', '/dashboard/wbr', '/dashboard/business-summary'],
     apiRoutes: ['/api/os'],
   },
   {
     id: 'ai-vp',
     label: 'AI副社長',
     labelEn: 'AI VP',
-    routes: ['/dashboard/ai', '/admin/ai-vp'],
-    apiRoutes: ['/api/ai-vp'],
+    routes: ['/dashboard/ai', '/dashboard/ai-vp', '/admin/ai-vp'],
+    apiRoutes: ['/api/ai-vp', '/api/fukusha-ask'],
   },
   {
     id: 'docs',
     label: 'ドキュメント',
     labelEn: 'Documents',
-    routes: ['/dashboard/docs'],
+    routes: ['/dashboard/docs', '/dashboard/knowledge', '/dashboard/consent', '/dashboard/e-sign', '/dashboard/read-status'],
     apiRoutes: ['/api/documents'],
   },
 ];

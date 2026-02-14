@@ -16,9 +16,7 @@ import {
   Eye,
   EyeOff,
   ChevronRight,
-  Shield,
-  Heart,
-  FileText,
+  ArrowLeft,
 } from 'lucide-react';
 import type { FukushaQuestion, FukushaQuestionCategory } from '@/types/fukusha-ask';
 import { FUKUSHA_CATEGORY_LABELS } from '@/types/fukusha-ask';
@@ -205,11 +203,17 @@ export default function FukushaAskPage() {
   const focusRing = userRole === 'staff' ? 'focus:ring-green-500' : userRole === 'manager' ? 'focus:ring-blue-500' : 'focus:ring-purple-500';
 
   return (
-    <main className="pb-8">
+    <main className="pb-20 md:pb-8">
       <div className="max-w-2xl mx-auto px-4 py-6">
+        {/* 戻るリンク */}
+        <Link href="/launch" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4">
+          <ArrowLeft className="w-4 h-4 mr-1" />
+          ダッシュボードに戻る
+        </Link>
+
         {/* ヘッダー */}
         <div className="flex items-center gap-3 mb-6">
-          <div className={`p-2 bg-gradient-to-br ${roleConfig.bgGradient} rounded-lg`}>
+          <div className={`p-2.5 bg-gradient-to-br ${roleConfig.bgGradient} rounded-xl shadow-sm`}>
             <MessageCircle className="w-6 h-6 text-white" />
           </div>
           <div>
@@ -282,7 +286,7 @@ export default function FukushaAskPage() {
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value as FukushaQuestionCategory)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 ${focusRing} focus:border-transparent`}
                 >
                   {Object.entries(FUKUSHA_CATEGORY_LABELS).map(([value, label]) => (
                     <option key={value} value={value}>
@@ -302,7 +306,7 @@ export default function FukushaAskPage() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="例: 業務の進め方について"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 ${focusRing} focus:border-transparent`}
                   maxLength={100}
                 />
               </div>
@@ -380,10 +384,9 @@ export default function FukushaAskPage() {
           </CardHeader>
           <CardContent>
             {myQuestions.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>まだ質問がありません</p>
-                <p className="text-sm mt-1">上のフォームから質問を送ってみましょう</p>
+              <div className="text-center py-6 text-gray-500">
+                <MessageCircle className="w-10 h-10 mx-auto mb-2 opacity-20" />
+                <p className="text-sm">まだ質問がありません</p>
               </div>
             ) : (
               <div className="space-y-3">

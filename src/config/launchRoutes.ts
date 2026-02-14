@@ -39,29 +39,39 @@ export const LAUNCH_ALLOWED_ROUTES = [
   // ホーム（Launch Mode用ダッシュボード）
   '/dashboard',
 
-  // 入居希望 (Prospects)
+  // 入居希望 (Prospects) / 入居者管理
   '/dashboard/prospects',
+  '/dashboard/residents',
+  '/dashboard/family-contact',
+  '/dashboard/key-person',
 
-  // 空室 (Vacancies)
+  // 空室 (Vacancies) / 収支
   '/dashboard/vacancy',
   '/dashboard/vacancies',
   '/dashboard/vacancy-inquiries',
   '/vacancies',
+  '/dashboard/receivables',
+  '/dashboard/collection-flow',
 
   // 打刻 (Attendance)
   '/attendance',
   '/admin/attendance',
 
-  // 承認 (Approvals/Ringi)
+  // 承認 (Approvals/Ringi) / チケット
   '/dashboard/approvals',
   '/ringi',
   '/dashboard/admin/ringi',
   '/admin/ringi',
+  '/dashboard/tickets',
+  '/dashboard/repair-tickets',
 
-  // 報告 (Incidents)
+  // 報告 (Incidents) / 品質管理
   '/submit',
   '/incident',
   '/admin/incidents',
+  '/dashboard/complaints',
+  '/dashboard/corrective-actions',
+  '/dashboard/quality-risk',
 
   // 改善 (Improvements)
   '/improvements',
@@ -70,17 +80,30 @@ export const LAUNCH_ALLOWED_ROUTES = [
   // ランキング (Rankings)
   '/rankings',
 
-  // ドキュメント (Documents)
+  // ドキュメント (Documents) / ナレッジ
   '/dashboard/docs',
+  '/dashboard/knowledge',
+  '/dashboard/consent',
+  '/dashboard/e-sign',
+  '/dashboard/read-status',
 
   // 営業 (Sales)
   '/sales',
 
-  // 経営OS (Management OS)
+  // 経営OS (Management OS) / 運営
   '/dashboard/os',
+  '/dashboard/handover',
+  '/dashboard/training',
+  '/dashboard/announcements',
+  '/dashboard/alerts',
+  '/dashboard/executive-summary',
+  '/dashboard/kpi',
+  '/dashboard/wbr',
+  '/dashboard/business-summary',
 
-  // AI副社長 (AI VP)
+  // AI副社長 (AI VP) / ふくしゃに聞く
   '/dashboard/ai',
+  '/dashboard/ai-vp',
   '/admin/ai-vp',
 
   // 通知設定（共通機能）
@@ -88,6 +111,8 @@ export const LAUNCH_ALLOWED_ROUTES = [
 
   // API エンドポイント（機能に必要なもの）
   '/api/prospects',
+  '/api/fukusha-ask',
+  '/api/residents',
   '/api/vacancies',
   '/api/vacancy',
   '/api/attendance',
@@ -99,6 +124,7 @@ export const LAUNCH_ALLOWED_ROUTES = [
   '/api/business-units',
   '/api/documents',
   '/api/incidents',
+  '/api/improvements',
   '/api/sales',
   '/api/os',
   '/api/ai-vp',
@@ -212,5 +238,12 @@ export const LAUNCH_NAV_ITEMS: LaunchNavItem[] = [
     href: '/dashboard/os',
     icon: 'Activity',
     description: 'コンディション管理',
+  },
+  {
+    label: 'ふくしゃに聞く',
+    labelEn: 'Ask VP',
+    href: '/dashboard/ai-vp/ask',
+    icon: 'MessageCircle',
+    description: '判断相談・質問箱',
   },
 ];
