@@ -40,6 +40,8 @@ export interface DocumentTemplate {
   dueRule?: string;               // 期限ルール（例: '入居日+30日'）
   signedRequired: boolean;        // 署名要否
   description?: string;
+  templateFileUrl?: string;       // 雛形ファイルURL
+  templateFileName?: string;      // 雛形ファイル名
   createdAt: Date;
   updatedAt?: Date;
 }

@@ -15,7 +15,7 @@ import { LAUNCH_MODE } from '@/config/launchMode';
 import { filterNavItems, isModuleEnabled } from '@/config/featureGate';
 
 export function Header() {
-  const { user, isLeaderOrAbove, signOut } = useAuth();
+  const { user, isLeaderOrAbove, isAdmin, signOut } = useAuth();
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
@@ -61,21 +61,23 @@ export function Header() {
     { href: '/dashboard/docs', label: 'ドキュメント', icon: FolderOpen },
   ];
 
-  const allAdminItems = [
+  const allAdminItems: { href: string; label: string; icon: typeof BarChart3; requireAdmin?: boolean }[] = [
     { href: '/admin/incidents', label: '報告管理', icon: BarChart3 },
     { href: '/admin/attendance/dashboard', label: '勤怠管理', icon: Clock },
     { href: '/dashboard/admin/ringi', label: '稟議管理', icon: ClipboardList },
     { href: '/admin/improvements', label: '改善管理', icon: Lightbulb },
     { href: '/admin/insights', label: '連携提案', icon: Megaphone },
-    { href: '/admin/points', label: 'ポイント', icon: Star },
-    { href: '/admin/users', label: '権限管理', icon: Shield },
-    { href: '/admin/employees', label: '従業員', icon: Users },
-    { href: '/admin/settings', label: '設定', icon: Settings },
+    { href: '/admin/points', label: 'ポイント', icon: Star, requireAdmin: true },
+    { href: '/admin/users', label: '権限管理', icon: Shield, requireAdmin: true },
+    { href: '/admin/employees', label: '従業員', icon: Users, requireAdmin: true },
+    { href: '/admin/settings', label: '設定', icon: Settings, requireAdmin: true },
   ];
 
   // featureGate でフィルタ（Launch Mode = 有効モジュールのみ、通常 = 全表示）
   const navItems = filterNavItems(allNavItems);
-  const adminItems = filterNavItems(allAdminItems);
+  const adminItems = filterNavItems(allAdminItems).filter(
+    (item) => !('requireAdmin' in item && item.requireAdmin) || isAdmin
+  );
 
   const handleSignOut = async () => {
     await signOut();

@@ -28,6 +28,7 @@ import {
   Building2,
   Briefcase,
   Home,
+  ExternalLink,
 } from 'lucide-react';
 
 export default function DocumentTemplatesPage() {
@@ -225,6 +226,7 @@ function TemplatesContent() {
                         <th className="text-center py-3 px-4 font-medium">必須</th>
                         <th className="text-center py-3 px-4 font-medium">有効期限</th>
                         <th className="text-center py-3 px-4 font-medium">署名</th>
+                        <th className="text-center py-3 px-4 font-medium">雛形</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -275,6 +277,21 @@ function TemplatesContent() {
                                 <Pen className="w-4 h-4 text-blue-500 mx-auto" />
                               ) : (
                                 <span className="text-gray-300">-</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {template.templateFileUrl ? (
+                                <a
+                                  href={template.templateFileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  閲覧
+                                </a>
+                              ) : (
+                                <span className="text-gray-300 text-xs">未登録</span>
                               )}
                             </td>
                           </tr>
