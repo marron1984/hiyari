@@ -189,7 +189,7 @@ export default function ProspectDetailPage() {
 
   // 部屋選択後の処理
   const handleRoomSelect = async (roomId: string) => {
-    if (!prospect || !user || !pendingStatus) return;
+    if (!prospect || !user) return;
 
     setSaving(true);
     setError(null);
@@ -212,18 +212,22 @@ export default function ProspectDetailPage() {
         return;
       }
 
-      // ステータスを更新
-      await updateProspectStatus(
-        prospect.id,
-        pendingStatus,
-        undefined,
-        user.id,
-        user.name,
-        user.role,
-        user.modulePermissions
-      );
+      // pendingStatusがある場合はステータスも更新
+      if (pendingStatus) {
+        await updateProspectStatus(
+          prospect.id,
+          pendingStatus,
+          undefined,
+          user.id,
+          user.name,
+          user.role,
+          user.modulePermissions
+        );
+        setSuccess(`ステータスを「${pendingStatus}」に更新し、${lockData.data.roomName}をロックしました`);
+      } else {
+        setSuccess(`${lockData.data.roomName}を仮押さえしました`);
+      }
 
-      setSuccess(`ステータスを「${pendingStatus}」に更新し、${lockData.data.roomName}をロックしました`);
       setShowRoomModal(false);
       setPendingStatus(null);
       await fetchData();
@@ -526,6 +530,42 @@ export default function ProspectDetailPage() {
                         解除
                       </Button>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* 仮押さえボタン（部屋未選択時） */}
+              {!prospect.selectedRoomId && canManage && prospect.status !== '見送り' && prospect.status !== 'クローズ' && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Home className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-700">部屋が未選択です</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        setLoadingRooms(true);
+                        setPendingStatus(null);
+                        try {
+                          const response = await fetch('/api/rooms/available');
+                          const data = await response.json();
+                          if (data.success) {
+                            setAllRooms(data.rooms);
+                          }
+                        } catch (err) {
+                          console.error('Failed to fetch rooms:', err);
+                        } finally {
+                          setLoadingRooms(false);
+                        }
+                        setShowRoomModal(true);
+                      }}
+                      disabled={saving}
+                    >
+                      <Lock className="w-4 h-4 mr-1" />
+                      仮押さえ
+                    </Button>
                   </div>
                 </div>
               )}
@@ -840,7 +880,9 @@ export default function ProspectDetailPage() {
                 ) : (
                   <>
                     <p className="text-sm text-gray-600 mb-4">
-                      申込に伴い、ロックする部屋を選択してください。
+                      {pendingStatus
+                        ? '申込に伴い、ロックする部屋を選択してください。'
+                        : '仮押さえする部屋を選択してください。'}
                     </p>
                     {/* 建物ごとにグループ化 */}
                     {Object.entries(
@@ -888,13 +930,15 @@ export default function ProspectDetailPage() {
               </div>
 
               <div className="p-4 border-t flex justify-end gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={handleSkipRoomSelect}
-                  disabled={saving}
-                >
-                  部屋を選択せずに進む
-                </Button>
+                {pendingStatus && (
+                  <Button
+                    variant="secondary"
+                    onClick={handleSkipRoomSelect}
+                    disabled={saving}
+                  >
+                    部屋を選択せずに進む
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   onClick={() => {
