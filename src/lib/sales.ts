@@ -189,10 +189,31 @@ export async function createSalesDeal(
   const firestore = ensureDb();
   const batch = writeBatch(firestore);
 
-  // 営業先の名前を取得
-  const account = await getSalesAccount(data.accountId);
-  if (!account) {
-    throw new Error('営業先が見つかりません');
+  // 営業先を取得 or 新規作成
+  let account: SalesAccount | null = null;
+  let accountId = data.accountId;
+
+  if (accountId) {
+    account = await getSalesAccount(accountId);
+    if (!account) {
+      throw new Error('営業先が見つかりません');
+    }
+  } else if (data.accountName?.trim()) {
+    // 新規営業先を自動作成
+    accountId = await createSalesAccount(
+      {
+        name: data.accountName.trim(),
+        type: data.accountType || 'その他',
+      },
+      createdBy,
+      createdByName,
+      tenantId
+    );
+    account = { id: accountId, name: data.accountName.trim() } as SalesAccount;
+    // formDataのaccountIdを更新
+    data = { ...data, accountId };
+  } else {
+    throw new Error('営業先を入力してください');
   }
 
   // 初期ステータス履歴

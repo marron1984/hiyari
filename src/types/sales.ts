@@ -245,6 +245,8 @@ export interface SalesDeal {
 // 案件作成フォーム
 export interface SalesDealFormData {
   accountId: string;
+  accountName?: string;            // 新規営業先名（accountIdが空の場合に使用）
+  accountType?: SalesAccountType;  // 新規営業先タイプ
   status: SalesDealStatus;
   assignedToId?: string;
   assignedToName?: string;
