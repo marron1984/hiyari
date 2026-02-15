@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { AuthGuard } from '@/components/AuthGuard';
 import { Header } from '@/components/Header';
 import { Card, CardContent, Button, Input, Select } from '@/components/ui';
-import { ArrowLeft, Save, Send, AlertCircle, Upload, Receipt } from 'lucide-react';
+import { ArrowLeft, Save, Send, AlertCircle, Upload, Receipt, X, FileText, Loader2 } from 'lucide-react';
 import {
   ExpenseFormData,
   EXPENSE_CATEGORIES,
@@ -31,6 +31,10 @@ function NewExpenseApplicationContent() {
   const [errors, setErrors] = useState<ApplicationValidationError[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; url: string }[]>([]);
+
   const [formData, setFormData] = useState<ExpenseFormData>({
     expenseDate: new Date().toISOString().split('T')[0],
     amount: '',
@@ -45,6 +49,54 @@ function NewExpenseApplicationContent() {
   const updateField = <K extends keyof ExpenseFormData>(field: K, value: ExpenseFormData[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => prev.filter((e) => e.field !== field));
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !firebaseUser) return;
+
+    setUploading(true);
+    try {
+      const token = await firebaseUser.getIdToken();
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fd = new FormData();
+        fd.append('file', file);
+
+        const res = await fetch('/api/applications/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+
+        const result = await res.json();
+        if (!res.ok) {
+          alert(result.error || 'アップロードに失敗しました');
+          continue;
+        }
+
+        setUploadedFiles((prev) => [...prev, { name: result.fileName, url: result.fileUrl }]);
+        setFormData((prev) => ({
+          ...prev,
+          receiptUrls: [...prev.receiptUrls, result.fileUrl],
+        }));
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('アップロードに失敗しました');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    setFormData((prev) => ({
+      ...prev,
+      receiptUrls: prev.receiptUrls.filter((_, i) => i !== index),
+    }));
   };
 
   const validate = useCallback(() => {
@@ -277,16 +329,61 @@ function NewExpenseApplicationContent() {
             {/* 領収書 */}
             <div>
               <label className="block text-sm font-medium text-zinc-700 mb-1.5">領収書</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,application/pdf"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {/* アップロード済みファイル一覧 */}
+              {uploadedFiles.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {uploadedFiles.map((file, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg"
+                    >
+                      <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
+                      <span className="text-sm text-green-800 truncate flex-1">{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(idx)}
+                        className="p-1 hover:bg-green-100 rounded"
+                      >
+                        <X className="w-4 h-4 text-green-600" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="border-2 border-dashed border-zinc-300 rounded-lg p-6 text-center">
-                <Receipt className="w-10 h-10 mx-auto text-zinc-400 mb-3" />
-                <p className="text-sm text-zinc-500 mb-3">
-                  領収書画像をアップロード
-                </p>
-                <Button variant="secondary" size="sm">
-                  <Upload className="w-4 h-4 mr-2" />
-                  ファイルを選択
-                </Button>
-                <p className="text-xs text-zinc-400 mt-2">PNG, JPG, PDF（10MB以下）</p>
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-10 h-10 mx-auto text-blue-400 mb-3 animate-spin" />
+                    <p className="text-sm text-zinc-500">アップロード中...</p>
+                  </>
+                ) : (
+                  <>
+                    <Receipt className="w-10 h-10 mx-auto text-zinc-400 mb-3" />
+                    <p className="text-sm text-zinc-500 mb-3">
+                      領収書画像をアップロード
+                    </p>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      ファイルを選択
+                    </Button>
+                    <p className="text-xs text-zinc-400 mt-2">PNG, JPG, PDF（10MB以下）</p>
+                  </>
+                )}
               </div>
             </div>
 

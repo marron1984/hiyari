@@ -903,7 +903,14 @@ export default function AttendancePage() {
 
           {/* ナビゲーション */}
           <div className="pt-4 border-t border-zinc-200">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                onClick={() => router.push('/attendance/status')}
+                className="flex items-center justify-center gap-2 py-3 px-4 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 active:scale-[0.98] transition-all"
+              >
+                <Building2 className="w-4 h-4" />
+                出勤状況
+              </button>
               <button
                 onClick={() => router.push('/attendance/history')}
                 className="flex items-center justify-center gap-2 py-3 px-4 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 active:scale-[0.98] transition-all"

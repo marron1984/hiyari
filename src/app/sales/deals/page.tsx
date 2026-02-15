@@ -19,6 +19,8 @@ import {
   SalesDeal,
   SalesDealFormData,
   SalesAccount,
+  SalesAccountType,
+  SALES_ACCOUNT_TYPES,
   SalesDealStatus,
   SALES_DEAL_STATUSES,
   SALES_DEAL_STATUS_CONFIG,
@@ -60,6 +62,11 @@ function SalesDealsContent() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [customAssignee, setCustomAssignee] = useState('');
+
+  // 営業先入力
+  const [accountInput, setAccountInput] = useState('');
+  const [accountType, setAccountType] = useState<SalesAccountType>('その他');
+  const [showAccountSuggestions, setShowAccountSuggestions] = useState(false);
 
   // フィルター
   const [searchQuery, setSearchQuery] = useState('');
@@ -104,16 +111,46 @@ function SalesDealsContent() {
       assignedToName: '',
     });
     setCustomAssignee('');
+    setAccountInput('');
+    setAccountType('その他');
+    setShowAccountSuggestions(false);
     setShowModal(true);
   };
 
+  const handleAccountSelect = (account: SalesAccount) => {
+    setFormData({ ...formData, accountId: account.id, accountName: account.name });
+    setAccountInput(account.name);
+    setShowAccountSuggestions(false);
+  };
+
+  const handleAccountInputChange = (value: string) => {
+    setAccountInput(value);
+    setShowAccountSuggestions(value.length > 0);
+    // 入力が既存営業先と完全一致しない場合はaccountIdをクリア
+    const match = accounts.find((a) => a.name === value);
+    if (match) {
+      setFormData({ ...formData, accountId: match.id, accountName: match.name });
+    } else {
+      setFormData({ ...formData, accountId: '', accountName: value });
+    }
+  };
+
+  const accountSuggestions = accountInput.length > 0
+    ? accounts.filter((a) => a.name.toLowerCase().includes(accountInput.toLowerCase()))
+    : [];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.accountId || !user) return;
+    if ((!formData.accountId && !accountInput.trim()) || !user) return;
 
     setSubmitting(true);
     try {
-      await createSalesDeal(formData, user.id, user.name);
+      const submitData = {
+        ...formData,
+        accountName: accountInput.trim(),
+        accountType: formData.accountId ? undefined : accountType,
+      };
+      await createSalesDeal(submitData, user.id, user.name);
       setShowModal(false);
       await fetchData();
     } catch (error) {
@@ -333,16 +370,56 @@ function SalesDealsContent() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
-              <Select
-                label="営業先"
-                value={formData.accountId}
-                onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-                options={[
-                  { value: '', label: '選択してください' },
-                  ...accounts.map((a) => ({ value: a.id, label: `${a.name} (${a.type})` })),
-                ]}
-                required
-              />
+              {/* 営業先（入力+候補表示） */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  営業先 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={accountInput}
+                  onChange={(e) => handleAccountInputChange(e.target.value)}
+                  onFocus={() => setShowAccountSuggestions(accountInput.length > 0)}
+                  onBlur={() => setTimeout(() => setShowAccountSuggestions(false), 200)}
+                  placeholder="営業先名を入力（新規の場合はそのまま入力）"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+                {showAccountSuggestions && accountSuggestions.length > 0 && (
+                  <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {accountSuggestions.map((a) => (
+                      <li
+                        key={a.id}
+                        onMouseDown={() => handleAccountSelect(a)}
+                        className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer flex justify-between"
+                      >
+                        <span>{a.name}</span>
+                        <span className="text-gray-400 text-xs">{a.type}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {accountInput.trim() && !formData.accountId && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    新しい営業先「{accountInput.trim()}」として登録されます
+                  </p>
+                )}
+                {formData.accountId && (
+                  <p className="text-xs text-green-600 mt-1">
+                    既存の営業先が選択されています
+                  </p>
+                )}
+              </div>
+
+              {/* 新規営業先の場合のみタイプ選択 */}
+              {accountInput.trim() && !formData.accountId && (
+                <Select
+                  label="営業先タイプ"
+                  value={accountType}
+                  onChange={(e) => setAccountType(e.target.value as SalesAccountType)}
+                  options={SALES_ACCOUNT_TYPES.map((t) => ({ value: t, label: t }))}
+                />
+              )}
 
               <Select
                 label="ステータス"
