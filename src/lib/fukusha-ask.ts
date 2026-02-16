@@ -74,6 +74,101 @@ export async function createQuestion(
 // ======== AI処理 ========
 
 /**
+ * 過去の返信済み質問を取得（AI回答生成の参考コンテキスト用）
+ * 同カテゴリ優先で、最大5件の過去やりとりを返す
+ */
+async function fetchPastRepliedQuestions(
+  tenantId: string,
+  category: FukushaQuestionCategory,
+  limit = 5
+): Promise<Array<{ category: string; content: string; reply: string }>> {
+  try {
+    const db = getAdminDb();
+
+    // 同カテゴリの返信済み質問を優先取得
+    const sameCategory = await db
+      .collection(COLLECTION)
+      .where('tenantId', '==', tenantId)
+      .where('status', '==', 'replied')
+      .where('category', '==', category)
+      .orderBy('repliedAt', 'desc')
+      .limit(limit)
+      .get();
+
+    const results = sameCategory.docs.map((doc) => {
+      const d = doc.data();
+      return {
+        category: d.category,
+        content: (d.content || '').slice(0, 200),
+        reply: (d.replyContent || '').slice(0, 300),
+      };
+    });
+
+    // 足りない場合は他カテゴリからも取得
+    if (results.length < limit) {
+      const remaining = limit - results.length;
+      const otherCategory = await db
+        .collection(COLLECTION)
+        .where('tenantId', '==', tenantId)
+        .where('status', '==', 'replied')
+        .orderBy('repliedAt', 'desc')
+        .limit(remaining + results.length)
+        .get();
+
+      const existingIds = new Set(sameCategory.docs.map((d) => d.id));
+      otherCategory.docs.forEach((doc) => {
+        if (!existingIds.has(doc.id) && results.length < limit) {
+          const d = doc.data();
+          results.push({
+            category: d.category,
+            content: (d.content || '').slice(0, 200),
+            reply: (d.replyContent || '').slice(0, 300),
+          });
+        }
+      });
+    }
+
+    return results;
+  } catch (error) {
+    console.warn('[FukushaAsk] 過去質問の取得失敗（無視して続行）:', error);
+    return [];
+  }
+}
+
+/**
+ * 過去の判断ログを取得（AI回答生成の参考コンテキスト用）
+ */
+async function fetchPastDecisionLogs(
+  tenantId: string,
+  category: DecisionCategory,
+  limit = 3
+): Promise<Array<{ situation: string; decision: string; reason: string }>> {
+  try {
+    const db = getAdminDb();
+
+    const snapshot = await db
+      .collection(DECISION_LOG_COLLECTION)
+      .where('tenantId', '==', tenantId)
+      .where('category', '==', category)
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get();
+
+    return snapshot.docs.map((doc) => {
+      const d = doc.data();
+      return {
+        situation: (d.situation || '').slice(0, 200),
+        decision: (d.decision || '').slice(0, 200),
+        reason: (d.reason || '').slice(0, 150),
+      };
+    });
+  } catch (error) {
+    console.warn('[FukushaAsk] 判断ログの取得失敗（無視して続行）:', error);
+    return [];
+  }
+}
+
+/**
  * AI処理（要約・論点整理・返信下書き生成）
  */
 export async function processQuestionWithAI(
@@ -89,8 +184,15 @@ export async function processQuestionWithAI(
 
   const question = doc.data() as Omit<FukushaQuestion, 'id'>;
 
+  // 過去の返信済み質問と判断ログを並行取得（回答品質向上のためのコンテキスト）
+  const decisionCategory = mapQuestionCategoryToDecisionCategory(question.category);
+  const [pastQuestions, pastDecisions] = await Promise.all([
+    fetchPastRepliedQuestions(question.tenantId, question.category),
+    fetchPastDecisionLogs(question.tenantId, decisionCategory),
+  ]);
+
   // AI処理
-  const result = await generateAIResponse(question);
+  const result = await generateAIResponse(question, pastQuestions, pastDecisions);
 
   // 更新
   await docRef.update({
@@ -103,16 +205,18 @@ export async function processQuestionWithAI(
     updatedAt: new Date(),
   });
 
-  console.log('[FukushaAsk] AI処理完了', { questionId });
+  console.log('[FukushaAsk] AI処理完了', { questionId, pastQuestionsCount: pastQuestions.length, pastDecisionsCount: pastDecisions.length });
 
   return result;
 }
 
 /**
- * AIレスポンス生成（Claude + 吉田ペルソナ）
+ * AIレスポンス生成（Claude + 吉田ペルソナ + 過去コンテキスト）
  */
 async function generateAIResponse(
-  question: Omit<FukushaQuestion, 'id'>
+  question: Omit<FukushaQuestion, 'id'>,
+  pastQuestions: Array<{ category: string; content: string; reply: string }> = [],
+  pastDecisions: Array<{ situation: string; decision: string; reason: string }> = []
 ): Promise<FukushaAIProcessResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
@@ -120,6 +224,26 @@ async function generateAIResponse(
     console.warn('[FukushaAsk] ANTHROPIC_API_KEY なし、ダミー応答を返す');
     return generateDummyResponse(question);
   }
+
+  // 過去の返信例をコンテキストとして組み立て
+  let pastContext = '';
+
+  if (pastQuestions.length > 0) {
+    const pastQA = pastQuestions
+      .map((pq, idx) => `【過去の質問${idx + 1}】\n質問: ${pq.content}\n吉田の返信: ${pq.reply}`)
+      .join('\n\n');
+    pastContext += `\n\n## 吉田の過去の返信例（同じスタイル・トーンを参考にすること）\n\n${pastQA}`;
+  }
+
+  if (pastDecisions.length > 0) {
+    const pastDec = pastDecisions
+      .map((pd, idx) => `【判断ログ${idx + 1}】\n状況: ${pd.situation}\n判断: ${pd.decision}${pd.reason ? `\n理由: ${pd.reason}` : ''}`)
+      .join('\n\n');
+    pastContext += `\n\n## 吉田の過去の判断記録（判断の方向性の参考にすること）\n\n${pastDec}`;
+  }
+
+  // 会社ナレッジベースを注入
+  const companyKnowledge = getCompanyKnowledge();
 
   const userPrompt = `スタッフからの質問を整理し、返信下書きを作成してください。
 
@@ -134,12 +258,17 @@ async function generateAIResponse(
 ## 質問本文
 
 ${question.content}
+${pastContext}
+${companyKnowledge}
 
 ## あなたの行動
 
 1. 質問の要約（事実ベースで1-2文）
 2. 論点の整理（確認すべき事実を3つ以内で列挙）
 3. 返信下書きの作成（吉田のスタイルで200-400字程度）
+   - 過去の返信例がある場合は、そのトーンや判断の方向性を参考にする
+   - 会社のルール・方針に該当する場合は、それに基づいて回答する
+   - 過去に類似の判断があれば、一貫性のある回答を心がける
 
 ## 下書きのルール
 - 「まず事実を確認する」姿勢を反映
@@ -163,7 +292,7 @@ ${question.content}
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
+      max_tokens: 2000,
       system: AI_VP_SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: userPrompt },
@@ -201,6 +330,29 @@ ${question.content}
 }
 
 /**
+ * 会社のナレッジベース（ルール・方針）をプロンプトに注入
+ *
+ * 管理画面から登録された会社ルール・方針を取得して返す。
+ * Firestoreの company_knowledge コレクションにデータがあれば使用し、
+ * なければ基本ルールのみ返す。
+ */
+function getCompanyKnowledge(): string {
+  // 基本的な会社ルール（ハードコード）
+  // TODO: 将来的にはFirestore company_knowledge コレクションから動的取得
+  const baseRules = [
+    '飛鳥グループは介護施設運営会社で、利用者の安全と尊厳を最優先にする',
+    '現場の判断を尊重し、管理職は現場を支援する立場である',
+    '重大な事案（事故・虐待疑い・感染症等）は即座にエスカレーションする',
+    '人事に関する最終判断は吉田本人が行う',
+    '経費は事前申請が原則。緊急時は事後報告可だが理由が必要',
+    '残業は月45時間以内を目標とし、超過する場合は業務改善を検討する',
+    'スタッフの相談には必ず24時間以内に一次回答する',
+  ];
+
+  return `\n\n## 飛鳥グループの基本方針\n${baseRules.map((r) => `- ${r}`).join('\n')}`;
+}
+
+/**
  * ダミーレスポンス生成
  */
 function generateDummyResponse(
@@ -227,6 +379,8 @@ ${question.content.slice(0, 50)}...について、お気持ちはよく分かり
 
 /**
  * 返信を送信
+ *
+ * AI下書きと最終返信の差分を記録し、将来のAI品質改善に活用する
  */
 export async function sendReply(
   input: SendFukushaReplyInput,
@@ -241,6 +395,15 @@ export async function sendReply(
     throw new Error('質問が見つかりません');
   }
 
+  const questionData = doc.data()!;
+
+  // AI下書きと最終返信の差分を記録（品質改善フィードバック）
+  const aiDraftReply = questionData.aiDraftReply || '';
+  const wasEdited = aiDraftReply !== '' && aiDraftReply !== input.replyContent;
+  const editRatio = aiDraftReply
+    ? Math.round((1 - similarity(aiDraftReply, input.replyContent)) * 100)
+    : 100;
+
   await docRef.update({
     status: 'replied',
     repliedAt: new Date(),
@@ -248,15 +411,41 @@ export async function sendReply(
     repliedByName,
     replyContent: input.replyContent,
     replyNote: input.replyNote || '',
+    // AI品質フィードバック
+    aiDraftWasEdited: wasEdited,
+    aiDraftEditRatio: editRatio,
     updatedAt: new Date(),
   });
 
   console.log('[FukushaAsk] 返信送信', {
     questionId: input.questionId,
     repliedBy,
+    aiDraftWasEdited: wasEdited,
+    aiDraftEditRatio: editRatio,
   });
 
   // TODO: Step2で通知機能を追加
+}
+
+/**
+ * 文字列の簡易類似度計算（0-1, 1=完全一致）
+ * Jaccard係数ベースのbigram類似度
+ */
+function similarity(a: string, b: string): number {
+  if (a === b) return 1;
+  if (a.length === 0 || b.length === 0) return 0;
+
+  const bigramsA = new Set<string>();
+  for (let i = 0; i < a.length - 1; i++) bigramsA.add(a.slice(i, i + 2));
+
+  const bigramsB = new Set<string>();
+  for (let i = 0; i < b.length - 1; i++) bigramsB.add(b.slice(i, i + 2));
+
+  let intersection = 0;
+  bigramsA.forEach((bg) => { if (bigramsB.has(bg)) intersection++; });
+
+  const union = bigramsA.size + bigramsB.size - intersection;
+  return union === 0 ? 0 : intersection / union;
 }
 
 // ======== 取得 ========
