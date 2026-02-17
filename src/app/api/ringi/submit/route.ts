@@ -3,7 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { findMatchingApprovalRoute } from '@/lib/approval-routes';
 import {
   RingiCategory,
@@ -112,31 +112,25 @@ export async function POST(request: NextRequest) {
     }
 
     // 付番: 稟議番号を自動採番（年度-連番）
+    // カウンタードキュメントで原子的にインクリメント（複合インデックス不要）
     let ringiNumber = ringi.ringiNumber;
     if (!ringiNumber) {
       const year = new Date().getFullYear();
-      const prefix = `稟議-${year}-`;
+      const counterDocId = `${ringi.tenantId}_${year}`;
+      const counterRef = db.collection('ringiCounters').doc(counterDocId);
 
-      // 同年の最大番号を取得
-      const existingSnapshot = await db
-        .collection('ringis')
-        .where('tenantId', '==', ringi.tenantId)
-        .where('ringiNumber', '>=', prefix)
-        .where('ringiNumber', '<=', prefix + '\uf8ff')
-        .orderBy('ringiNumber', 'desc')
-        .limit(1)
-        .get();
-
-      let nextNum = 1;
-      if (!existingSnapshot.empty) {
-        const lastNumber = existingSnapshot.docs[0].data().ringiNumber as string;
-        const lastNum = parseInt(lastNumber.replace(prefix, ''), 10);
-        if (!isNaN(lastNum)) {
-          nextNum = lastNum + 1;
+      const nextNum = await db.runTransaction(async (transaction) => {
+        const counterDoc = await transaction.get(counterRef);
+        let currentNum = 0;
+        if (counterDoc.exists) {
+          currentNum = counterDoc.data()?.lastNumber || 0;
         }
-      }
+        const newNum = currentNum + 1;
+        transaction.set(counterRef, { lastNumber: newNum, tenantId: ringi.tenantId, year }, { merge: true });
+        return newNum;
+      });
 
-      ringiNumber = `${prefix}${String(nextNum).padStart(3, '0')}`;
+      ringiNumber = `稟議-${year}-${String(nextNum).padStart(3, '0')}`;
     }
 
     // 稟議を更新

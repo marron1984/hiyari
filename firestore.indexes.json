@@ -506,14 +506,6 @@
       ]
     },
     {
-      "collectionGroup": "ringis",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "tenantId", "order": "ASCENDING" },
-        { "fieldPath": "ringiNumber", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "ringiComments",
       "queryScope": "COLLECTION",
       "fields": [
