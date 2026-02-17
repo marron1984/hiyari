@@ -1006,7 +1006,12 @@ function AdminRingiContent() {
                               <Badge className="bg-red-100 text-red-700 text-xs">至急</Badge>
                             )}
                           </div>
-                          <h3 className="font-medium text-zinc-900">{ringi.title}</h3>
+                          <h3 className="font-medium text-zinc-900">
+                            {ringi.ringiNumber && (
+                              <span className="text-xs text-zinc-400 font-mono mr-2">{ringi.ringiNumber}</span>
+                            )}
+                            {ringi.title}
+                          </h3>
                           <p className="text-sm text-zinc-500 line-clamp-1 mt-1">
                             {ringi.description || ringi.background}
                           </p>

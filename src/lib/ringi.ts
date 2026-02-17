@@ -21,6 +21,7 @@ import {
   RingiStatus,
   RingiAction,
   RingiAuditLog,
+  RingiComment,
   canTransition,
   canEdit,
   canDelete,
@@ -505,4 +506,95 @@ export async function getRingiAuditLogs(
 
   // クライアント側でソート（新しい順）
   return results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
+// ======== コメント ========
+
+/**
+ * 稟議のコメント一覧を取得
+ */
+export async function getRingiComments(
+  ringiId: string,
+  limitCount: number = 100
+): Promise<RingiComment[]> {
+  const firestore = getDb();
+  const q = query(
+    collection(firestore, 'ringiComments'),
+    where('ringiId', '==', ringiId),
+    limit(limitCount)
+  );
+
+  const snapshot = await getDocs(q);
+  const results = snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      ...data,
+      createdAt: toDate(data.createdAt) || new Date(),
+      updatedAt: toDate(data.updatedAt),
+    } as RingiComment;
+  });
+
+  // 古い順（スレッド表示）
+  return results
+    .filter((c) => !c.isDeleted)
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+}
+
+/**
+ * コメントを投稿
+ */
+export async function addRingiComment(
+  ringiId: string,
+  content: string,
+  authorId: string,
+  authorName: string,
+  authorRole: string,
+  tenantId: string
+): Promise<RingiComment> {
+  const firestore = getDb();
+
+  const commentData = {
+    ringiId,
+    tenantId,
+    authorId,
+    authorName,
+    authorRole,
+    content,
+    createdAt: Timestamp.now(),
+  };
+
+  const docRef = await addDoc(collection(firestore, 'ringiComments'), commentData);
+
+  return {
+    id: docRef.id,
+    ...commentData,
+    createdAt: new Date(),
+  } as RingiComment;
+}
+
+/**
+ * コメントを削除（論理削除）
+ */
+export async function deleteRingiComment(
+  commentId: string,
+  userId: string
+): Promise<void> {
+  const firestore = getDb();
+  const docRef = doc(firestore, 'ringiComments', commentId);
+  const docSnap = await getDoc(docRef);
+
+  if (!docSnap.exists()) {
+    throw new Error('コメントが見つかりません');
+  }
+
+  const data = docSnap.data();
+  if (data.authorId !== userId) {
+    throw new Error('自分のコメントのみ削除できます');
+  }
+
+  await updateDoc(docRef, {
+    isDeleted: true,
+    updatedAt: Timestamp.now(),
+  });
 }
