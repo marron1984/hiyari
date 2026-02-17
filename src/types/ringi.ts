@@ -111,6 +111,9 @@ export interface Ringi {
   tenantId: string;
   branchId: string;
 
+  // 付番（提出時に自動採番）
+  ringiNumber?: string; // 例: 稟議-2026-001
+
   // 申請者
   authorId: string;
   authorName: string;
@@ -501,4 +504,31 @@ export function formatAmountCondition(min: number | null, max: number | null): s
   if (min === null) return `${max?.toLocaleString()}円以下`;
   if (max === null) return `${min.toLocaleString()}円以上`;
   return `${min.toLocaleString()}円 〜 ${max.toLocaleString()}円`;
+}
+
+// ======== 稟議コメント ========
+
+/**
+ * 稟議コメント
+ * 起案者と承認者間のやりとり用スレッド
+ */
+export interface RingiComment {
+  id: string;
+  ringiId: string;
+  tenantId: string;
+  authorId: string;
+  authorName: string;
+  authorRole: string;   // user, leader, admin等
+  content: string;
+  createdAt: Date;
+  updatedAt?: Date;
+  isDeleted?: boolean;   // 論理削除
+}
+
+/**
+ * コメント投稿入力
+ */
+export interface CreateRingiCommentInput {
+  ringiId: string;
+  content: string;
 }

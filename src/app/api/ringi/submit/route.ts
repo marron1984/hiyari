@@ -111,12 +111,41 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    // 付番: 稟議番号を自動採番（年度-連番）
+    let ringiNumber = ringi.ringiNumber;
+    if (!ringiNumber) {
+      const year = new Date().getFullYear();
+      const prefix = `稟議-${year}-`;
+
+      // 同年の最大番号を取得
+      const existingSnapshot = await db
+        .collection('ringis')
+        .where('tenantId', '==', ringi.tenantId)
+        .where('ringiNumber', '>=', prefix)
+        .where('ringiNumber', '<=', prefix + '\uf8ff')
+        .orderBy('ringiNumber', 'desc')
+        .limit(1)
+        .get();
+
+      let nextNum = 1;
+      if (!existingSnapshot.empty) {
+        const lastNumber = existingSnapshot.docs[0].data().ringiNumber as string;
+        const lastNum = parseInt(lastNumber.replace(prefix, ''), 10);
+        if (!isNaN(lastNum)) {
+          nextNum = lastNum + 1;
+        }
+      }
+
+      ringiNumber = `${prefix}${String(nextNum).padStart(3, '0')}`;
+    }
+
     // 稟議を更新
     const now = Timestamp.now();
     const updateData: Record<string, unknown> = {
       status: 'submitted',
       submittedAt: now,
       updatedAt: now,
+      ringiNumber,
     };
 
     if (approvalFlow) {
@@ -142,6 +171,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       ringiId,
+      ringiNumber,
       status: 'submitted',
       approvalFlow,
       appliedRoute: matchedRoute

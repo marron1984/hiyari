@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,7 +12,7 @@ import {
   ArrowLeft, Send, Undo2, CheckCircle, XCircle,
   Clock, Edit, Trash2, Save, X, ChevronDown, ChevronUp,
   AlertTriangle, CircleDollarSign, Folder, Calendar,
-  Route, User, Users,
+  Route, User, Users, MessageSquare, Hash,
 } from 'lucide-react';
 import {
   getRingi, updateRingi, deleteRingi,
@@ -20,7 +20,7 @@ import {
   getRingiAuditLogs
 } from '@/lib/ringi';
 import {
-  Ringi, RingiAuditLog, RingiFormData,
+  Ringi, RingiAuditLog, RingiFormData, RingiComment,
   RINGI_STATUS_LABELS, RINGI_STATUS_COLORS, RINGI_CATEGORIES,
   canEdit, canDelete, canTransition, RingiCategory, RETURN_REASON_TEMPLATES,
   RingiApprovalFlow, RingiApprovalFlowStep,
@@ -32,7 +32,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 export default function RingiDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, firebaseUser } = useAuth();
   const { toast } = useToast();
   const [ringi, setRingi] = useState<Ringi | null>(null);
   const [auditLogs, setAuditLogs] = useState<RingiAuditLog[]>([]);
@@ -44,6 +44,10 @@ export default function RingiDetailPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [comments, setComments] = useState<RingiComment[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [commentLoading, setCommentLoading] = useState(false);
+  const commentsEndRef = useRef<HTMLDivElement>(null);
 
   const ringiId = params.id as string;
 
@@ -67,10 +71,64 @@ export default function RingiDetailPage() {
           description: ringiData.description,
         });
       }
+      // コメント取得
+      await loadComments();
     } catch (error) {
       console.error('Failed to load ringi:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadComments = async () => {
+    try {
+      const token = await firebaseUser?.getIdToken();
+      if (!token) return;
+      const res = await fetch(`/api/ringi/comments?ringiId=${ringiId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setComments(
+          (data.comments || []).map((c: any) => ({
+            ...c,
+            createdAt: new Date(c.createdAt),
+          }))
+        );
+      }
+    } catch (error) {
+      console.error('Failed to load comments:', error);
+    }
+  };
+
+  const handlePostComment = async () => {
+    if (!user || !commentText.trim()) return;
+    setCommentLoading(true);
+    try {
+      const token = await firebaseUser?.getIdToken();
+      if (!token) throw new Error('認証トークンを取得できません');
+      const res = await fetch('/api/ringi/comments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ringiId, content: commentText.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'コメント投稿に失敗しました');
+      }
+      setCommentText('');
+      await loadComments();
+      setTimeout(() => {
+        commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (error) {
+      console.error('Comment post failed:', error);
+      toast(error instanceof Error ? error.message : 'コメント投稿に失敗しました', 'error');
+    } finally {
+      setCommentLoading(false);
     }
   };
 
@@ -209,7 +267,15 @@ export default function RingiDetailPage() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
           </Link>
-          <h1 className="text-xl font-bold text-zinc-900">稟議詳細</h1>
+          <div>
+            <h1 className="text-xl font-bold text-zinc-900">稟議詳細</h1>
+            {ringi.ringiNumber && (
+              <div className="flex items-center gap-1 mt-0.5">
+                <Hash className="w-3 h-3 text-zinc-400" />
+                <span className="text-xs text-zinc-500 font-mono">{ringi.ringiNumber}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Status & Actions */}
@@ -562,6 +628,85 @@ export default function RingiDetailPage() {
                 </div>
               )}
             </div>
+          )}
+        </Card>
+
+        {/* Comments */}
+        <Card className="p-4 mb-4">
+          <div className="flex items-center gap-2 mb-4">
+            <MessageSquare className="w-4 h-4 text-zinc-500" />
+            <p className="text-sm font-medium text-zinc-700">
+              コメント
+              {comments.length > 0 && (
+                <span className="text-xs text-zinc-400 ml-1">({comments.length})</span>
+              )}
+            </p>
+          </div>
+
+          {/* Comment List */}
+          {comments.length > 0 ? (
+            <div className="space-y-3 mb-4 max-h-80 overflow-y-auto">
+              {comments.map((comment) => {
+                const isOwnComment = user && comment.authorId === user.id;
+                return (
+                  <div
+                    key={comment.id}
+                    className={`flex ${isOwnComment ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
+                        isOwnComment
+                          ? 'bg-zinc-900 text-white rounded-br-md'
+                          : 'bg-zinc-100 text-zinc-900 rounded-bl-md'
+                      }`}
+                    >
+                      {!isOwnComment && (
+                        <p className="text-xs font-medium mb-0.5 opacity-70">
+                          {comment.authorName}
+                        </p>
+                      )}
+                      <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+                      <p className={`text-xs mt-1 ${isOwnComment ? 'text-zinc-400' : 'text-zinc-400'}`}>
+                        {formatDateTime(comment.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={commentsEndRef} />
+            </div>
+          ) : (
+            <p className="text-sm text-zinc-400 mb-4">コメントはまだありません</p>
+          )}
+
+          {/* Comment Input */}
+          {user && ringi.status !== 'draft' && (
+            <div className="flex gap-2">
+              <textarea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder="コメントを入力..."
+                rows={2}
+                className="flex-1 px-3 py-2 rounded-xl border border-zinc-200 bg-white text-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 resize-none"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    handlePostComment();
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                onClick={handlePostComment}
+                disabled={commentLoading || !commentText.trim()}
+                className="self-end"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+          {ringi.status === 'draft' && (
+            <p className="text-xs text-zinc-400">申請後にコメントできます</p>
           )}
         </Card>
 
