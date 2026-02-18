@@ -13,6 +13,12 @@
  */
 
 import type { AlertSeverity } from '@/lib/alerts/types';
+import { listAlerts, getAlertStats } from '@/lib/alerts/repo';
+import { getOverdueTickets, listTickets } from '@/lib/tickets/repo';
+import type { ViewerContext } from '@/lib/tickets/types';
+import { scanExpired as scanExpiredLicenses } from '@/lib/licenses/repo';
+import { scanExpiredConsents } from '@/lib/agreements/repo';
+import { getUnassignedQueueStats } from '@/lib/assignment/autoAssign';
 import { MORNING_DIGEST_ITEMS, DIGEST_ALERT_TYPES } from '@/config/opsSchedule';
 
 // ========== ダイジェスト項目型 ==========
@@ -181,29 +187,35 @@ export function buildMorningDigest(): MorningDigest {
   };
 }
 
-// ========== データ取得ヘルパー（モック） ==========
+// ========== データ取得ヘルパー ==========
+
+const SYSTEM_VIEWER: ViewerContext = { userId: 'system', role: 'admin' };
 
 /**
  * Critical Open アラート数を取得
  */
 function getCriticalOpenAlerts(): { count: number } {
-  // 実際にはアラートリポジトリから取得
-  // ここではモック値を返す
-  return { count: 0 };
+  const stats = getAlertStats();
+  return { count: stats.criticalOpen };
 }
 
 /**
  * System Error アラート数を取得
  */
 function getSystemErrorAlerts(): { count: number } {
-  return { count: 0 };
+  const { alerts } = listAlerts({ status: 'open', type: 'system_error' });
+  return { count: alerts.length };
 }
 
 /**
  * 未分類アラート数を取得
  */
 function getUnclassifiedAlerts(): { count: number } {
-  return { count: 0 };
+  const stats = getAlertStats();
+  const count =
+    (stats.byType.business_scope_unclassified || 0) +
+    (stats.byType.unclassified_scope || 0);
+  return { count };
 }
 
 /**
@@ -214,10 +226,14 @@ function getOverdueDeadlines(): {
   agreements: number;
   tickets: number;
 } {
+  const expiredLicenses = scanExpiredLicenses();
+  const expiredConsents = scanExpiredConsents();
+  const overdueTickets = getOverdueTickets();
+
   return {
-    licenses: 0,
-    agreements: 0,
-    tickets: 0,
+    licenses: expiredLicenses.length,
+    agreements: expiredConsents.length,
+    tickets: overdueTickets.length,
   };
 }
 
@@ -225,7 +241,8 @@ function getOverdueDeadlines(): {
  * 未割当アイテム数を取得
  */
 function getUnassignedItems(): { count: number } {
-  return { count: 0 };
+  const stats = getUnassignedQueueStats();
+  return { count: stats.total };
 }
 
 // ========== 通知テキスト生成 ==========

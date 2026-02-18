@@ -98,10 +98,24 @@ export function detectTicketBacklog(): {
 }
 
 /**
- * 単一チケットの滞留チェック（将来拡張用）
- * 例：同一チケットが3日以上動いていない場合にアラート
+ * 単一チケットの滞留チェック
+ * 同一チケットが3日以上動いていない場合にtrue
  */
 export function checkTicketStale(ticketId: string): boolean {
-  // TODO: 実装予定
-  return false;
+  const STALE_DAYS = 3;
+  const { items } = listTickets({}, ADMIN_VIEWER);
+  const ticket = items.find((t) => t.id === ticketId);
+
+  if (!ticket) return false;
+
+  // 解決済み・クローズ済みは滞留とみなさない
+  if (['resolved', 'closed', 'archived'].includes(ticket.status)) {
+    return false;
+  }
+
+  const lastUpdate = new Date(ticket.updatedAt).getTime();
+  const now = Date.now();
+  const daysSinceUpdate = (now - lastUpdate) / (1000 * 60 * 60 * 24);
+
+  return daysSinceUpdate >= STALE_DAYS;
 }

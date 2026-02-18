@@ -124,17 +124,35 @@ function calculateImpact(
   changePercent: number,
   direction: WbrKpiHighlight['direction'],
   trend: 'up' | 'down' | 'flat',
-  entry: KPIDictionaryEntry | null
+  entry: KPIDictionaryEntry | null,
+  currentValue?: number | string
 ): 'high' | 'medium' | 'low' {
   const absChange = Math.abs(changePercent);
 
-  // 閾値がある場合はそれを参照
-  if (entry?.thresholds) {
-    const { warning, critical } = entry.thresholds;
-    // TODO: 閾値ベースの判定を実装
+  // 閾値ベースの判定（辞書に閾値が定義されている場合）
+  if (entry?.thresholds && currentValue !== undefined) {
+    const numVal = typeof currentValue === 'string' ? parseFloat(currentValue) : currentValue;
+    if (!isNaN(numVal)) {
+      const { warning, critical } = entry.thresholds;
+
+      // 方向性を考慮した閾値判定
+      if (direction === 'higher_is_better') {
+        // 高い方が良い → 閾値を下回るとリスク
+        if (critical !== undefined && numVal <= critical) return 'high';
+        if (warning !== undefined && numVal <= warning) return 'medium';
+      } else if (direction === 'lower_is_better') {
+        // 低い方が良い → 閾値を上回るとリスク
+        if (critical !== undefined && numVal >= critical) return 'high';
+        if (warning !== undefined && numVal >= warning) return 'medium';
+      } else {
+        // neutral/unknown → 絶対値で判定
+        if (critical !== undefined && (numVal >= critical || numVal <= -critical)) return 'high';
+        if (warning !== undefined && (numVal >= warning || numVal <= -warning)) return 'medium';
+      }
+    }
   }
 
-  // 変化率ベースの簡易判定
+  // 変化率ベースの簡易判定（フォールバック）
   if (absChange >= 20) return 'high';
   if (absChange >= 10) return 'medium';
   return 'low';
@@ -257,7 +275,7 @@ export function buildSingleKpiHighlight(
   const { isGood, isBad } = determineGoodBad(trend, direction);
 
   // 影響度算出
-  const impact = calculateImpact(changePercent, direction, trend, entry);
+  const impact = calculateImpact(changePercent, direction, trend, entry, raw.currentValue);
 
   // 異常検知チェック
   const { isAnomaly, explanation: anomalyExplanation } = checkAnomaly(
