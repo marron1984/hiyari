@@ -8,6 +8,7 @@ import { getFacilitiesWithVacancy } from '@/lib/vacancy';
 import { getRingisByUser, getPendingRingis } from '@/lib/ringi';
 import { calculateBatchMoveInProbability, calculateExpectedMoveIns } from '@/lib/scoring';
 import { safeRate, calcOccupancyRate, calcInterventionRate, formatPercent } from '@/lib/dashboard/calc';
+import { getLatestCashflowAIReview } from '@/lib/cashflow-forecast';
 import { getMeterColor, METER_LABELS, type MeterColor } from '@/types/chaos';
 import { listTickets } from '@/lib/tickets/repo';
 import { getMonthlyOvertimeTotal } from '@/lib/application';
@@ -54,6 +55,7 @@ export async function fetchKPIData(
     taskData,
     overtimeData,
     correctiveData,
+    cashflowData,
   ] = await Promise.all([
     fetchCheckinData(user).catch(e => { errors.push('checkin'); return null; }),
     fetchChaosData().catch(e => { errors.push('chaos'); return null; }),
@@ -64,6 +66,7 @@ export async function fetchKPIData(
     fetchTaskData(user).catch(e => { errors.push('tasks'); return null; }),
     fetchOvertimeData(user, role).catch(e => { errors.push('overtime'); return null; }),
     role !== 'staff' ? fetchCorrectiveData(user).catch(e => { errors.push('corrective'); return null; }) : null,
+    role === 'exec' ? fetchCashflowData(user).catch(e => { errors.push('cashflow'); return null; }) : null,
   ]);
 
   // 各KPIの値を計算
@@ -73,7 +76,7 @@ export async function fetchKPIData(
 
     const kpiValue = calculateKPIValue(
       kpiId,
-      { checkinData, chaosData, interventionData, ringiData, salesData, occupancyData, taskData, overtimeData, correctiveData },
+      { checkinData, chaosData, interventionData, ringiData, salesData, occupancyData, taskData, overtimeData, correctiveData, cashflowData },
       user,
       role
     );
@@ -308,6 +311,38 @@ function fetchCorrectiveData(user: User): Promise<CorrectiveData> {
   }
 }
 
+// ======== キャッシュフローデータ取得 ========
+
+interface CashflowKPIData {
+  minimumBalanceManYen: number;
+  netCashflow: number;
+  hasCriticalRisk: boolean;
+  hasWarningRisk: boolean;
+  summary: string;
+}
+
+async function fetchCashflowData(user: User): Promise<CashflowKPIData> {
+  const review = await getLatestCashflowAIReview(user.tenantId);
+
+  if (!review) {
+    return {
+      minimumBalanceManYen: 0,
+      netCashflow: 0,
+      hasCriticalRisk: false,
+      hasWarningRisk: false,
+      summary: 'データなし',
+    };
+  }
+
+  return {
+    minimumBalanceManYen: Math.floor(review.forecast.summary.minimumBalance / 10000),
+    netCashflow: review.forecast.summary.netCashflow,
+    hasCriticalRisk: review.riskSummary.critical > 0,
+    hasWarningRisk: review.riskSummary.warning > 0,
+    summary: review.aiAnalysis?.summary || `最低残高 ${Math.floor(review.forecast.summary.minimumBalance / 10000)}万円`,
+  };
+}
+
 // ======== KPI値計算 ========
 
 interface AllData {
@@ -320,6 +355,7 @@ interface AllData {
   taskData: TaskData | null;
   overtimeData: OvertimeKPIData | null;
   correctiveData: CorrectiveData | null;
+  cashflowData: CashflowKPIData | null;
 }
 
 function calculateKPIValue(
@@ -481,8 +517,15 @@ function calculateKPIValue(
       break;
 
     case 'cashflow':
-      value = null; // TODO: キャッシュフローを実装
-      meaning = '準備中';
+      if (data.cashflowData && data.cashflowData.summary !== 'データなし') {
+        value = data.cashflowData.minimumBalanceManYen;
+        status = data.cashflowData.hasCriticalRisk ? 'critical'
+          : data.cashflowData.hasWarningRisk ? 'warning' : 'normal';
+        meaning = data.cashflowData.summary;
+      } else {
+        value = null;
+        meaning = 'キャッシュフロー予測を実行してください';
+      }
       break;
 
     default:

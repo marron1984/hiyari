@@ -52,6 +52,7 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   vacancy_unit_updated: { icon: Bell, color: 'text-blue-600', bg: 'bg-blue-50' },
   // Ticket 075: 空室更新提案
   vacancy_suggestion_created: { icon: AlertTriangle, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+  fukusha_ask_replied: { icon: MessageSquare, color: 'text-indigo-600', bg: 'bg-indigo-50' },
   system: { icon: Bell, color: 'text-zinc-600', bg: 'bg-zinc-50' },
 };
 

@@ -88,7 +88,7 @@ export const RINGI_TRANSITIONS: Record<RingiStatus, RingiStatus[]> = {
 /**
  * 各アクションに必要な権限
  */
-export type RingiAction = 'submit' | 'approve' | 'reject' | 'withdraw' | 'edit';
+export type RingiAction = 'submit' | 'approve' | 'reject' | 'return' | 'withdraw' | 'edit';
 
 export interface TransitionRule {
   from: RingiStatus;
@@ -101,7 +101,9 @@ export const TRANSITION_RULES: TransitionRule[] = [
   { from: 'draft', to: 'submitted', action: 'submit', allowedBy: 'author' },
   { from: 'submitted', to: 'approved', action: 'approve', allowedBy: 'approver' },
   { from: 'submitted', to: 'rejected', action: 'reject', allowedBy: 'approver' },
+  { from: 'submitted', to: 'returned', action: 'return', allowedBy: 'approver' },
   { from: 'submitted', to: 'draft', action: 'withdraw', allowedBy: 'author' },
+  { from: 'returned', to: 'submitted', action: 'submit', allowedBy: 'author' },
 ];
 
 // ======== 稟議データ ========
@@ -350,7 +352,7 @@ export function isAuthor(ringi: Ringi, userId: string): boolean {
  * - draft状態かつ作成者のみ編集可能
  */
 export function canEdit(ringi: Ringi, userId: string): boolean {
-  return ringi.status === 'draft' && isAuthor(ringi, userId);
+  return (ringi.status === 'draft' || ringi.status === 'returned') && isAuthor(ringi, userId);
 }
 
 /**

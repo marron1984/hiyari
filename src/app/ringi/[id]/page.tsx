@@ -12,11 +12,11 @@ import {
   ArrowLeft, Send, Undo2, CheckCircle, XCircle,
   Clock, Edit, Trash2, Save, X, ChevronDown, ChevronUp,
   AlertTriangle, CircleDollarSign, Folder, Calendar,
-  Route, User, Users, MessageSquare, Hash,
+  Route, User, Users, MessageSquare, Hash, Brain, Info,
 } from 'lucide-react';
 import {
   getRingi, updateRingi, deleteRingi,
-  submitRingi, withdrawRingi, approveRingi, rejectRingi,
+  submitRingi, withdrawRingi,
   getRingiAuditLogs
 } from '@/lib/ringi';
 import {
@@ -44,10 +44,23 @@ export default function RingiDetailPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+  const [approveComment, setApproveComment] = useState('');
+  const [showApproveModal, setShowApproveModal] = useState(false);
   const [comments, setComments] = useState<RingiComment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
   const commentsEndRef = useRef<HTMLDivElement>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    approvalRate: number;
+    totalSimilar: number;
+    missingInfo: string[];
+    cautions: string[];
+    suggestion?: string;
+    referenceCases: { id: string; title: string; status: string; amount: number }[];
+  } | null>(null);
+  const [aiAnalysisLoading, setAiAnalysisLoading] = useState(false);
 
   const ringiId = params.id as string;
 
@@ -132,11 +145,37 @@ export default function RingiDetailPage() {
     }
   };
 
-  const handleAction = async (action: 'submit' | 'withdraw' | 'approve' | 'reject' | 'delete') => {
+  const fetchAiAnalysis = async () => {
+    if (!firebaseUser || aiAnalysisLoading) return;
+    setAiAnalysisLoading(true);
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch('/api/ringi/ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ringiId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiAnalysis(data.analysis);
+      }
+    } catch (error) {
+      console.error('AI analysis failed:', error);
+    } finally {
+      setAiAnalysisLoading(false);
+    }
+  };
+
+  const handleAction = async (action: 'submit' | 'withdraw' | 'approve' | 'reject' | 'return' | 'delete') => {
     if (!user || !ringi) return;
 
     if (action === 'reject') {
       setShowRejectModal(true);
+      return;
+    }
+
+    if (action === 'return') {
+      setShowReturnModal(true);
       return;
     }
 
@@ -145,17 +184,33 @@ export default function RingiDetailPage() {
       return;
     }
 
+    if (action === 'approve') {
+      setShowApproveModal(true);
+      return;
+    }
+
     setActionLoading(true);
     try {
       switch (action) {
-        case 'submit':
-          await submitRingi(ringiId, user.id, user.name, user.role, user.branchId);
+        case 'submit': {
+          // サーバーサイドAPI使用（通知送信 + 承認フロー適用）
+          const token = await firebaseUser?.getIdToken();
+          if (!token) throw new Error('認証トークンを取得できません');
+          const res = await fetch('/api/ringi/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ ringiId }),
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || '申請に失敗しました');
+          }
+          toast('稟議を申請しました', 'success');
           break;
+        }
         case 'withdraw':
           await withdrawRingi(ringiId, user.id, user.name, user.role, user.branchId);
-          break;
-        case 'approve':
-          await approveRingi(ringiId, user.id, user.name, user.role, user.branchId);
+          toast('稟議を取り下げました', 'success');
           break;
       }
       await loadData();
@@ -175,13 +230,84 @@ export default function RingiDetailPage() {
 
     setActionLoading(true);
     try {
-      await rejectRingi(ringiId, user.id, user.name, user.role, user.branchId, rejectReason);
+      const token = await firebaseUser?.getIdToken();
+      if (!token) throw new Error('認証トークンを取得できません');
+      const res = await fetch('/api/ringi/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ringiId, reason: rejectReason }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '却下に失敗しました');
+      }
       setShowRejectModal(false);
       setRejectReason('');
+      toast('稟議を却下しました', 'success');
       await loadData();
     } catch (error) {
       console.error('Reject failed:', error);
       toast(error instanceof Error ? error.message : '却下に失敗しました', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    if (!user || !ringi) return;
+
+    setActionLoading(true);
+    try {
+      const token = await firebaseUser?.getIdToken();
+      if (!token) throw new Error('認証トークンを取得できません');
+      const res = await fetch('/api/ringi/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ringiId, comment: approveComment || undefined }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '承認に失敗しました');
+      }
+      const result = await res.json();
+      setShowApproveModal(false);
+      setApproveComment('');
+      toast(result.allStepsDone ? '稟議を承認しました' : '承認しました。次の承認者に進みます', 'success');
+      await loadData();
+    } catch (error) {
+      console.error('Approve failed:', error);
+      toast(error instanceof Error ? error.message : '承認に失敗しました', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReturn = async () => {
+    if (!user || !ringi || !returnReason.trim()) {
+      toast('差戻し理由を入力してください', 'warning');
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await firebaseUser?.getIdToken();
+      if (!token) throw new Error('認証トークンを取得できません');
+      const res = await fetch('/api/ringi/return', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ringiId, reason: returnReason }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '差戻しに失敗しました');
+      }
+      setShowReturnModal(false);
+      setReturnReason('');
+      toast('稟議を差戻しました', 'success');
+      await loadData();
+    } catch (error) {
+      console.error('Return failed:', error);
+      toast(error instanceof Error ? error.message : '差戻しに失敗しました', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -256,6 +382,7 @@ export default function RingiDetailPage() {
   const userCanWithdraw = user && canTransition(ringi, 'withdraw', user.id, user.role, user.branchId);
   const userCanApprove = user && canTransition(ringi, 'approve', user.id, user.role, user.branchId);
   const userCanReject = user && canTransition(ringi, 'reject', user.id, user.role, user.branchId);
+  const userCanReturn = user && canTransition(ringi, 'return', user.id, user.role, user.branchId);
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -286,6 +413,7 @@ export default function RingiDetailPage() {
               {ringi.status === 'submitted' && <Clock className="w-4 h-4 mr-1" />}
               {ringi.status === 'approved' && <CheckCircle className="w-4 h-4 mr-1" />}
               {ringi.status === 'rejected' && <XCircle className="w-4 h-4 mr-1" />}
+              {ringi.status === 'returned' && <AlertTriangle className="w-4 h-4 mr-1" />}
               {RINGI_STATUS_LABELS[ringi.status]}
             </Badge>
             <div className="flex gap-2">
@@ -307,7 +435,7 @@ export default function RingiDetailPage() {
             {userCanSubmit && (
               <Button size="sm" onClick={() => handleAction('submit')} disabled={actionLoading}>
                 <Send className="w-4 h-4" />
-                申請する
+                {ringi.status === 'returned' ? '再申請する' : '申請する'}
               </Button>
             )}
             {userCanWithdraw && (
@@ -320,6 +448,12 @@ export default function RingiDetailPage() {
               <Button size="sm" onClick={() => handleAction('approve')} disabled={actionLoading} className="bg-emerald-600 hover:bg-emerald-700">
                 <CheckCircle className="w-4 h-4" />
                 承認
+              </Button>
+            )}
+            {userCanReturn && (
+              <Button variant="secondary" size="sm" onClick={() => handleAction('return')} disabled={actionLoading} className="text-orange-600 hover:bg-orange-50">
+                <Undo2 className="w-4 h-4" />
+                差戻し
               </Button>
             )}
             {userCanReject && (
@@ -420,6 +554,87 @@ export default function RingiDetailPage() {
                 })}
               </div>
             </div>
+          </Card>
+        )}
+
+        {/* AI Analysis for Approvers */}
+        {(userCanApprove || userCanReject) && ringi.status === 'submitted' && (
+          <Card className="p-4 mb-4 border-indigo-200 bg-indigo-50/50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Brain className="w-4 h-4 text-indigo-600" />
+                <p className="text-sm font-medium text-indigo-700">AI分析</p>
+              </div>
+              {!aiAnalysis && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={fetchAiAnalysis}
+                  disabled={aiAnalysisLoading}
+                  className="text-indigo-600 bg-indigo-100 hover:bg-indigo-200"
+                >
+                  {aiAnalysisLoading ? '分析中...' : 'AI分析を表示'}
+                </Button>
+              )}
+            </div>
+
+            {aiAnalysis && (
+              <div className="space-y-3">
+                {/* 承認率 */}
+                <div className="flex items-center gap-4">
+                  <div className="text-sm">
+                    <span className="text-zinc-500">同カテゴリ承認率:</span>{' '}
+                    <span className="font-semibold text-zinc-900">{aiAnalysis.approvalRate}%</span>
+                    <span className="text-xs text-zinc-400 ml-1">({aiAnalysis.totalSimilar}件中)</span>
+                  </div>
+                </div>
+
+                {/* 不足情報 */}
+                {aiAnalysis.missingInfo.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-amber-700 mb-1 flex items-center gap-1">
+                      <Info className="w-3 h-3" />
+                      不足情報
+                    </p>
+                    <ul className="text-sm text-zinc-700 space-y-0.5">
+                      {aiAnalysis.missingInfo.map((info, i) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <span className="text-amber-500 mt-1">・</span>
+                          {info}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 注意点 */}
+                {aiAnalysis.cautions.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-orange-700 mb-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      注意点
+                    </p>
+                    <ul className="text-sm text-zinc-700 space-y-0.5">
+                      {aiAnalysis.cautions.map((caution, i) => (
+                        <li key={i} className="flex items-start gap-1.5">
+                          <span className="text-orange-500 mt-1">・</span>
+                          {caution}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 参考情報 */}
+                {aiAnalysis.suggestion && (
+                  <p className="text-xs text-zinc-500 italic">{aiAnalysis.suggestion}</p>
+                )}
+              </div>
+            )}
+
+            {!aiAnalysis && !aiAnalysisLoading && (
+              <p className="text-xs text-indigo-500">過去の稟議データに基づくAI分析を表示できます</p>
+            )}
           </Card>
         )}
 
@@ -705,7 +920,7 @@ export default function RingiDetailPage() {
               </Button>
             </div>
           )}
-          {ringi.status === 'draft' && (
+          {(ringi.status === 'draft') && (
             <p className="text-xs text-zinc-400">申請後にコメントできます</p>
           )}
         </Card>
@@ -727,6 +942,7 @@ export default function RingiDetailPage() {
                       {log.action === 'submit' && '申請'}
                       {log.action === 'approve' && '承認'}
                       {log.action === 'reject' && '却下'}
+                      {log.action === 'return' && '差戻し'}
                       {log.action === 'withdraw' && '取り下げ'}
                     </p>
                     <p className="text-xs text-zinc-400">{formatDateTime(log.createdAt)}</p>
@@ -750,11 +966,61 @@ export default function RingiDetailPage() {
         onCancel={() => setShowDeleteConfirm(false)}
       />
 
+      {/* Approve Modal */}
+      {showApproveModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-zinc-900 mb-4">承認</h3>
+            <p className="text-sm text-zinc-600 mb-4">この稟議を承認します。コメントがあれば入力してください。</p>
+            <textarea
+              value={approveComment}
+              onChange={(e) => setApproveComment(e.target.value)}
+              placeholder="承認コメント（任意）"
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900 resize-none mb-4"
+            />
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setShowApproveModal(false)} className="flex-1">
+                キャンセル
+              </Button>
+              <Button onClick={handleApprove} disabled={actionLoading} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                承認する
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Reject Modal */}
       {showRejectModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md p-6">
-            <h3 className="text-lg font-bold text-zinc-900 mb-4">却下・差戻し理由</h3>
+            <h3 className="text-lg font-bold text-zinc-900 mb-4">却下理由</h3>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="却下の理由を入力してください"
+              rows={4}
+              className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900 resize-none mb-4"
+            />
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setShowRejectModal(false)} className="flex-1">
+                キャンセル
+              </Button>
+              <Button onClick={handleReject} disabled={actionLoading} className="flex-1 bg-red-600 hover:bg-red-700">
+                却下する
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Return Modal */}
+      {showReturnModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-zinc-900 mb-4">差戻し</h3>
+            <p className="text-sm text-zinc-600 mb-3">修正すべき内容を入力してください。申請者に通知されます。</p>
 
             {/* テンプレートボタン */}
             <div className="mb-3">
@@ -765,7 +1031,7 @@ export default function RingiDetailPage() {
                     key={idx}
                     type="button"
                     onClick={() => {
-                      setRejectReason((prev) =>
+                      setReturnReason((prev) =>
                         prev ? `${prev}\n${template}` : template
                       );
                     }}
@@ -778,18 +1044,18 @@ export default function RingiDetailPage() {
             </div>
 
             <textarea
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="却下・差戻しの理由を入力してください"
+              value={returnReason}
+              onChange={(e) => setReturnReason(e.target.value)}
+              placeholder="差戻しの理由を入力してください"
               rows={4}
               className="w-full px-4 py-3 rounded-xl border border-zinc-200 bg-white text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-900 resize-none mb-4"
             />
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => setShowRejectModal(false)} className="flex-1">
+              <Button variant="secondary" onClick={() => setShowReturnModal(false)} className="flex-1">
                 キャンセル
               </Button>
-              <Button onClick={handleReject} disabled={actionLoading} className="flex-1 bg-red-600 hover:bg-red-700">
-                却下する
+              <Button onClick={handleReturn} disabled={actionLoading} className="flex-1 bg-orange-600 hover:bg-orange-700">
+                差戻しする
               </Button>
             </div>
           </Card>

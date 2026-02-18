@@ -49,6 +49,7 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   vacancy_inquiry_sla_breach: { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50', label: 'SLA超過' },
   vacancy_unit_updated: { icon: Bell, color: 'text-blue-600', bg: 'bg-blue-50', label: '空室更新' },
   vacancy_suggestion_created: { icon: AlertTriangle, color: 'text-yellow-600', bg: 'bg-yellow-50', label: '空室提案' },
+  fukusha_ask_replied: { icon: MessageSquare, color: 'text-indigo-600', bg: 'bg-indigo-50', label: 'ふくしゃ返信' },
   system: { icon: Bell, color: 'text-zinc-600', bg: 'bg-zinc-50', label: 'システム' },
 };
 
@@ -67,7 +68,7 @@ const FILTER_CATEGORIES: { key: FilterCategory; label: string; types: Notificati
   },
   {
     key: 'ai', label: 'AI副社長',
-    types: ['ai_anomaly_report', 'ai_organization_health', 'ai_todo_high', 'ai_vp_ticket_created'],
+    types: ['ai_anomaly_report', 'ai_organization_health', 'ai_todo_high', 'ai_vp_ticket_created', 'fukusha_ask_replied'],
   },
   {
     key: 'vacancy', label: '空室',

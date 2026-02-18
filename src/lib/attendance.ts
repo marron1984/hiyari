@@ -35,6 +35,8 @@ import {
   getTodayJST,
   calculateTimeEntrySummary,
   calculateMinutesBetween,
+  isLate,
+  isEarlyLeave,
 } from './attendance-calc';
 import { toDate } from './date';
 
@@ -1103,12 +1105,29 @@ export async function getMonthlyAttendanceSummary(
   const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
   const endDate = `${year}-${month.toString().padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
 
-  const entries = await getTimeEntriesByPeriod(tenantId, startDate, endDate, branchId);
+  // 打刻記録とシフトデータを並行取得
+  const [entries, shifts] = await Promise.all([
+    getTimeEntriesByPeriod(tenantId, startDate, endDate, branchId),
+    getShiftsByPeriod(tenantId, startDate, endDate, branchId),
+  ]);
+
+  // シフトをユーザー+日付でマップ化（遅刻・早退判定用）
+  const shiftMap = new Map<string, WorkShift>();
+  for (const shift of shifts) {
+    const key = `${shift.userId}_${shift.workDate}`;
+    shiftMap.set(key, shift);
+  }
 
   // ユーザーごとに集計
   const summaryMap = new Map<string, MonthlyAttendanceSummary>();
 
   for (const entry of entries) {
+    // 遅刻・早退判定（シフトとの比較）
+    const shiftKey = `${entry.userId}_${entry.workDate}`;
+    const shift = shiftMap.get(shiftKey);
+    const entryIsLate = entry.clockIn ? isLate(entry.clockIn, shift) : false;
+    const entryIsEarlyLeave = entry.clockOut && entry.status === 'completed' ? isEarlyLeave(entry.clockOut, shift) : false;
+
     const existing = summaryMap.get(entry.userId);
     if (existing) {
       existing.totalWorkDays++;
@@ -1119,6 +1138,8 @@ export async function getMonthlyAttendanceSummary(
       if (entry.status === 'missing_out') {
         existing.missingClockOutCount++;
       }
+      if (entryIsLate) existing.lateCount++;
+      if (entryIsEarlyLeave) existing.earlyLeaveCount++;
     } else {
       summaryMap.set(entry.userId, {
         userId: entry.userId,
@@ -1132,8 +1153,8 @@ export async function getMonthlyAttendanceSummary(
         totalLateNightMinutes: entry.lateNightMinutes || 0,
         totalBreakMinutes: entry.actualBreakMinutes || 0,
         missingClockOutCount: entry.status === 'missing_out' ? 1 : 0,
-        lateCount: 0, // 別途計算
-        earlyLeaveCount: 0, // 別途計算
+        lateCount: entryIsLate ? 1 : 0,
+        earlyLeaveCount: entryIsEarlyLeave ? 1 : 0,
       });
     }
   }

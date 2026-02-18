@@ -238,6 +238,31 @@ export async function rejectRingi(
 }
 
 /**
+ * 稟議を差戻し（submitted → returned）
+ */
+export async function returnRingi(
+  ringiId: string,
+  userId: string,
+  userName: string,
+  userRole: UserRole,
+  userBranchId: string,
+  reason: string
+): Promise<Ringi> {
+  if (!reason.trim()) {
+    throw new Error('差戻し理由は必須です');
+  }
+  return await transitionStatus(
+    ringiId,
+    'return',
+    userId,
+    userName,
+    userRole,
+    userBranchId,
+    reason
+  );
+}
+
+/**
  * 稟議を取り下げ（submitted → draft）
  */
 export async function withdrawRingi(
@@ -312,6 +337,15 @@ async function transitionStatus(
       updateData.rejectedByName = userName;
       updateData.rejectedAt = Timestamp.now();
       updateData.rejectionReason = commentOrReason;
+      break;
+
+    case 'return':
+      toStatus = 'returned';
+      updateData.status = toStatus;
+      updateData.returnedBy = userId;
+      updateData.returnedByName = userName;
+      updateData.returnedAt = Timestamp.now();
+      updateData.returnReason = commentOrReason;
       break;
 
     case 'withdraw':

@@ -9,7 +9,8 @@
 
 import { getAdminDb } from './firebase-admin';
 import Anthropic from '@anthropic-ai/sdk';
-import { AI_VP_SYSTEM_PROMPT } from './ai-vp-persona';
+import { buildFeaturePrompt } from './ai-vp-persona';
+import { createNotificationServer } from './notifications-server';
 import type {
   FukushaQuestion,
   FukushaQuestionStatus,
@@ -99,8 +100,8 @@ async function fetchPastRepliedQuestions(
       const d = doc.data();
       return {
         category: d.category,
-        content: (d.content || '').slice(0, 200),
-        reply: (d.replyContent || '').slice(0, 300),
+        content: (d.content || '').slice(0, 500),
+        reply: (d.replyContent || '').slice(0, 800),
       };
     });
 
@@ -121,8 +122,8 @@ async function fetchPastRepliedQuestions(
           const d = doc.data();
           results.push({
             category: d.category,
-            content: (d.content || '').slice(0, 200),
-            reply: (d.replyContent || '').slice(0, 300),
+            content: (d.content || '').slice(0, 500),
+            reply: (d.replyContent || '').slice(0, 800),
           });
         }
       });
@@ -141,7 +142,7 @@ async function fetchPastRepliedQuestions(
 async function fetchPastDecisionLogs(
   tenantId: string,
   category: DecisionCategory,
-  limit = 3
+  limit = 10
 ): Promise<Array<{ situation: string; decision: string; reason: string }>> {
   try {
     const db = getAdminDb();
@@ -157,9 +158,9 @@ async function fetchPastDecisionLogs(
     return snapshot.docs.map((doc) => {
       const d = doc.data();
       return {
-        situation: (d.situation || '').slice(0, 200),
-        decision: (d.decision || '').slice(0, 200),
-        reason: (d.reason || '').slice(0, 150),
+        situation: (d.situation || '').slice(0, 500),
+        decision: (d.decision || '').slice(0, 500),
+        reason: d.reason || '',
       };
     });
   } catch (error) {
@@ -261,12 +262,28 @@ ${question.content}
 ${pastContext}
 ${companyKnowledge}
 
-## あなたの行動
+## あなたの思考プロセス（Step by Step）
+
+### Step 1: 質問の本質を理解する
+- スタッフは実際に何を知りたい/解決したいのか？
+- 表面的な質問の裏にある本当の懸念は何か？
+
+### Step 2: 過去のコンテキストを確認する
+- 過去に同様の質問はあったか？その時はどう返信したか？
+- 過去の判断ログに類似する判断はあるか？
+- 会社のルール・方針に該当するものはあるか？
+
+### Step 3: 回答を構成する
+- 事実確認の姿勢で冒頭を書く
+- 確認すべき論点を整理する
+- 過去の一貫性を保った下書きを作成する
+
+## 出力内容
 
 1. 質問の要約（事実ベースで1-2文）
 2. 論点の整理（確認すべき事実を3つ以内で列挙）
 3. 返信下書きの作成（吉田のスタイルで200-400字程度）
-   - 過去の返信例がある場合は、そのトーンや判断の方向性を参考にする
+   - 過去の返信例がある場合は、そのトーンや判断の方向性を必ず参考にする
    - 会社のルール・方針に該当する場合は、それに基づいて回答する
    - 過去に類似の判断があれば、一貫性のある回答を心がける
 
@@ -278,6 +295,7 @@ ${companyKnowledge}
 - 具体的な人名・部署名への言及は避ける
 - 匿名の場合は一般的な呼びかけを使う
 - 不可逆な判断（人事・懲戒等）は「確認して改めて連絡する」
+- 具体的な数字（日数、金額、時間）がある場合は必ず言及する
 
 以下のJSON形式で出力してください:
 {
@@ -293,7 +311,8 @@ ${companyKnowledge}
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
-      system: AI_VP_SYSTEM_PROMPT,
+      temperature: 0.3,
+      system: buildFeaturePrompt('fukusha_ask'),
       messages: [
         { role: 'user', content: userPrompt },
       ],
@@ -337,19 +356,36 @@ ${companyKnowledge}
  * なければ基本ルールのみ返す。
  */
 function getCompanyKnowledge(): string {
-  // 基本的な会社ルール（ハードコード）
+  // 飛鳥グループの事業情報と基本方針
   // TODO: 将来的にはFirestore company_knowledge コレクションから動的取得
-  const baseRules = [
-    '飛鳥グループは介護施設運営会社で、利用者の安全と尊厳を最優先にする',
+  const companyProfile = [
+    '飛鳥グループ（AA）は介護施設運営を主軸とする大阪の事業グループ',
+    '訪問介護・看護事業: 西淀川20室、東淀川14室予定、老人ホーム71床予定',
+    '1戸マスターリース70,000円、平均介護報酬月20万円',
+    '高級ホスピタリティ事業（大嵓埜・禅園・鹿のや）も展開',
+    'AA-HUB（本システム）で業務DX・AI統合経営を推進中',
+  ];
+
+  const operationalRules = [
+    '入居者の安全と尊厳が最優先。これは全ての判断に優先する',
+    '給与支払いは最優先で守るライン。遅延は絶対に許容しない',
     '現場の判断を尊重し、管理職は現場を支援する立場である',
     '重大な事案（事故・虐待疑い・感染症等）は即座にエスカレーションする',
-    '人事に関する最終判断は吉田本人が行う',
+    '人事に関する最終判断は吉田本人が行う。AIは判断を代行しない',
     '経費は事前申請が原則。緊急時は事後報告可だが理由が必要',
     '残業は月45時間以内を目標とし、超過する場合は業務改善を検討する',
     'スタッフの相談には必ず24時間以内に一次回答する',
+    '不透明な資金管理は許容しない。キャッシュフローは常に可視化する',
+    '80%で走り出し、運用しながら改善する。完璧を待たない',
   ];
 
-  return `\n\n## 飛鳥グループの基本方針\n${baseRules.map((r) => `- ${r}`).join('\n')}`;
+  const keyPeople = [
+    '石田: 信頼度高。相談相手の一人',
+    '力久: 信頼度高。相談相手の一人',
+    '紹介会社: 入居者獲得の重要チャネル。関係維持が重要',
+  ];
+
+  return `\n\n## 飛鳥グループの事業概要\n${companyProfile.map((r) => `- ${r}`).join('\n')}\n\n## 基本方針・ルール\n${operationalRules.map((r) => `- ${r}`).join('\n')}\n\n## 主要関係者\n${keyPeople.map((r) => `- ${r}`).join('\n')}`;
 }
 
 /**
@@ -424,7 +460,26 @@ export async function sendReply(
     aiDraftEditRatio: editRatio,
   });
 
-  // TODO: Step2で通知機能を追加
+  // 質問者への通知を送信
+  try {
+    const questionUserId = questionData.userId as string;
+    const questionTenantId = questionData.tenantId as string;
+    const questionTitle = (questionData.title as string) || (questionData.content as string || '').slice(0, 30);
+
+    await createNotificationServer({
+      tenantId: questionTenantId,
+      userId: questionUserId,
+      type: 'fukusha_ask_replied',
+      title: 'ふくしゃに聞く：返信が届きました',
+      message: `「${questionTitle}」への返信があります`,
+      actionUrl: `/dashboard/ai-vp/ask/${input.questionId}`,
+    });
+
+    console.log('[FukushaAsk] 返信通知送信完了', { questionId: input.questionId, userId: questionUserId });
+  } catch (notifyError) {
+    // 通知送信失敗は返信自体のエラーにしない
+    console.warn('[FukushaAsk] 返信通知送信失敗（無視して続行）:', notifyError);
+  }
 }
 
 /**

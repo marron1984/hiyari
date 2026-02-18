@@ -13,12 +13,10 @@ import {
   AiReply,
   AiTemplate,
   AiApproval,
-  AI_REPLY_RISK_LABELS,
   AI_REPLY_RISK_COLORS,
   AI_REPLY_CATEGORY_LABELS,
   AI_REPLY_STATUS_LABELS,
   AI_REPLY_STATUS_COLORS,
-  AI_REPLY_FOOTER,
 } from '@/types/ai-vp';
 import {
   Bot,
@@ -35,54 +33,6 @@ import {
   User,
   Info,
 } from 'lucide-react';
-
-// ダミーデータ（PR2以降で実データに置き換え）
-const DUMMY_MESSAGE: LwMessage = {
-  id: 'msg2',
-  messageId: 'lw_msg_002',
-  roomId: 'room_001',
-  senderId: 'user_002',
-  senderName: '佐藤花子',
-  senderRole: 'staff',
-  text: '紹介会社への返金対応について相談です。契約解除になった場合の手続きを教えてください。入居者様が1ヶ月で退去されることになり、紹介会社に支払った紹介料の一部返金について確認が必要です。',
-  receivedAt: new Date(Date.now() - 1000 * 60 * 15),
-  createdAt: new Date(Date.now() - 1000 * 60 * 15),
-};
-
-const DUMMY_REPLY: AiReply = {
-  id: 'reply2',
-  messageId: 'msg2',
-  riskLevel: 'L3',
-  category: 'expense',
-  draftText: `【結論】
-紹介会社への返金対応は、契約内容と退去理由によって異なります。
-
-【次にやること】
-1. 紹介会社との契約書を確認し、返金条項を特定する
-2. 退去理由と入居期間を整理する
-3. 返金可能額の試算を行う
-
-【迷ったら】
-経理担当に確認してください。
-
-${AI_REPLY_FOOTER}`,
-  status: 'pending_approval',
-  templateId: 'tpl_expense_refund',
-  escalationReason: '金銭に関わる判断のため吉田承認が必要',
-  createdAt: new Date(Date.now() - 1000 * 60 * 14),
-};
-
-const DUMMY_TEMPLATE: AiTemplate = {
-  id: 'tpl_expense_refund',
-  key: 'expense_refund',
-  title: '紹介会社返金対応',
-  category: 'expense',
-  riskLevel: 'L3',
-  requiredFieldsJson: JSON.stringify(['契約書番号', '入居期間', '退去理由']),
-  templateText: '紹介会社への返金対応の手順をご案内します...',
-  keywords: ['返金', '紹介会社', '紹介料', '返却'],
-  createdAt: new Date(),
-};
 
 export default function AiReplyDetailPage() {
   const { user } = useAuth();
@@ -110,32 +60,91 @@ export default function AiReplyDetailPage() {
         return;
       }
 
-      // TODO: PR2で実データに置き換え
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setMessage(DUMMY_MESSAGE);
-      setReply(DUMMY_REPLY);
-      setTemplate(DUMMY_TEMPLATE);
-      setEditedText(DUMMY_REPLY.draftText);
-      setLoading(false);
+      try {
+        const res = await fetch(`/api/ai-vp/replies/${replyId}`, {
+          headers: { 'X-User-Email': user?.email || '' },
+        });
+
+        if (!res.ok) {
+          console.error('Failed to fetch reply:', res.status);
+          setLoading(false);
+          return;
+        }
+
+        const data = await res.json();
+
+        if (data.message) {
+          setMessage({
+            ...data.message,
+            receivedAt: new Date(data.message.receivedAt),
+            createdAt: new Date(data.message.createdAt),
+          });
+        }
+
+        if (data.reply) {
+          const replyData: AiReply = {
+            ...data.reply,
+            createdAt: new Date(data.reply.createdAt),
+            sentAt: data.reply.sentAt ? new Date(data.reply.sentAt) : undefined,
+          };
+          setReply(replyData);
+          setEditedText(replyData.draftText);
+        }
+
+        if (data.template) {
+          setTemplate({ ...data.template, createdAt: new Date() });
+        }
+
+        if (data.approvals) {
+          setApprovals(data.approvals.map((a: Record<string, unknown>) => ({
+            ...a,
+            decidedAt: new Date(a.decidedAt as string),
+            createdAt: new Date(a.createdAt as string),
+          })));
+        }
+      } catch (error) {
+        console.error('Failed to fetch reply data:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchData();
-  }, [canAccess, replyId]);
+  }, [canAccess, replyId, user?.email]);
+
+  const callApproveApi = async (decision: 'approve' | 'revise' | 'reject', revisedText?: string) => {
+    const res = await fetch(`/api/ai-vp/replies/${reply!.id}/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Email': user?.email || '',
+      },
+      body: JSON.stringify({
+        decision,
+        note: approvalNote || undefined,
+        revisedText,
+        approverId: user!.id,
+        approverName: user!.name || 'Unknown',
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `API error: ${res.status}`);
+    }
+
+    return res.json();
+  };
 
   const handleApprove = async () => {
     if (!reply) return;
 
     setSaving(true);
     try {
-      // TODO: PR4で実装
-      // Preview環境ではdry-runとして記録
-      if (isPreview) {
-        alert('Preview環境のため、実際の送信は行われません（dry-run）');
-      }
+      const result = await callApproveApi('approve');
 
-      // 承認処理
       const approval: AiApproval = {
-        id: `approval_${Date.now()}`,
+        id: result.approvalId,
         replyId: reply.id,
         approverId: user!.id,
         approverName: user!.name || 'Unknown',
@@ -148,12 +157,12 @@ export default function AiReplyDetailPage() {
       setApprovals([...approvals, approval]);
       setReply({
         ...reply,
-        status: isPreview ? 'approved' : 'sent',
+        status: result.status,
         finalText: isEditing ? editedText : reply.draftText,
-        sentAt: isPreview ? undefined : new Date(),
+        sentAt: result.sent ? new Date() : undefined,
       });
 
-      alert(isPreview
+      alert(result.preview
         ? '承認しました（Preview環境のため送信はスキップ）'
         : '承認・送信しました');
     } catch (error) {
@@ -169,9 +178,10 @@ export default function AiReplyDetailPage() {
 
     setSaving(true);
     try {
-      // TODO: PR4で実装
+      const result = await callApproveApi('revise', editedText);
+
       const approval: AiApproval = {
-        id: `approval_${Date.now()}`,
+        id: result.approvalId,
         replyId: reply.id,
         approverId: user!.id,
         approverName: user!.name || 'Unknown',
@@ -185,13 +195,13 @@ export default function AiReplyDetailPage() {
       setApprovals([...approvals, approval]);
       setReply({
         ...reply,
-        status: isPreview ? 'approved' : 'sent',
+        status: result.status,
         finalText: editedText,
-        sentAt: isPreview ? undefined : new Date(),
+        sentAt: result.sent ? new Date() : undefined,
       });
       setIsEditing(false);
 
-      alert(isPreview
+      alert(result.preview
         ? '修正して承認しました（Preview環境のため送信はスキップ）'
         : '修正して送信しました');
     } catch (error) {
@@ -209,9 +219,10 @@ export default function AiReplyDetailPage() {
 
     setSaving(true);
     try {
-      // TODO: PR4で実装
+      const result = await callApproveApi('reject');
+
       const approval: AiApproval = {
-        id: `approval_${Date.now()}`,
+        id: result.approvalId,
         replyId: reply.id,
         approverId: user!.id,
         approverName: user!.name || 'Unknown',
