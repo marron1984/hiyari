@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb, verifyIdToken } from '@/lib/firebase-admin';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { findMatchingApprovalRoute } from '@/lib/approval-routes';
+import { notifyApprovalPending } from '@/lib/notifications-server';
 import {
   RingiCategory,
   RingiApprovalFlow,
@@ -161,6 +162,21 @@ export async function POST(request: NextRequest) {
       appliedRouteName: matchedRoute?.name || null,
       createdAt: now,
     });
+
+    // 通知: 承認者に承認待ちを通知
+    try {
+      await notifyApprovalPending({
+        tenantId: ringi.tenantId,
+        branchId: ringi.branchId,
+        applicationType: 'RINGI',
+        applicationId: ringiId,
+        applicantName: userData.name,
+        title: ringi.title,
+        amount: ringi.amount,
+      });
+    } catch (notifyError) {
+      console.error('通知送信に失敗:', notifyError);
+    }
 
     return NextResponse.json({
       success: true,
