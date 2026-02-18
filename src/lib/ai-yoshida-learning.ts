@@ -183,10 +183,24 @@ ${d.decisionReason ? `理由: ${d.decisionReason}` : ''}`;
 
   return `吉田社長の過去の判断パターンと現在のケースとの類似度を分析してください。
 
-【類似度算出基準】
-- 判断対象の性質（カテゴリ・規模・関係者）
-- 判断コンテキスト（守りたい軸・嫌ったリスク・代替案の有無）
-- 状況の類似性（時期・緊急度・影響範囲）
+【類似度スコアリング基準（100点満点）】
+
+■ カテゴリ一致 (30点満点)
+- 完全一致: 30点
+- 関連カテゴリ（例: 承認と経費）: 15点
+- 無関係: 0点
+
+■ コンテキスト一致 (40点満点)
+- 守りたい軸が同じ: 20点
+- 嫌ったリスクが同じ: 15点
+- 代替案の有無が同じ: 5点
+
+■ 状況類似度 (30点満点)
+- 規模・金額帯が近い: 10点
+- 緊急度が近い: 10点
+- 影響範囲が近い: 10点
+
+合計スコアを%に変換して similarityScore に設定してください。
 
 【現在のケース】
 タイトル: ${currentCase.title}
@@ -317,6 +331,7 @@ export async function analyzeSimilarity(
       const message = await client.messages.create({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2048,
+        temperature: 0.3,
         system: buildFeaturePrompt('yoshida_learning'),
         messages: [
           {

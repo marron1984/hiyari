@@ -496,6 +496,78 @@ interface RiskKeywordRule {
   domain: 'finance' | 'hr' | 'legal' | 'safety' | 'reputation' | 'medical' | 'compliance';
 }
 
+/**
+ * 同義語グループ: メインキーワードに対する別表現
+ * リスク判定時にメインキーワードだけでなく同義語も検出対象にする
+ */
+const RISK_SYNONYMS: Record<string, string[]> = {
+  // HR
+  '解雇': ['リストラ', 'クビ', '首切り', '雇い止め'],
+  '懲戒': ['処分', '訓告', '戒告', '減給処分'],
+  'パワハラ': ['パワーハラスメント', '威圧', '恫喝'],
+  'セクハラ': ['セクシャルハラスメント', '性的嫌がらせ'],
+  '退職勧奨': ['肩たたき', '希望退職'],
+  // Safety
+  '事故': ['アクシデント', 'インシデント'],
+  '怪我': ['けが', 'ケガ', '負傷', '外傷'],
+  '骨折': ['ヒビ', '亀裂骨折'],
+  '転倒': ['転落', '滑落', 'すべり'],
+  '誤薬': ['薬の間違い', '投薬ミス', '服薬ミス'],
+  '行方不明': ['所在不明', '不明者', '居場所不明'],
+  '離設': ['無断外出', '脱走'],
+  // Finance
+  '返金': ['払い戻し', '返却金', '返還'],
+  '損害賠償': ['賠償請求', '賠償金'],
+  '未払い': ['滞納', '未納', '不払い'],
+  // Legal
+  '訴訟': ['裁判', '法的手続き'],
+  '弁護士': ['法律事務所', '顧問弁護士'],
+  // Medical
+  '容体急変': ['急変', '状態急変', '体調急変'],
+  '死亡': ['お亡くなり', '逝去', '永眠'],
+  // Reputation
+  'クレーム': ['苦情', '不満', '抗議'],
+};
+
+/** ドメイン別の重み倍率（安全・医療系は高リスク） */
+const DOMAIN_WEIGHT_MULTIPLIERS: Record<string, number> = {
+  safety: 1.3,
+  medical: 1.3,
+  legal: 1.2,
+  compliance: 1.1,
+  hr: 1.0,
+  finance: 1.0,
+  reputation: 0.9,
+};
+
+/**
+ * キーワードまたはその同義語がテキストに含まれるかチェック
+ */
+function matchesKeywordOrSynonym(text: string, keyword: string): boolean {
+  if (text.includes(keyword)) return true;
+  const synonyms = RISK_SYNONYMS[keyword];
+  if (synonyms) {
+    return synonyms.some((syn) => text.includes(syn));
+  }
+  return false;
+}
+
+/**
+ * キーワードまたはその同義語の位置を取得（否定文脈チェック用）
+ */
+function findKeywordOrSynonymIndex(text: string, keyword: string): number {
+  const idx = text.indexOf(keyword);
+  if (idx >= 0) return idx;
+  const synonyms = RISK_SYNONYMS[keyword];
+  if (synonyms) {
+    for (const syn of synonyms) {
+      const synIdx = text.indexOf(syn);
+      if (synIdx >= 0) return synIdx;
+    }
+  }
+  return -1;
+}
+
 /** 否定文脈パターン: これに続くキーワードはリスクを下げる */
 const NEGATION_PATTERNS = [
   'ない', 'ません', 'なし', '不要', '問題なく', '心配なく',
@@ -625,15 +697,15 @@ const L2_THRESHOLD = 4;
 
 /**
  * 否定文脈でキーワードが使われているか検出
- * キーワードの前後20文字以内に否定表現があればtrue
+ * キーワード（または同義語）の前後30文字以内に否定表現があればtrue
  */
 function isInNegationContext(text: string, keyword: string): boolean {
-  const idx = text.indexOf(keyword);
+  const idx = findKeywordOrSynonymIndex(text, keyword);
   if (idx < 0) return false;
 
-  // キーワード前後の文脈を取得
-  const contextStart = Math.max(0, idx - 20);
-  const contextEnd = Math.min(text.length, idx + keyword.length + 20);
+  // キーワード前後の文脈を取得（30文字に拡大）
+  const contextStart = Math.max(0, idx - 30);
+  const contextEnd = Math.min(text.length, idx + keyword.length + 30);
   const context = text.slice(contextStart, contextEnd);
 
   return NEGATION_PATTERNS.some((neg) => context.includes(neg));
@@ -665,22 +737,24 @@ export function determineRiskLevel(text: string): AiReplyRiskLevel {
   let l2Score = 0;
   const matchedDomains = new Set<string>();
 
-  // L3キーワードスキャン
+  // L3キーワードスキャン（同義語対応）
   for (const rule of L3_RULES) {
-    if (text.includes(rule.keyword)) {
+    if (matchesKeywordOrSynonym(text, rule.keyword)) {
       const inNeg = isInNegationContext(text, rule.keyword);
-      const effectiveWeight = inNeg ? Math.max(rule.weight - 6, 1) : rule.weight;
-      l3Score += effectiveWeight;
+      const domainMultiplier = DOMAIN_WEIGHT_MULTIPLIERS[rule.domain] || 1.0;
+      const baseWeight = inNeg ? Math.max(rule.weight - 6, 1) : rule.weight;
+      l3Score += Math.round(baseWeight * domainMultiplier);
       matchedDomains.add(rule.domain);
     }
   }
 
-  // L2キーワードスキャン
+  // L2キーワードスキャン（同義語対応）
   for (const rule of L2_RULES) {
-    if (text.includes(rule.keyword)) {
+    if (matchesKeywordOrSynonym(text, rule.keyword)) {
       const inNeg = isInNegationContext(text, rule.keyword);
-      const effectiveWeight = inNeg ? Math.max(rule.weight - 3, 0) : rule.weight;
-      l2Score += effectiveWeight;
+      const domainMultiplier = DOMAIN_WEIGHT_MULTIPLIERS[rule.domain] || 1.0;
+      const baseWeight = inNeg ? Math.max(rule.weight - 3, 0) : rule.weight;
+      l2Score += Math.round(baseWeight * domainMultiplier);
       matchedDomains.add(rule.domain);
     }
   }
@@ -728,13 +802,14 @@ export function determineRiskLevelDetailed(text: string): {
   const negatedKeywords: string[] = [];
 
   for (const rule of L3_RULES) {
-    if (text.includes(rule.keyword)) {
+    if (matchesKeywordOrSynonym(text, rule.keyword)) {
       const inNeg = isInNegationContext(text, rule.keyword);
+      const domainMultiplier = DOMAIN_WEIGHT_MULTIPLIERS[rule.domain] || 1.0;
       if (inNeg) {
         negatedKeywords.push(rule.keyword);
-        l3Score += Math.max(rule.weight - 6, 1);
+        l3Score += Math.round(Math.max(rule.weight - 6, 1) * domainMultiplier);
       } else {
-        l3Score += rule.weight;
+        l3Score += Math.round(rule.weight * domainMultiplier);
       }
       matchedKeywords.push(rule.keyword);
       matchedDomains.add(rule.domain);
@@ -742,13 +817,14 @@ export function determineRiskLevelDetailed(text: string): {
   }
 
   for (const rule of L2_RULES) {
-    if (text.includes(rule.keyword)) {
+    if (matchesKeywordOrSynonym(text, rule.keyword)) {
       const inNeg = isInNegationContext(text, rule.keyword);
+      const domainMultiplier = DOMAIN_WEIGHT_MULTIPLIERS[rule.domain] || 1.0;
       if (inNeg) {
         negatedKeywords.push(rule.keyword);
-        l2Score += Math.max(rule.weight - 3, 0);
+        l2Score += Math.round(Math.max(rule.weight - 3, 0) * domainMultiplier);
       } else {
-        l2Score += rule.weight;
+        l2Score += Math.round(rule.weight * domainMultiplier);
       }
       matchedKeywords.push(rule.keyword);
       matchedDomains.add(rule.domain);
@@ -842,7 +918,7 @@ export function determineCategory(text: string): AiReplyCategory {
   for (const [category, rules] of Object.entries(categoryRules)) {
     let score = 0;
     for (const rule of rules) {
-      if (text.includes(rule.keyword)) {
+      if (matchesKeywordOrSynonym(text, rule.keyword)) {
         score += rule.weight;
       }
     }

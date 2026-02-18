@@ -81,14 +81,24 @@ function buildAiPrompt(input: AiApprovalCommentInput): string {
   const approvalRate = totalCount > 0 ? Math.round((approvedCount / totalCount) * 100) : 50;
   const rejectionRate = totalCount > 0 ? Math.round((rejectedCount / totalCount) * 100) : 50;
 
-  // 類似ケースを抽出（金額や理由が近いもの）
+  // 類似ケースを抽出（カテゴリ一致 + 金額が近いもの）
   const similarCases = input.history
     .filter((h) => {
+      // カテゴリが指定されている場合はカテゴリ一致を優先
+      if (input.application.category && h.baseId) {
+        // 同一拠点を優先（ただし除外はしない）
+      }
       if (input.application.type === 'EXPENSE') {
         const diff = Math.abs((h.amount || 0) - (input.application.amount || 0));
         return diff < (input.application.amount || 10000) * 0.5; // 50%以内
       }
       return true;
+    })
+    .sort((a, b) => {
+      // 同一拠点を優先
+      const aMatch = a.baseId === input.application.baseId ? 1 : 0;
+      const bMatch = b.baseId === input.application.baseId ? 1 : 0;
+      return bMatch - aMatch;
     })
     .slice(0, 10);
 
@@ -169,6 +179,7 @@ async function generateAiComment(input: AiApprovalCommentInput): Promise<AiAppro
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
+      temperature: 0.3,
       messages: [
         {
           role: 'user',

@@ -9,7 +9,7 @@
 
 import { getAdminDb } from './firebase-admin';
 import Anthropic from '@anthropic-ai/sdk';
-import { AI_VP_SYSTEM_PROMPT } from './ai-vp-persona';
+import { buildFeaturePrompt } from './ai-vp-persona';
 import type {
   FukushaQuestion,
   FukushaQuestionStatus,
@@ -99,8 +99,8 @@ async function fetchPastRepliedQuestions(
       const d = doc.data();
       return {
         category: d.category,
-        content: (d.content || '').slice(0, 200),
-        reply: (d.replyContent || '').slice(0, 300),
+        content: (d.content || '').slice(0, 500),
+        reply: (d.replyContent || '').slice(0, 800),
       };
     });
 
@@ -121,8 +121,8 @@ async function fetchPastRepliedQuestions(
           const d = doc.data();
           results.push({
             category: d.category,
-            content: (d.content || '').slice(0, 200),
-            reply: (d.replyContent || '').slice(0, 300),
+            content: (d.content || '').slice(0, 500),
+            reply: (d.replyContent || '').slice(0, 800),
           });
         }
       });
@@ -141,7 +141,7 @@ async function fetchPastRepliedQuestions(
 async function fetchPastDecisionLogs(
   tenantId: string,
   category: DecisionCategory,
-  limit = 3
+  limit = 10
 ): Promise<Array<{ situation: string; decision: string; reason: string }>> {
   try {
     const db = getAdminDb();
@@ -157,9 +157,9 @@ async function fetchPastDecisionLogs(
     return snapshot.docs.map((doc) => {
       const d = doc.data();
       return {
-        situation: (d.situation || '').slice(0, 200),
-        decision: (d.decision || '').slice(0, 200),
-        reason: (d.reason || '').slice(0, 150),
+        situation: (d.situation || '').slice(0, 500),
+        decision: (d.decision || '').slice(0, 500),
+        reason: d.reason || '',
       };
     });
   } catch (error) {
@@ -261,12 +261,28 @@ ${question.content}
 ${pastContext}
 ${companyKnowledge}
 
-## あなたの行動
+## あなたの思考プロセス（Step by Step）
+
+### Step 1: 質問の本質を理解する
+- スタッフは実際に何を知りたい/解決したいのか？
+- 表面的な質問の裏にある本当の懸念は何か？
+
+### Step 2: 過去のコンテキストを確認する
+- 過去に同様の質問はあったか？その時はどう返信したか？
+- 過去の判断ログに類似する判断はあるか？
+- 会社のルール・方針に該当するものはあるか？
+
+### Step 3: 回答を構成する
+- 事実確認の姿勢で冒頭を書く
+- 確認すべき論点を整理する
+- 過去の一貫性を保った下書きを作成する
+
+## 出力内容
 
 1. 質問の要約（事実ベースで1-2文）
 2. 論点の整理（確認すべき事実を3つ以内で列挙）
 3. 返信下書きの作成（吉田のスタイルで200-400字程度）
-   - 過去の返信例がある場合は、そのトーンや判断の方向性を参考にする
+   - 過去の返信例がある場合は、そのトーンや判断の方向性を必ず参考にする
    - 会社のルール・方針に該当する場合は、それに基づいて回答する
    - 過去に類似の判断があれば、一貫性のある回答を心がける
 
@@ -278,6 +294,7 @@ ${companyKnowledge}
 - 具体的な人名・部署名への言及は避ける
 - 匿名の場合は一般的な呼びかけを使う
 - 不可逆な判断（人事・懲戒等）は「確認して改めて連絡する」
+- 具体的な数字（日数、金額、時間）がある場合は必ず言及する
 
 以下のJSON形式で出力してください:
 {
@@ -293,7 +310,8 @@ ${companyKnowledge}
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
-      system: AI_VP_SYSTEM_PROMPT,
+      temperature: 0.3,
+      system: buildFeaturePrompt('fukusha_ask'),
       messages: [
         { role: 'user', content: userPrompt },
       ],

@@ -32,7 +32,7 @@ import {
   Edit,
   Star,
 } from 'lucide-react';
-import { getPendingRingis, getAllRingis, approveRingi, rejectRingi } from '@/lib/ringi';
+import { getPendingRingis, getAllRingis } from '@/lib/ringi';
 import {
   Ringi,
   RingiStatus,
@@ -220,13 +220,23 @@ function AdminRingiContent() {
     loadBranches();
   }, [activeTab, loadRingis, loadBranches, loadRoutes]);
 
-  // 承認処理
+  // 承認処理（サーバーAPI経由 — 通知・監査ログ・承認フロー進行を統一）
   const handleApprove = async (ringiId: string) => {
-    if (!user) return;
+    if (!firebaseUser) return;
     setActionLoading(ringiId);
     try {
-      await approveRingi(ringiId, user.id, user.name, user.role, user.branchId);
-      toast('承認しました', 'success');
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch('/api/ringi/approve', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ringiId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '承認に失敗しました');
+      toast(data.allStepsDone ? '承認しました' : '次の承認ステップに進みました', 'success');
       await loadRingis(false);
     } catch (err) {
       console.error('Approve failed:', err);
@@ -236,15 +246,25 @@ function AdminRingiContent() {
     }
   };
 
-  // 却下処理
+  // 却下処理（サーバーAPI経由）
   const handleReject = async () => {
-    if (!user || !rejectModal || !rejectReason.trim()) {
+    if (!firebaseUser || !rejectModal || !rejectReason.trim()) {
       toast('却下理由を入力してください', 'warning');
       return;
     }
     setActionLoading(rejectModal.ringiId);
     try {
-      await rejectRingi(rejectModal.ringiId, user.id, user.name, user.role, user.branchId, rejectReason);
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch('/api/ringi/reject', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ringiId: rejectModal.ringiId, reason: rejectReason }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '却下に失敗しました');
       setRejectModal(null);
       setRejectReason('');
       toast('却下しました', 'success');

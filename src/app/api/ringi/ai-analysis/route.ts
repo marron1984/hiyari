@@ -136,6 +136,7 @@ ${referenceCases || 'なし'}
     const message = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 512,
+      temperature: 0.3,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     });
