@@ -40,6 +40,7 @@ import { getStats as getCorrectiveActionsStats } from '@/lib/correctiveActions/r
 import { scanOverdueSteps as scanOverdueCollectionSteps } from '@/lib/collection/repo';
 import { scanMbrActionsOverdue, buildMbrOverdueAlert } from './scanMbrActionsOverdue';
 import { scanExpiredConsents, getStats as getAgreementsStats, getAgreementTypeById } from '@/lib/agreements/repo';
+import { scanExpiringContracts, scanDecisionOverdueContracts } from '@/lib/contracts/repo';
 import type { ViewerContext } from '@/lib/business/types';
 
 // ========== 重要度フィルタ ==========
@@ -310,7 +311,7 @@ async function runLicensesScan(
 
 /**
  * 契約期限スキャン（Task 026）
- * ※実際の契約リポジトリがある場合はそれを使用、ここでは簡易スキャン
+ * 契約リポジトリから期限間近・更新判断超過の契約を検出
  */
 async function runContractsScan(
   options: DailyOpsOptions,
@@ -320,14 +321,72 @@ async function runContractsScan(
   const stepName: DailyOpsStepName = 'contracts_scan';
 
   try {
-    // TODO: 実際の契約リポジトリと連携
-    // 現在はモック実装
+    const alerts: CreateAlertRequest[] = [];
+
+    // 期限間近の契約（30日以内）
+    const expiringContracts = scanExpiringContracts(30);
+    for (const info of expiringContracts) {
+      const severity: AlertSeverity =
+        info.daysUntilEnd <= 7 ? 'critical' : 'warning';
+
+      alerts.push({
+        type: 'deadline_overdue',
+        sourceId: info.contract.id,
+        title: `契約期限間近: ${info.contract.name}`,
+        message: `${info.contract.name}（${info.contract.counterpartyName}）の契約が${info.daysUntilEnd}日後に満了します。`,
+        severity,
+        fingerprint: generateDailyFingerprint('contract_expiring', info.contract.id, date),
+        meta: {
+          contractId: info.contract.id,
+          contractName: info.contract.name,
+          counterpartyName: info.contract.counterpartyName,
+          daysUntilEnd: info.daysUntilEnd,
+          endAt: info.contract.endAt,
+        },
+      });
+    }
+
+    // 更新判断期限超過の契約
+    const overdueContracts = scanDecisionOverdueContracts();
+    for (const contract of overdueContracts) {
+      alerts.push({
+        type: 'deadline_overdue',
+        sourceId: contract.id,
+        title: `契約更新判断超過: ${contract.name}`,
+        message: `${contract.name}の更新判断期限が超過しています。早急に対応してください。`,
+        severity: 'critical',
+        fingerprint: generateDailyFingerprint('contract_decision_overdue', contract.id, date),
+        meta: {
+          contractId: contract.id,
+          contractName: contract.name,
+          counterpartyName: contract.counterpartyName,
+          renewalDecisionDueAt: contract.renewalDecisionDueAt,
+        },
+      });
+    }
+
+    if (options.dryRun) {
+      return {
+        name: stepName,
+        ok: true,
+        alertsCreated: 0,
+        alertsSkipped: alerts.length,
+        notificationsCreated: 0,
+        durationMs: Date.now() - start,
+      };
+    }
+
+    const filteredAlerts = alerts.filter((a) =>
+      meetsSeverityThreshold(a.severity, options.notificationThreshold ?? 'warning')
+    );
+
+    const result = createAlertsFromScan(filteredAlerts);
 
     return {
       name: stepName,
       ok: true,
-      alertsCreated: 0,
-      alertsSkipped: 0,
+      alertsCreated: result.created,
+      alertsSkipped: result.skipped + (alerts.length - filteredAlerts.length),
       notificationsCreated: 0,
       durationMs: Date.now() - start,
     };
