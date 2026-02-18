@@ -10,6 +10,7 @@
 import { getAdminDb } from './firebase-admin';
 import Anthropic from '@anthropic-ai/sdk';
 import { buildFeaturePrompt } from './ai-vp-persona';
+import { createNotificationServer } from './notifications-server';
 import type {
   FukushaQuestion,
   FukushaQuestionStatus,
@@ -459,7 +460,26 @@ export async function sendReply(
     aiDraftEditRatio: editRatio,
   });
 
-  // TODO: Step2で通知機能を追加
+  // 質問者への通知を送信
+  try {
+    const questionUserId = questionData.userId as string;
+    const questionTenantId = questionData.tenantId as string;
+    const questionTitle = (questionData.title as string) || (questionData.content as string || '').slice(0, 30);
+
+    await createNotificationServer({
+      tenantId: questionTenantId,
+      userId: questionUserId,
+      type: 'fukusha_ask_replied',
+      title: 'ふくしゃに聞く：返信が届きました',
+      message: `「${questionTitle}」への返信があります`,
+      actionUrl: `/dashboard/ai-vp/ask/${input.questionId}`,
+    });
+
+    console.log('[FukushaAsk] 返信通知送信完了', { questionId: input.questionId, userId: questionUserId });
+  } catch (notifyError) {
+    // 通知送信失敗は返信自体のエラーにしない
+    console.warn('[FukushaAsk] 返信通知送信失敗（無視して続行）:', notifyError);
+  }
 }
 
 /**

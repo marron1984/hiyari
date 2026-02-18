@@ -7,9 +7,12 @@ import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@/compo
 import { Loading } from '@/components/Loading';
 import { getChaosDashboardMetrics, getInterventions } from '@/lib/chaos';
 import { getSalesDeals, getSalesAccounts } from '@/lib/sales';
+import { getProspects, applyProspectTimeScope } from '@/lib/prospect';
+import { calculateBatchMoveInProbability, aggregateByRank } from '@/lib/scoring';
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { Intervention } from '@/types/chaos';
 import { SalesDeal } from '@/types/sales';
+import { ProbabilityRank } from '@/types/chaos';
 import {
   Activity,
   AlertTriangle,
@@ -38,23 +41,33 @@ export default function ChaosDashboardPage() {
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [salesDeals, setSalesDeals] = useState<SalesDeal[]>([]);
   const [salesAccounts, setSalesAccounts] = useState<{ length: number }>({ length: 0 });
+  const [rankDistribution, setRankDistribution] = useState<Record<ProbabilityRank, number>>({ A: 0, B: 0, C: 0, D: 0 });
 
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
 
       try {
-        const [chaosData, interventionsData, dealsData, accountsData] = await Promise.all([
+        const [chaosData, interventionsData, dealsData, accountsData, prospectsData] = await Promise.all([
           getChaosDashboardMetrics(DEFAULT_TENANT_ID),
           getInterventions('open', 10),
           getSalesDeals(DEFAULT_TENANT_ID),
           getSalesAccounts(DEFAULT_TENANT_ID),
+          getProspects(DEFAULT_TENANT_ID),
         ]);
 
         setOrgMetrics(chaosData.organization);
         setInterventions(interventionsData);
         setSalesDeals(dealsData);
         setSalesAccounts({ length: accountsData.length });
+
+        // 入居確率ランク分布をスコアリングエンジンで計算
+        const kpiTargetProspects = applyProspectTimeScope(prospectsData);
+        const activeProspects = kpiTargetProspects.filter(
+          p => p.status !== '見送り' && p.status !== 'クローズ' && p.status !== '入居決定'
+        );
+        const scoringResults = calculateBatchMoveInProbability(activeProspects);
+        setRankDistribution(aggregateByRank(scoringResults));
       } catch (error) {
         console.error('Failed to fetch CHAOS data:', error);
       } finally {
@@ -74,9 +87,6 @@ export default function ChaosDashboardPage() {
   const completedDeals = salesDeals.filter((d) => d.status === '請求書到着');
   const teleapoDeals = salesDeals.filter((d) => d.source === 'テレアポ');
   const shiryouDeals = salesDeals.filter((d) => d.source === '資料送付');
-
-  // 入居確率ランク分布（TODO: 実際のスコアリング結果から取得）
-  const rankDistribution = { A: 0, B: 0, C: 0, D: activeDeals.length };
 
   return (
     <main className="pb-8">
@@ -224,7 +234,7 @@ export default function ChaosDashboardPage() {
                     ))}
                   </div>
                   <p className="text-xs text-gray-500 mt-3">
-                    ※ スコアリング機能は開発中です
+                    ※ 入居確率スコアリングに基づくランク分布
                   </p>
                 </CardContent>
               </Card>

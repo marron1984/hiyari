@@ -34,6 +34,7 @@ export type NotificationType =
   | 'vacancy_inquiry_sla_breach'   // Ticket 071: 空室問い合わせSLA超過
   | 'vacancy_unit_updated'         // Ticket 075: 空室ユニット更新
   | 'vacancy_suggestion_created'   // Ticket 075: 空室更新提案
+  | 'fukusha_ask_replied'   // ふくしゃに聞く・返信通知（質問者向け）
   | 'system';               // システム通知
 
 // 通知
@@ -171,7 +172,7 @@ export const CATEGORY_TYPE_MAP: Record<NotificationCategoryKey, NotificationType
   approval: ['approval_pending', 'application_approved', 'application_rejected', 'application_returned'],
   incident: ['incident_submitted', 'incident_commented'],
   payment: ['payment_completed', 'payment_failed'],
-  ai_vp: ['ai_anomaly_report', 'ai_organization_health', 'ai_todo_high', 'ai_vp_ticket_created'],
+  ai_vp: ['ai_anomaly_report', 'ai_organization_health', 'ai_todo_high', 'ai_vp_ticket_created', 'fukusha_ask_replied'],
   vacancy: ['vacancy_inquiry', 'vacancy_inquiry_sla_breach', 'vacancy_unit_updated', 'vacancy_suggestion_created'],
   mbr: ['mbr_action_created', 'mbr_action_overdue'],
   system: ['system', 'business_scope_unclassified', 'unclassified_scope'],
