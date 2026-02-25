@@ -116,11 +116,16 @@ export async function POST(request: NextRequest) {
 
     const ringiData = ringiDoc.data()!;
 
-    // 権限チェック: 起案者、承認者（leader以上）、admin
+    // 権限チェック: 起案者、承認フロー内の承認者、管理職以上
     const isAuthor = ringiData.authorId === user.uid;
-    const isApprover = ['leader', 'admin', 'system_admin'].includes(user.role);
+    // 旧ロール(system_admin) + 新ロール(manager,executive)の両方をカバー
+    const COMMENT_ALLOWED_ROLES = ['leader', 'manager', 'executive', 'admin', 'system_admin'];
+    const isApprover = COMMENT_ALLOWED_ROLES.includes(user.role);
+    const isDesignatedApprover = ringiData.approvalFlow?.steps?.some(
+      (step: { approverValue?: string }) => step.approverValue === user.uid
+    ) ?? false;
 
-    if (!isAuthor && !isApprover) {
+    if (!isAuthor && !isApprover && !isDesignatedApprover) {
       return NextResponse.json(
         { error: 'この稟議にコメントする権限がありません' },
         { status: 403 }
