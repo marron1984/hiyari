@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,21 +9,17 @@ import { Loading } from '@/components/Loading';
 import { PreviewBadge } from '@/components/PreviewBadge';
 import { isAiVpOwner } from '@/lib/auth';
 import {
-  LwMessage,
-  AiReply,
-  AiTemplate,
-  AiApproval,
-  AI_REPLY_RISK_LABELS,
+  AiReplyRiskLevel,
+  AiReplyCategory,
+  AiReplyStatus,
   AI_REPLY_RISK_COLORS,
   AI_REPLY_CATEGORY_LABELS,
   AI_REPLY_STATUS_LABELS,
   AI_REPLY_STATUS_COLORS,
-  AI_REPLY_FOOTER,
 } from '@/types/ai-vp';
 import {
   Bot,
   ArrowLeft,
-  Send,
   CheckCircle,
   XCircle,
   Edit2,
@@ -33,69 +29,72 @@ import {
   Clock,
   FileText,
   User,
-  Info,
 } from 'lucide-react';
 
-// ダミーデータ（PR2以降で実データに置き換え）
-const DUMMY_MESSAGE: LwMessage = {
-  id: 'msg2',
-  messageId: 'lw_msg_002',
-  roomId: 'room_001',
-  senderId: 'user_002',
-  senderName: '佐藤花子',
-  senderRole: 'staff',
-  text: '紹介会社への返金対応について相談です。契約解除になった場合の手続きを教えてください。入居者様が1ヶ月で退去されることになり、紹介会社に支払った紹介料の一部返金について確認が必要です。',
-  receivedAt: new Date(Date.now() - 1000 * 60 * 15),
-  createdAt: new Date(Date.now() - 1000 * 60 * 15),
-};
+interface ReplyDetail {
+  id: string;
+  messageId: string;
+  riskLevel: AiReplyRiskLevel;
+  category: AiReplyCategory;
+  draftText: string;
+  finalText?: string;
+  status: AiReplyStatus;
+  templateId?: string;
+  escalationReason?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  sentAt?: string;
+}
 
-const DUMMY_REPLY: AiReply = {
-  id: 'reply2',
-  messageId: 'msg2',
-  riskLevel: 'L3',
-  category: 'expense',
-  draftText: `【結論】
-紹介会社への返金対応は、契約内容と退去理由によって異なります。
+interface MessageDetail {
+  id: string;
+  messageId: string;
+  roomId: string;
+  senderId: string;
+  senderName: string;
+  senderRole?: string;
+  text: string;
+  receivedAt?: string;
+  createdAt?: string;
+}
 
-【次にやること】
-1. 紹介会社との契約書を確認し、返金条項を特定する
-2. 退去理由と入居期間を整理する
-3. 返金可能額の試算を行う
+interface TemplateDetail {
+  id: string;
+  key: string;
+  title: string;
+  category: AiReplyCategory;
+  riskLevel?: AiReplyRiskLevel;
+}
 
-【迷ったら】
-経理担当に確認してください。
+interface ApprovalDetail {
+  id: string;
+  approverId: string;
+  approverName: string;
+  decision: 'approve' | 'revise' | 'reject';
+  note?: string;
+  revisedText?: string;
+  decidedAt?: string;
+  createdAt?: string;
+}
 
-${AI_REPLY_FOOTER}`,
-  status: 'pending_approval',
-  templateId: 'tpl_expense_refund',
-  escalationReason: '金銭に関わる判断のため吉田承認が必要',
-  createdAt: new Date(Date.now() - 1000 * 60 * 14),
-};
-
-const DUMMY_TEMPLATE: AiTemplate = {
-  id: 'tpl_expense_refund',
-  key: 'expense_refund',
-  title: '紹介会社返金対応',
-  category: 'expense',
-  riskLevel: 'L3',
-  requiredFieldsJson: JSON.stringify(['契約書番号', '入居期間', '退去理由']),
-  templateText: '紹介会社への返金対応の手順をご案内します...',
-  keywords: ['返金', '紹介会社', '紹介料', '返却'],
-  createdAt: new Date(),
-};
+function formatDate(iso?: string): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('ja-JP');
+}
 
 export default function AiReplyDetailPage() {
-  const { user } = useAuth();
+  const { user, firebaseUser } = useAuth();
   const params = useParams();
   const router = useRouter();
   const replyId = params.id as string;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<LwMessage | null>(null);
-  const [reply, setReply] = useState<AiReply | null>(null);
-  const [template, setTemplate] = useState<AiTemplate | null>(null);
-  const [approvals, setApprovals] = useState<AiApproval[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [message, setMessage] = useState<MessageDetail | null>(null);
+  const [reply, setReply] = useState<ReplyDetail | null>(null);
+  const [template, setTemplate] = useState<TemplateDetail | null>(null);
+  const [approvals, setApprovals] = useState<ApprovalDetail[]>([]);
   const [editedText, setEditedText] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [approvalNote, setApprovalNote] = useState('');
@@ -103,57 +102,75 @@ export default function AiReplyDetailPage() {
   const canAccess = user && isAiVpOwner(user.email);
   const isPreview = process.env.NEXT_PUBLIC_APP_ENV === 'preview';
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!canAccess) {
-        setLoading(false);
-        return;
+  const fetchData = useCallback(async () => {
+    if (!canAccess || !firebaseUser) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch(`/api/ai-vp/replies/${replyId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
       }
 
-      // TODO: PR2で実データに置き換え
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setMessage(DUMMY_MESSAGE);
-      setReply(DUMMY_REPLY);
-      setTemplate(DUMMY_TEMPLATE);
-      setEditedText(DUMMY_REPLY.draftText);
+      const data = await res.json();
+      setReply(data.reply);
+      setMessage(data.message);
+      setTemplate(data.template);
+      setApprovals(data.approvals || []);
+      setEditedText(data.reply?.draftText || '');
+      setFetchError(null);
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : 'データ取得エラー');
+    } finally {
       setLoading(false);
-    };
+    }
+  }, [canAccess, firebaseUser, replyId]);
 
+  useEffect(() => {
     fetchData();
-  }, [canAccess, replyId]);
+  }, [fetchData]);
+
+  const callApproveApi = async (decision: 'approve' | 'revise' | 'reject', extra?: { revisedText?: string }) => {
+    if (!firebaseUser) return;
+
+    const token = await firebaseUser.getIdToken();
+    const res = await fetch(`/api/ai-vp/replies/${replyId}/approve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        decision,
+        note: approvalNote || undefined,
+        ...extra,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || `HTTP ${res.status}`);
+    }
+
+    return res.json();
+  };
 
   const handleApprove = async () => {
     if (!reply) return;
 
     setSaving(true);
     try {
-      // TODO: PR4で実装
-      // Preview環境ではdry-runとして記録
-      if (isPreview) {
-        alert('Preview環境のため、実際の送信は行われません（dry-run）');
-      }
+      const result = await callApproveApi('approve');
 
-      // 承認処理
-      const approval: AiApproval = {
-        id: `approval_${Date.now()}`,
-        replyId: reply.id,
-        approverId: user!.id,
-        approverName: user!.name || 'Unknown',
-        decision: 'approve',
-        note: approvalNote || undefined,
-        decidedAt: new Date(),
-        createdAt: new Date(),
-      };
+      await fetchData();
 
-      setApprovals([...approvals, approval]);
-      setReply({
-        ...reply,
-        status: isPreview ? 'approved' : 'sent',
-        finalText: isEditing ? editedText : reply.draftText,
-        sentAt: isPreview ? undefined : new Date(),
-      });
-
-      alert(isPreview
+      alert(result?.preview
         ? '承認しました（Preview環境のため送信はスキップ）'
         : '承認・送信しました');
     } catch (error) {
@@ -169,29 +186,12 @@ export default function AiReplyDetailPage() {
 
     setSaving(true);
     try {
-      // TODO: PR4で実装
-      const approval: AiApproval = {
-        id: `approval_${Date.now()}`,
-        replyId: reply.id,
-        approverId: user!.id,
-        approverName: user!.name || 'Unknown',
-        decision: 'revise',
-        note: approvalNote || undefined,
-        revisedText: editedText,
-        decidedAt: new Date(),
-        createdAt: new Date(),
-      };
+      const result = await callApproveApi('revise', { revisedText: editedText });
 
-      setApprovals([...approvals, approval]);
-      setReply({
-        ...reply,
-        status: isPreview ? 'approved' : 'sent',
-        finalText: editedText,
-        sentAt: isPreview ? undefined : new Date(),
-      });
       setIsEditing(false);
+      await fetchData();
 
-      alert(isPreview
+      alert(result?.preview
         ? '修正して承認しました（Preview環境のため送信はスキップ）'
         : '修正して送信しました');
     } catch (error) {
@@ -209,21 +209,8 @@ export default function AiReplyDetailPage() {
 
     setSaving(true);
     try {
-      // TODO: PR4で実装
-      const approval: AiApproval = {
-        id: `approval_${Date.now()}`,
-        replyId: reply.id,
-        approverId: user!.id,
-        approverName: user!.name || 'Unknown',
-        decision: 'reject',
-        note: approvalNote || '却下',
-        decidedAt: new Date(),
-        createdAt: new Date(),
-      };
-
-      setApprovals([...approvals, approval]);
-      setReply({ ...reply, status: 'rejected' });
-
+      await callApproveApi('reject');
+      await fetchData();
       alert('却下しました');
     } catch (error) {
       console.error('Failed to reject:', error);
@@ -244,6 +231,24 @@ export default function AiReplyDetailPage() {
           <Shield className="w-16 h-16 mx-auto text-gray-300 mb-4" />
           <h1 className="text-xl font-bold text-gray-900 mb-2">アクセス権限がありません</h1>
           <p className="text-gray-500">この機能は吉田のみアクセス可能です。</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <main className="pb-8">
+        <div className="max-w-4xl mx-auto px-4 py-12 text-center">
+          <AlertTriangle className="w-16 h-16 mx-auto text-red-300 mb-4" />
+          <h1 className="text-xl font-bold text-gray-900 mb-2">データ取得エラー</h1>
+          <p className="text-gray-500 mb-4">{fetchError}</p>
+          <Link href="/dashboard/ai/inbox">
+            <Button variant="outline">
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              インボックスに戻る
+            </Button>
+          </Link>
         </div>
       </main>
     );
@@ -283,7 +288,7 @@ export default function AiReplyDetailPage() {
             <div className="ml-2 flex-1">
               <h1 className="text-xl font-bold text-gray-900 flex items-center">
                 <Bot className="w-5 h-5 mr-2 text-indigo-600" />
-                AI返信詳細
+                返信詳細
               </h1>
             </div>
             <div className="flex gap-2">
@@ -331,7 +336,7 @@ export default function AiReplyDetailPage() {
                 <div>
                   <p className="font-medium text-gray-900">{message.senderName}</p>
                   <p className="text-xs text-gray-500">
-                    {message.receivedAt.toLocaleString('ja-JP')}
+                    {formatDate(message.receivedAt)}
                   </p>
                 </div>
               </div>
@@ -366,7 +371,7 @@ export default function AiReplyDetailPage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base flex items-center">
                   <Bot className="w-4 h-4 mr-2 text-indigo-600" />
-                  AI下書き
+                  下書き
                 </CardTitle>
                 {isPending && !isEditing && (
                   <Button
@@ -443,7 +448,7 @@ export default function AiReplyDetailPage() {
                         {approval.decision === 'reject' && <XCircle className="w-4 h-4 text-red-600" />}
                         <span className="font-medium text-sm">{approval.approverName}</span>
                         <span className="text-xs text-gray-500">
-                          {approval.decidedAt.toLocaleString('ja-JP')}
+                          {formatDate(approval.decidedAt)}
                         </span>
                       </div>
                       {approval.note && (
@@ -529,7 +534,7 @@ export default function AiReplyDetailPage() {
                   <div>
                     <p className="font-medium text-green-800">送信済み</p>
                     <p className="text-sm text-green-600">
-                      {reply.sentAt?.toLocaleString('ja-JP')}
+                      {formatDate(reply.sentAt)}
                     </p>
                   </div>
                 </div>

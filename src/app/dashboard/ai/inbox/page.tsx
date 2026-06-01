@@ -89,12 +89,13 @@ function AiInboxContent() {
   const canAccess = user && isAiVpOwner(user.email);
 
   const fetchData = useCallback(async (isRefresh = false) => {
-    if (!canAccess || !user?.email) return;
+    if (!canAccess || !firebaseUser) return;
     if (isRefresh) setRefreshing(true);
 
     try {
+      const token = await firebaseUser.getIdToken();
       const res = await fetch('/api/ai-vp/inbox', {
-        headers: { 'X-User-Email': user.email },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!res.ok) {
@@ -111,7 +112,7 @@ function AiInboxContent() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [canAccess, user?.email]);
+  }, [canAccess, firebaseUser]);
 
   useEffect(() => {
     fetchData();

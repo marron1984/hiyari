@@ -1,23 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { isAiVpOwner } from '@/lib/auth';
 import { sendLineWorksMessage } from '@/lib/lineworks';
 import { AiReplyStatus } from '@/types/ai-vp';
-
-// Firebase Admin SDK初期化
-if (getApps().length === 0) {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  if (serviceAccount) {
-    try {
-      initializeApp({
-        credential: cert(JSON.parse(serviceAccount)),
-      });
-    } catch {
-      // Already initialized or error
-    }
-  }
-}
 
 const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || 'default';
 const APP_ENV = process.env.NEXT_PUBLIC_APP_ENV || 'production';
@@ -26,8 +12,6 @@ interface ApprovalRequest {
   decision: 'approve' | 'revise' | 'reject';
   note?: string;
   revisedText?: string;
-  approverId: string;
-  approverName: string;
 }
 
 /**
@@ -47,18 +31,23 @@ export async function POST(
 ) {
   try {
     const { id: replyId } = await params;
-    const userEmail = request.headers.get('X-User-Email');
 
-    // 権限チェック
-    if (!userEmail || !isAiVpOwner(userEmail)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!isAiVpOwner(currentUser.email)) {
       return NextResponse.json(
         { error: 'Unauthorized', message: 'AI VP owner access required' },
-        { status: 401 }
+        { status: 403 }
       );
     }
 
     const body = await request.json() as ApprovalRequest;
-    const { decision, note, revisedText, approverId, approverName } = body;
+    const { decision, note, revisedText } = body;
+    const approverId = currentUser.id;
+    const approverName = currentUser.name;
 
     if (!decision || !['approve', 'revise', 'reject'].includes(decision)) {
       return NextResponse.json(

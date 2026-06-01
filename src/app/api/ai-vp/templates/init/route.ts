@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { initializeAiTemplates, INITIAL_TEMPLATES } from '@/lib/ai-vp-messages';
 import { isAiVpOwner } from '@/lib/auth';
 
@@ -11,19 +12,19 @@ import { isAiVpOwner } from '@/lib/auth';
  */
 export async function POST(request: NextRequest) {
   try {
-    // 認証チェック
-    const authHeader = request.headers.get('Authorization');
-    const userEmail = request.headers.get('X-User-Email');
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
 
-    if (!userEmail || !isAiVpOwner(userEmail)) {
+    if (!isAiVpOwner(currentUser.email)) {
       return NextResponse.json(
         { error: 'Unauthorized', message: 'AI VP owner access required' },
-        { status: 401 }
+        { status: 403 }
       );
     }
 
-    // テンプレート初期化
-    const result = await initializeAiTemplates(userEmail);
+    const result = await initializeAiTemplates(currentUser.email);
 
     return NextResponse.json({
       ok: true,
