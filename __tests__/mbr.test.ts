@@ -45,7 +45,11 @@ function createTicket(overrides: Partial<Ticket>): Ticket {
     relatedType: null,
     relatedId: null,
     location: null,
-    meta: null,
+    metaJson: null,
+    pipeline: null,
+    stage: null,
+    slaDueAt: null,
+    stageChangedAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,
@@ -295,19 +299,19 @@ describe('buildSalesSection', () => {
       createTicket({
         relatedType: 'sales_next_action',
         status: 'closed',
-        meta: { resultCode: 'contacted' },
+        metaJson: { resultCode: 'contacted_success' },
         createdAt: '2025-01-10T00:00:00Z',
       }),
       createTicket({
         relatedType: 'sales_next_action',
         status: 'closed',
-        meta: { resultCode: 'contacted' },
+        metaJson: { resultCode: 'contacted_success' },
         createdAt: '2025-01-11T00:00:00Z',
       }),
       createTicket({
         relatedType: 'sales_next_action',
         status: 'closed',
-        meta: { resultCode: 'not_interested' },
+        metaJson: { resultCode: 'not_interested' },
         createdAt: '2025-01-12T00:00:00Z',
       }),
     ];
@@ -315,7 +319,7 @@ describe('buildSalesSection', () => {
     const result = buildSalesSection(tickets, start, end);
     expect(result.resultDistribution.length).toBe(2);
 
-    const contacted = result.resultDistribution.find((r) => r.code === 'contacted');
+    const contacted = result.resultDistribution.find((r) => r.code === 'contacted_success');
     expect(contacted?.count).toBe(2);
     expect(contacted?.percentage).toBe(67); // 2/3 ≈ 67%
   });

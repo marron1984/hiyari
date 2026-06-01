@@ -68,6 +68,8 @@ function createTestMbr(month: string, focusItems: string[]): Mbr {
         overallCompletionRate: 0,
         blockedTop: [],
         overdueTop: [],
+        blockedTopReasons: [],
+        blockedReasonAdvices: [],
       },
       nextMonthFocus: focusItems,
     },

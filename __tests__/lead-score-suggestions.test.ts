@@ -15,11 +15,11 @@
  */
 
 import { aggregateMetrics, applyPatchPreview } from '../src/lib/sales/buildLeadScoreSuggestions';
-import type { Ticket, SalesResultCode } from '../src/lib/tickets/types';
+import type { Ticket, SalesTaskResultCode } from '../src/lib/tickets/types';
 
 // テスト用チケット生成ヘルパー
 function createSalesTicket(overrides: {
-  resultCode: SalesResultCode;
+  resultCode: SalesTaskResultCode;
   ref?: string;
   stage?: string;
   businessUnitId?: string;
@@ -46,7 +46,11 @@ function createSalesTicket(overrides: {
     relatedType: 'sales_next_action',
     relatedId: null,
     location: null,
-    meta: {
+    pipeline: null,
+    stage: null,
+    slaDueAt: null,
+    stageChangedAt: null,
+    metaJson: {
       resultCode: overrides.resultCode,
       ref: overrides.ref,
       stage: overrides.stage,
@@ -67,7 +71,7 @@ describe('aggregateMetrics', () => {
   it('sales_next_action以外のチケットは除外する', () => {
     const tickets: Ticket[] = [
       {
-        ...createSalesTicket({ resultCode: 'contacted' }),
+        ...createSalesTicket({ resultCode: 'contacted_success' }),
         relatedType: 'ai_vp', // sales_next_actionではない
       },
     ];
@@ -78,7 +82,7 @@ describe('aggregateMetrics', () => {
   it('status=closed以外のチケットは除外する', () => {
     const tickets: Ticket[] = [
       {
-        ...createSalesTicket({ resultCode: 'contacted' }),
+        ...createSalesTicket({ resultCode: 'contacted_success' }),
         status: 'open',
       },
     ];
@@ -88,8 +92,8 @@ describe('aggregateMetrics', () => {
 
   it('resultCode分布を正しく集計する', () => {
     const tickets = [
-      createSalesTicket({ resultCode: 'contacted' }),
-      createSalesTicket({ resultCode: 'contacted' }),
+      createSalesTicket({ resultCode: 'contacted_success' }),
+      createSalesTicket({ resultCode: 'contacted_success' }),
       createSalesTicket({ resultCode: 'tour_scheduled' }),
       createSalesTicket({ resultCode: 'not_interested' }),
       createSalesTicket({ resultCode: 'not_interested' }),
@@ -98,7 +102,7 @@ describe('aggregateMetrics', () => {
     const result = aggregateMetrics(tickets, 30);
     expect(result.totalTickets).toBe(5);
 
-    const contacted = result.resultDistribution.find((d) => d.code === 'contacted');
+    const contacted = result.resultDistribution.find((d) => d.code === 'contacted_success');
     expect(contacted?.count).toBe(2);
     expect(contacted?.percentage).toBe(40);
 
@@ -112,8 +116,8 @@ describe('aggregateMetrics', () => {
     const closedLate = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
 
     const tickets = [
-      createSalesTicket({ resultCode: 'contacted', dueAt: pastDue, closedAt: closedLate }),
-      createSalesTicket({ resultCode: 'contacted' }), // dueAtなし
+      createSalesTicket({ resultCode: 'contacted_success', dueAt: pastDue, closedAt: closedLate }),
+      createSalesTicket({ resultCode: 'contacted_success' }), // dueAtなし
     ];
 
     const result = aggregateMetrics(tickets, 30);
@@ -142,7 +146,7 @@ describe('aggregateMetrics', () => {
     const tickets = [
       createSalesTicket({ resultCode: 'tour_scheduled', stage: 'new' }),
       createSalesTicket({ resultCode: 'not_interested', stage: 'new' }),
-      createSalesTicket({ resultCode: 'contacted', stage: 'new' }),
+      createSalesTicket({ resultCode: 'contacted_success', stage: 'new' }),
     ];
 
     const result = aggregateMetrics(tickets, 30);
@@ -157,8 +161,8 @@ describe('aggregateMetrics', () => {
     const recentDate = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
 
     const tickets = [
-      createSalesTicket({ resultCode: 'contacted', closedAt: oldDate }),
-      createSalesTicket({ resultCode: 'contacted', closedAt: recentDate }),
+      createSalesTicket({ resultCode: 'contacted_success', closedAt: oldDate }),
+      createSalesTicket({ resultCode: 'contacted_success', closedAt: recentDate }),
     ];
 
     const result = aggregateMetrics(tickets, 14);
@@ -203,7 +207,7 @@ describe('applyPatchPreview', () => {
 describe('設定の自動書き換え防止', () => {
   it('aggregateMetricsは設定を変更しない（読み取り専用）', () => {
     const tickets = [
-      createSalesTicket({ resultCode: 'contacted' }),
+      createSalesTicket({ resultCode: 'contacted_success' }),
     ];
     // aggregateMetricsは設定に触れないことを確認
     const result = aggregateMetrics(tickets, 14);
