@@ -39,7 +39,7 @@ const KNOWLEDGE_CATEGORIES: KnowledgeCategory[] = [
     bgColor: 'bg-blue-100',
     items: [
       {
-        title: 'AA.OS.HUB ブランド思想',
+        title: 'DHP.OS.HUB ブランド思想',
         description: '判断は、ひとりで背負わない。責任は、最後まで引き受ける。',
       },
       {

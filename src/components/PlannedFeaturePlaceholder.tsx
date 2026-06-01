@@ -79,7 +79,7 @@ export function PlannedFeaturePlaceholder({
 
         {/* フッター */}
         <p className="text-center text-sm text-zinc-400 mt-6">
-          AA.OS.HUB — 全体を見渡し、一つずつ前へ。
+          DHP.OS.HUB — 全体を見渡し、一つずつ前へ。
         </p>
       </div>
     </main>

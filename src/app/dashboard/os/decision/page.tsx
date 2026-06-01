@@ -286,7 +286,7 @@ export default function DecisionOSPage() {
 
         {/* フッター */}
         <div className="text-center text-sm text-zinc-500">
-          <p>AA.OS.HUB — 判断は、ひとりで背負わない。責任は、最後まで引き受ける。</p>
+          <p>DHP.OS.HUB — 判断は、ひとりで背負わない。責任は、最後まで引き受ける。</p>
         </div>
       </div>
     </main>

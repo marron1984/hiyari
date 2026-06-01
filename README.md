@@ -371,11 +371,11 @@ firebase deploy --only firestore:indexes
 
 MIT License
 
-## AA CHAOS 経営OS・営業OS
+## DHP 経営OS・営業OS
 
 ### 概要
 
-AA CHAOSは経営OS（組織コンディション管理）と営業OS（パイプライン・入居確率管理）を統合したシステムです。
+DHPは経営OS（組織コンディション管理）と営業OS（パイプライン・入居確率管理）を統合したシステムです。
 
 ### 主要機能
 

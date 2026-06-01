@@ -4,9 +4,9 @@ import { isAiVpOwner } from '@/lib/auth';
 import { sendReply, getQuestion, createDecisionLogFromQuestion } from '@/lib/fukusha-ask';
 import type { SendFukushaReplyInput } from '@/types/fukusha-ask';
 
-// 【AA.OS.HUB ブランド思想】
+// 【DHP.OS.HUB ブランド思想】
 // 判断は、ひとりで背負わない。責任は、最後まで引き受ける。
-// AAは、判断と責任のOSである。
+// DHPは、判断と責任のOSである。
 
 const DEFAULT_TENANT_ID = 'defaultTenant';
 
@@ -92,7 +92,7 @@ export async function POST(
     // 判断ログに保存（チェックボックスがONの場合）
     // decision_logs は評価・査定のためのテーブルではない。
     // 判断がどのように行われたかを記録し、
-    // 次の判断を楽にするためのAA.OS.HUBのOS資産である。
+    // 次の判断を楽にするためのDHP.OS.HUBのOS資産である。
     let decisionLogId: string | undefined;
     if (body.saveToDecisionLog) {
       const decisionLog = await createDecisionLogFromQuestion(

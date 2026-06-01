@@ -245,7 +245,7 @@ export default function OSMapPage() {
 
           {/* フッター */}
           <div className="mt-12 text-center text-sm text-zinc-400">
-            <p>AA.OS.HUB — 全体を見渡し、一つずつ前へ。</p>
+            <p>DHP.OS.HUB — 全体を見渡し、一つずつ前へ。</p>
           </div>
         </div>
       </main>

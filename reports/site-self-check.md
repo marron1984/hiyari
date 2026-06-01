@@ -1,4 +1,4 @@
-# AA-HUB サイト自己チェックレポート
+# DHPハブ サイト自己チェックレポート
 
 **生成日**: 2026-02-08
 **ブランチ**: `claude/hiyari-attendance-continue-PSEge`
