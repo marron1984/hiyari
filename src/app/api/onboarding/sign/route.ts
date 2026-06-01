@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import type { AppRole } from '@/config/appRoles';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   getUserOnboarding,
   initializeUserOnboarding,
@@ -26,15 +26,13 @@ import { triggerPostCompleteIfNeeded } from '@/lib/onboarding/postComplete';
 import { getUserById } from '@/lib/roles/user-store';
 import type { SignDocumentRequest } from '@/lib/onboarding/types';
 
-// デモユーザー情報
-const DEMO_USER = {
-  id: 'user_005',  // staff ユーザー
-  name: '佐藤 健二',
-  role: 'staff' as AppRole,
-};
-
 export async function POST(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const body = await request.json() as SignDocumentRequest;
     const { documentId, documentVersionId, subjectName } = body;
 
@@ -54,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 実際の実装ではセッションからユーザーIDを取得
-    const userId = DEMO_USER.id;
+    const userId = currentUser.id;
 
     // ユーザー情報を取得
     const user = getUserById(userId);

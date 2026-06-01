@@ -5,12 +5,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getById, markPaid } from '@/lib/receivables/repo';
 import { canEditReceivables } from '@/lib/receivables/types';
 import type { ViewerContext } from '@/lib/receivables/types';
 
 // デモユーザー
-const DEMO_VIEWER: ViewerContext = {
+const currentUser: ViewerContext = {
   userId: 'user_manager',
   role: 'manager',
 };
@@ -20,8 +21,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック
-    if (!canEditReceivables(DEMO_VIEWER.role)) {
+    if (!canEditReceivables(currentUser.role)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -40,7 +46,7 @@ export async function POST(
       );
     }
 
-    const existing = getById(id, DEMO_VIEWER);
+    const existing = getById(id, currentUser);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -48,7 +54,7 @@ export async function POST(
       );
     }
 
-    const receivable = markPaid(id, paidAt, DEMO_VIEWER.userId);
+    const receivable = markPaid(id, paidAt, currentUser.id);
 
     return NextResponse.json({ receivable });
   } catch (error) {

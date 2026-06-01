@@ -10,25 +10,23 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getVacancyInquiryStats } from '@/lib/tickets/repo';
 import type { ViewerContext } from '@/lib/tickets/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const businessUnitId = searchParams.get('businessUnitId');
 
     const viewer: ViewerContext = {
-      userId: DEMO_USER.id,
-      role: DEMO_USER.role,
+      userId: currentUser.id,
+      role: currentUser.role,
     };
 
     const stats = getVacancyInquiryStats(viewer, {

@@ -102,6 +102,33 @@ export async function verifyIdToken(idToken: string): Promise<DecodedIdToken | n
   }
 }
 
+/**
+ * リクエストからBearerトークンを検証し、ユーザー情報を返す共通ヘルパー
+ */
+export async function authenticateRequest(
+  request: { headers: { get(name: string): string | null } }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<{ id: string; userId: string; name: string; email: string; role: any; branchId: string } | null> {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+
+  const decodedToken = await verifyIdToken(authHeader.substring(7));
+  if (!decodedToken) return null;
+
+  const userDoc = await getAdminDb().collection('users').doc(decodedToken.uid).get();
+  const userData = userDoc.data();
+
+  const uid = decodedToken.uid;
+  return {
+    id: uid,
+    userId: uid,
+    name: userData?.name || userData?.displayName || decodedToken.email || 'Unknown',
+    email: decodedToken.email || '',
+    role: userData?.role || 'user',
+    branchId: userData?.branchId || 'default',
+  };
+}
+
 // Alias exports for convenience
 export const adminDb = getAdminDb;
 export const adminAuth = getAdminAuth;

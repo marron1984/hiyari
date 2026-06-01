@@ -17,21 +17,19 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import type { AppRole } from '@/config/appRoles';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { canAccessAuditView, type AuditSource, type AuditSeverity } from '@/lib/audit/types';
 import { queryAuditLogs } from '@/lib/audit/query';
 
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_admin',
-  name: '管理者',
-  role: 'admin' as AppRole,
-};
-
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // RBAC: admin/auditor のみアクセス可
-    if (!canAccessAuditView(DEMO_USER.role)) {
+    if (!canAccessAuditView(currentUser.role)) {
       return NextResponse.json(
         { error: 'アクセス権限がありません' },
         { status: 403 }

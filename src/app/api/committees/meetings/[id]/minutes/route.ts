@@ -6,20 +6,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getMinutes, upsertMinutes } from '@/lib/committees/repo';
 import { canManageCommittees } from '@/lib/committees/types';
-
-// デモ用ユーザー
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
     const minutes = getMinutes(id);
 
@@ -41,7 +41,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canManageCommittees(DEMO_USER)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canManageCommittees(currentUser)) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -62,7 +67,7 @@ export async function POST(
     const result = upsertMinutes(
       id,
       { summary, discussion, decisions, risks },
-      DEMO_USER.userId
+      currentUser.id
     );
 
     if (!result.success) {

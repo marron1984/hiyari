@@ -10,21 +10,19 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { listRules, createRule, seedSpamRulesIfEmpty } from '@/lib/spam/repo';
 import { canManageSpamRules } from '@/lib/spam/types';
 import type { SpamRuleType, SpamSeverity } from '@/lib/spam/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 export async function GET(request: NextRequest) {
   try {
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     if (!canManageSpamRules(viewer)) {
       return NextResponse.json(
         { error: 'スパムルールを管理する権限がありません' },
@@ -48,7 +46,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     if (!canManageSpamRules(viewer)) {
       return NextResponse.json(
         { error: 'スパムルールを管理する権限がありません' },

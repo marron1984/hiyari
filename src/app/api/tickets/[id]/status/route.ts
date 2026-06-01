@@ -5,16 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { changeTicketStatus } from '@/lib/tickets/repo';
-import type { AppRole } from '@/config/appRoles';
 import type { TicketStatus } from '@/lib/tickets/types';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 const VALID_STATUSES: TicketStatus[] = [
   'open',
@@ -30,6 +23,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await request.json();
     const { status } = body;
@@ -41,7 +39,7 @@ export async function POST(
       );
     }
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     const result = changeTicketStatus(id, status, viewer);
 
     if (!result.success) {

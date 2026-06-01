@@ -6,12 +6,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getById, updateContact } from '@/lib/keyPerson/repo';
 import { canViewKeyPerson, canEditKeyPerson } from '@/lib/keyPerson/types';
 import type { UpdateKeyPersonRequest, ViewerContext } from '@/lib/keyPerson/types';
 
 // デモユーザー
-const DEMO_VIEWER: ViewerContext = {
+const currentUser: ViewerContext = {
   userId: 'user_manager',
   role: 'manager',
 };
@@ -21,8 +22,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック
-    if (!canViewKeyPerson(DEMO_VIEWER.role)) {
+    if (!canViewKeyPerson(currentUser.role)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -30,7 +36,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const contact = getById(id, DEMO_VIEWER);
+    const contact = getById(id, currentUser);
 
     if (!contact) {
       return NextResponse.json(
@@ -54,8 +60,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック
-    if (!canEditKeyPerson(DEMO_VIEWER.role)) {
+    if (!canEditKeyPerson(currentUser.role)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -63,7 +74,7 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const contact = getById(id, DEMO_VIEWER);
+    const contact = getById(id, currentUser);
 
     if (!contact) {
       return NextResponse.json(
@@ -89,7 +100,7 @@ export async function PATCH(
     if (body.isEmergency !== undefined) updateRequest.isEmergency = body.isEmergency;
     if (body.consentStatus !== undefined) updateRequest.consentStatus = body.consentStatus;
 
-    const updated = updateContact(id, updateRequest, DEMO_VIEWER.userId);
+    const updated = updateContact(id, updateRequest, currentUser.id);
 
     return NextResponse.json({ contact: updated });
   } catch (error) {

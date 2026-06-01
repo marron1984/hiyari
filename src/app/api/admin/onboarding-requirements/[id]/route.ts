@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   getRequirementById,
   updateRequirement,
@@ -16,12 +17,6 @@ import {
 } from '@/lib/onboarding/repo';
 import type { UpdateOnboardingRequirementRequest } from '@/lib/onboarding/types';
 import { canManageOnboardingRequirements } from '@/lib/onboarding/types';
-
-// デモユーザー情報（実際の実装ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_001',
-  role: 'admin' as const,
-};
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -31,12 +26,17 @@ interface RouteParams {
  * GET - 要件を取得
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // RBAC チェック
-    if (!canManageOnboardingRequirements(DEMO_USER.role)) {
+    if (!canManageOnboardingRequirements(currentUser.role)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }
@@ -73,8 +73,13 @@ export async function PUT(
   { params }: RouteParams
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // RBAC チェック
-    if (!canManageOnboardingRequirements(DEMO_USER.role)) {
+    if (!canManageOnboardingRequirements(currentUser.role)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }
@@ -105,7 +110,7 @@ export async function PUT(
 
     const requirement = updateRequirement(id, {
       ...body,
-      actorUserId: DEMO_USER.id,
+      actorUserId: currentUser.id,
     });
 
     return NextResponse.json({
@@ -126,12 +131,17 @@ export async function PUT(
  * DELETE - 要件を削除
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // RBAC チェック
-    if (!canManageOnboardingRequirements(DEMO_USER.role)) {
+    if (!canManageOnboardingRequirements(currentUser.role)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }

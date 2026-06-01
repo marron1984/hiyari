@@ -5,18 +5,19 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { changeActionStatus } from '@/lib/complaints/repo';
-
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ actionId: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { actionId } = await params;
     const body = await request.json();
     const { status } = body;
@@ -28,7 +29,7 @@ export async function POST(
       );
     }
 
-    const result = changeActionStatus(actionId, status, DEMO_USER.userId);
+    const result = changeActionStatus(actionId, status, currentUser.id);
 
     if (!result.success) {
       return NextResponse.json(

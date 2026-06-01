@@ -6,21 +6,22 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getComplaintById, listActions, createAction } from '@/lib/complaints/repo';
 import { canManageComplaints } from '@/lib/complaints/types';
-
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
-    const complaint = getComplaintById(id, DEMO_USER);
+    const complaint = getComplaintById(id, currentUser);
 
     if (!complaint) {
       return NextResponse.json(
@@ -49,7 +50,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canManageComplaints(DEMO_USER)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canManageComplaints(currentUser)) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -67,7 +73,7 @@ export async function POST(
       );
     }
 
-    const result = createAction(id, { title, ownerUserId, dueAt }, DEMO_USER.userId);
+    const result = createAction(id, { title, ownerUserId, dueAt }, currentUser.id);
 
     if (!result.success) {
       return NextResponse.json(

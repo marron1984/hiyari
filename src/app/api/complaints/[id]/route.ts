@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   getComplaintById,
   updateComplaint,
@@ -15,19 +16,18 @@ import {
 } from '@/lib/complaints/repo';
 import { canEditComplaint } from '@/lib/complaints/types';
 
-// デモ用ユーザー
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
-    const complaint = getComplaintById(id, DEMO_USER);
+    const complaint = getComplaintById(id, currentUser);
 
     if (!complaint) {
       return NextResponse.json(
@@ -61,8 +61,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
-    const complaint = getComplaintById(id, DEMO_USER);
+    const complaint = getComplaintById(id, currentUser);
 
     if (!complaint) {
       return NextResponse.json(
@@ -71,7 +76,7 @@ export async function PATCH(
       );
     }
 
-    if (!canEditComplaint(DEMO_USER, complaint)) {
+    if (!canEditComplaint(currentUser, complaint)) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -79,7 +84,7 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const result = updateComplaint(id, body, DEMO_USER.userId);
+    const result = updateComplaint(id, body, currentUser.id);
 
     if (!result.success) {
       return NextResponse.json(

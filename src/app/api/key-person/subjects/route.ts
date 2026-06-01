@@ -4,21 +4,27 @@
  * GET /api/key-person/subjects
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getSubjectsWithContacts } from '@/lib/keyPerson/repo';
 import { canViewKeyPerson } from '@/lib/keyPerson/types';
 import type { ViewerContext } from '@/lib/keyPerson/types';
 
 // デモユーザー
-const DEMO_VIEWER: ViewerContext = {
+const currentUser: ViewerContext = {
   userId: 'user_manager',
   role: 'manager',
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック
-    if (!canViewKeyPerson(DEMO_VIEWER.role)) {
+    if (!canViewKeyPerson(currentUser.role)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }

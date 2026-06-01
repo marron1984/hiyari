@@ -6,19 +6,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { listTemplates, createTemplate } from '@/lib/collection/repo';
 import { canViewCollectionFlow, canManageTemplates } from '@/lib/collection/types';
 import type { ViewerContext } from '@/lib/collection/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
 export async function GET(request: NextRequest) {
   try {
-    if (!canViewCollectionFlow(DEMO_VIEWER.role)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canViewCollectionFlow(currentUser.role)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -28,7 +27,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('activeOnly') === 'true';
 
-    const templates = listTemplates(DEMO_VIEWER, activeOnly);
+    const templates = listTemplates(currentUser, activeOnly);
 
     return NextResponse.json({ templates });
   } catch (error) {
@@ -42,7 +41,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    if (!canManageTemplates(DEMO_VIEWER.role)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canManageTemplates(currentUser.role)) {
       return NextResponse.json(
         { error: '作成権限がありません' },
         { status: 403 }
@@ -61,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     const template = createTemplate(
       { name, subjectType, description },
-      DEMO_VIEWER.userId
+      currentUser.id
     );
 
     return NextResponse.json({ template }, { status: 201 });

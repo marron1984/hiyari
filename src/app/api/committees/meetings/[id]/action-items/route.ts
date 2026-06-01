@@ -5,21 +5,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { createActionItem } from '@/lib/committees/repo';
 import { canManageCommittees } from '@/lib/committees/types';
-
-// デモ用ユーザー
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canManageCommittees(DEMO_USER)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canManageCommittees(currentUser)) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -40,7 +40,7 @@ export async function POST(
     const result = createActionItem(
       id,
       { title, description, ownerUserId, ownerRole, dueAt },
-      DEMO_USER.userId
+      currentUser.id
     );
 
     if (!result.success) {

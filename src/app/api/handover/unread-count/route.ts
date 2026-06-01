@@ -4,20 +4,18 @@
  * GET /api/handover/unread-count
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { countUnreadHandoverItems } from '@/lib/handover/repo';
-import type { AppRole } from '@/config/appRoles';
 
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const count = countUnreadHandoverItems(DEMO_USER.role, DEMO_USER.id);
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    const count = countUnreadHandoverItems(currentUser.role, currentUser.id);
 
     return NextResponse.json({ unreadCount: count });
   } catch (error) {

@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   getTemplateById,
   updateTemplate,
@@ -13,19 +14,17 @@ import {
 } from '@/lib/collection/repo';
 import { canViewCollectionFlow, canManageTemplates } from '@/lib/collection/types';
 import type { ViewerContext } from '@/lib/collection/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canViewCollectionFlow(DEMO_VIEWER.role)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canViewCollectionFlow(currentUser.role)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -59,7 +58,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canManageTemplates(DEMO_VIEWER.role)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canManageTemplates(currentUser.role)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -73,7 +77,7 @@ export async function PATCH(
     const template = updateTemplate(
       id,
       { name, subjectType, description, isActive },
-      DEMO_VIEWER.userId
+      currentUser.id
     );
 
     if (!template) {

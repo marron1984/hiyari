@@ -5,19 +5,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { assignFlow } from '@/lib/collection/repo';
 import { canAssignFlow } from '@/lib/collection/types';
 import type { ViewerContext } from '@/lib/collection/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
 export async function POST(request: NextRequest) {
   try {
-    if (!canAssignFlow(DEMO_VIEWER.role)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canAssignFlow(currentUser.role)) {
       return NextResponse.json(
         { error: '割当権限がありません' },
         { status: 403 }
@@ -37,7 +36,7 @@ export async function POST(request: NextRequest) {
     const assignment = assignFlow(
       receivableId,
       templateId,
-      DEMO_VIEWER.userId,
+      currentUser.id,
       baseDate
     );
 

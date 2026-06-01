@@ -7,25 +7,23 @@
  * GET /api/onboarding/status - 現在のユーザーのオンボーディング状態を取得
  */
 
-import { NextResponse } from 'next/server';
-import type { AppRole } from '@/config/appRoles';
+import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   syncOnboardingForUser,
   getCurrentRequirementsVersion,
 } from '@/lib/onboarding/repo';
 import { getUserById } from '@/lib/roles/user-store';
 
-// デモユーザー情報
-const DEMO_USER = {
-  id: 'user_005',  // staff ユーザー
-  name: '佐藤 健二',
-  role: 'staff' as AppRole,
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 実際の実装ではセッションからユーザーIDを取得
-    const userId = DEMO_USER.id;
+    const userId = currentUser.id;
 
     // ユーザー情報を取得
     const user = getUserById(userId);

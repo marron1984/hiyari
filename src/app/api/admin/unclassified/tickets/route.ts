@@ -6,20 +6,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { listUnclassifiedTickets } from '@/lib/admin/unclassified/repo';
 import { canAccessUnclassified } from '@/lib/admin/unclassified/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー
-const DEMO_USER = {
-  id: 'user_manager',
-  name: '田中管理者',
-  role: 'manager' as AppRole,
-};
 
 export async function GET(request: NextRequest) {
-  // 権限チェック
-  if (!canAccessUnclassified(DEMO_USER.role)) {
+  
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+// 権限チェック
+  if (!canAccessUnclassified(currentUser.role)) {
     return NextResponse.json({ error: 'アクセス権限がありません' }, { status: 403 });
   }
 

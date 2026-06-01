@@ -6,12 +6,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getFamilyLogById, updateFamilyLog } from '@/lib/familyLog/repo';
 import { canEditFamilyLog } from '@/lib/familyLog/types';
 import type { UpdateFamilyLogRequest, ViewerContext } from '@/lib/familyLog/types';
 
 // デモユーザー
-const DEMO_VIEWER: ViewerContext = {
+const currentUser: ViewerContext = {
   userId: 'user_manager',
   role: 'manager',
 };
@@ -21,8 +22,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
-    const log = getFamilyLogById(id, DEMO_VIEWER);
+    const log = getFamilyLogById(id, currentUser);
 
     if (!log) {
       return NextResponse.json(
@@ -46,8 +52,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
-    const log = getFamilyLogById(id, DEMO_VIEWER);
+    const log = getFamilyLogById(id, currentUser);
 
     if (!log) {
       return NextResponse.json(
@@ -57,7 +68,7 @@ export async function PATCH(
     }
 
     // 権限チェック
-    if (!canEditFamilyLog(log, DEMO_VIEWER)) {
+    if (!canEditFamilyLog(log, currentUser)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -80,7 +91,7 @@ export async function PATCH(
     if (body.relatedType !== undefined) updateRequest.relatedType = body.relatedType;
     if (body.relatedId !== undefined) updateRequest.relatedId = body.relatedId;
 
-    const updated = updateFamilyLog(id, updateRequest, DEMO_VIEWER.userId);
+    const updated = updateFamilyLog(id, updateRequest, currentUser.id);
 
     return NextResponse.json({ log: updated });
   } catch (error) {

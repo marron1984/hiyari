@@ -6,23 +6,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   listHandoverItems,
   createHandoverItem,
 } from '@/lib/handover/repo';
 import { createAlert } from '@/lib/alerts/repo';
-import type { AppRole } from '@/config/appRoles';
 import type { HandoverStatus, HandoverPriority, HandoverShift } from '@/lib/handover/types';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
 
     const status = searchParams.get('status') as HandoverStatus | null;
@@ -47,7 +45,7 @@ export async function GET(request: NextRequest) {
       offset: offsetParam ? parseInt(offsetParam, 10) : 0,
     };
 
-    const { items, total } = listHandoverItems(filter, DEMO_USER.role, DEMO_USER.id);
+    const { items, total } = listHandoverItems(filter, currentUser.role, currentUser.id);
 
     return NextResponse.json({
       items,
@@ -66,6 +64,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const body = await request.json();
 
     const { title, body: itemBody, priority, targetRoles, targetUserIds, dueAt, shift, tags } = body;
@@ -88,8 +91,8 @@ export async function POST(request: NextRequest) {
         shift,
         tags,
       },
-      DEMO_USER.id,
-      DEMO_USER.name
+      currentUser.id,
+      currentUser.name
     );
 
     // urgentの場合はアラートセンターに通知
@@ -103,7 +106,7 @@ export async function POST(request: NextRequest) {
         fingerprint: `handover_urgent:${item.id}`,
         meta: {
           handoverId: item.id,
-          createdBy: DEMO_USER.name,
+          createdBy: currentUser.name,
           url: `/dashboard/handover/${item.id}`,
         },
       });

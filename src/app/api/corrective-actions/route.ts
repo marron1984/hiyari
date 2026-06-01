@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   listCorrectiveActions,
   create,
@@ -25,15 +26,13 @@ import { processStaffCreation, requiresInference } from '@/lib/scope/inferBusine
 import { getTicketById } from '@/lib/tickets/repo';
 import { getRepairById } from '@/lib/repairs/repo';
 
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
-
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
 
     // Task 030: businessUnitId フィルタ
@@ -51,7 +50,7 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined;
     const offset = searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     const result = listCorrectiveActions(viewer, {
       businessUnitId,
       status: status ?? undefined,
@@ -78,6 +77,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const body = await request.json();
 
     const {
@@ -101,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Task 033: ガードレール検証（manager/leader は businessUnitId 必須）
-    const guardrailResult = validateApiGuardrail(DEMO_USER.role, 'correctiveActions', { businessUnitId });
+    const guardrailResult = validateApiGuardrail(currentUser.role, 'correctiveActions', { businessUnitId });
     if (!guardrailResult.valid) {
       return NextResponse.json(
         { error: guardrailResult.error },
@@ -111,7 +115,7 @@ export async function POST(request: NextRequest) {
 
     // Task 035: staff 向け businessUnitId 自動推定（source継承対応）
     let finalBusinessUnitId = businessUnitId;
-    if (requiresInference(DEMO_USER.role)) {
+    if (requiresInference(currentUser.role)) {
       // sourceからbusinessUnitIdを継承
       let sourceBusinessUnitId: string | null = null;
       if (sourceType && sourceId) {
@@ -130,8 +134,8 @@ export async function POST(request: NextRequest) {
       }
 
       const inferResult = processStaffCreation(
-        DEMO_USER.id,
-        DEMO_USER.role,
+        currentUser.id,
+        currentUser.role,
         'correctiveActions',
         businessUnitId,
         { sourceBusinessUnitId }  // ヒント: source継承
@@ -164,7 +168,7 @@ export async function POST(request: NextRequest) {
         ownerUserId,
         dueAt,
       },
-      DEMO_USER.id
+      currentUser.id
     );
 
     return NextResponse.json({ success: true, item: ca }, { status: 201 });

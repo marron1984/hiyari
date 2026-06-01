@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import type { AppRole } from '@/config/appRoles';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   getDocumentVersion,
   findPreviousSignedVersion,
@@ -22,13 +22,6 @@ import {
   logOnboardingEvent,
 } from '@/lib/onboarding/repo';
 import { getUserById } from '@/lib/roles/user-store';
-
-// デモユーザー情報
-const DEMO_USER = {
-  id: 'user_005',  // staff ユーザー
-  name: '佐藤 健二',
-  role: 'staff' as AppRole,
-};
 
 /**
  * 差分レスポンス
@@ -52,6 +45,11 @@ interface DiffResponse {
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const documentVersionId = searchParams.get('documentVersionId');
     const logView = searchParams.get('logView') === 'true';
@@ -64,7 +62,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ユーザー情報を取得
-    const userId = DEMO_USER.id;
+    const userId = currentUser.id;
     const user = getUserById(userId);
     if (!user) {
       return NextResponse.json(

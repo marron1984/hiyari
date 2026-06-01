@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   getAssignmentByReceivableId,
   getStepLogsByReceivable,
@@ -15,19 +16,17 @@ import {
 } from '@/lib/collection/repo';
 import { canViewCollectionFlow } from '@/lib/collection/types';
 import type { ViewerContext } from '@/lib/collection/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ receivableId: string }> }
 ) {
   try {
-    if (!canViewCollectionFlow(DEMO_VIEWER.role)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canViewCollectionFlow(currentUser.role)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -70,12 +69,17 @@ export async function POST(
   { params }: { params: Promise<{ receivableId: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { receivableId } = await params;
     const body = await request.json();
     const { action } = body;
 
     if (action === 'pause') {
-      const assignment = pauseAssignment(receivableId, DEMO_VIEWER.userId);
+      const assignment = pauseAssignment(receivableId, currentUser.id);
       if (!assignment) {
         return NextResponse.json(
           { error: '一時停止に失敗しました' },
@@ -86,7 +90,7 @@ export async function POST(
     }
 
     if (action === 'resume') {
-      const assignment = resumeAssignment(receivableId, DEMO_VIEWER.userId);
+      const assignment = resumeAssignment(receivableId, currentUser.id);
       if (!assignment) {
         return NextResponse.json(
           { error: '再開に失敗しました' },

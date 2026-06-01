@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { listFamilyLogs, createFamilyLog } from '@/lib/familyLog/repo';
 import type {
   ListFamilyLogsOptions,
@@ -18,13 +19,18 @@ import type {
 } from '@/lib/familyLog/types';
 
 // デモユーザー
-const DEMO_VIEWER: ViewerContext = {
+const currentUser: ViewerContext = {
   userId: 'user_manager',
   role: 'manager',
 };
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
 
     const options: ListFamilyLogsOptions = {};
@@ -62,7 +68,7 @@ export async function GET(request: NextRequest) {
     const offset = searchParams.get('offset');
     if (offset) options.offset = parseInt(offset, 10);
 
-    const { logs, total } = listFamilyLogs(DEMO_VIEWER, options);
+    const { logs, total } = listFamilyLogs(currentUser, options);
 
     return NextResponse.json({ logs, total });
   } catch (error) {
@@ -76,6 +82,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const body = await request.json();
 
     const createRequest: CreateFamilyLogRequest = {
@@ -101,7 +112,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const log = createFamilyLog(createRequest, DEMO_VIEWER.userId);
+    const log = createFamilyLog(createRequest, currentUser.id);
 
     return NextResponse.json({ log }, { status: 201 });
   } catch (error) {

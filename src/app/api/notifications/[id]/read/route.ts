@@ -6,25 +6,23 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { markRead, getById } from '@/lib/notifications/repo';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_manager',
-  name: '田中管理者',
-  role: 'manager' as AppRole,
-};
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: RouteParams
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
 
     if (!id) {
@@ -44,7 +42,7 @@ export async function POST(
     }
 
     // 既読にする
-    const result = markRead(id, DEMO_USER.id);
+    const result = markRead(id, currentUser.id);
 
     if (!result.success) {
       return NextResponse.json(

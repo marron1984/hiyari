@@ -6,12 +6,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getById, getActions, addAction } from '@/lib/receivables/repo';
 import { canViewReceivables, canEditReceivables } from '@/lib/receivables/types';
 import type { ViewerContext, ReceivableActionType, ReceivableActionOutcome } from '@/lib/receivables/types';
 
 // デモユーザー
-const DEMO_VIEWER: ViewerContext = {
+const currentUser: ViewerContext = {
   userId: 'user_manager',
   role: 'manager',
 };
@@ -21,8 +22,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック
-    if (!canViewReceivables(DEMO_VIEWER.role)) {
+    if (!canViewReceivables(currentUser.role)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -35,7 +41,7 @@ export async function GET(
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 
-    const existing = getById(id, DEMO_VIEWER);
+    const existing = getById(id, currentUser);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -60,8 +66,13 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック
-    if (!canEditReceivables(DEMO_VIEWER.role)) {
+    if (!canEditReceivables(currentUser.role)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -98,7 +109,7 @@ export async function POST(
       );
     }
 
-    const existing = getById(id, DEMO_VIEWER);
+    const existing = getById(id, currentUser);
     if (!existing) {
       return NextResponse.json(
         { error: '未収が見つかりません' },
@@ -118,7 +129,7 @@ export async function POST(
         amountPaid,
         nextActionAt,
       },
-      DEMO_VIEWER.userId
+      currentUser.id
     );
 
     if (!action) {

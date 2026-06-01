@@ -5,22 +5,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { createStep, getTemplateById, reorderSteps } from '@/lib/collection/repo';
 import { canManageTemplates } from '@/lib/collection/types';
 import type { ViewerContext, CollectionActionType, ExpectedOutcome, StepSeverity } from '@/lib/collection/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canManageTemplates(DEMO_VIEWER.role)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canManageTemplates(currentUser.role)) {
       return NextResponse.json(
         { error: '作成権限がありません' },
         { status: 403 }
@@ -41,7 +40,7 @@ export async function POST(
 
     // reorder の場合
     if (body.orderedStepIds) {
-      const success = reorderSteps(id, body.orderedStepIds, DEMO_VIEWER.userId);
+      const success = reorderSteps(id, body.orderedStepIds, currentUser.id);
       if (success) {
         return NextResponse.json({ success: true });
       } else {
@@ -71,7 +70,7 @@ export async function POST(
         expectedOutcome: expectedOutcome as ExpectedOutcome,
         severity: severity as StepSeverity,
       },
-      DEMO_VIEWER.userId
+      currentUser.id
     );
 
     return NextResponse.json({ step }, { status: 201 });

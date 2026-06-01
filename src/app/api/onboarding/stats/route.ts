@@ -11,16 +11,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import type { AppRole } from '@/config/appRoles';
 import { computeOnboardingStats, getManagerScopeOrgUnitIds } from '@/lib/onboarding/stats';
 import { getUserFollowupTicket } from '@/lib/onboarding/escalation';
 import { getUserById } from '@/lib/roles/user-store';
-
-// デモユーザー情報（実際はセッションから取得）
-const DEMO_USER = {
-  id: 'user_001',  // admin ユーザー
-  role: 'admin' as AppRole,
-};
 
 /**
  * admin/manager のみアクセス可能か判定
@@ -31,14 +26,19 @@ function canAccessOnboardingStats(role: AppRole): boolean {
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 実際の実装ではセッションからユーザーIDを取得
     // クエリパラメータで切り替え可能（デモ用）
     const { searchParams } = new URL(request.url);
     const demoRole = searchParams.get('role') as AppRole | null;
     const demoUserId = searchParams.get('userId');
 
-    let userId = demoUserId ?? DEMO_USER.id;
-    let role = demoRole ?? DEMO_USER.role;
+    let userId = demoUserId ?? currentUser.id;
+    let role = demoRole ?? currentUser.role;
 
     // ユーザー情報を取得
     const user = getUserById(userId);

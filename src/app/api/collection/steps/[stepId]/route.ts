@@ -5,22 +5,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getStepById, updateStep } from '@/lib/collection/repo';
 import { canManageTemplates } from '@/lib/collection/types';
 import type { ViewerContext } from '@/lib/collection/types';
-
-// デモユーザー
-const DEMO_VIEWER: ViewerContext = {
-  userId: 'user_manager',
-  role: 'manager',
-};
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ stepId: string }> }
 ) {
   try {
-    if (!canManageTemplates(DEMO_VIEWER.role)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canManageTemplates(currentUser.role)) {
       return NextResponse.json(
         { error: '編集権限がありません' },
         { status: 403 }
@@ -43,7 +42,7 @@ export async function PATCH(
     const step = updateStep(
       stepId,
       { actionType, dueDaysAfterPrevious, messageTemplate, expectedOutcome, severity, isActive },
-      DEMO_VIEWER.userId
+      currentUser.id
     );
 
     if (!step) {

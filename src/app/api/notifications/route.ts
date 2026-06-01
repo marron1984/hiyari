@@ -7,18 +7,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { listByRole, getUnreadCountByRole } from '@/lib/notifications/repo';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_manager',
-  name: '田中管理者',
-  role: 'manager' as AppRole,
-};
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
 
     const statusParam = searchParams.get('status');
@@ -31,7 +29,7 @@ export async function GET(request: NextRequest) {
                    statusParam === 'unread' ? 'unread' :
                    statusParam === 'dismissed' ? 'dismissed' : 'all';
 
-    const { items, total, unreadCount } = listByRole(DEMO_USER.role, {
+    const { items, total, unreadCount } = listByRole(currentUser.role, {
       status: status as 'unread' | 'read' | 'all',
       type: typeParam as any,
       limit: limitParam ? parseInt(limitParam, 10) : 50,

@@ -9,6 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   listVacancyUnits,
   createVacancyUnit,
@@ -17,21 +18,18 @@ import {
 import { canViewVacancyUnits, canManageVacancyUnits } from '@/lib/vacancyUnits/types';
 import { revalidateVacanciesForBusinessUnit } from '@/lib/cache/vacancyTags';
 import type { VacancyUnitStatus } from '@/lib/vacancyUnits/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // シードデータ初期化
     seedVacancyUnitsIfEmpty();
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     if (!canViewVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '権限がありません' },
@@ -80,7 +78,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     if (!canManageVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '空室ユニットを作成する権限がありません' },
@@ -137,8 +140,8 @@ export async function POST(request: NextRequest) {
         priceRangeJson,
         status,
       },
-      DEMO_USER.id,
-      DEMO_USER.name
+      currentUser.id,
+      currentUser.name
     );
 
     // Ticket 076: 公開キャッシュを無効化

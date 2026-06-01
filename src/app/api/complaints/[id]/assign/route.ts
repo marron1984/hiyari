@@ -5,20 +5,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getComplaintById, assignComplaint } from '@/lib/complaints/repo';
 import { canManageComplaints } from '@/lib/complaints/types';
-
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!canManageComplaints(DEMO_USER)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canManageComplaints(currentUser)) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
@@ -29,7 +30,7 @@ export async function POST(
     const body = await request.json();
     const { assigneeUserId } = body;
 
-    const result = assignComplaint(id, assigneeUserId, DEMO_USER.userId);
+    const result = assignComplaint(id, assigneeUserId, currentUser.id);
 
     if (!result.success) {
       return NextResponse.json(

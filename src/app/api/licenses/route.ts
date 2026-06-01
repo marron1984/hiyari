@@ -7,27 +7,24 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { listLicenses, listLicenseTypes } from '@/lib/licenses/repo';
 import type { LicenseListFilters, ViewerContext, LicenseCategoryType, UserLicenseStatus } from '@/lib/licenses/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-  orgUnitIds: ['org_higashi', 'org_nishi'],  // マネージャーの管轄組織
-};
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
 
     // Viewer context
     const viewer: ViewerContext = {
-      userId: DEMO_USER.id,
-      role: DEMO_USER.role,
-      orgUnitIds: DEMO_USER.orgUnitIds,
+      userId: currentUser.id,
+      role: currentUser.role,
+      orgUnitIds: [],
     };
 
     // フィルタ構築
@@ -93,8 +90,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST() {
-  // 資格の新規作成は別途実装（管理者機能）
+export async function POST(request: NextRequest) {
+  
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+// 資格の新規作成は別途実装（管理者機能）
   return NextResponse.json(
     { error: '未実装' },
     { status: 501 }

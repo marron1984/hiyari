@@ -16,17 +16,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { markAsAccepted } from '@/lib/tickets/repo';
 import { createSuggestionForAcceptedInquiry } from '@/lib/vacancySuggestions/repo';
 import type { ViewerContext } from '@/lib/tickets/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 interface RouteParams {
   params: Promise<{ ticketId: string }>;
@@ -34,14 +27,19 @@ interface RouteParams {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { ticketId } = await params;
 
     const body = await request.json();
     const { vacancyUnitId, acceptedNote } = body;
 
     const viewer: ViewerContext = {
-      userId: DEMO_USER.id,
-      role: DEMO_USER.role,
+      userId: currentUser.id,
+      role: currentUser.role,
     };
 
     const result = markAsAccepted(

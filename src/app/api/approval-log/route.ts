@@ -7,19 +7,17 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { listApprovalLogs, type ApprovalLogFilter } from '@/lib/approvals/logRepo';
-import type { AppRole } from '@/config/appRoles';
 import type { RequestType, RequestStatus, ActionType } from '@/lib/approvals/types';
-
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_006',
-  name: '山田マネージャー',
-  role: 'manager' as AppRole,
-};
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
 
     // クエリパラメータからフィルタを構築
@@ -82,7 +80,7 @@ export async function GET(request: NextRequest) {
     filter.offset = offsetParam ? parseInt(offsetParam, 10) : 0;
 
     // ログ取得（RBAC適用）
-    const result = listApprovalLogs(filter, DEMO_USER.role, DEMO_USER.id);
+    const result = listApprovalLogs(filter, currentUser.role, currentUser.id);
 
     return NextResponse.json({
       items: result.items,

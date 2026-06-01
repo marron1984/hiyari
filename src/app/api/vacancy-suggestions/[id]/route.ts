@@ -10,20 +10,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   getSuggestionById,
   applySuggestion,
   dismissSuggestion,
 } from '@/lib/vacancySuggestions/repo';
 import { canManageSuggestions, canViewSuggestions } from '@/lib/vacancySuggestions/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -31,9 +24,14 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     if (!canViewSuggestions(viewer)) {
       return NextResponse.json(
         { error: '提案を閲覧する権限がありません' },
@@ -61,9 +59,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     if (!canManageSuggestions(viewer)) {
       return NextResponse.json(
         { error: '提案を操作する権限がありません' },
@@ -83,9 +86,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     let result;
     if (action === 'apply') {
-      result = await applySuggestion(id, DEMO_USER.id, DEMO_USER.name);
+      result = await applySuggestion(id, currentUser.id, currentUser.name);
     } else {
-      result = dismissSuggestion(id, DEMO_USER.id, reason);
+      result = dismissSuggestion(id, currentUser.id, reason);
     }
 
     if (!result.success) {

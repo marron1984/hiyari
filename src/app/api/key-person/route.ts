@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { listBySubject, createContact } from '@/lib/keyPerson/repo';
 import { canManageKeyPerson, canViewKeyPerson } from '@/lib/keyPerson/types';
 import type {
@@ -15,15 +16,20 @@ import type {
 } from '@/lib/keyPerson/types';
 
 // デモユーザー
-const DEMO_VIEWER: ViewerContext = {
+const currentUser: ViewerContext = {
   userId: 'user_manager',
   role: 'manager',
 };
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック
-    if (!canViewKeyPerson(DEMO_VIEWER.role)) {
+    if (!canViewKeyPerson(currentUser.role)) {
       return NextResponse.json(
         { error: '閲覧権限がありません' },
         { status: 403 }
@@ -41,7 +47,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const contacts = listBySubject(subjectType, subjectId, DEMO_VIEWER);
+    const contacts = listBySubject(subjectType, subjectId, currentUser);
 
     return NextResponse.json({ contacts });
   } catch (error) {
@@ -55,8 +61,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック
-    if (!canManageKeyPerson(DEMO_VIEWER.role)) {
+    if (!canManageKeyPerson(currentUser.role)) {
       return NextResponse.json(
         { error: '作成権限がありません' },
         { status: 403 }
@@ -88,7 +99,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const contact = createContact(createRequest, DEMO_VIEWER.userId);
+    const contact = createContact(createRequest, currentUser.id);
 
     return NextResponse.json({ contact }, { status: 201 });
   } catch (error) {

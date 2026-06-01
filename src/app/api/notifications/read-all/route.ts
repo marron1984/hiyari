@@ -6,20 +6,18 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { markAllReadByRole } from '@/lib/notifications/repo';
-import type { AppRole } from '@/config/appRoles';
 
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_manager',
-  name: '田中管理者',
-  role: 'manager' as AppRole,
-};
-
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // ロール別の全通知を既読にする
-    const { count } = markAllReadByRole(DEMO_USER.role);
+    const { count } = markAllReadByRole(currentUser.role);
 
     return NextResponse.json({
       success: true,

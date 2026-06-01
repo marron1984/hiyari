@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   listRequirements,
   createRequirement,
@@ -16,19 +17,18 @@ import {
 import type { CreateOnboardingRequirementRequest } from '@/lib/onboarding/types';
 import { canManageOnboardingRequirements } from '@/lib/onboarding/types';
 
-// デモユーザー情報（実際の実装ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_001',
-  role: 'admin' as const,
-};
-
 /**
  * GET - 要件一覧を取得
  */
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // RBAC チェック
-    if (!canManageOnboardingRequirements(DEMO_USER.role)) {
+    if (!canManageOnboardingRequirements(currentUser.role)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }
@@ -68,8 +68,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // RBAC チェック
-    if (!canManageOnboardingRequirements(DEMO_USER.role)) {
+    if (!canManageOnboardingRequirements(currentUser.role)) {
       return NextResponse.json(
         { error: '権限がありません' },
         { status: 403 }
@@ -94,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     const requirement = createRequirement({
       ...body,
-      actorUserId: DEMO_USER.id,
+      actorUserId: currentUser.id,
     });
 
     return NextResponse.json({

@@ -15,16 +15,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { markAsApplied } from '@/lib/tickets/repo';
 import type { ViewerContext, ApplicationChannel } from '@/lib/tickets/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 // 有効な申込チャネル
 const VALID_CHANNELS: ApplicationChannel[] = ['in_person', 'online', 'other'];
@@ -35,6 +28,11 @@ interface RouteParams {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { ticketId } = await params;
 
     const body = await request.json();
@@ -62,8 +60,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const viewer: ViewerContext = {
-      userId: DEMO_USER.id,
-      role: DEMO_USER.role,
+      userId: currentUser.id,
+      role: currentUser.role,
     };
 
     const result = markAsApplied(

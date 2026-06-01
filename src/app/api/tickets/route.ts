@@ -9,22 +9,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { listTickets, createTicket } from '@/lib/tickets/repo';
 import { listByFilter as listTicketsFirestore } from '@/lib/tickets/repo.firestore';
-import type { AppRole } from '@/config/appRoles';
 import type { TicketStatus, TicketPriority, TicketCategory, TicketRelatedType } from '@/lib/tickets/types';
 import { validateApiGuardrail } from '@/lib/scope/guardrail';
 import { processStaffCreation, requiresInference } from '@/lib/scope/inferBusinessUnit';
 
-// デモユーザー情報（本番ではセッションから取得）
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
-
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
 
     const status = searchParams.get('status') as TicketStatus | null;
@@ -59,7 +57,7 @@ export async function GET(request: NextRequest) {
       offset: offsetParam ? parseInt(offsetParam, 10) : 0,
     };
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: currentUser.id, role: currentUser.role };
 
     // In-memory結果
     const { items: memoryItems, total: memoryTotal } = listTickets(filter, viewer);
@@ -97,6 +95,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const body = await request.json();
 
     const {
@@ -120,7 +123,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Task 033: ガードレール検証（manager/leader は businessUnitId 必須）
-    const guardrailResult = validateApiGuardrail(DEMO_USER.role, 'tickets', { businessUnitId });
+    const guardrailResult = validateApiGuardrail(currentUser.role, 'tickets', { businessUnitId });
     if (!guardrailResult.valid) {
       return NextResponse.json(
         { error: guardrailResult.error },
@@ -130,10 +133,10 @@ export async function POST(request: NextRequest) {
 
     // Task 035: staff 向け businessUnitId 自動推定
     let finalBusinessUnitId = businessUnitId;
-    if (requiresInference(DEMO_USER.role)) {
+    if (requiresInference(currentUser.role)) {
       const inferResult = processStaffCreation(
-        DEMO_USER.id,
-        DEMO_USER.role,
+        currentUser.id,
+        currentUser.role,
         'tickets',
         businessUnitId,
         { category }  // ヒント
@@ -166,7 +169,7 @@ export async function POST(request: NextRequest) {
         relatedId,
         location,
       },
-      DEMO_USER.id
+      currentUser.id
     );
 
     return NextResponse.json({ ticket }, { status: 201 });

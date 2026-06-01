@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   getByIdAsync,
   updateAsync,
@@ -21,14 +22,6 @@ import {
   canEditVacancyUnits,
   canManageVacancyUnits,
 } from '@/lib/vacancyUnits/types';
-import type { AppRole } from '@/config/appRoles';
-
-// デモユーザー情報
-const DEMO_USER = {
-  id: 'user_003',
-  name: '鈴木花子',
-  role: 'manager' as AppRole,
-};
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -36,9 +29,14 @@ interface RouteParams {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     if (!canViewVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '権限がありません' },
@@ -66,9 +64,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     if (!canEditVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '空室ユニットを編集する権限がありません' },
@@ -118,8 +121,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         priceRangeJson,
         status,
       },
-      DEMO_USER.id,
-      DEMO_USER.name
+      currentUser.id,
+      currentUser.name
     );
 
     if (!unit) {
@@ -141,9 +144,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
 
-    const viewer = { userId: DEMO_USER.id, role: DEMO_USER.role };
+    const viewer = { userId: currentUser.id, role: currentUser.role };
     if (!canManageVacancyUnits(viewer)) {
       return NextResponse.json(
         { error: '空室ユニットを削除する権限がありません' },

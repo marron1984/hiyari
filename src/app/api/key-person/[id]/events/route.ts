@@ -5,12 +5,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getAuditTrail } from '@/lib/keyPerson/repo';
 import { canViewAuditLog } from '@/lib/keyPerson/types';
 import type { ViewerContext } from '@/lib/keyPerson/types';
 
 // デモユーザー
-const DEMO_VIEWER: ViewerContext = {
+const currentUser: ViewerContext = {
   userId: 'user_manager',
   role: 'manager',
 };
@@ -20,8 +21,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック
-    if (!canViewAuditLog(DEMO_VIEWER.role)) {
+    if (!canViewAuditLog(currentUser.role)) {
       return NextResponse.json(
         { error: '監査ログ閲覧権限がありません' },
         { status: 403 }

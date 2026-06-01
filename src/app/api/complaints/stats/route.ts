@@ -4,25 +4,26 @@
  * GET /api/complaints/stats
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { getStats } from '@/lib/complaints/repo';
 import { canViewComplaintStats } from '@/lib/complaints/types';
 
-const DEMO_USER = {
-  userId: 'user_manager',
-  role: 'manager' as const,
-};
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    if (!canViewComplaintStats(DEMO_USER)) {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
+    if (!canViewComplaintStats(currentUser)) {
       return NextResponse.json(
         { success: false, error: '権限がありません' },
         { status: 403 }
       );
     }
 
-    const stats = getStats(DEMO_USER);
+    const stats = getStats(currentUser);
 
     return NextResponse.json({
       success: true,

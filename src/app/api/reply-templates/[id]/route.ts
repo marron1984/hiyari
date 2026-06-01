@@ -9,17 +9,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import {
   getReplyTemplateById,
   updateReplyTemplate,
   deleteReplyTemplate,
 } from '@/lib/replyTemplates/repo';
-
-// デモユーザー（本番では認証から取得）
-const DEMO_USER: { userId: string; role: 'admin' | 'manager' | 'staff' } = {
-  userId: 'user_manager',
-  role: 'manager',
-};
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -30,6 +25,11 @@ export async function GET(
   { params }: RouteParams
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { id } = await params;
     const template = getReplyTemplateById(id);
 
@@ -55,8 +55,13 @@ export async function PUT(
   { params }: RouteParams
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック
-    if (!['admin', 'manager'].includes(DEMO_USER.role)) {
+    if (!['admin', 'manager'].includes(currentUser.role)) {
       return NextResponse.json(
         { error: '更新権限がありません' },
         { status: 403 }
@@ -66,7 +71,7 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const updated = updateReplyTemplate(id, body, DEMO_USER.userId);
+    const updated = updateReplyTemplate(id, body, currentUser.id);
 
     if (!updated) {
       return NextResponse.json(
@@ -90,8 +95,13 @@ export async function DELETE(
   { params }: RouteParams
 ) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     // 権限チェック（削除は admin のみ）
-    if (DEMO_USER.role !== 'admin') {
+    if (currentUser.role !== 'admin') {
       return NextResponse.json(
         { error: '削除権限がありません' },
         { status: 403 }

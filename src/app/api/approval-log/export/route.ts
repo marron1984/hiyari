@@ -7,17 +7,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/firebase-admin';
 import { exportApprovalLogsForCsv, type ApprovalLogFilter } from '@/lib/approvals/logRepo';
-import type { AppRole } from '@/config/appRoles';
 import type { RequestType, RequestStatus, ActionType } from '@/lib/approvals/types';
-
-// デモユーザー情報（本番ではセッションから取得）
-// エクスポートテスト用にadminに変更可
-const DEMO_USER = {
-  id: 'user_001',
-  name: '管理者',
-  role: 'admin' as AppRole,
-};
 
 function escapeCSV(value: string | null | undefined): string {
   if (value === null || value === undefined) {
@@ -32,6 +24,11 @@ function escapeCSV(value: string | null | undefined): string {
 
 export async function GET(request: NextRequest) {
   try {
+    const currentUser = await authenticateRequest(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
 
     // クエリパラメータからフィルタを構築
@@ -73,7 +70,7 @@ export async function GET(request: NextRequest) {
     }
 
     // エクスポート実行（RBAC適用）
-    const result = exportApprovalLogsForCsv(filter, DEMO_USER.role, DEMO_USER.id);
+    const result = exportApprovalLogsForCsv(filter, currentUser.role, currentUser.id);
 
     if (!result.allowed) {
       return NextResponse.json(
