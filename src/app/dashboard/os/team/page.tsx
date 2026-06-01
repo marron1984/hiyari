@@ -23,15 +23,6 @@ import {
   Clock,
 } from 'lucide-react';
 
-// ダミーデータ（赤黄のみ表示用）
-const DUMMY_TEAM_DATA = [
-  { userId: '1', userName: '山田 太郎', score: 72, level: 'red' as const, lastCheckin: '2026-01-22', trend: 'up' as const },
-  { userId: '2', userName: '佐藤 花子', score: 58, level: 'yellow' as const, lastCheckin: '2026-01-23', trend: 'stable' as const },
-  { userId: '3', userName: '鈴木 一郎', score: 45, level: 'yellow' as const, lastCheckin: '2026-01-23', trend: 'down' as const },
-  { userId: '4', userName: '田中 美咲', score: 32, level: 'green' as const, lastCheckin: '2026-01-23', trend: 'stable' as const },
-  { userId: '5', userName: '高橋 健太', score: 28, level: 'green' as const, lastCheckin: '2026-01-21', trend: 'stable' as const },
-];
-
 export default function OSTeamPage() {
   return (
     <AuthGuard>
@@ -75,23 +66,17 @@ function OSTeamContent() {
           getInterventions('open', 20),
         ]);
 
-        // 実データがあればそれを使う、なければダミーデータ
-        if (chaosData.organization.burnoutRiskHeatmap.length > 0) {
-          setTeamData(chaosData.organization.burnoutRiskHeatmap.map(item => ({
-            ...item,
-            level: item.level as 'red' | 'yellow' | 'green',
-            lastCheckin: new Date().toISOString().split('T')[0],
-            trend: 'stable' as const,
-          })));
-        } else {
-          // ダミーデータを権限に応じて表示
-          setTeamData(DUMMY_TEAM_DATA);
-        }
+        setTeamData(chaosData.organization.burnoutRiskHeatmap.map(item => ({
+          ...item,
+          level: item.level as 'red' | 'yellow' | 'green',
+          lastCheckin: new Date().toISOString().split('T')[0],
+          trend: 'stable' as const,
+        })));
 
         setInterventions(interventionsData);
       } catch (error) {
         console.error('Failed to fetch team data:', error);
-        setTeamData(DUMMY_TEAM_DATA);
+        setTeamData([]);
       } finally {
         setLoading(false);
       }

@@ -73,8 +73,12 @@ export default function OSDashboardPage() {
   const teleapoDeals = salesDeals.filter((d) => d.source === 'テレアポ');
   const shiryouDeals = salesDeals.filter((d) => d.source === '資料送付');
 
-  // 入居確率ランク分布（ダミーデータ）
-  const rankDistribution = { A: 2, B: 5, C: 8, D: activeDeals.length > 15 ? activeDeals.length - 15 : 0 };
+  const rankDistribution = {
+    A: activeDeals.filter(d => ['入居契約', '入居確認'].includes(d.status)).length,
+    B: activeDeals.filter(d => ['入居相談'].includes(d.status)).length,
+    C: activeDeals.filter(d => ['面談', '担当者決定'].includes(d.status)).length,
+    D: activeDeals.filter(d => ['テレアポ', '資料送付'].includes(d.status)).length,
+  };
 
   return (
     <main className="pb-8">
