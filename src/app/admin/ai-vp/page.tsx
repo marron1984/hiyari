@@ -64,7 +64,7 @@ const MENU_CATEGORIES: MenuCategory[] = [
         href: '/dashboard/os-map',
         icon: Map,
         title: 'OSマップ',
-        description: 'AA-HUB全機能の可視化（運用中・開発中・未着手）',
+        description: 'DHPハブ全機能の可視化（運用中・開発中・未着手）',
         bgColor: 'bg-indigo-100',
         iconColor: 'text-indigo-600',
         highlight: true,

@@ -368,7 +368,7 @@ export function createShiftPublishedNotification(
 }
 
 // ===================
-// 申請通知ヘルパー（AA-HUB）
+// 申請通知ヘルパー（DHPハブ）
 // ===================
 
 // 申請種別ラベル

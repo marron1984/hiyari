@@ -1,4 +1,4 @@
-// AA CHAOS 経営OS・営業OS Firestore関数
+// DHP 経営OS・営業OS Firestore関数
 
 import {
   collection,

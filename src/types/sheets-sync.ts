@@ -40,7 +40,7 @@ export interface SheetConfig {
  */
 export interface ColumnMapping {
   // 必須列
-  hubId: number;          // AA-HUB ID列
+  hubId: number;          // DHPハブ ID列
   updatedAt: number;      // 更新日時列
   syncStatus: number;     // 同期ステータス列
 

@@ -86,7 +86,7 @@ export default function ChaosDashboardPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900 flex items-center">
                 <Activity className="w-6 h-6 mr-2 text-indigo-600" />
-                AA CHAOS ダッシュボード
+                DHP ダッシュボード
               </h1>
               <p className="text-sm text-gray-500 mt-1">
                 経営OS・営業OS 統合管理

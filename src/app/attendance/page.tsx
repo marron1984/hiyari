@@ -59,7 +59,7 @@ interface Toast {
 }
 
 // localStorage key
-const LAST_BRANCH_KEY = 'aa-hub-last-branch';
+const LAST_BRANCH_KEY = 'dhp-hub-last-branch';
 
 export default function AttendancePage() {
   const { user } = useAuth();

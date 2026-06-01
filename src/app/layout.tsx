@@ -3,7 +3,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "AA-HUB",
+  title: "DHPハブ",
   description: "申請・承認・勤怠・報告を一元管理する統合プラットフォーム",
 };
 

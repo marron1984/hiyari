@@ -9,9 +9,9 @@ export type EmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
 // ======== 雇用形態 ========
 export type EmploymentType = '役員' | '正社員' | '契約社員' | 'パート' | '派遣' | 'インターン';
 
-// ======== 従業員データ（AA-HUBマスタ） ========
+// ======== 従業員データ（DHPハブマスタ） ========
 export interface Employee {
-  id: string;                     // AA-HUB内部ID
+  id: string;                     // DHPハブ内部ID
   tenantId: string;
   employeeCode: string;           // 従業員コード（freeeのemployee_codeと対応）
 

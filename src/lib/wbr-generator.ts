@@ -1,7 +1,7 @@
 /**
  * WBR（Weekly Business Review）自動生成
  *
- * AA-HUB内のデータを用いて毎週の経営レビューを自動生成
+ * DHPハブ内のデータを用いて毎週の経営レビューを自動生成
  * 事実→示唆→行動を一気通貫で提示
  */
 
@@ -652,7 +652,7 @@ export function exportWBRToText(report: WBRReport): string {
   const lines: string[] = [];
 
   lines.push('══════════════════════════════════════════════════════════════');
-  lines.push('                AA-HUB Weekly Business Review');
+  lines.push('                DHPハブ Weekly Business Review');
   lines.push(`                   ${report.weekLabel}`);
   lines.push('══════════════════════════════════════════════════════════════');
   lines.push('');
@@ -1280,7 +1280,7 @@ export function exportWBRToHTML(report: WBRReport): string {
   </div>
 
   <div class="footer">
-    Generated: ${report.generatedAt.toLocaleString('ja-JP')} | AA-HUB Weekly Business Review
+    Generated: ${report.generatedAt.toLocaleString('ja-JP')} | DHPハブ Weekly Business Review
   </div>
 </body>
 </html>

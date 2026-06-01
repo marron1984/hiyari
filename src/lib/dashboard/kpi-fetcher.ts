@@ -1,4 +1,4 @@
-// ======== AA-HUB ダッシュボード KPIデータ取得 ========
+// ======== DHPハブ ダッシュボード KPIデータ取得 ========
 
 import { DEFAULT_TENANT_ID } from '@/lib/firebase';
 import { getCheckinHistory, getChaosDashboardMetrics, getInterventions } from '@/lib/chaos';

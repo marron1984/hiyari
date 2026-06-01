@@ -92,12 +92,12 @@ export function Header() {
             <Link href="/dashboard" className="flex items-center gap-2">
               <Image
                 src="/logo-icon.svg"
-                alt="AA-HUB"
+                alt="DHPハブ"
                 width={32}
                 height={32}
                 className="h-8 w-8"
               />
-              <span className="text-base font-bold text-zinc-900">AA-HUB</span>
+              <span className="text-base font-bold text-zinc-900">DHPハブ</span>
             </Link>
           </div>
 

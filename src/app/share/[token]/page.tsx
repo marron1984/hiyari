@@ -575,7 +575,7 @@ export default function ExternalSharePage() {
               </div>
               <div>
                 <h1 className="text-lg font-bold text-zinc-800">
-                  AA-HUB {templateStyle.title}
+                  DHPハブ {templateStyle.title}
                 </h1>
                 <p className="text-sm text-zinc-500">{shareName}</p>
               </div>
@@ -608,7 +608,7 @@ export default function ExternalSharePage() {
 
         {/* フッター */}
         <footer className="text-center text-sm text-zinc-500 py-8 border-t border-zinc-200">
-          <p>このレポートは AA-HUB により自動生成されました</p>
+          <p>このレポートは DHPハブ により自動生成されました</p>
           <p className="mt-1">
             スナップショット取得日時:{' '}
             {new Date(snapshot.generatedAt).toLocaleString('ja-JP')}

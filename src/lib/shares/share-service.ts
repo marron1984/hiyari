@@ -213,7 +213,7 @@ export function issueShare(
   share.issuedByUserId = approverUserId;
   share.issuedByUserName = approverUserName;
 
-  const baseUrl = process.env.APP_BASE_URL || 'https://aa-hub.example.com';
+  const baseUrl = process.env.APP_BASE_URL || 'https://dhp-hub.example.com';
   const shareUrl = `${baseUrl}/share/${token}`;
 
   return {
@@ -280,7 +280,7 @@ export function createSharePackage(
   shareStore.set(shareId, sharePackage);
 
   // トークンはハッシュ化してDBに保存、平文は一度だけ返す
-  const baseUrl = process.env.APP_BASE_URL || 'https://aa-hub.example.com';
+  const baseUrl = process.env.APP_BASE_URL || 'https://dhp-hub.example.com';
   const shareUrl = `${baseUrl}/share/${token}`;
 
   return {

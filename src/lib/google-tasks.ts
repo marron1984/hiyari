@@ -77,8 +77,8 @@ export async function createApprovalTask(
       `申請者: ${applicantName}`,
       `金額: ¥${amount.toLocaleString()}`,
       ``,
-      `AA-HUBで詳細を確認:`,
-      `${process.env.NEXT_PUBLIC_APP_URL || 'https://aahub.aska-g.com'}/requests/${requestId}`,
+      `DHPハブで詳細を確認:`,
+      `${process.env.NEXT_PUBLIC_APP_URL || 'https://dhp.aska-g.com'}/requests/${requestId}`,
     ].join('\n');
 
     const taskData: {

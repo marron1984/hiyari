@@ -201,7 +201,7 @@ export async function appendSheetRows(
  * 必須列の定義
  */
 const REQUIRED_COLUMNS = {
-  hub_id: ['hub_id', 'hubid', 'aa-hub id', 'aa_hub_id'],
+  hub_id: ['hub_id', 'hubid', 'dhp-hub id', 'dhp_hub_id'],
   updated_at: ['updated_at', 'updatedat', '更新日時', '最終更新'],
   sync_status: ['sync_status', 'syncstatus', '同期状態', '同期ステータス'],
 };

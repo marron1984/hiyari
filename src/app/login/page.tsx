@@ -75,7 +75,7 @@ export default function LoginPage() {
           </div>
         </div>
         <h1 className="text-center text-2xl font-bold text-gray-900">
-          AA-HUB
+          DHPハブ
         </h1>
         <p className="mt-2 text-center text-sm text-gray-600">
           申請・承認・勤怠・報告を一元管理

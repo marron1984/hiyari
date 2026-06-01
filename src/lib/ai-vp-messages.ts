@@ -657,7 +657,7 @@ export const INITIAL_TEMPLATES: Omit<AiTemplate, 'id' | 'createdAt'>[] = [
     title: '書類提出方法',
     category: 'ops',
     riskLevel: 'L1',
-    templateText: '書類の提出方法をご案内します。\n\n1. AA-HUBにログイン\n2. 「書類提出」メニューを選択\n3. 必要書類をアップロード\n\n不明点は管理者にお問い合わせください。',
+    templateText: '書類の提出方法をご案内します。\n\n1. DHPハブにログイン\n2. 「書類提出」メニューを選択\n3. 必要書類をアップロード\n\n不明点は管理者にお問い合わせください。',
     keywords: ['書類', '提出', 'アップロード', 'どこに'],
   },
   {
@@ -673,7 +673,7 @@ export const INITIAL_TEMPLATES: Omit<AiTemplate, 'id' | 'createdAt'>[] = [
     title: 'シフト確認方法',
     category: 'ops',
     riskLevel: 'L1',
-    templateText: 'シフトの確認方法をご案内します。\n\n1. AA-HUBの「勤怠」メニュー\n2. カレンダー表示でシフト確認\n3. 希望変更は管理者へ連絡\n\n急な変更は直接ご連絡ください。',
+    templateText: 'シフトの確認方法をご案内します。\n\n1. DHPハブの「勤怠」メニュー\n2. カレンダー表示でシフト確認\n3. 希望変更は管理者へ連絡\n\n急な変更は直接ご連絡ください。',
     keywords: ['シフト', '確認', '予定', 'スケジュール'],
   },
   {
@@ -747,7 +747,7 @@ export const INITIAL_TEMPLATES: Omit<AiTemplate, 'id' | 'createdAt'>[] = [
     title: '残業申請の確認',
     category: 'hr',
     riskLevel: 'L2',
-    templateText: '残業申請についてご案内します。\n\n■ 事前申請が原則です\n1. AA-HUBで残業申請\n2. 理由と予定時間を入力\n3. 管理者承認後に残業\n\n■ 注意事項\n・月45時間を超える場合は要相談\n\n管理者に確認します。',
+    templateText: '残業申請についてご案内します。\n\n■ 事前申請が原則です\n1. DHPハブで残業申請\n2. 理由と予定時間を入力\n3. 管理者承認後に残業\n\n■ 注意事項\n・月45時間を超える場合は要相談\n\n管理者に確認します。',
     keywords: ['残業', '申請', '超過', '延長'],
   },
   // L3テンプレート（吉田承認必須）

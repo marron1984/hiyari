@@ -26,7 +26,7 @@ const NOTIFICATION_CONFIG: Record<NotificationType, { icon: typeof Bell; color: 
   long_hours_warning: { icon: AlertTriangle, color: 'text-amber-600', bg: 'bg-amber-50' },
   incident_submitted: { icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50' },
   incident_commented: { icon: MessageSquare, color: 'text-blue-600', bg: 'bg-blue-50' },
-  // AA-HUB 申請通知
+  // DHPハブ 申請通知
   approval_pending: { icon: ClipboardCheck, color: 'text-amber-600', bg: 'bg-amber-50' },
   application_approved: { icon: Check, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   application_rejected: { icon: X, color: 'text-red-600', bg: 'bg-red-50' },

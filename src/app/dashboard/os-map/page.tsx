@@ -91,7 +91,7 @@ export default function OSMapPage() {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-zinc-900">OSマップ</h1>
-                <p className="text-sm text-zinc-500">AA-HUB 全機能一覧（{totalFeatures}機能）</p>
+                <p className="text-sm text-zinc-500">DHPハブ 全機能一覧（{totalFeatures}機能）</p>
               </div>
             </div>
           </div>
@@ -105,7 +105,7 @@ export default function OSMapPage() {
                   <p className="font-medium mb-1">全体像を一望する</p>
                   <p className="text-indigo-700">
                     「完成したら表示」ではなく「存在したら表示」。
-                    運用中・開発中・未着手を含め、AA-HUBの全機能がここに集約されています。
+                    運用中・開発中・未着手を含め、DHPハブの全機能がここに集約されています。
                   </p>
                 </div>
               </div>

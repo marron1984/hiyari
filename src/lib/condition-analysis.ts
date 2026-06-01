@@ -328,7 +328,7 @@ ${conditionScore.userName}さんのコンディションスコアが低下して
 ・リアクション減少率: ${(conditionScore.metrics.reactionDeclineRatio * 100).toFixed(0)}%
 
 ※ 必要に応じて面談やタスク調整をご検討ください。
-AA-HUBで詳細を確認: ${process.env.NEXT_PUBLIC_APP_URL || 'https://aahub.aska-g.com'}/admin/ai-vp/condition`;
+DHPハブで詳細を確認: ${process.env.NEXT_PUBLIC_APP_URL || 'https://dhp.aska-g.com'}/admin/ai-vp/condition`;
 
   const success = await sendLineWorksDirectMessage(yoshidaLineWorksId, message);
 

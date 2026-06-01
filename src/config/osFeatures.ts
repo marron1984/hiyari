@@ -1,5 +1,5 @@
 /**
- * AA-HUB OS Feature Map 定義
+ * DHPハブ OS Feature Map 定義
  *
  * 設計思想：
  * 「完成したら表示」ではなく「存在したら表示」

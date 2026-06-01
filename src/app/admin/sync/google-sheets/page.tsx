@@ -576,9 +576,9 @@ function GoogleSheetsSyncContent() {
                       </Button>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      {syncDirection === 'BIDIRECTIONAL' && '双方向: 新しい方を優先して同期します（競合時はAA-HUB優先）'}
-                      {syncDirection === 'IMPORT' && 'インポート: シートのデータをAA-HUBに取り込みます'}
-                      {syncDirection === 'EXPORT' && 'エクスポート: AA-HUBのデータをシートに書き出します'}
+                      {syncDirection === 'BIDIRECTIONAL' && '双方向: 新しい方を優先して同期します（競合時はDHPハブ優先）'}
+                      {syncDirection === 'IMPORT' && 'インポート: シートのデータをDHPハブに取り込みます'}
+                      {syncDirection === 'EXPORT' && 'エクスポート: DHPハブのデータをシートに書き出します'}
                     </p>
                   </div>
 
@@ -818,7 +818,7 @@ function GoogleSheetsSyncContent() {
               <div className="text-sm space-y-2">
                 <p>双方向同期を行うには、シートに以下の列が必要です:</p>
                 <ul className="list-disc list-inside space-y-1 text-gray-600">
-                  <li><strong>hub_id</strong>: AA-HUBのドキュメントID（自動で書き込まれます）</li>
+                  <li><strong>hub_id</strong>: DHPハブのドキュメントID（自動で書き込まれます）</li>
                   <li><strong>updated_at</strong>: 最終更新日時（競合判定に使用）</li>
                   <li><strong>sync_status</strong>: 同期状態（SYNCED, SYNCING, PENDING, ERROR）</li>
                 </ul>

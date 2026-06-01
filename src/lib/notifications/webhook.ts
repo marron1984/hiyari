@@ -11,7 +11,7 @@ import { getSeverityLabel, getAnomalyTypeLabel } from '@/lib/kpi/anomaly-detecto
 // 環境変数
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 const LINEWORKS_WEBHOOK_URL = process.env.LINEWORKS_WEBHOOK_URL;
-const APP_BASE_URL = process.env.APP_BASE_URL || 'https://aa-hub.example.com';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://dhp-hub.example.com';
 
 // 通知結果
 export type NotificationResult = {

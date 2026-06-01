@@ -1,4 +1,4 @@
-// ======== AA-HUB ダッシュボード KPI 型定義 ========
+// ======== DHPハブ ダッシュボード KPI 型定義 ========
 
 import type { LucideIcon } from 'lucide-react';
 
