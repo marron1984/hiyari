@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Home, FileText, BarChart3, Trophy, Settings, LogOut, Clock, Users, ClipboardList, Lightbulb, Star, Shield, ChevronDown, Building2, Megaphone, UserPlus, Brain, Briefcase, Activity, Bot, Sparkles, FolderOpen } from 'lucide-react';
@@ -89,15 +88,8 @@ export function Header() {
         <div className="flex justify-between h-14">
           {/* Logo */}
           <div className="flex items-center">
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <Image
-                src="/logo-icon.svg"
-                alt="DHPハブ"
-                width={32}
-                height={32}
-                className="h-8 w-8"
-              />
-              <span className="text-base font-bold text-zinc-900">DHPハブ</span>
+            <Link href="/dashboard" className="flex items-center">
+              <span className="text-lg font-bold text-zinc-900 tracking-tight">DHPハブ</span>
             </Link>
           </div>
 
